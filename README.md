@@ -1,5 +1,22 @@
 # ISS-preprocess
-Utilities for image import, registration, spot localisation and base-calling for ISS data sets
+Utilities for image import, registration, spot localisation and base-calling for ISS data sets.
+
+## Installation
+First, clone the repository:
+```
+git clone git@github.com:znamlab/iss-preprocess.git
+```
+
+Next, navigate to the repo directory and create a conda environment and install dependencies by running:
+```
+conda env create --file environment.yml
+```
+
+Finally, activate the new environment and install the package itself:
+```
+conda activate iss-preprocess
+pip install -e .
+```
 
 ## Organisation of this repository
 
@@ -14,7 +31,7 @@ The broad strokes of the pipeline are:
 5. Base-calling for each spot
 6. Construction of a cell-barcode matrix
 
-### Directories
+### Subpackages
 
 1. `test` directory - contains test data (will be in .gitignore)
 2. `io` directory - houses code for converting images from sequencing rig into a standardised .tiff stack for analysis
