@@ -5,11 +5,12 @@ import glob
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import czifile
+import skimage.io as io
 
 # define a function for assembling images into a X-Y-colour-round stack
-def assembleStack(infiles_):
+def assemble_stack(infiles_):
     if all(f.endswith(".czi") for f in infiles_):
-        import czifile
         for i in range(len(infiles_)):
             if i == 0:
                 # load first stack in queue
@@ -24,7 +25,6 @@ def assembleStack(infiles_):
                 stack[:, :, :, i] = np.moveaxis(czifile.imread(infiles_[i])[0, 0, :, 0, 0, :, :, 0], 0, -1)
         # test that values are not the same between each round, channel for correct import
     elif all(f.endswith(".tiff") for f in infiles_):
-        import skimage.io as io
         tmp = io.ImageCollection(infiles_)
         # need to convert test files to .tiff to test out skimage ImageCollection for import
     else:
@@ -41,6 +41,6 @@ args = parser.parse_args()
 if args.dir is not None:
     infiles = glob.glob(args.dir + "/*")
     # does not yet account for sequencing order, but will work for the moment
-    seqStack = assembleStack(infiles)
+    seqStack = assemble_stack(infiles)
 else:
     sys.exit(2)
