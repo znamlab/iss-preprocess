@@ -11,6 +11,20 @@ def phase_corr(im1, im2):
     return np.unravel_indx(np.amax(cc), im1.shape)
 
 def register_tiles(tiles, ch_to_align=0, reg_pix=64):
+    """
+    Stitch tiles together using phase correlation registration.
+
+    Current mean projection is used as a registration template for each z-stack.
+
+    Args:
+        tiles (DataFrame): pandas DataFrame containing individual tile data
+        ch_to_align (int): index of channel to use for registration
+        reg_pix (int): number of pixels along tile boundary to use for
+            registration. This should be similar to tile size * overlap ratio.
+
+    Returns:
+        numpy.ndarray: X x Y x C x Z array of stitched tiles.
+    """
     xs = tiles.X.unique()
     ys = tiles.Y.unique()
     nx = len(xs)
