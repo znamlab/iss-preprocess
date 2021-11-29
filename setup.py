@@ -14,6 +14,8 @@ setup(
         'matplotlib',
         'scikit-image',
         'czifile',
+        'scikit-learn',
+        'pystackreg',
         'flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git'
     ],
     entry_points='''
