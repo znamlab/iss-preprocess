@@ -4,7 +4,6 @@ import sys, argparse
 import glob
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 import czifile
 from skimage.io import ImageCollection
 import pandas as pd
@@ -43,6 +42,8 @@ def write_stack(stack, fname):
 
     """
     stack = stack.reshape((stack.shape[0], stack.shape[1], -1))
+    stack[stack<0] = 0
+
     with TiffWriter(fname) as tif:
         for frame in range(stack.shape[2]):
             tif.write(

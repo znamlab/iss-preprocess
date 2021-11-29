@@ -7,4 +7,6 @@ dependencies:
   - numpy
   - matplotlib
   - scikit-image
+  - scikit-learn
+  - pystackreg
   - czifile
