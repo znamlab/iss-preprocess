@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import czifile
 from skimage.io import ImageCollection
 import pandas as pd
+from tifffile import TiffWriter
 
 def get_tiles(fname):
     """
@@ -29,6 +30,25 @@ def get_tiles(fname):
     df = pd.DataFrame.from_dict(subblock_dicts)
 
     return df
+
+
+def write_stack(stack, fname):
+    """
+    Write a stack to file as a multipage TIFF
+
+    Args:
+        stack (numpy.ndarray): X x Y x ... array (can have multiple channels /
+            zplanes, etc.)
+        fname (str): save path for the TIFF
+
+    """
+    stack = stack.reshape((stack.shape[0], stack.shape[1], -1))
+    with TiffWriter(fname) as tif:
+        for frame in range(stack.shape[2]):
+            tif.write(
+                np.uint16(stack[:,:,frame]),
+                contiguous=True
+            )
 
 
 def assemble_stack(infiles_):
