@@ -8,7 +8,7 @@ def register_rounds(stacks, ch_to_align=0):
     Args:
         stacks (list): list of X x Y x C ndarrays with individual rounds.
         ch_to_align(int): channel to use for registration.
-        
+
     """
     maxx = 0
     maxy = 0
@@ -25,7 +25,7 @@ def register_rounds(stacks, ch_to_align=0):
     stacks = np.stack(stacks, axis=0)
 
     sr = StackReg(StackReg.RIGID_BODY)
-    sr.register_stack(stacks[:,:,:,ch_to_align].squeeze(), referen='first')
+    sr.register_stack(stacks[:,:,:,ch_to_align].squeeze(), reference='first')
 
     for channel in range(nchannels):
         stacks[:,:,:,channel] = sr.transform_stack(stacks[:,:,:,channel].squeeze())
