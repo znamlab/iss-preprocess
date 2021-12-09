@@ -39,14 +39,17 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64):
                 (tiles['X'] == xs[ix]) &
                 (tiles['Y'] == ys[iy]) &
                 (tiles['C'] == ch_to_align)
-            ]['data'].mean()
+            ]['data'].to_numpy()
+            this_tile = np.stack(this_tile, axis=2).max(axis=2)
             # align tiles in rows left to right
             if ix+1<nx:
                 east_tile = tiles[
                     (tiles['X'] == xs[ix+1]) &
                     (tiles['Y'] == ys[iy]) &
                     (tiles['C'] == ch_to_align)
-                ]['data'].mean()
+                ]['data'].to_numpy()
+                east_tile = np.stack(east_tile, axis=2).max(axis=2)
+
                 tile_pos[:, ix+1, iy] = phase_cross_correlation(
                     this_tile[:, -reg_pix:],
                     east_tile[:, :reg_pix],
@@ -58,7 +61,8 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64):
                     (tiles['X'] == xs[ix]) &
                     (tiles['Y'] == ys[iy+1]) &
                     (tiles['C'] == ch_to_align)
-                ]['data'].mean()
+                ]['data'].to_numpy()
+                south_tile = np.stack(south_tile, axis=2).max(axis=2)
                 tile_pos[:, ix, iy+1] = phase_cross_correlation(
                     this_tile[-reg_pix:, :],
                     south_tile[:reg_pix, :],

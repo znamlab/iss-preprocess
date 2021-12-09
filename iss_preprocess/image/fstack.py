@@ -30,7 +30,7 @@ import numpy as np
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# Modified by P. Znamenskiy, 2021
+# Ported to Python and modifieds by P. Znamenskiy, 2021
 
 def gfocus(im, wsize):
     """
