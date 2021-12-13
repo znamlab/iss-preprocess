@@ -8,11 +8,18 @@ import czifile
 from skimage.io import ImageCollection
 import pandas as pd
 from tifffile import TiffWriter
+import xml.etree.ElementTree as ET
 
 def get_tiles(fname):
     """
     Load tiles from CZI image file and return a nice DataFrame including tile
-    coordinates.
+    coordinates and image metadata.
+
+    Args:
+        fname (str): path to CZI file
+
+    Returns:
+
 
     """
     stack = czifile.CziFile(fname, detectmosaic=False)
@@ -27,8 +34,9 @@ def get_tiles(fname):
         subblock_dicts.append(subblock_dict)
 
     df = pd.DataFrame.from_dict(subblock_dicts)
+    metadata = ET.fromstring(stack.metadata())
 
-    return df
+    return df, metadata
 
 
 def write_stack(stack, fname):
