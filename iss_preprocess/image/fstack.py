@@ -111,3 +111,18 @@ def fstack(im, wsize=9, alpha=0.2, sth=13, focus=None):
     fmn = np.sum(fm, axis=2)
 
     return np.sum(im * fm / fmn[:,:,np.newaxis], axis=2)
+
+
+def fstack_channels(im, wsize=9, alpha=0.2, sth=13, focus=None):
+    nchannels = im.shape[2]
+    im_out = np.empty(im.shape[:-1])
+    for channel in range(nchannels):
+        im_out[:,:,channel] = fstack(
+            im[:,:,channel,:].squeeze(),
+            wsize,
+            alpha,
+            sth,
+            focus
+        )
+
+    return im_out
