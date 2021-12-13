@@ -1,7 +1,7 @@
 import numpy as np
 from pystackreg import StackReg
 
-def register_rounds(stacks, ch_to_align=0):
+def register_rounds(stacks, ch_to_align=0, threshold=None):
     """
     Register sequencing rounds.
 
@@ -22,10 +22,13 @@ def register_rounds(stacks, ch_to_align=0):
         pady = maxy - stack.shape[1]
         stacks[i] = np.pad(stack, ((0, padx), (0, pady), (0,0)), 'constant')
 
+
     stacks = np.stack(stacks, axis=0)
+    if threshold:
+        stacks[stacks<threshold] = 0
 
     sr = StackReg(StackReg.RIGID_BODY)
-    sr.register_stack(stacks[:,:,:,ch_to_align].squeeze(), reference='first')
+    sr.register_stack(stacks[:,:,:,ch_to_align].squeeze(), reference='previous')
 
     for channel in range(nchannels):
         stacks[:,:,:,channel] = sr.transform_stack(stacks[:,:,:,channel].squeeze())
@@ -33,7 +36,7 @@ def register_rounds(stacks, ch_to_align=0):
     return stacks
 
 
-def register_tracks(track1, track2, chs_to_align=(0,0)):
+def register_tracks(track1, track2, chs_to_align=(0,0), threshold=None):
     """
     Register imaging tracks.
 
@@ -59,6 +62,8 @@ def register_tracks(track1, track2, chs_to_align=(0,0)):
             padded_stacks.append(np.pad(stack, ((0, padx), (0, pady), (0,0)), 'constant'))
 
         sr = StackReg(StackReg.TRANSLATION)
+        if threshold:
+            padded_stacks[padded_stacks<threshold] = 0
         sr.register(
             padded_stacks[0][:,:,chs_to_align[0]].squeeze(),
             padded_stacks[1][:,:,chs_to_align[1]].squeeze()

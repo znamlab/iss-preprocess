@@ -10,7 +10,8 @@ def phase_corr(im1, im2):
     cc = fft.ifft2(wf1 * np.conj(wf2))
     return np.unravel_indx(np.amax(cc), im1.shape)
 
-def register_tiles(tiles, ch_to_align=0, reg_pix=64):
+def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
+    method='phasecorr', offset=(456., 456.)):
     """
     Stitch tiles together using phase correlation registration.
 
@@ -49,12 +50,19 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64):
                     (tiles['C'] == ch_to_align)
                 ]['data'].to_numpy()
                 east_tile = np.stack(east_tile, axis=2).max(axis=2)
-
-                tile_pos[:, ix+1, iy] = phase_cross_correlation(
-                    this_tile[:, -reg_pix:],
-                    east_tile[:, :reg_pix],
-                    upsample_factor=5
-                )[0] + tile_pos[:, ix, iy] + [0, ypix-reg_pix]
+                if method=='phasecorr':
+                    shift = phase_cross_correlation(
+                        this_tile[:, -reg_pix:],
+                        east_tile[:, :reg_pix],
+                        upsample_factor=5,
+                        overlap_ratio=overlap_ratio
+                    )[0] + [0, ypix-reg_pix]
+                    if shift[0]>5:
+                        shift[0]=0
+                else:
+                    # limit the maximum y shift
+                    shift = [0, offset[1]]
+                tile_pos[:, ix+1, iy] = shift + tile_pos[:, ix, iy]
             # align first tile in each row to the one above
             if ix==0 and iy+1<ny:
                 south_tile = tiles[
@@ -63,12 +71,20 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64):
                     (tiles['C'] == ch_to_align)
                 ]['data'].to_numpy()
                 south_tile = np.stack(south_tile, axis=2).max(axis=2)
-                tile_pos[:, ix, iy+1] = phase_cross_correlation(
-                    this_tile[-reg_pix:, :],
-                    south_tile[:reg_pix, :],
-                    upsample_factor=5
-                )[0] + tile_pos[:, ix, iy] + [xpix-reg_pix, 0]
+                if method=='phasecorr':
+                    shift = phase_cross_correlation(
+                        this_tile[-reg_pix:, :],
+                        south_tile[:reg_pix, :],
+                        upsample_factor=5,
+                        overlap_ratio=overlap_ratio
+                    )[0] + [xpix-reg_pix, 0]
+                    if shift[1]>5:
+                        shift[1]=0
+                else:
+                    shift = [offset[0], 0]
+                tile_pos[:, ix, iy+1] = shift + tile_pos[:, ix, iy]
     # round shifts and make sure there are no negative values
+    tile_pos_float = tile_pos.copy()
     tile_pos = np.rint(tile_pos).astype(int)
     tile_pos[0,:,:] = tile_pos[0,:,:] - np.min(tile_pos[0,:,:])
     tile_pos[1,:,:] = tile_pos[1,:,:] - np.min(tile_pos[1,:,:])
