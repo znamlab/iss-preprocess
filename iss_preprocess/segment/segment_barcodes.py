@@ -5,7 +5,7 @@ from scipy.stats import pearsonr
 
 def correlation_map(frames):
     """
-    Compute the correlation maps based the provided fluorescence map.
+    Compute the correlation map based on the provided fluorescence stack.
 
     The correlation map value for each pixel is defined as its Pearson
     correlation coefficient with the sum of surrounding pixels.
@@ -106,7 +106,7 @@ def detect_rois(stack, stackmap, min_size=4, max_size=500, threshold=0.5, nsteps
         list: list of Z numpy.arrays with average fluorescence for each ROI.
         list: list of ROI sizes
         numpy.ndarray: X x Y sum of all ROI masks.
-        
+
     """
 
     rois = []
