@@ -2,16 +2,16 @@ from skimage.registration import phase_cross_correlation
 import numpy as np
 import scipy.fft
 
-def phase_corr(im1, im2):
-    f1 = fft.fft2(im1)
-    f2 = fft.fft2(im2)
-    wf1 = f1 / np.abs(f1)
-    wf2 = f2 / np.abs(f2)
-    cc = fft.ifft2(wf1 * np.conj(wf2))
-    return np.unravel_indx(np.amax(cc), im1.shape)
+# def phase_corr(im1, im2):
+#     f1 = scipy.fft.fft2(im1)
+#     f2 = scipy.fft.fft2(im2)
+#     wf1 = f1 / np.abs(f1)
+#     wf2 = f2 / np.abs(f2)
+#     cc = fft.ifft2(wf1 * np.conj(wf2))
+#     return np.unravel_indx(np.amax(cc), im1.shape)
 
 def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
-    method='phasecorr', offset=(456., 456.)):
+    method='phasecorr', offset=(456., 456.), max_orthogonal_shift=5):
     """
     Stitch tiles together using phase correlation registration.
 
@@ -22,6 +22,9 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
         ch_to_align (int): index of channel to use for registration
         reg_pix (int): number of pixels along tile boundary to use for
             registration. This should be similar to tile size * overlap ratio.
+        max_orthogonal_shift (float): largest shift allowed along the axis
+            orthogonal axis (e.g. up/down when aligning tiles left/right of
+            each other. If it is exceeded, shift is set to 0
 
     Returns:
         numpy.ndarray: X x Y x C x Z array of stitched tiles.
@@ -57,8 +60,8 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
                         upsample_factor=5,
                         overlap_ratio=overlap_ratio
                     )[0] + [0, ypix-reg_pix]
-                    if shift[0]>5:
-                        shift[0]=0
+                    if np.abs(shift[0]) > max_orthogonal_shift:
+                        shift[0] = 0
                 else:
                     # limit the maximum y shift
                     shift = [0, offset[1]]
@@ -78,8 +81,8 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
                         upsample_factor=5,
                         overlap_ratio=overlap_ratio
                     )[0] + [xpix-reg_pix, 0]
-                    if shift[1]>5:
-                        shift[1]=0
+                    if np.abs(shift[1]) > max_orthogonal_shift:
+                        shift[1] = 0
                 else:
                     shift = [offset[0], 0]
                 tile_pos[:, ix, iy+1] = shift + tile_pos[:, ix, iy]
