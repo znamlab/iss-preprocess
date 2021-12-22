@@ -1,3 +1,3 @@
-from .io import *
-from .reg import *
-from .image import *
+from . import io
+from . import image
+from . import reg

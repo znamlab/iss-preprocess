@@ -42,7 +42,7 @@ for fnames_track in fnames_tracks:
         track.append(np.max(im, axis=3))
     tracks.append(track)
 # register tracks to each other
-tracks = iss.register_tracks(tracks[0], tracks[1], chs_to_align=(0,0))
+tracks = iss.reg.register_tracks(tracks[0], tracks[1], chs_to_align=(0,0))
 
 stacks.extend(tracks)
 # match histograms using the first cycle as template
