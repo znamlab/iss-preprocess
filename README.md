@@ -36,7 +36,7 @@ The broad strokes of the pipeline are:
 1. `io` directory - houses code for converting images from sequencing rig into a standardised .tiff stack for analysis
 2. `reg` directory - houses code for registering images between rounds of sequencing
 3. `image` directory - image processing and correction routines
-4. `spot` directory - houses code for matching spots across rounds
+4. `segment` directory - houses code for detecting ROIs and rolonies
 5. `call` directory - houses code for base-calling across rounds and constructing the cell-barcode matrix output
 
 ## Examples
@@ -51,3 +51,5 @@ im, tile_pos = iss.reg.register_tiles(tiles, ch_to_align=0)
 
 iss.io.write_stack(im, '/camp/home/znamenp/home/users/znamenp/tmp/stack.tif')
 ```
+
+This code snippet
