@@ -1,2 +1,2 @@
-from .segment_barcodes import *
+from .barcodes import *
 from .roi import ROI
