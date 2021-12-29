@@ -7,7 +7,8 @@ from skimage.feature import blob_log
 def detect_spots(stack, method='trackpy', separation=4, diameter=9, threshold=100,
                  min_dist=5., max_sigma=10):
     """
-    Detect spots in a multichannel image using the selected detection method.
+    Detect spots in a multichannel image based on standard deviation across channels
+    using the selected detection method.
 
     Args:
         stack (numpy.ndarray): X x Y x C image stack
@@ -24,30 +25,27 @@ def detect_spots(stack, method='trackpy', separation=4, diameter=9, threshold=10
         pandas.DataFrame of spot location, including x, y, and size.
 
     """
-    # first detect spots in each channel
-    nchannels = stack.shape[2]
-    spots_list = []
-    for ich in range(nchannels):
-        if method == 'trackpy':
-            spots_list.append(trackpy.locate(
-                stack[:,:,ich],
-                separation=separation,
-                diameter=diameter,
-                threshold=threshold
-            ))
-        elif method == 'skimage':
-            spots_array = blob_log(
-                stack[:,:,ich],
-                max_sigma=max_sigma,
-                threshold=threshold
-            )
-            spots_list.append(pd.DataFrame(spots_array, columns=['y', 'x', 'size']))
-        else:
-            raise(ValueError(f'Unknown spot detection method "{method}"'))
-    # next combine channels and eliminate spots closer than `min_dist`
-    spots = pd.concat(spots_list)
-    clean_spots = filter_spots(spots, min_dist)
-    return clean_spots
+    im = np.std(stack, axis=2)
+    if method == 'trackpy':
+        spots = trackpy.locate(
+            im,
+            separation=separation,
+            diameter=diameter,
+            threshold=threshold
+        )
+    elif method == 'skimage':
+        spots_array = blob_log(
+            im,
+            max_sigma=max_sigma,
+            threshold=threshold,
+            min_sigma=1.,
+            num_sigma=20,
+        )
+        spots = pd.DataFrame(spots_array, columns=['y', 'x', 'size'])
+    else:
+        raise(ValueError(f'Unknown spot detection method "{method}"'))
+
+    return spots
 
 
 def filter_spots(spots, min_dist):
