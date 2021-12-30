@@ -71,5 +71,5 @@ def plot_spots(stack, spots,
     ax = plt.subplot(1,1,1)
     ax.imshow(im)
     for _, spot in spots.iterrows():
-        c = plt.Circle((spot.x, spot.y), spot.size, color='w', linewidth=.5, fill=False)
+        c = plt.Circle((spot['x'], spot['y']), spot['size'], color='w', linewidth=.5, fill=False)
         ax.add_patch(c)
