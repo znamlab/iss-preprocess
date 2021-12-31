@@ -18,8 +18,8 @@ class ROI:
         `shape`. The latter are ignored if mask is provided.
 
         Args:
-            xpix (numpy.array): x-indices of mask pixels
-            ypix (numpy.array): numpy.array of y-indices of mask pixels
+            xpix (numpy.array): row-indices of mask pixels
+            ypix (numpy.array): numpy.array of column-indices of mask pixels
             shape (tuple): shape of the image to mask
             mask (numpy.ndarray): binary mask of included pixels.
             trace (numpy.ndarray): fluorescence trace of the ROI.
