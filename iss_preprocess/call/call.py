@@ -3,6 +3,7 @@ import iss_preprocess as iss
 import numpy as np
 from sklearn.mixture import GaussianMixture
 
+BASES = np.array(['G','T','A','C'])
 
 def extract_spots(spots, stack):
     """
@@ -55,7 +56,7 @@ def basecall_rois(rois, separate_rounds=True, rounds=[]):
     if rounds:
         x = x[rounds,:,:]
     if separate_rounds:
-        bases = np.empty((x.shape[2], x.shape[0]))
+        bases = np.empty((x.shape[2], x.shape[0]), dtype=int)
         for round in range(x.shape[0]):
             data = x[round,:,:].transpose()
             bases[:, round] = predict_bases(data)
