@@ -31,7 +31,7 @@ def make_gene_templates(rois, codebook, max_errors=0, rounds=()):
     unique_genes = unique_genes[unique_genes != 'nan']
     # rounds x channels x rois matrix
     f = rois_to_array(rois, normalize=False)
-    f = np.moveaxis(f, 2, 0)[:,:-1,:]
+    f = np.moveaxis(f, 2, 0)
     f = np.reshape(f, (f.shape[0], -1))
     gene_dict = np.empty((f.shape[1], len(unique_genes)))
     for igene, gene in enumerate(unique_genes):
