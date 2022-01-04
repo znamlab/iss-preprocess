@@ -2,10 +2,43 @@ import trackpy
 import pandas as pd
 import numpy as np
 from skimage.feature import blob_log
+from scipy.signal import medfilt2d
+
+
+def detect_gene_spots(im, median_filter=False, min_size=1., max_sigma=4.):
+    """
+    Detect spots corresponding to single rolonies from OMP coefficient images.
+
+    Args:
+        im (numpy.ndarray): X x Y image of OMP coefficients for a single gene.
+        median_filter (bool): whether to apply a 3x3 median filter before spot
+            detection. Can be helpful to deal with single noise pixels.
+        min_size (float): minimum size threshold for spots. Helps avoid spurious
+            mini-spots next to real ones.
+        max_sigma (float): maximum sigma for the spot detection algorithm.
+
+    Returns:
+        pandas.DataFrame of spots containing 'x', 'y', and 'size' columns.
+
+    """
+    if median_filter:
+        im = medfilt2d(im, kernel_size=3)
+    spots_array = blob_log(
+        im,
+        max_sigma=max_sigma,
+        min_sigma=.5,
+        num_sigma=10,
+        log_scale=True,
+        overlap=0.9,
+        exclude_border=10
+    )
+    gene_spots = pd.DataFrame(spots_array, columns=['y', 'x', 'size'])
+    gene_spots = gene_spots[gene_spots['size'] >= min_size]
+    return gene_spots
 
 
 def detect_spots(stack, method='trackpy', separation=4, diameter=9, threshold=100,
-                 min_dist=5., max_sigma=10):
+                 max_sigma=10):
     """
     Detect spots in a multichannel image based on standard deviation across channels
     using the selected detection method.
@@ -17,8 +50,6 @@ def detect_spots(stack, method='trackpy', separation=4, diameter=9, threshold=10
             `trackpy` method
         diameter (int): spot diameter, only applies to `trackpy` method
         threshold (float): spot detection threshold
-        min_dist (float): minimum distance between spots to avoid duplicate spots
-            when combining across channels
         max_sigma (float): maximum spot STD, only applies to `skimage` method
 
     Returns:
