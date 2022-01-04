@@ -134,7 +134,7 @@ def omp(y, X, background_vectors=None, max_comp=None, tol=0.05):
     return coefs_out, r
 
 
-def run_omp(stack, gene_dict):
+def run_omp(stack, gene_dict, tol=0.05):
     """
     Apply the OMP algorithm to every pixel of the provided image stack.
 
@@ -142,6 +142,7 @@ def run_omp(stack, gene_dict):
         stack (numpy.ndarray): X x Y x R x C image stack.
         gene_dict (numpy.ndarray): N x M dictionary, where N = R * C and M is the
             number of genes.
+        tol (float): tolerance threshold for OMP algorithm.
 
     Returns:
         Gene coefficient matrix of shape X x Y x M
@@ -151,18 +152,23 @@ def run_omp(stack, gene_dict):
     """
     background_vectors = make_background_vectors(nrounds=stack.shape[2], nchannels=stack.shape[3])
     n_background_vectors = background_vectors.shape[1]
-
-    g = np.empty((stack.shape[0], stack.shape[1], gene_dict.shape[1]+n_background_vectors))
-    r = np.empty((stack.shape[0], stack.shape[1], stack.shape[2] * stack.shape[3]))
     stack = stack.astype(float)
-    for ix in range(stack.shape[0]):
-        if ix % 100 == 0:
-            print(f'finished row {ix} of {stack.shape[0]}')
-        for iy in range(stack.shape[1]):
-            g[ix, iy, :], r[ix, iy, :] = omp(
-                stack[ix,iy,:,:].flatten(),
-                gene_dict,
-                background_vectors=background_vectors
-            )
+
+    @numba.jit(nopython=True, parallel=True)
+    def omp_loop_(stack_, background_vectors_, gene_dict_, tol_):
+        g = np.empty((stack_.shape[0], stack_.shape[1], gene_dict_.shape[1] + background_vectors_.shape[1]))
+        r = np.empty((stack_.shape[0], stack_.shape[1], stack_.shape[2] * stack_.shape[3]))
+        for ix in numba.prange(stack_.shape[0]):
+            if ix % 100 == 0:
+                print(f'finished row {ix} of {stack_.shape[0]}')
+            for iy in numba.prange(stack_.shape[1]):
+                g[ix, iy, :], r[ix, iy, :] = omp(
+                    stack_[ix, iy, :, :].flatten(),
+                    gene_dict_,
+                    background_vectors=background_vectors_,
+                    tol=tol_
+                )
+        return g, r
+    g,r = omp_loop_(stack, background_vectors, gene_dict, tol)
 
     return g[:,:,n_background_vectors:], g[:,:,:n_background_vectors], r
