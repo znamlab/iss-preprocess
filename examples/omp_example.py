@@ -82,6 +82,16 @@ g, b, r = iss.call.run_omp(
 )
 
 #%%
+# Visualize the gene dictionary
+plt.figure(figsize=(20,40))
+for igene, gene in enumerate(unique_genes):
+    plt.subplot(10,5,igene+1)
+    plt.imshow(np.reshape(gene_dict[:,igene], (7, 4)), cmap='gray')
+    plt.title(gene)
+    plt.colorbar()
+    plt.xticks(np.arange(4), iss.call.BASES)
+
+#%%
 # Detect and plot genes
 markers = cycle('ov^<>spPXD*')
 plt.figure(figsize=(15,15))
