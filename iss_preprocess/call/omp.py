@@ -1,6 +1,7 @@
 import numba
 import numpy as np
 from . import basecall_rois, call_genes, rois_to_array
+from itertools import compress
 
 
 def make_gene_templates(rois, codebook, max_errors=0, rounds=()):
@@ -21,7 +22,12 @@ def make_gene_templates(rois, codebook, max_errors=0, rounds=()):
         List of detected gene names.
 
     """
-    sequences = basecall_rois(rois, separate_rounds=False, rounds=rounds)
+    # rounds x channels x rois matrix
+    f = rois_to_array(rois, normalize=False)
+    # only include ROIs imaged on all rounds
+    valid_rois = np.isfinite(f[0,0,:])
+    sequences = basecall_rois(list(compress(rois, valid_rois)), separate_rounds=False, rounds=rounds)
+    f = f[:, :, valid_rois]
     genes, errors = call_genes(sequences, codebook)
     errors = np.array(errors)
     genes = np.array(genes)
@@ -29,8 +35,7 @@ def make_gene_templates(rois, codebook, max_errors=0, rounds=()):
     genes[errors > max_errors] = 'nan'
     unique_genes = np.unique(genes)
     unique_genes = unique_genes[unique_genes != 'nan']
-    # rounds x channels x rois matrix
-    f = rois_to_array(rois, normalize=False)
+
     f = np.moveaxis(f, 2, 0)
     f = np.reshape(f, (f.shape[0], -1))
     gene_dict = np.empty((f.shape[1], len(unique_genes)))
@@ -100,6 +105,8 @@ def omp(y, X, background_vectors=None, max_comp=None, tol=0.05):
     r = y
     if background_vectors is not None:
         X = np.concatenate((background_vectors, X), axis=1)
+    if norm_y == 0:
+        return np.zeros(X.shape[1]), r
     ichosen = np.zeros(X.shape[1], dtype=numba.boolean)
     if background_vectors is not None:
         # initial coefficients for background vectors

@@ -32,13 +32,21 @@ def extract_spots(spots, stack):
 def rois_to_array(rois, normalize=True):
     # rounds x channels x rois matrix
     x = np.stack([roi.trace for roi in rois], axis=2)
+    invalid_rois = np.any(np.mean(x, axis=1) == 0, axis=0)
+    if np.any(invalid_rois):
+        print('''
+            WARNING: Zeros encountered for all channels in some ROIs.
+            This normally occurs when an ROI is not imaged on all rounds.
+            Corresponding values of the fluorescence matrix will be set to NaN.
+            ''')
+        x[:, :, invalid_rois] = np.nan
     # normalize by mean intensity
     if normalize:
-        x = x / np.mean(x, axis=1)[:,np.newaxis,:]
+        x[:, :, np.logical_not(invalid_rois)] /= np.mean(x[:, :, valid_rois], axis=1)[:,np.newaxis,:]
     return x
 
 
-def basecall_rois(rois, separate_rounds=True, rounds=()):
+def basecall_rois(rois, separate_rounds=True, rounds=(), nsamples=None):
     """
     Assign bases using a Gaussian Mixture Model.
 
@@ -47,13 +55,19 @@ def basecall_rois(rois, separate_rounds=True, rounds=()):
         separate_rounds (bool): whether to run basecalling separately on each
             round or on all rounds together. Default True.
         rounds: numpy.array of rounds to include.
+        nsamples (int): number of samples to include for fitting GMM. If None,
+            all data are used for fitting. Default None.
 
     Returns:
         ROIs x rounds of base IDs.
 
     """
-    def predict_bases(data_):
-        gmm = GaussianMixture(n_components=4, random_state=0).fit(data_)
+    def predict_bases(data_, nsamples_):
+        if nsamples_ and nsamples_ < data.shape[0]:
+            data_idx = np.random.choice(data_.shape[0], nsamples_, replace=False)
+            gmm = GaussianMixture(n_components=4, random_state=0).fit(data_[data_idx, :])
+        else:
+            gmm = GaussianMixture(n_components=4, random_state=0).fit(data_)
         # GMM components are arbitrarily ordered. We assign each component to a
         # based on its maximum channel.
         base_id = np.argmax(gmm.means_, axis=1)
@@ -67,10 +81,10 @@ def basecall_rois(rois, separate_rounds=True, rounds=()):
         bases = np.empty((x.shape[2], x.shape[0]), dtype=int)
         for round in range(x.shape[0]):
             data = x[round,:,:].transpose()
-            bases[:, round] = predict_bases(data)
+            bases[:, round] = predict_bases(data, nsamples)
     else:
         data = np.moveaxis(x, 0, 2).reshape((4,-1)).transpose()
-        bases = predict_bases(data)
+        bases = predict_bases(data, nsamples)
         bases = np.reshape(bases,(x.shape[2], x.shape[0]))
 
     return bases
