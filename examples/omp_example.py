@@ -66,17 +66,16 @@ spots = iss.segment.detect_spots(
 )
 rois = iss.call.extract_spots(spots, stack[:, :, ops['include_cycles'], :])
 # temporarily needed to avoid ROIs that have 0s for all channels in some rounds
-valid_rois = np.mean(iss.call.rois_to_array(rois).reshape((-1, len(rois))), axis=0) > 0
 codebook = pd.read_csv(
     '../iss_preprocess/call/codebook_YS220.csv',
     header=0,
     names=['gii', 'seq', 'gene']
 )
-gene_dict, unique_genes = iss.call.make_gene_templates(list(compress(rois, valid_rois)), codebook)
+gene_dict, unique_genes = iss.call.make_gene_templates(rois, codebook)
 # trimming stack to avoid pixels that are always zero
 # OMP functions should check for this in the future
 g, b, r = iss.call.run_omp(
-    stack[:7000, :6900, ops['include_cycles'], :],
+    stack[:, :, ops['include_cycles'], :],
     gene_dict,
     tol=ops['omp_tol']
 )
@@ -93,15 +92,35 @@ for igene, gene in enumerate(unique_genes):
 
 #%%
 # Detect and plot genes
+h = []
+# filter pixels based on mean image values
+s = np.mean(np.mean(stack, axis=3), axis=2)
+g_filt = g.copy()
+g_filt[s<250] = 0
+all_genes = []
+for gene_idx, gene in enumerate(unique_genes):
+    gene_spots = iss.segment.detect_gene_spots(g_filt[:,:,gene_idx])
+    all_genes.append(gene_spots)
+
+plt.figure(figsize=(20,40))
+h = []
+colors = cycle([ 'deepskyblue', 'aquamarine', 'orangered', 'violet', 'forestgreen', 'darkorange'])
 markers = cycle('ov^<>spPXD*')
-plt.figure(figsize=(15,15))
+
+for gene_idx, gene in enumerate(unique_genes):
+    ax = plt.subplot(10,5,gene_idx+1)
+    plt.plot(all_genes[gene_idx]['x'], all_genes[gene_idx]['y'], next(markers), c=next(colors), markersize=2)
+    plt.title(gene)
+    ax.set_aspect('equal', 'box')
+    ax.invert_yaxis()
+
+plt.figure(figsize=(30,30))
 ax = plt.subplot(1,1,1)
 h = []
 for gene_idx, gene in enumerate(unique_genes):
-    gene_spots = iss.segment.detect_gene_spots(g[:,:,gene_idx])
     h.append(
-        plt.plot(gene_spots['x'], gene_spots['y'], next(markers))
+        plt.plot(all_genes[gene_idx]['x'], all_genes[gene_idx]['y'], next(markers), c=next(colors), markersize=4)
     )
 ax.set_aspect('equal', 'box')
 ax.invert_yaxis()
-plt.legend(unique_genes, loc='right', ncol=2, bbox_to_anchor=(0.,0.,1.25,1.))
+plt.legend(unique_genes, loc='right', ncol=2, bbox_to_anchor=(0.,0.,1.15,1.))
