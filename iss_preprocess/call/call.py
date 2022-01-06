@@ -42,7 +42,8 @@ def rois_to_array(rois, normalize=True):
         x[:, :, invalid_rois] = np.nan
     # normalize by mean intensity
     if normalize:
-        x[:, :, np.logical_not(invalid_rois)] /= np.mean(x[:, :, valid_rois], axis=1)[:,np.newaxis,:]
+        valid_rois = np.logical_not(invalid_rois)
+        x[:, :, valid_rois] /= np.mean(x[:, :, valid_rois], axis=1)[:,np.newaxis,:]
     return x
 
 
