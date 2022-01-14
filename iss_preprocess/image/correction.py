@@ -25,14 +25,15 @@ def correct_offset(tiles, method='metadata', metadata=None, n_components=5):
     channels = tiles.C.unique()
     for channel in channels:
         this_channel = tiles[(tiles['C'] == channel) & (tiles['Z'] == 0)]['data']
-        data = np.concatenate(this_channel.to_numpy()).reshape(-1, 1)
+        #Creating ragged nested ndarrays is deprecated. Suggested fix is to make dtype=object
+        data = np.concatenate(this_channel.to_numpy(), dtype=object).reshape(-1, 1)
         if method == 'metadata' and metadata:
             offset = float(channels_metadata[channel].find('./DetectorSettings/Offset').text)
         elif method == 'min':
             offset = np.min(data)
         else:
             gm = GaussianMixture(n_components=n_components, random_state=0).fit(
-                data[:10:, :]
+                data[:10:,:]
             )
             offset = np.min(gm.means_)
         v = tiles[tiles['C'] == channel]['data'].transform(lambda x: x.astype(float) - offset)
