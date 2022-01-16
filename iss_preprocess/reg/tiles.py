@@ -2,7 +2,7 @@ from skimage.registration import phase_cross_correlation
 import numpy as np
 
 def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
-    overlap_ratio=0.9, normalisation='phase', upsample_factor=5, offset=(456., 456.), max_orthogonal_shift=20):
+    overlap_ratio=0.9, normalization='phase', upsample_factor=5, offset=(456., 456.), max_orthogonal_shift=20):
     """
     Stitch tiles together using phase correlation registration.
     The current mean projection is used as a registration template for each z-stack.
@@ -14,15 +14,19 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
             registration. This should be similar to tile size * overlap ratio.
         method (str): The method of registration, if set to 'None', fixed offset values 
             will be used instead.
-        overlap_ratio (float): The minimum allowed ratio of overlap between images for phasecorr
-        normalisation (str): Note from scikit-image - Which form of normalization is better is
-            application-dependent. For example, the phase correlation method works
+        overlap_ratio (float): The minimum allowed ratio of overlap between images for
+            phasecorr.
+            NOTE: Used only if one of ``reference_mask`` or ``moving_mask`` is not None.
+            Currently not being implemented
+        normalization (str): NOTE: from scikit-image - Which form of normalization 
+            is better is application-dependent. For example, the phase correlation method works
             well in registering images under different illumination, but is not very
             robust to noise. In a high noise scenario, the unnormalized method may be
-            preferable. TO CONSIDER, CHANGE DEFAULT TO = 'None'
-        upsample_factor (int): Factor by which overlap region is scaled up for subpixel phasecorr
-        offset (tuple): An alternative fixed pixel offset for stitching
-        max_orthogonal_shift (float): largest shift allowed along the axis
+            preferable. 
+            TO CONSIDER, CHANGE DEFAULT TO = None ?
+        upsample_factor (int): Factor by which overlap region is scaled up for subpixel 
+        phasecorr offset (tuple): An alternative fixed pixel offset for stitching
+        max_orthogonal_shift (float): largest shift allowed along the
             orthogonal axis (e.g. up/down when aligning tiles left/right of
             each other. If it is exceeded, shift is set to 0. 
             Setting this too strictly will result in many bad default 0 stitches 
@@ -62,8 +66,8 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
                         this_tile[:, -reg_pix:],
                         east_tile[:, :reg_pix],
                         upsample_factor=upsample_factor,
-                        overlap_ratio=overlap_ratio
-                        normalisation=normalisation
+                        overlap_ratio=overlap_ratio,
+                        normalization=normalization
                     )[0] + [0, ypix-reg_pix]
                     if np.abs(shift[0]) > max_orthogonal_shift:
                         shift[0] = 0
@@ -83,9 +87,9 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
                     shift = phase_cross_correlation(
                         this_tile[-reg_pix:, :],
                         south_tile[:reg_pix, :],
-                        upsample_factor=5,
-                        overlap_ratio=overlap_ratio
-                        normalisation=normalisation
+                        upsample_factor=upsample_factor,
+                        overlap_ratio=overlap_ratio,
+                        normalization=normalization
                     )[0] + [xpix-reg_pix, 0]
                     if np.abs(shift[1]) > max_orthogonal_shift:
                         shift[1] = 0
