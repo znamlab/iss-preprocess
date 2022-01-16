@@ -11,7 +11,9 @@ from itertools import compress, cycle
 
 #%%
 ops = {
-    'tile_reg_pix': 200,            # number of border pixels to use for stitching
+    'tile_reg_pix': 0.1,            # fraction of border pixels to use for stitching
+    'normalization': 'phase',       # phase correlation normalization
+    'max_orthogonal_shift': 20,     # max allowed shift value before defaulting to 0
     'ch_to_align': 0,               # channel to use for registration between rounds
     'spot_threshold': 20,           # threshold for initial spot detection
     'omp_tol': 0.1,                 # tolerance threshold for OMP algorithm
@@ -22,7 +24,7 @@ data_dir = Path('/camp/lab/znamenskiyp/home/shared/projects/rabies_BARseq/BRAC62
 fnames = [
     'section_02_cycle_01.czi',
     'section_02_cycle_02.czi',
-    'section_02_cycle_03.czi',
+    'section_02_cycle_03_03.czi',
     'section_02_cycle_04_2trk.czi',
     'section_02_cycle_05_2trk.czi',
     'section_02_cycle_06_2trk.czi',
@@ -34,7 +36,8 @@ stacks = []
 for i, fname in enumerate(fnames):
     tiles, metadata = iss.io.get_tiles(data_dir / fname)
     tiles = iss.image.correct_offset(tiles, method='metadata', metadata=metadata)
-    im, tile_pos = iss.reg.register_tiles(tiles, reg_pix=ops['tile_reg_pix'])
+    im, tile_pos = iss.reg.register_tiles(tiles, reg_fraction=ops['tile_reg_fraction'],
+    normalization=ops['normalization'], max_orthogonal_shift=ops['max_orthogonal_shift'])
     im = iss.io.reorder_channels(im, metadata)
     stacks.append(np.mean(im, axis=3))
 
