@@ -17,7 +17,7 @@ setup(
         'scikit-learn',
         'pystackreg',
         'flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git',
-        'trackpy'
+        'trackpy',
         'numba'
     ],
     entry_points='''
