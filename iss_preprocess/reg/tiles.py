@@ -1,8 +1,40 @@
 from skimage.registration import phase_cross_correlation
 import numpy as np
+import scipy.fft
 
 
-def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
+def phase_corr(reference, target, max_shift=None, whiten=True):
+    """
+    Compute phase correlation of two images.
+
+    Args:
+        reference (numpy.ndarray): reference image
+        target (numpy.ndarray): target image
+        max_shift (int): the range over which to search for the maximum of the
+            cross-correlogram
+        whiten (bool): whether or not to whiten the FFTs of the images. If True,
+            the method performs phase correlation, otherwise cross correlation
+
+    Returns:
+        shift: numpy.array of the location of the peak of the cross-correlogram
+        cc: numpy.ndarray of the cross-correlagram itself.
+
+    """
+    f1 = scipy.fft.fft2(reference)
+    f2 = scipy.fft.fft2(target)
+    if whiten:
+        f1 = f1 / np.abs(f1)
+        f2 = f2 / np.abs(f2)
+    cc = np.abs(scipy.fft.ifft2(f1 * np.conj(f2)))
+    if max_shift:
+        cc[max_shift:-max_shift, max_shift:-max_shift] = 0
+    cc = scipy.fft.fftshift(cc)
+
+    shift = np.unravel_index(np.argmax(cc), reference.shape) - np.array(reference.shape)/2
+    return shift, cc
+
+
+def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                    normalization='phase', upsample_factor=1, offset=(456., 456.),
                    max_orthogonal_shift=20):
     """
@@ -16,11 +48,11 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
             registration. This should be similar to tile size * overlap ratio.
         method (str): The method of registration, if set to 'None', fixed offset values 
             will be used instead.
-        normalization (str): NOTE: from scikit-image - Which form of normalization 
+        normalization (str): NOTE: from scikit-image - Which form of normalization
             is better is application-dependent. For example, the phase correlation method works
             well in registering images under different illumination, but is not very
             robust to noise. In a high noise scenario, the unnormalized method may be
-            preferable. 
+            preferable.
             TO CONSIDER, CHANGE DEFAULT TO = None ?
         upsample_factor (int): Factor by which overlap region is scaled up for subpixel 
         offset (tuple): An alternative fixed pixel offset for stitching
@@ -45,11 +77,11 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
     tile_pos = np.zeros((2, nx, ny))
     for ix, x in enumerate(xs):
         for iy, y in enumerate(ys):
+            #Creating ragged nested ndarrays is deprecated. Suggested fix is to make dtype=object
             this_tile = tiles[
                 (tiles['X'] == xs[ix]) &
                 (tiles['Y'] == ys[iy]) &
                 (tiles['C'] == ch_to_align)
-            #Creating ragged nested ndarrays is deprecated. Suggested fix is to make dtype=object    
             ]['data'].to_numpy(dtype=object)
             this_tile = np.stack(this_tile, axis=2).max(axis=2)
             # align tiles in rows left to right
@@ -60,7 +92,7 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
                     (tiles['C'] == ch_to_align)
                 ]['data'].to_numpy(dtype=object)
                 east_tile = np.stack(east_tile, axis=2).max(axis=2)
-                if method=='phasecorr':
+                if method == 'scipy':
                     shift = phase_cross_correlation(
                         this_tile[:, -reg_pix:],
                         east_tile[:, :reg_pix],
@@ -69,6 +101,11 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
                     )[0] + [0, ypix-reg_pix]
                     if np.abs(shift[0]) > max_orthogonal_shift:
                         shift[0] = 0
+                elif method == 'custom':
+                    shift = phase_corr(
+                        this_tile[:, -reg_pix:],
+                        east_tile[:, :reg_pix],
+                    )[0] + [0, ypix-reg_pix]
                 else:
                     # limit the maximum y shift
                     shift = [0, offset[1]]
@@ -81,7 +118,7 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
                     (tiles['C'] == ch_to_align)
                 ]['data'].to_numpy(dtype=object)
                 south_tile = np.stack(south_tile, axis=2).max(axis=2)
-                if method=='phasecorr':
+                if method == 'scipy':
                     shift = phase_cross_correlation(
                         this_tile[-reg_pix:, :],
                         south_tile[:reg_pix, :],
@@ -90,11 +127,15 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
                     )[0] + [xpix-reg_pix, 0]
                     if np.abs(shift[1]) > max_orthogonal_shift:
                         shift[1] = 0
+                elif method == 'custom':
+                    shift = phase_corr(
+                        this_tile[-reg_pix:, :],
+                        south_tile[:reg_pix, :]
+                    )[0] + [xpix-reg_pix, 0]
                 else:
                     shift = [offset[0], 0]
                 tile_pos[:, ix, iy+1] = shift + tile_pos[:, ix, iy]
     # round shifts and make sure there are no negative values
-    tile_pos_float = tile_pos.copy()
     tile_pos = np.rint(tile_pos).astype(int)
     tile_pos[0,:,:] = tile_pos[0,:,:] - np.min(tile_pos[0,:,:])
     tile_pos[1,:,:] = tile_pos[1,:,:] - np.min(tile_pos[1,:,:])
