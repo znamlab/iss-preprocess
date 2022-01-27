@@ -36,7 +36,7 @@ def phase_corr(reference, target, max_shift=None, whiten=True):
 
 def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                    normalization='phase', upsample_factor=1, offset=(456., 456.),
-                   max_orthogonal_shift=20):
+                   max_orthogonal_shift=20, max_shift=None):
     """
     Stitch tiles together using phase correlation registration.
     The current mean projection is used as a registration template for each z-stack.
@@ -105,6 +105,8 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                     shift = phase_corr(
                         this_tile[:, -reg_pix:],
                         east_tile[:, :reg_pix],
+                        max_shift=max_shift,
+                        whiten=True if normalization == 'phase' else False
                     )[0] + [0, ypix-reg_pix]
                 else:
                     # limit the maximum y shift
@@ -130,7 +132,9 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                 elif method == 'custom':
                     shift = phase_corr(
                         this_tile[-reg_pix:, :],
-                        south_tile[:reg_pix, :]
+                        south_tile[:reg_pix, :],
+                        max_shift=max_shift,
+                        whiten=True if normalization == 'phase' else False
                     )[0] + [xpix-reg_pix, 0]
                 else:
                     shift = [offset[0], 0]

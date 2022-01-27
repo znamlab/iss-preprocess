@@ -2,7 +2,7 @@ import numpy as np
 from pystackreg import StackReg
 
 from skimage.registration import phase_cross_correlation
-
+from skimage.filters import window
 
 def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_shift=20):
     """
@@ -48,14 +48,15 @@ def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_
     return registered_stack
 
 
-def register_rounds(stacks, ch_to_align=0, threshold=None):
+def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None):
     """
     Register sequencing rounds.
 
     Args:
         stacks (list): list of X x Y x C ndarrays with individual rounds.
         ch_to_align(int): channel to use for registration.
-
+        filter_window (str): whether to window the input images before registration.
+            Example windows are 'cosine', 'blackman', and 'flattop'.
     """
     maxx = 0
     maxy = 0
@@ -74,7 +75,11 @@ def register_rounds(stacks, ch_to_align=0, threshold=None):
         stacks[stacks<threshold] = 0
 
     sr = StackReg(StackReg.RIGID_BODY)
-    sr.register_stack(stacks[:,:,:,ch_to_align].squeeze(), reference='previous')
+    if filter_window:
+        w = window(filter_window, stacks.shape[1:3])[np.newaxis, :, :]
+        sr.register_stack(stacks[:,:,:,ch_to_align].squeeze() * w, reference='previous')
+    else:
+        sr.register_stack(stacks[:,:,:,ch_to_align].squeeze(), reference='previous')
 
     for channel in range(nchannels):
         stacks[:,:,:,channel] = sr.transform_stack(stacks[:,:,:,channel].squeeze())
@@ -82,7 +87,7 @@ def register_rounds(stacks, ch_to_align=0, threshold=None):
     return stacks
 
 
-def register_tracks(track1, track2, chs_to_align=(0,0), threshold=None):
+def register_tracks(track1, track2, chs_to_align=(0,0), threshold=None, filter_window=None):
     """
     Register imaging tracks.
 
@@ -90,6 +95,8 @@ def register_tracks(track1, track2, chs_to_align=(0,0), threshold=None):
         track1 (list): list of X x Y x C ndarrays for track 1 on individual rounds.
         track2 (list): list of X x Y x C ndarrays for track 2 on individual rounds.
         chs_to_align (tuple): channels to use for registration.
+        filter_window (str): whether to window the input images before registration.
+            Example windows are 'cosine', 'blackman', and 'flattop'.
 
     """
     out = []
@@ -110,10 +117,17 @@ def register_tracks(track1, track2, chs_to_align=(0,0), threshold=None):
         sr = StackReg(StackReg.TRANSLATION)
         if threshold:
             padded_stacks[padded_stacks<threshold] = 0
-        sr.register(
-            padded_stacks[0][:,:,chs_to_align[0]].squeeze(),
-            padded_stacks[1][:,:,chs_to_align[1]].squeeze()
-        )
+        if filter_window:
+            w = window(filter_window, stacks.shape[:2])
+            sr.register(
+                padded_stacks[0][:,:,chs_to_align[0]].squeeze() * w,
+                padded_stacks[1][:,:,chs_to_align[1]].squeeze() * w
+            )
+        else:
+            sr.register(
+                padded_stacks[0][:,:,chs_to_align[0]].squeeze(),
+                padded_stacks[1][:,:,chs_to_align[1]].squeeze()
+            )
 
         nchannels = padded_stacks[1].shape[2]
         for channel in range(nchannels):
