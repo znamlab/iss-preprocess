@@ -1,14 +1,12 @@
-#!/usr/bin/python
-
 import sys, argparse
 import glob
-import os
 import numpy as np
 import czifile
 from skimage.io import ImageCollection
 import pandas as pd
 from tifffile import TiffWriter
 import xml.etree.ElementTree as ET
+
 
 def get_tiles(fname):
     """
@@ -19,7 +17,8 @@ def get_tiles(fname):
         fname (str): path to CZI file
 
     Returns:
-
+        pandas.DataFrame containing tile data.
+        xml.etree.ElementTree with metadata.
 
     """
     stack = czifile.CziFile(fname, detectmosaic=False)
@@ -39,7 +38,29 @@ def get_tiles(fname):
     return df, metadata
 
 
-def write_stack(stack, fname):
+def reorder_channels(stack, metadata):
+    """
+    Sorts channels of a stack by wavelength.
+
+    Args:
+        stack (numpy.ndarray): X x Y x C x Z image stack.
+        metadata (xml.etree.ElementTree): stack metadata.
+
+    Returns:
+        Stack after sorting the channels.
+    """
+    channels_metadata = metadata.findall(
+        './Metadata/Information/Image/Dimensions/Channels/Channel'
+    )
+    wavelengths = []
+    for channel in channels_metadata:
+        wavelengths.append(float(channel.find('./EmissionWavelength').text))
+
+    channel_order = np.argsort(np.array(wavelengths))
+    return stack[:,:,channel_order,:]
+
+
+def write_stack(stack, fname, bigtiff=False):
     """
     Write a stack to file as a multipage TIFF
 
@@ -52,7 +73,7 @@ def write_stack(stack, fname):
     stack = stack.reshape((stack.shape[0], stack.shape[1], -1))
     stack[stack<0] = 0
 
-    with TiffWriter(fname) as tif:
+    with TiffWriter(fname, bigtiff=bigtiff) as tif:
         for frame in range(stack.shape[2]):
             tif.write(
                 np.uint16(stack[:,:,frame]),

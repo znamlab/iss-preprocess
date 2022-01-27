@@ -24,30 +24,45 @@ The purpose of this repo is to house scripts that will be used to preprocess ima
 
 The broad strokes of the pipeline are:
 
-1. File I/O from individual .czi files into a 4-dimensional .tiff stack (X-Y-channel-imaging round)
+1. Stitching of individual round images, Z-projection and histogram matching
 2. Registration of X-Y images between rounds of sequencing
-3. Normalisation of images across rounds (this may be an improper data analysis step)
-4. Localisation of spots/cell soma across rounds
-5. Base-calling for each spot
-6. Construction of a cell-barcode matrix
+3. Localisation of spots/cell soma across rounds
+4. Base-calling for each spot
+5. Construction of a cell-barcode matrix
 
 ## Subpackages
 
-1. `io` directory - houses code for converting images from sequencing rig into a standardised .tiff stack for analysis
-2. `reg` directory - houses code for registering images between rounds of sequencing
+1. `io` directory - houses code for input and saving of image data
+2. `reg` directory - houses code for stitching and registering images between rounds of sequencing
 3. `image` directory - image processing and correction routines
-4. `spot` directory - houses code for matching spots across rounds
-5. `call` directory - houses code for base-calling across rounds and constructing the cell-barcode matrix output
+4. `segment` directory - houses code for detecting ROIs and rolonies
+5. `call` directory - houses code for base-calling across rounds and constructing the cell/genes/barcode matrix output
+
+## OMP pipeline
+
+The pipeline uses orthogonal matching pursuit to identify gene rolonies. The approach
+is loosely based on that used in this preprint https://www.biorxiv.org/content/10.1101/2021.10.24.465600v4
+and implemented in https://github.com/jduffield65/iss.
+
+First, bright rolonies are identified by looking for spots in a STD projection
+of a sequencing round. The average fluorescence of each spot is fed into a simple
+base caller, which uses a Gaussian Mixture Model to classify the 4 bases.
+
+Sequences for each spot are them compared to a codebook to assign spots to genes.
+Spots matching each gene (by default without any mismatches) are used to create 
+a dictionary to be used for Orthogonal Matching Pursuit. 
+
+OMP is then applied to each pixel to identify the genes present. 
+The algorithm works by iteratively. At each step we find the component that has
+the highest dot product with the residual fluorescence signal. After selecting
+a component, coefficients for all included components are estimated by least
+squares regression and the residuals are updated. The component is retained
+if it reduces the norm of the residuals by at least a fraction of the original
+norm specified by a tolerance parameter.
+
+The end product of the OMP algorithm is a series of images, containing coefficients
+for each gene. We can now detect peaks in these images to find the location of 
+individual gene rolonies.
 
 ## Examples
-This code snippet loads a tile scan, stitches tiles and saves the output:
-```
-import iss_preprocess as iss
-fname = '/camp/lab/znamenskiyp/home/shared/projects/rabies_BARseq/BRAC6246.1b/slide3/round1_section1.czi'
-
-tiles = iss.io.get_tiles(fname)
-
-im, tile_pos = iss.reg.register_tiles(tiles, ch_to_align=0)
-
-iss.io.write_stack(im, '/camp/home/znamenp/home/users/znamenp/tmp/stack.tif')
-```
+Examples can be found in the `examples` subdirectory.

@@ -28,8 +28,8 @@ fnames_tracks = [
 stacks = []
 for i, fname in enumerate(fnames):
     tiles, metadata = iss.io.get_tiles(fname)
-    tiles = iss.image.correct_offset(tiles, method='gmm', metadata=metadata)
-    im, tile_pos = iss.reg.register_tiles(tiles) #, method='', offset=(461, 460.)
+    tiles = iss.image.correct_offset(tiles, method='metadata', metadata=metadata)
+    im, tile_pos = iss.reg.register_tiles(tiles, reg_pix=tiles.iloc[0].data.shape[0]*0.1)
     stacks.append(np.max(im, axis=3))
 # load stacks with individual tracks
 tracks = []
@@ -37,12 +37,12 @@ for fnames_track in fnames_tracks:
     track = []
     for fname in fnames_track:
         tiles, metadata = iss.io.get_tiles(fname)
-        tiles = iss.image.correct_offset(tiles, method='gmm', metadata=metadata)
-        im, _ = iss.reg.register_tiles(tiles)
+        tiles = iss.image.correct_offset(tiles, method='metadata', metadata=metadata)
+        im, _ = iss.reg.register_tiles(tiles, reg_pix=tiles.iloc[0].data.shape[0]*0.1)
         track.append(np.max(im, axis=3))
     tracks.append(track)
 # register tracks to each other
-tracks = iss.register_tracks(tracks[0], tracks[1], chs_to_align=(0,0))
+tracks = iss.reg.register_tracks(tracks[0], tracks[1], chs_to_align=(0,0))
 
 stacks.extend(tracks)
 # match histograms using the first cycle as template

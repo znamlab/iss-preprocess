@@ -1,27 +1,35 @@
 from skimage.registration import phase_cross_correlation
 import numpy as np
-import scipy.fft
 
-def phase_corr(im1, im2):
-    f1 = fft.fft2(im1)
-    f2 = fft.fft2(im2)
-    wf1 = f1 / np.abs(f1)
-    wf2 = f2 / np.abs(f2)
-    cc = fft.ifft2(wf1 * np.conj(wf2))
-    return np.unravel_indx(np.amax(cc), im1.shape)
-
-def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
-    method='phasecorr', offset=(456., 456.)):
+def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='phasecorr',
+    overlap_ratio=0.9, normalization='phase', upsample_factor=5, offset=(456., 456.), max_orthogonal_shift=20):
     """
     Stitch tiles together using phase correlation registration.
-
-    Current mean projection is used as a registration template for each z-stack.
+    The current mean projection is used as a registration template for each z-stack.
 
     Args:
         tiles (DataFrame): pandas DataFrame containing individual tile data
         ch_to_align (int): index of channel to use for registration
-        reg_pix (int): number of pixels along tile boundary to use for
+        reg_fraction (float): fraction of tile pixels along tile boundary to use for
             registration. This should be similar to tile size * overlap ratio.
+        method (str): The method of registration, if set to 'None', fixed offset values 
+            will be used instead.
+        overlap_ratio (float): The minimum allowed ratio of overlap between images for
+            phasecorr.
+            NOTE: Used only if one of ``reference_mask`` or ``moving_mask`` is not None.
+            Currently not being implemented
+        normalization (str): NOTE: from scikit-image - Which form of normalization 
+            is better is application-dependent. For example, the phase correlation method works
+            well in registering images under different illumination, but is not very
+            robust to noise. In a high noise scenario, the unnormalized method may be
+            preferable. 
+            TO CONSIDER, CHANGE DEFAULT TO = None ?
+        upsample_factor (int): Factor by which overlap region is scaled up for subpixel 
+        phasecorr offset (tuple): An alternative fixed pixel offset for stitching
+        max_orthogonal_shift (float): largest shift allowed along the
+            orthogonal axis (e.g. up/down when aligning tiles left/right of
+            each other. If it is exceeded, shift is set to 0. 
+            Setting this too strictly will result in many bad default 0 stitches 
 
     Returns:
         numpy.ndarray: X x Y x C x Z array of stitched tiles.
@@ -32,6 +40,8 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
     ny = len(ys)
     xpix = tiles.iloc[0].data.shape[0]
     ypix = tiles.iloc[0].data.shape[1]
+    reg_pix = int(xpix * reg_fraction)
+
     # calculate shifts
     tile_pos = np.zeros((2, nx, ny))
     for ix, x in enumerate(xs):
@@ -40,7 +50,8 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
                 (tiles['X'] == xs[ix]) &
                 (tiles['Y'] == ys[iy]) &
                 (tiles['C'] == ch_to_align)
-            ]['data'].to_numpy()
+            #Creating ragged nested ndarrays is deprecated. Suggested fix is to make dtype=object    
+            ]['data'].to_numpy(dtype=object)
             this_tile = np.stack(this_tile, axis=2).max(axis=2)
             # align tiles in rows left to right
             if ix+1<nx:
@@ -48,17 +59,18 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
                     (tiles['X'] == xs[ix+1]) &
                     (tiles['Y'] == ys[iy]) &
                     (tiles['C'] == ch_to_align)
-                ]['data'].to_numpy()
+                ]['data'].to_numpy(dtype=object)
                 east_tile = np.stack(east_tile, axis=2).max(axis=2)
                 if method=='phasecorr':
                     shift = phase_cross_correlation(
                         this_tile[:, -reg_pix:],
                         east_tile[:, :reg_pix],
-                        upsample_factor=5,
-                        overlap_ratio=overlap_ratio
+                        upsample_factor=upsample_factor,
+                        overlap_ratio=overlap_ratio,
+                        normalization=normalization
                     )[0] + [0, ypix-reg_pix]
-                    if shift[0]>5:
-                        shift[0]=0
+                    if np.abs(shift[0]) > max_orthogonal_shift:
+                        shift[0] = 0
                 else:
                     # limit the maximum y shift
                     shift = [0, offset[1]]
@@ -69,17 +81,18 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
                     (tiles['X'] == xs[ix]) &
                     (tiles['Y'] == ys[iy+1]) &
                     (tiles['C'] == ch_to_align)
-                ]['data'].to_numpy()
+                ]['data'].to_numpy(dtype=object)
                 south_tile = np.stack(south_tile, axis=2).max(axis=2)
                 if method=='phasecorr':
                     shift = phase_cross_correlation(
                         this_tile[-reg_pix:, :],
                         south_tile[:reg_pix, :],
-                        upsample_factor=5,
-                        overlap_ratio=overlap_ratio
+                        upsample_factor=upsample_factor,
+                        overlap_ratio=overlap_ratio,
+                        normalization=normalization
                     )[0] + [xpix-reg_pix, 0]
-                    if shift[1]>5:
-                        shift[1]=0
+                    if np.abs(shift[1]) > max_orthogonal_shift:
+                        shift[1] = 0
                 else:
                     shift = [offset[0], 0]
                 tile_pos[:, ix, iy+1] = shift + tile_pos[:, ix, iy]
@@ -107,7 +120,7 @@ def register_tiles(tiles, ch_to_align=0, reg_pix=64, overlap_ratio=0.9,
                         (tiles['Y'] == ys[iy]) &
                         (tiles['C'] == ch) &
                         (tiles['Z'] == z)
-                    ]['data'].to_numpy()[0]
+                    ]['data'].to_numpy(dtype=object)[0]
                     im[tile_pos[0,ix,iy]:tile_pos[0,ix,iy]+xpix,
                         tile_pos[1,ix,iy]:tile_pos[1,ix,iy]+ypix, ich, iz] = this_tile
     return im, tile_pos

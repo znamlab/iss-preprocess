@@ -10,3 +10,6 @@ dependencies:
   - scikit-learn
   - pystackreg
   - czifile
+  - jupyter
+  - trackpy
+  - numba
