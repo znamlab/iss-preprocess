@@ -18,7 +18,8 @@ setup(
         'pystackreg',
         'flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git',
         'trackpy',
-        'numba'
+        'numba',
+        'cellpose'
     ],
     entry_points='''
         [console_scripts]
