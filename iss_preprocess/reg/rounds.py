@@ -2,7 +2,7 @@ import numpy as np
 from pystackreg import StackReg
 
 from skimage.registration import phase_cross_correlation
-from skimage.filters import window
+from skimage.filters import window, difference_of_gaussians
 
 def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_shift=20):
     """
@@ -48,7 +48,7 @@ def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_
     return registered_stack
 
 
-def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None):
+def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None, dog_filter=None):
     """
     Register sequencing rounds.
 
@@ -57,6 +57,10 @@ def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None):
         ch_to_align(int): channel to use for registration.
         filter_window (str): whether to window the input images before registration.
             Example windows are 'cosine', 'blackman', and 'flattop'.
+        dog_filter (tuple): whether to filter images with a difference-of-gaussians
+            filter before registering. A tuple of `low_sigma` and `high_sigma`
+            defining the range of spatial scales to bandpass.
+
     """
     maxx = 0
     maxy = 0
@@ -64,7 +68,6 @@ def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None):
         maxx = np.max((maxx, stack.shape[0]))
         maxy = np.max((maxy, stack.shape[1]))
     nchannels = stacks[0].shape[2]
-    nrounds = len(stacks)
     for i, stack in enumerate(stacks):
         padx = maxx - stack.shape[0]
         pady = maxy - stack.shape[1]
@@ -75,11 +78,18 @@ def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None):
         stacks[stacks<threshold] = 0
 
     sr = StackReg(StackReg.RIGID_BODY)
+    stack_for_registration = stacks[:,:,:,ch_to_align].squeeze()
     if filter_window:
         w = window(filter_window, stacks.shape[1:3])[np.newaxis, :, :]
-        sr.register_stack(stacks[:,:,:,ch_to_align].squeeze() * w, reference='previous')
-    else:
-        sr.register_stack(stacks[:,:,:,ch_to_align].squeeze(), reference='previous')
+        stack_for_registration = stack_for_registration * w
+    if dog_filter:
+        stack_for_registration = difference_of_gaussians(
+            stack_for_registration,
+            low_sigma=dog_filter[0],
+            high_sigma=dog_filter[1],
+            channel_axis=0
+        )
+    sr.register_stack(stack_for_registration, reference='previous')
 
     for channel in range(nchannels):
         stacks[:,:,:,channel] = sr.transform_stack(stacks[:,:,:,channel].squeeze())
