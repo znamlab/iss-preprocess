@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.cluster import hierarchy
 
 
 def to_rgb(stack, colors, vmax=None, vmin=None):
@@ -73,3 +74,27 @@ def plot_spots(stack, spots,
     for _, spot in spots.iterrows():
         c = plt.Circle((spot['x'], spot['y']), spot['size'], color='w', linewidth=.5, fill=False)
         ax.add_patch(c)
+
+
+def plot_gene_matrix(gene_df):
+    """
+    Plot matrix of gene expression after sorting rows and columns using
+    hierachical clustering.
+
+    Args:
+        gene_df (DataFrame): table of gene counts.
+
+    """
+    gene_mat = np.log(1+gene_df.to_numpy())
+    cell_order = hierarchy.leaves_list(
+        hierarchy.optimal_leaf_ordering(hierarchy.ward(gene_mat), gene_mat))
+    gene_order = hierarchy.leaves_list(
+        hierarchy.optimal_leaf_ordering(hierarchy.ward(gene_mat.T), gene_mat.T))
+
+    plt.figure(figsize=(20,10))
+    gene_mat_reordered = gene_mat[cell_order,:]
+    gene_mat_reordered = gene_mat_reordered[:,gene_order]
+    ax = plt.subplot(1,1,1)
+    plt.imshow(gene_mat_reordered, cmap='gray', vmax=2, interpolation='nearest')
+    plt.xticks(range(gene_mat.shape[1]), gene_df.columns[gene_order], rotation=45)
+    ax.set_aspect('auto')
