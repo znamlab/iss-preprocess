@@ -27,7 +27,8 @@ def phase_corr(reference, target, max_shift=None, whiten=True):
         f2 = f2 / np.abs(f2)
     cc = np.abs(scipy.fft.ifft2(f1 * np.conj(f2)))
     if max_shift:
-        cc[max_shift:-max_shift, max_shift:-max_shift] = 0
+        cc[max_shift:-max_shift, :] = 0
+        cc[:, max_shift:-max_shift] = 0
     cc = scipy.fft.fftshift(cc)
 
     shift = np.unravel_index(np.argmax(cc), reference.shape) - np.array(reference.shape)/2
