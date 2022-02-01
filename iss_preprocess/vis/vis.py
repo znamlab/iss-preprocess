@@ -76,10 +76,10 @@ def plot_spots(stack, spots,
         ax.add_patch(c)
 
 
-def plot_gene_matrix(gene_df):
+def plot_gene_matrix(gene_df, cmap='inferno', vmax=2):
     """
     Plot matrix of gene expression after sorting rows and columns using
-    hierachical clustering.
+    hierarchical clustering.
 
     Args:
         gene_df (DataFrame): table of gene counts.
@@ -95,6 +95,6 @@ def plot_gene_matrix(gene_df):
     gene_mat_reordered = gene_mat[cell_order,:]
     gene_mat_reordered = gene_mat_reordered[:,gene_order]
     ax = plt.subplot(1,1,1)
-    plt.imshow(gene_mat_reordered, cmap='gray', vmax=2, interpolation='nearest')
+    plt.imshow(gene_mat_reordered, cmap=cmap, vmax=vmax, interpolation='nearest')
     plt.xticks(range(gene_mat.shape[1]), gene_df.columns[gene_order], rotation=45)
     ax.set_aspect('auto')

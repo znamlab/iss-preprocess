@@ -8,7 +8,8 @@ from skimage.morphology import dilation
 
 
 def cellpose_segmentation(fname, channels=(3, 2), flow_threshold=2,
-                          min_pix=500, vis=False, dilate_pix=50, rescale=0.55):
+                          min_pix=500, vis=False, dilate_pix=50, rescale=0.55,
+                          model_type='cyto'):
     """
     Segment cells using Cellpose.
 
@@ -20,12 +21,13 @@ def cellpose_segmentation(fname, channels=(3, 2), flow_threshold=2,
         vis (bool): whether to plot masks
         dilate_pix (int): number of rounds of binary dilation to grow masks
         rescale (float): rescale factor for cellpose model
+        model_type (str): Cellpose mode to use, default 'cyto'
 
     Returns:
         nummpy.ndarray of masks
 
     """
-    model = CellposeModel(gpu=False, model_type='cyto', net_avg=True, torch=True)
+    model = CellposeModel(gpu=False, model_type=model_type, net_avg=True, torch=True)
     img = imread(fname)
     masks, flows, styles = model.eval(
         img,
@@ -61,7 +63,7 @@ def count_rolonies(masks, rolony_locations, gene_names):
     Args:
         masks (numpy.ndarray): cell masks
         rolony_locations (list): list of DataFrames with spot locations for each gene
-        gene_names: names of genes
+        gene_names (list): names of genes
 
     Returns:
         A DataFrame of gene counts.
