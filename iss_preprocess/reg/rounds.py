@@ -5,7 +5,7 @@ from pystackreg import StackReg
 from numba import jit, prange
 from skimage.registration import phase_cross_correlation
 from skimage.filters import window, difference_of_gaussians
-from skimage.transform import rotate
+from skimage.transform import rotate, rescale
 from . import phase_corr
 
 
@@ -54,7 +54,7 @@ def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_
 
 
 @jit(parallel=True, forceobj=True)
-def estimate_rotation_translation(reference, target, angle_range=3., niter=3, nangles=10, verbose=False):
+def estimate_rotation_translation(reference, target, angle_range=5., niter=3, nangles=20, scale=1., verbose=False):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
     reference image. Search for the best angle is performed iteratively by decreasing the gradually
@@ -67,20 +67,25 @@ def estimate_rotation_translation(reference, target, angle_range=3., niter=3, na
         niter (int): number of iterations to refine rotation angle
         nangles (int): number of angles to try on each iteration
         verbose (bool): whether to print progress of registration
+        scale (float): how to rescale image for finding the optimal rotation
 
     Returns:
-        skimage.transform.AffineTransform object
+        best_angle (float) in degrees
+        shift (tuple) of X and Y shifts
 
     """
     best_angle = 0
-    # no need to compute FFT of the reference every time
-    reference_fft = scipy.fft.fft2(reference)
+    if scale < 1:
+        target_rescaled = rescale(target, scale)
+        reference_fft = scipy.fft.fft2(rescale(reference, scale))
+    else:
+        reference_fft = scipy.fft.fft2(reference)
     for i in range(niter):
         angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
         max_cc = np.empty(angles.shape)
         shifts = np.empty((nangles, 2))
         for iangle in prange(nangles):
-            shifts[iangle, :], cc = phase_corr(reference_fft, rotate(target, angles[iangle]), fft_ref=False)
+            shifts[iangle, :], cc = phase_corr(reference_fft, rotate(target_rescaled, angles[iangle]), fft_ref=False)
             max_cc[iangle] = np.max(cc)
         if verbose:
             print(f'Angles: {angles}')
@@ -88,8 +93,8 @@ def estimate_rotation_translation(reference, target, angle_range=3., niter=3, na
         best_angle_index = np.argmax(max_cc)
         best_angle = angles[best_angle_index]
         angle_range = angle_range / 5
-
-    return best_angle, shifts[best_angle_index,:]
+    shift, _ = phase_corr(reference, rotate(target, best_angle))
+    return best_angle, shift
 
 
 def register_rounds(stacks, ch_to_align=0, filter_window=None, dog_filter=None, method='pystackreg'):
@@ -147,7 +152,8 @@ def register_rounds(stacks, ch_to_align=0, filter_window=None, dog_filter=None, 
                 angle, shift = estimate_rotation_translation(
                     stack_for_registration[0,:,:],
                     stack_for_registration[iround,:,:],
-                    verbose=True
+                    verbose=True,
+                    scale=0.33
                 )
                 for channel in range(nchannels):
                     stacks[iround,:,:,channel] = scipy.ndimage.shift(rotate(stacks[iround,:,:,channel], angle), shift)
