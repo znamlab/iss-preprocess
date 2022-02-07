@@ -3,7 +3,7 @@ import numpy as np
 import scipy.fft
 
 
-def phase_corr(reference, target, max_shift=None, whiten=True):
+def phase_corr(reference: np.ndarray, target: np.ndarray, max_shift=None, whiten=True, fft_ref=True) -> np.ndarray:
     """
     Compute phase correlation of two images.
 
@@ -14,13 +14,17 @@ def phase_corr(reference, target, max_shift=None, whiten=True):
             cross-correlogram
         whiten (bool): whether or not to whiten the FFTs of the images. If True,
             the method performs phase correlation, otherwise cross correlation
+        fft_ref (bool): whether to compute the FFT transform of the reference
 
     Returns:
         shift: numpy.array of the location of the peak of the cross-correlogram
         cc: numpy.ndarray of the cross-correlagram itself.
 
     """
-    f1 = scipy.fft.fft2(reference)
+    if fft_ref:
+        f1 = scipy.fft.fft2(reference)
+    else:
+        f1 = reference
     f2 = scipy.fft.fft2(target)
     if whiten:
         f1 = f1 / np.abs(f1)

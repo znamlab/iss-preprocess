@@ -1,8 +1,13 @@
 import numpy as np
+import scipy.fft
+import scipy.ndimage
 from pystackreg import StackReg
-
+from numba import jit, prange
 from skimage.registration import phase_cross_correlation
 from skimage.filters import window, difference_of_gaussians
+from skimage.transform import rotate
+from . import phase_corr
+
 
 def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_shift=20):
     """
@@ -48,7 +53,46 @@ def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_
     return registered_stack
 
 
-def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None, dog_filter=None):
+@jit(parallel=True, forceobj=True)
+def estimate_rotation_translation(reference, target, angle_range=3., niter=3, nangles=10, verbose=False):
+    """
+    Estimate rotation and translation that maximizes phase correlation between the target and the
+    reference image. Search for the best angle is performed iteratively by decreasing the gradually
+    searching over small and smaller angle range.
+
+    Args:
+        reference (numpy.ndarray): X x Y reference image
+        target (numpy.ndarray): X x Y target image
+        angle_range (float): initial range of angles in degrees to search over
+        niter (int): number of iterations to refine rotation angle
+        nangles (int): number of angles to try on each iteration
+        verbose (bool): whether to print progress of registration
+
+    Returns:
+        skimage.transform.AffineTransform object
+
+    """
+    best_angle = 0
+    # no need to compute FFT of the reference every time
+    reference_fft = scipy.fft.fft2(reference)
+    for i in range(niter):
+        angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
+        max_cc = np.empty(angles.shape)
+        shifts = np.empty((nangles, 2))
+        for iangle in prange(nangles):
+            shifts[iangle, :], cc = phase_corr(reference_fft, rotate(target, angles[iangle]), fft_ref=False)
+            max_cc[iangle] = np.max(cc)
+        if verbose:
+            print(f'Angles: {angles}')
+            print(f'Max CC: {max_cc}')
+        best_angle_index = np.argmax(max_cc)
+        best_angle = angles[best_angle_index]
+        angle_range = angle_range / 5
+
+    return best_angle, shifts[best_angle_index,:]
+
+
+def register_rounds(stacks, ch_to_align=0, filter_window=None, dog_filter=None, method='pystackreg'):
     """
     Register sequencing rounds.
 
@@ -60,6 +104,7 @@ def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None, d
         dog_filter (tuple): whether to filter images with a difference-of-gaussians
             filter before registering. A tuple of `low_sigma` and `high_sigma`
             defining the range of spatial scales to bandpass.
+        method (str): 'pystackreg' to use StackReg registration, or custom method.
 
     """
     maxx = 0
@@ -71,13 +116,14 @@ def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None, d
     for i, stack in enumerate(stacks):
         padx = maxx - stack.shape[0]
         pady = maxy - stack.shape[1]
-        stacks[i] = np.pad(stack, ((0, padx), (0, pady), (0,0)), 'constant')
+        stacks[i] = np.pad(
+            stack,
+            ((int(padx/2), padx - int(padx/2)), (int(pady/2), pady - int(pady/2)), (0,0)),
+            'constant'
+        )
 
     stacks = np.stack(stacks, axis=0)
-    if threshold:
-        stacks[stacks<threshold] = 0
 
-    sr = StackReg(StackReg.RIGID_BODY)
     stack_for_registration = stacks[:,:,:,ch_to_align].squeeze()
     if filter_window:
         w = window(filter_window, stacks.shape[1:3])[np.newaxis, :, :]
@@ -89,10 +135,22 @@ def register_rounds(stacks, ch_to_align=0, threshold=None, filter_window=None, d
             high_sigma=dog_filter[1],
             channel_axis=0
         )
-    sr.register_stack(stack_for_registration, reference='previous')
+    if method == 'pystackreg':
+        sr = StackReg(StackReg.RIGID_BODY)
+        sr.register_stack(stack_for_registration, reference='previous')
 
-    for channel in range(nchannels):
-        stacks[:,:,:,channel] = sr.transform_stack(stacks[:,:,:,channel].squeeze())
+        for channel in range(nchannels):
+            stacks[:,:,:,channel] = sr.transform_stack(stacks[:,:,:,channel].squeeze())
+    else:
+        for iround in range(stacks.shape[0]):
+            if iround>0:
+                angle, shift = estimate_rotation_translation(
+                    stack_for_registration[0,:,:],
+                    stack_for_registration[iround,:,:],
+                    verbose=True
+                )
+                for channel in range(nchannels):
+                    stacks[iround,:,:,channel] = scipy.ndimage.shift(rotate(stacks[iround,:,:,channel], angle), shift)
 
     return stacks
 
