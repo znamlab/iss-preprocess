@@ -26,7 +26,7 @@ def make_gene_templates(rois, codebook, max_errors=0, rounds=()):
     f = rois_to_array(rois, normalize=False)
     # only include ROIs imaged on all rounds
     valid_rois = np.isfinite(f[0,0,:])
-    sequences = basecall_rois(list(compress(rois, valid_rois)), separate_rounds=False, rounds=rounds)
+    sequences, _, _ = basecall_rois(list(compress(rois, valid_rois)), separate_rounds=False, rounds=rounds)
     f = f[:, :, valid_rois]
     genes, errors = call_genes(sequences, codebook)
     errors = np.array(errors)
