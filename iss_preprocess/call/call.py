@@ -133,7 +133,7 @@ def basecall_rois(rois, separate_rounds=True, rounds=(), nsamples=None):
         x = x[rounds,:,:]
     if separate_rounds:
         bases = np.empty((x.shape[2], x.shape[0]), dtype=int)
-        base_means = np.empty(x.shape[1], x.shape[1], x.shape[0])
+        base_means = np.empty((x.shape[1], x.shape[1], x.shape[0]))
         for round in range(x.shape[0]):
             data = x[round,:,:].transpose()
             bases[:, round], base_means[:,:,round] = predict_bases(data, nsamples)
