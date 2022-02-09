@@ -3,7 +3,6 @@ import scipy.fft
 import scipy.ndimage
 from pystackreg import StackReg
 from numba import jit, prange
-from skimage.registration import phase_cross_correlation
 from skimage.filters import window, difference_of_gaussians
 from skimage.transform import rotate, rescale
 from . import phase_corr
@@ -36,16 +35,23 @@ def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_
             xend = np.min([(ix + 1) * tile_size, stack.shape[0]])
             ystart = np.max([iy * tile_size, 0])
             yend = np.min([(iy + 1) * tile_size, stack.shape[1]])
-            reference_tile = stack[xstart:xend, ystart:yend, 0, ch_to_align]
+            if ch_to_align >= 0:
+                reference_tile = stack[xstart:xend, ystart:yend, 0, ch_to_align]
+            else:
+                reference_tile = np.sum(stack[xstart:xend, ystart:yend, 0, :], axis=2)
             for ir in range(stack.shape[2]):
-                s = phase_cross_correlation(
-                    reference_tile,
-                    stack[xstart:xend, ystart:yend, ir, ch_to_align]
-                )[0]
-                if abs(s[0])>max_shift:
-                    s[0] = 0
-                if abs(s[1])>max_shift:
-                    s[1] = 0
+                if ch_to_align >= 0:
+                    s, _ = phase_corr(
+                        reference_tile,
+                        stack[xstart:xend, ystart:yend, ir, ch_to_align],
+                        max_shift=max_shift
+                    )
+                else:
+                    s, _ = phase_corr(
+                        reference_tile,
+                        np.sum(stack[xstart:xend, ystart:yend, ir, :], axis=2),
+                        max_shift=max_shift
+                    )
                 xshift = int(padding - s[0])
                 yshift = int(padding - s[1])
                 registered_stack[xstart:xend, ystart:yend, ir, :] = \
