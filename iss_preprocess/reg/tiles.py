@@ -70,10 +70,33 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
         numpy.ndarray: X x Y x C x Z array of stitched tiles.
 
     """
+    def get_tile(ix_,iy_):
+        if ch_to_align >= 0:
+            tile = tiles[
+                (tiles['X'] == xs[ix_]) &
+                (tiles['Y'] == ys[iy_]) &
+                (tiles['C'] == ch_to_align)
+                ]['data'].to_numpy(dtype=object)
+            tile = np.stack(tile, axis=2).mean(axis=2)
+        else:
+            tile = np.zeros(tiles.iloc[0].data.shape)
+            for ch in channels:
+                this_channel = tiles[
+                    (tiles['X'] == xs[ix_]) &
+                    (tiles['Y'] == ys[iy_]) &
+                    (tiles['C'] == ch)
+                    ]['data'].to_numpy(dtype=object)
+                tile += np.stack(this_channel, axis=2).mean(axis=2)
+        return tile
+
     xs = tiles.X.unique()
     ys = tiles.Y.unique()
+    channels = tiles.C.unique()
+    zs = tiles.Z.unique()
     nx = len(xs)
     ny = len(ys)
+    nch = len(channels)
+    nz = len(zs)
     xpix = tiles.iloc[0].data.shape[0]
     ypix = tiles.iloc[0].data.shape[1]
     reg_pix = int(xpix * reg_fraction)
@@ -82,21 +105,10 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
     tile_pos = np.zeros((2, nx, ny))
     for ix, x in enumerate(xs):
         for iy, y in enumerate(ys):
-            #Creating ragged nested ndarrays is deprecated. Suggested fix is to make dtype=object
-            this_tile = tiles[
-                (tiles['X'] == xs[ix]) &
-                (tiles['Y'] == ys[iy]) &
-                (tiles['C'] == ch_to_align)
-            ]['data'].to_numpy(dtype=object)
-            this_tile = np.stack(this_tile, axis=2).max(axis=2)
+            this_tile = get_tile(ix, iy)
             # align tiles in rows left to right
             if ix+1<nx:
-                east_tile = tiles[
-                    (tiles['X'] == xs[ix+1]) &
-                    (tiles['Y'] == ys[iy]) &
-                    (tiles['C'] == ch_to_align)
-                ]['data'].to_numpy(dtype=object)
-                east_tile = np.stack(east_tile, axis=2).max(axis=2)
+                east_tile = get_tile(ix+1, iy)
                 if method == 'scipy':
                     shift = phase_cross_correlation(
                         this_tile[:, -reg_pix:],
@@ -119,12 +131,7 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                 tile_pos[:, ix+1, iy] = shift + tile_pos[:, ix, iy]
             # align first tile in each row to the one above
             if ix==0 and iy+1<ny:
-                south_tile = tiles[
-                    (tiles['X'] == xs[ix]) &
-                    (tiles['Y'] == ys[iy+1]) &
-                    (tiles['C'] == ch_to_align)
-                ]['data'].to_numpy(dtype=object)
-                south_tile = np.stack(south_tile, axis=2).max(axis=2)
+                south_tile = get_tile(ix, iy+1)
                 if method == 'scipy':
                     shift = phase_cross_correlation(
                         this_tile[-reg_pix:, :],
@@ -149,10 +156,6 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
     tile_pos[0,:,:] = tile_pos[0,:,:] - np.min(tile_pos[0,:,:])
     tile_pos[1,:,:] = tile_pos[1,:,:] - np.min(tile_pos[1,:,:])
     # make stitched stack
-    channels = tiles.C.unique()
-    zs = tiles.Z.unique()
-    nch = len(channels)
-    nz = len(zs)
     im = np.zeros((
         np.max(tile_pos[0])+xpix,
         np.max(tile_pos[1])+ypix,
