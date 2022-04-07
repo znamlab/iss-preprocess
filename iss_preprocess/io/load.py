@@ -1,12 +1,9 @@
-import sys, argparse
-import glob
 import numpy as np
 import czifile
-from skimage.io import ImageCollection
 import pandas as pd
-from tifffile import TiffWriter
 import xml.etree.ElementTree as ET
-
+from ..image.correction import correct_offset
+from ..reg.tiles import register_tiles
 
 def get_tiles(fname):
     """
@@ -59,22 +56,18 @@ def reorder_channels(stack, metadata):
     return stack[:,:,channel_order,:]
 
 
-def write_stack(stack, fname, bigtiff=False):
-    """
-    Write a stack to file as a multipage TIFF
+def load_image(fname, ops):
+    tiles, metadata = get_tiles(fname)
+    tiles = correct_offset(tiles, method='metadata', metadata=metadata)
+    im, tile_pos = register_tiles(
+        tiles,
+        reg_fraction=ops['tile_reg_fraction'],
+        method='custom',
+        max_shift=ops['max_shift'],
+        ch_to_align=-1
+    )
+    im = reorder_channels(im, metadata)
+    if im.ndim>3:
+        im = np.mean(im, axis=3)
+    return im
 
-    Args:
-        stack (numpy.ndarray): X x Y x ... array (can have multiple channels /
-            zplanes, etc.)
-        fname (str): save path for the TIFF
-
-    """
-    stack = stack.reshape((stack.shape[0], stack.shape[1], -1))
-    stack[stack<0] = 0
-
-    with TiffWriter(fname, bigtiff=bigtiff) as tif:
-        for frame in range(stack.shape[2]):
-            tif.write(
-                np.uint16(stack[:,:,frame]),
-                contiguous=True
-            )
