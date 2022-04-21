@@ -13,7 +13,7 @@ from itertools import compress, cycle
 ops = {
     'tile_reg_fraction': 0.1,            # fraction of border pixels to use for stitching
     'normalization': 'phase',       # phase correlation normalization
-    'max_orthogonal_shift': 20,     # max allowed shift value before defaulting to 0
+    'max_shift': 20,     # max allowed shift value before defaulting to 0
     'ch_to_align': 0,               # channel to use for registration between rounds
     'spot_threshold': 20,           # threshold for initial spot detection
     'omp_tol': 0.1,                 # tolerance threshold for OMP algorithm
@@ -101,7 +101,7 @@ dapi_registered = iss.reg.register_rounds(
 dapi_registered = np.moveaxis(dapi_registered, 0, 2)
 dapi_registered = iss.reg.register_rounds_fine(dapi_registered, tile_size=512)
 iss.io.write_stack(
-    dapi_registered[1],
+    dapi_registered[:,:,1,:],
     f'{savepath}stack_dapi.tif'
 )
 

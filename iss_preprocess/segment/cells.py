@@ -27,14 +27,13 @@ def cellpose_segmentation(fname, channels=(3, 2), flow_threshold=2,
         nummpy.ndarray of masks
 
     """
-    model = CellposeModel(gpu=False, model_type=model_type, net_avg=True, torch=True)
+    model = CellposeModel(gpu=False, model_type=model_type, net_avg=True)
     img = imread(fname)
     masks, flows, styles = model.eval(
         img,
         rescale=rescale,
         channels=channels,
         flow_threshold=flow_threshold,
-        verbose=True
     )
 
     nmasks = np.max(masks)
