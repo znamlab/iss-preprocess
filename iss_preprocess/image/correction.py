@@ -1,6 +1,39 @@
 import numpy as np
 from sklearn.mixture import GaussianMixture
 from skimage.exposure import match_histograms
+from skimage.morphology import disk
+from skimage.filters import median
+import glob
+import os
+from ..io import get_tiles_micromanager
+
+
+def estimate_black_level(fnames):
+    tiles = get_tiles_micromanager(fnames)
+
+
+def compute_mean_image(path_root, tile_shape, suffix='Full resolution', black_level=300,
+                       max_value=1000, verbose=False, median_filter=None):
+    mean_image = np.zeros(tile_shape)
+    for dir in glob.glob(path_root + '/*'):
+        subdir = os.path.join(dir, suffix)
+        im_name = os.path.split(dir)[1]
+        if verbose:
+            print(im_name)
+        tiffs = glob.glob(subdir + '/*.tif')
+        tiles = get_tiles_micromanager(tiffs)
+        this_mean_image = np.zeros(tiles.iloc[0]['data'].shape)
+        for _, tile in tiles.iterrows():
+            data = tile['data']
+            data[data>max_value] = max_value
+            data = data - black_level
+            this_mean_image += data
+        this_mean_image = this_mean_image / np.max(this_mean_image)
+        mean_image += this_mean_image
+        if median_filter is not None:
+            correction_image = median(mean_image, disk(median_filter))
+        correction_image = correction_image / np.max(correction_image)
+        return correction_image
 
 
 def correct_offset(tiles, method='metadata', metadata=None, n_components=5):

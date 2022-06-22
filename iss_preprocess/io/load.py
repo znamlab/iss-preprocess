@@ -4,6 +4,37 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from ..image.correction import correct_offset
 from ..reg.tiles import register_tiles
+from tifffile import TiffFile
+
+
+def get_tiles_micromanager(fnames, ch=0):
+    """
+    Load tiles from Micromanager TIFFs and return a nice DataFrame including tile
+    coordinates
+
+    Args:
+        fnames (list): list of micromanager TIFF files
+
+    Returns:
+        pandas.DataFrame containing tile data.
+
+    """
+    page_dicts = []
+
+    for fname in fnames:
+        with TiffFile(fname) as stack:
+            for page in stack.pages:
+                page_dict = {}
+                page_dict['data'] = page.asarray()
+                page_dict['X'] = page.tags['MicroManagerMetadata'].value['XPosition_um_Intended']
+                page_dict['Y'] = page.tags['MicroManagerMetadata'].value['YPosition_um_Intended']
+                page_dict['Z'] = page.tags['MicroManagerMetadata'].value['ZPosition_um_Intended']
+                page_dict['C'] = ch
+                page_dicts.append(page_dict)
+
+    df = pd.DataFrame.from_dict(page_dicts)
+    return df
+
 
 def get_tiles(fname):
     """

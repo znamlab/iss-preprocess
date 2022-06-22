@@ -41,7 +41,8 @@ def phase_corr(reference: np.ndarray, target: np.ndarray, max_shift=None, whiten
 
 def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                    normalization='phase', upsample_factor=1, offset=(456., 456.),
-                   max_orthogonal_shift=20, max_shift=None):
+                   max_orthogonal_shift=20, max_shift=None, correction_image=None,
+                   black_level=0):
     """
     Stitch tiles together using phase correlation registration.
     The current mean projection is used as a registration template for each z-stack.
@@ -51,7 +52,7 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
         ch_to_align (int): index of channel to use for registration
         reg_fraction (float): fraction of tile pixels along tile boundary to use for
             registration. This should be similar to tile size * overlap ratio.
-        method (str): The method of registration, if set to 'None', fixed offset values 
+        method (str): The method of registration, if set to 'None', fixed offset values
             will be used instead.
         normalization (str): NOTE: from scikit-image - Which form of normalization
             is better is application-dependent. For example, the phase correlation method works
@@ -59,12 +60,12 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
             robust to noise. In a high noise scenario, the unnormalized method may be
             preferable.
             TO CONSIDER, CHANGE DEFAULT TO = None ?
-        upsample_factor (int): Factor by which overlap region is scaled up for subpixel 
+        upsample_factor (int): Factor by which overlap region is scaled up for subpixel
         offset (tuple): An alternative fixed pixel offset for stitching
         max_orthogonal_shift (float): largest shift allowed along the
             orthogonal axis (e.g. up/down when aligning tiles left/right of
-            each other. If it is exceeded, shift is set to 0. 
-            Setting this too strictly will result in many bad default 0 stitches 
+            each other. If it is exceeded, shift is set to 0.
+            Setting this too strictly will result in many bad default 0 stitches
 
     Returns:
         numpy.ndarray: X x Y x C x Z array of stitched tiles.
@@ -77,6 +78,8 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                 (tiles['Y'] == ys[iy_]) &
                 (tiles['C'] == ch_to_align)
                 ]['data'].to_numpy(dtype=object)
+            if len(tile) == 0:
+                tile = [ np.zeros((xpix, ypix)), ]
             tile = np.stack(tile, axis=2).mean(axis=2)
         else:
             tile = np.zeros(tiles.iloc[0].data.shape)
@@ -86,13 +89,15 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                     (tiles['Y'] == ys[iy_]) &
                     (tiles['C'] == ch)
                     ]['data'].to_numpy(dtype=object)
+                if len(tile) == 0:
+                    this_channel = [ np.zeros((xpix, ypix)), ]
                 tile += np.stack(this_channel, axis=2).mean(axis=2)
         return tile
 
-    xs = tiles.X.unique()
-    ys = tiles.Y.unique()
-    channels = tiles.C.unique()
-    zs = tiles.Z.unique()
+    xs = sorted(tiles.X.unique())
+    ys = sorted(tiles.Y.unique())
+    channels = sorted(tiles.C.unique())
+    zs = sorted(tiles.Z.unique())
     nx = len(xs)
     ny = len(ys)
     nch = len(channels)
@@ -127,7 +132,7 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                     )[0] + [0, ypix-reg_pix]
                 else:
                     # limit the maximum y shift
-                    shift = [0, offset[1]]
+                    shift = offset[0]
                 tile_pos[:, ix+1, iy] = shift + tile_pos[:, ix, iy]
             # align first tile in each row to the one above
             if ix==0 and iy+1<ny:
@@ -149,7 +154,7 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                         whiten=True if normalization == 'phase' else False
                     )[0] + [xpix-reg_pix, 0]
                 else:
-                    shift = [offset[0], 0]
+                    shift = offset[1]
                 tile_pos[:, ix, iy+1] = shift + tile_pos[:, ix, iy]
     # round shifts and make sure there are no negative values
     tile_pos = np.rint(tile_pos).astype(int)
@@ -170,7 +175,14 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                         (tiles['Y'] == ys[iy]) &
                         (tiles['C'] == ch) &
                         (tiles['Z'] == z)
-                    ]['data'].to_numpy(dtype=object)[0]
+                        ]['data'].to_numpy()
+                    if len(this_tile) == 0:
+                        this_tile = np.zeros((xpix, ypix))
+                    else:
+                        this_tile = this_tile[0]
+                    this_tile = this_tile.astype(float) - black_level
+                    if correction_image is not None:
+                        this_tile = this_tile / correction_image
                     im[tile_pos[0,ix,iy]:tile_pos[0,ix,iy]+xpix,
-                        tile_pos[1,ix,iy]:tile_pos[1,ix,iy]+ypix, ich, iz] = this_tile
+                    tile_pos[1,ix,iy]:tile_pos[1,ix,iy]+ypix, ich, iz] = this_tile
     return im, tile_pos
