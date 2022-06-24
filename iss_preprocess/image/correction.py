@@ -1,22 +1,61 @@
 import numpy as np
+import glob
+import os
+from tifffile import TiffFile
 from sklearn.mixture import GaussianMixture
 from skimage.exposure import match_histograms
 from skimage.morphology import disk
 from skimage.filters import median
-import glob
-import os
 from ..io import get_tiles_micromanager
 
 
-def estimate_black_level(fnames):
-    tiles = get_tiles_micromanager(fnames)
+def analyze_dark_frames(fname):
+    """
+    Get statistics of dark frames to use for black level correction
+
+    Args:
+        fname (str): path to dark frame TIFF file
+
+    Returns:
+        Mean and STD of dark frames corresponding to black level and readout noise
+
+    """
+    images = []
+    with TiffFile(fname) as stack:
+        for page in stack.pages:
+            images.append(page.asarray())
+
+    dark_frames = np.stack(images, axis=0)
+    return dark_frames.mean(), dark_frames.std()
 
 
-def compute_mean_image(path_root, tile_shape, suffix='Full resolution', black_level=300,
+def compute_mean_image(dirs, tile_shape, suffix=None, black_level=300,
                        max_value=1000, verbose=False, median_filter=None):
+    """
+    Compute mean image to use for illumination correction.
+
+    Args:
+        dirs (list): list of directories containing images
+        tile_shape (tuple): shape of image tiles
+        suffix (str): subdirectory inside each of `dirs` containing images
+        black_level (float): image black level to subtract before calculating
+            each mean image
+        max_value (float): image values are clipped to this value. This reduces
+            the effect of extremely bright features skewing the average image
+        verbose (bool): whether to report on progress
+        median_filter (int): size of median filter to apply to the correction image.
+            If None, no median filtering is applied.
+
+    Returns:
+        numpy.ndarray correction image
+
+    """
     mean_image = np.zeros(tile_shape)
-    for dir in glob.glob(path_root + '/*'):
-        subdir = os.path.join(dir, suffix)
+    for dir in dirs:
+        if suffix:
+            subdir = os.path.join(dir, suffix)
+        else:
+            subdir = dir
         im_name = os.path.split(dir)[1]
         if verbose:
             print(im_name)
@@ -30,10 +69,10 @@ def compute_mean_image(path_root, tile_shape, suffix='Full resolution', black_le
             this_mean_image += data
         this_mean_image = this_mean_image / np.max(this_mean_image)
         mean_image += this_mean_image
-        if median_filter is not None:
-            correction_image = median(mean_image, disk(median_filter))
-        correction_image = correction_image / np.max(correction_image)
-        return correction_image
+    if median_filter is not None:
+        correction_image = median(mean_image, disk(median_filter))
+    correction_image = correction_image / np.max(correction_image)
+    return correction_image
 
 
 def correct_offset(tiles, method='metadata', metadata=None, n_components=5):
