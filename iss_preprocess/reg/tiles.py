@@ -1,7 +1,7 @@
 from skimage.registration import phase_cross_correlation
 import numpy as np
 import scipy.fft
-
+from functools import partial
 
 def phase_corr(reference: np.ndarray, target: np.ndarray, max_shift=None, whiten=True, fft_ref=True) -> np.ndarray:
     """
@@ -42,7 +42,7 @@ def phase_corr(reference: np.ndarray, target: np.ndarray, max_shift=None, whiten
 def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
                    normalization='phase', upsample_factor=1, offset=(456., 456.),
                    max_orthogonal_shift=20, max_shift=None, correction_image=None,
-                   black_level=0):
+                   black_level=0, proj_func=partial(np.max, axis=2)):
     """
     Stitch tiles together using phase correlation registration.
     The current mean projection is used as a registration template for each z-stack.
@@ -164,25 +164,23 @@ def register_tiles(tiles, ch_to_align=0, reg_fraction=0.1, method='scipy',
     im = np.zeros((
         np.max(tile_pos[0])+xpix,
         np.max(tile_pos[1])+ypix,
-        nch,
-        nz))
+        nch
+    ))
     for ich, ch in enumerate(channels):
-        for iz, z in enumerate(zs):
-            for ix, x in enumerate(xs):
-                for iy, y in enumerate(ys):
-                    this_tile = tiles[
-                        (tiles['X'] == xs[ix]) &
-                        (tiles['Y'] == ys[iy]) &
-                        (tiles['C'] == ch) &
-                        (tiles['Z'] == z)
-                        ]['data'].to_numpy()
-                    if len(this_tile) == 0:
-                        this_tile = np.zeros((xpix, ypix))
-                    else:
-                        this_tile = this_tile[0]
-                    this_tile = this_tile.astype(float) - black_level
-                    if correction_image is not None:
-                        this_tile = this_tile / correction_image
-                    im[tile_pos[0,ix,iy]:tile_pos[0,ix,iy]+xpix,
-                    tile_pos[1,ix,iy]:tile_pos[1,ix,iy]+ypix, ich, iz] = this_tile
+        for ix, x in enumerate(xs):
+            for iy, y in enumerate(ys):
+                this_tile = tiles[
+                    (tiles['X'] == xs[ix]) &
+                    (tiles['Y'] == ys[iy]) &
+                    (tiles['C'] == ch)
+                    ]['data'].to_numpy()
+                if len(this_tile) == 0:
+                    this_tile = np.zeros((xpix, ypix))
+                else:
+                    this_tile = proj_func(np.stack(this_tile, axis=2))
+                this_tile = this_tile.astype(float) - black_level
+                if correction_image is not None:
+                    this_tile = this_tile / correction_image
+                im[tile_pos[0,ix,iy]:tile_pos[0,ix,iy]+xpix,
+                tile_pos[1,ix,iy]:tile_pos[1,ix,iy]+ypix, ich] = this_tile
     return im, tile_pos
