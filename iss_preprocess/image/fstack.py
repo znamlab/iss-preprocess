@@ -30,17 +30,17 @@ import numpy as np
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# Ported to Python and modifieds by P. Znamenskiy, 2021
+# Ported to Python and modified by P. Znamenskiy, 2021
 
 def gfocus(im, wsize):
     """
     Calculate focus measure as the local variance of the images
 
     """
-    f = np.ones((wsize, wsize)) / wsize**2
-    u = scipy.ndimage.convolve(im, f, mode='nearest')
+    f = np.ones((wsize, wsize)) / (wsize**2)
+    u = scipy.ndimage.correlate(im, f, mode='nearest')
     fm = (im-u)**2
-    return scipy.ndimage.convolve(fm, f, mode='nearest')
+    return scipy.ndimage.correlate(fm, f, mode='nearest')
 
 
 def gauss3P(x, Y):
@@ -54,34 +54,33 @@ def gauss3P(x, Y):
     M,N,P = Y.shape
     I = np.argmax(Y, axis=2)
     Ic = I.flatten()
-    Ymax = np.amax(Y, axis=2)
-    [IN,IM] = np.meshgrid(np.arange(N), np.arange(M))
-    Index2 = np.ravel_multi_index([IM.flatten(), IN.flatten(), Ic], [M,N,P]);
-    Ic_1 = Ic.copy() - STEP
-    Ic_1[Ic_1<0] = Ic[Ic_1<0] + STEP
-    Ic_3 = Ic.copy() + STEP
-    Ic_3[Ic_3>=P] = Ic[Ic_3>=P] - STEP
-    Index1 = np.ravel_multi_index([IM.flatten(), IN.flatten(), Ic_1], [M,N,P])
-    Index3 = np.ravel_multi_index([IM.flatten(), IN.flatten(), Ic_3], [M,N,P])
+    Ic[Ic <= STEP - 1] = STEP
+    Ic[Ic >= P - 1 - STEP] = P - 1 - STEP
+    Ymax = np.max(Y, axis=2)
+    IN, IM = np.meshgrid(np.arange(N), np.arange(M))
+    Index1 = np.ravel_multi_index([IM.flatten(), IN.flatten(), Ic - STEP], [M,N,P])
+    Index2 = np.ravel_multi_index([IM.flatten(), IN.flatten(), Ic], [M,N,P])
+    Index3 = np.ravel_multi_index([IM.flatten(), IN.flatten(), Ic + STEP], [M,N,P])
+    Index1[I.flatten() <= STEP - 1] = Index3[I.flatten() <= STEP - 1]
+    Index3[I.flatten() >= STEP - 1] = Index1[I.flatten() >= STEP - 1]
+    x1 = np.reshape(x[Ic-STEP], (M,N))
+    x2 = np.reshape(x[Ic], (M,N))
+    x3 = np.reshape(x[Ic+STEP], (M,N))
+    y1 = np.reshape(np.log(Y[np.unravel_index(Index1, np.shape(Y))]),(M,N))
+    y2 = np.reshape(np.log(Y[np.unravel_index(Index2, np.shape(Y))]),(M,N))
+    y3 = np.reshape(np.log(Y[np.unravel_index(Index3, np.shape(Y))]),(M,N))
+    d = ((x1**2 - x2**2) * (x2 - x3) - (x2**2 - x3**2) * (x1 - x2))
+    c = ((y1 - y2) * (x2 - x3) - (y2 - y3) * (x1 - x2)) / d
 
-    x1 = np.reshape(Ic-STEP,(M,N))
-    x2 = np.reshape(Ic,(M,N))
-    x3 = np.reshape(Ic+STEP,(M,N))
-    Y = Y.flatten()
-    y1 = np.reshape(np.log(Y[Index1]),(M,N))
-    y2 = np.reshape(np.log(Y[Index2]),(M,N))
-    y3 = np.reshape(np.log(Y[Index3]),(M,N))
-    u = ( (y2-y3) * (x2**2 - x1**2) - (y2 - y1) * (x2**2 - x3**2) ) / \
-        ( 2 * (x3 - x2) * ( (y2 - y1) + (y2 - y3) ) )
-    s = np.sqrt(- ( (x2**2 - x1**2) + (x2**2 - x3**2 ) ) / \
-        ( 2 * ((y2-y1) + (y2-y3)) ))
-
-    A = y2 / np.exp(-(x2-u)**2 / (2*s**2) )
+    b = ((y2-y3) - c * (x2-x3) * (x2 + x3 + 2)) / (x2-x3)
+    s = -1 / ( 2 * c + 1e-6 )
+    u = b * s
+    a = y1 - b * (x1 + 1) - c * (x1 + 1)**2
+    A = np.exp(a + u**2 / (2*s))
     return u, s, A, Ymax
 
 def fstack(im, wsize=9, alpha=0.2, sth=13, focus=None):
     M, N, P = im.shape
-
     if focus is None:
         focus = np.arange(P)
 
@@ -93,20 +92,20 @@ def fstack(im, wsize=9, alpha=0.2, sth=13, focus=None):
 
     err = np.zeros((M, N))
     for plane in range(P):
-        err += np.abs( fm[:,:,plane] - A * np.exp(-(focus[plane]-u)**2 / (2*s**2)))
-        fm[:,:,plane] = fm[:,:,plane] / fmax
+        err += np.abs(fm[:,:,plane] - A * np.exp(-(focus[plane] + 1 - u)**2 / (2*s)))
+
+    fm = fm / fmax[:,:,np.newaxis]
 
     h = np.ones((wsize, wsize)) / wsize**2
-    inv_psnr = scipy.ndimage.convolve(err / (P*fmax), h, mode='nearest')
+    inv_psnr = scipy.ndimage.correlate(err / (P*fmax), h, mode='nearest')
 
     S = 20 * np.log10(1 / inv_psnr)
     S[np.isnan(S)] = np.min(S)
 
-    phi = 0.5 * (1+np.tanh(alpha*(S - sth))) * alpha
+    phi = 0.5 * (1 + np.tanh(alpha*(S - sth))) * alpha
     phi = scipy.signal.medfilt2d(phi, kernel_size=3)
 
-    for plane in range(P):
-        fm[:,:,plane] = 0.5 + 0.5 * np.tanh(phi * (fm[:,:,plane]-1))
+    fm = 0.5 + 0.5 * np.tanh(phi[:,:,np.newaxis] * (fm - 1))
 
     fmn = np.sum(fm, axis=2)
 
