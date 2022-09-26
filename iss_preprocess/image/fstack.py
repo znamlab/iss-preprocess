@@ -102,7 +102,7 @@ def fstack(im, wsize=9, alpha=0.2, sth=13, focus=None):
     S = 20 * np.log10(1 / inv_psnr)
     S[np.isnan(S)] = np.min(S)
 
-    phi = 0.5 * (1 + np.tanh(alpha*(S - sth))) * alpha
+    phi = 0.5 * (1 + np.tanh(alpha*(S - sth))) / alpha
     phi = scipy.signal.medfilt2d(phi, kernel_size=3)
 
     fm = 0.5 + 0.5 * np.tanh(phi[:,:,np.newaxis] * (fm - 1))
