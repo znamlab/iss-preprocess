@@ -120,7 +120,7 @@ def omp(y, X, background_vectors=None, max_comp=None, tol=0.05):
         # find the largest dot product among components not yet included
         not_chosen = np.nonzero(np.logical_not(ichosen))[0]
         dot_product = np.dot(X[:, not_chosen].transpose(), y)
-        best_match = not_chosen[np.argmax(dot_product)]
+        best_match = not_chosen[np.argmax(np.abs(dot_product))]
         ichosen[best_match] = True
         # fit coefficients, including new component and calculate new residuals
         coefs_new,_,_,_ = np.linalg.lstsq(X[:, ichosen], y)
