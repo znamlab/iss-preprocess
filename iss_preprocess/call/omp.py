@@ -175,9 +175,10 @@ def omp_weighted(y, X, background_vectors=None, max_comp=None, tol=0.05,
 
     """
     norm_y = np.linalg.norm(y)
+    if norm_y == 0:
+        return np.zeros(X.shape[1]), y
     y /= norm_y + norm_shift
     # initialize residuals vector
-    r = y
     nbackground = background_vectors.shape[1]
     if background_vectors is not None:
         Xfull = np.concatenate((background_vectors, X), axis=1)
@@ -188,10 +189,14 @@ def omp_weighted(y, X, background_vectors=None, max_comp=None, tol=0.05,
         coefs_background,_,_,_ = np.linalg.lstsq(Xfull[:, ichosen], y)
         if not refit_background:
             y = y - np.dot(Xfull[:, ichosen], coefs_background)
+    r = y
     if not max_comp:
         max_comp = X.shape[1]
     coefs = coefs_background
-    Xweighted = np.empty(X.shape, dtype=np.float64)
+    if not refit_background:
+        Xweighted = np.empty(X.shape, dtype=np.float64)
+    else:
+        Xweighted = np.empty(Xfull.shape, dtype=np.float64)
     # iterate until maximum number of components is reached
     while np.sum(ichosen) < max_comp:
         # find the largest dot product among components not yet included
@@ -208,23 +213,25 @@ def omp_weighted(y, X, background_vectors=None, max_comp=None, tol=0.05,
             ichosen[best_match] = True
         if weighted:
             weights = np.sqrt(weights_sq)
-            for ix in range(X.shape[0]):
-                Xweighted[ix, :] = X[ix,:] * weights[ix]
             # fit coefficients, including new component and calculate new residuals
             if not refit_background:
+                for ix in range(X.shape[0]):
+                    Xweighted[ix, :] = X[ix,:] * weights[ix]
                 coefs_new,_,_,_ = np.linalg.lstsq(Xweighted[:, ichosen[nbackground:]], y * weights)
             else:
+                for ix in range(Xfull.shape[0]):
+                    Xweighted[ix, :] = Xfull[ix,:] * weights[ix]
                 coefs_new,_,_,_ = np.linalg.lstsq(Xweighted[:, ichosen], y * weights)
         else:
             if not refit_background:
                 coefs_new,_,_,_ = np.linalg.lstsq(X[:, ichosen[nbackground:]], y)
             else:
-                coefs_new,_,_,_ = np.linalg.lstsq(X[:, ichosen], y)
+                coefs_new,_,_,_ = np.linalg.lstsq(Xfull[:, ichosen], y)
         if not refit_background:
             r = y - np.dot(X[:, ichosen[nbackground:]], coefs_new)
             coefs = np.concatenate((coefs_background, coefs_new))
         else:
-            r = y - np.dot(X[:, ichosen], coefs_new)
+            r = y - np.dot(Xfull[:, ichosen], coefs_new)
             coefs = coefs_new
 
     # prepare output vector
