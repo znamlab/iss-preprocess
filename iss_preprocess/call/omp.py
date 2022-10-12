@@ -141,6 +141,99 @@ def omp(y, X, background_vectors=None, max_comp=None, tol=0.05):
     return coefs_out, r
 
 
+@numba.jit(nopython=True)
+def omp_weighted(y, X, background_vectors=None, max_comp=None, tol=0.05,
+                 alpha=120., beta_squared=1., weighted=True, refit_background=False,
+                 norm_shift=0.):
+    """
+    Run Orthogonal Matching Pursuit to identify components present in the input
+    signal.
+
+    The algorithm works by iteratively. At each step we find the component that has
+    the highest dot product with the residual of the input signal. After selecting
+    a component, coefficients for all included components are estimated by least
+    squares regression and the residuals are updated. The component is retained
+    if it reduces the norm of the residuals by at least a fraction of the original
+    norm specified by the tolerance parameter.
+
+    Background vectors are automatically included.
+
+    Algorithm stops when the tolerance threshold is reach or the number of
+    components reaches `max_comp`.
+
+    Args:
+        y (numpy.ndarray): length N input signal.
+        X (numpy.ndarray): N x M dictionary of M components.
+        background_vectors (numpy.ndarray): N x O dictionary of background components.
+        max_comp (int): maximum number of components to include.
+        tol (float): tolerance threshold that determines the minimum fraction of
+            the residual norm to retain a component.
+
+    Returns:
+        Length M + O array of component coefficients
+        Length N array of residuals
+
+    """
+    norm_y = np.linalg.norm(y)
+    y /= norm_y + norm_shift
+    # initialize residuals vector
+    r = y
+    nbackground = background_vectors.shape[1]
+    if background_vectors is not None:
+        Xfull = np.concatenate((background_vectors, X), axis=1)
+    ichosen = np.zeros(Xfull.shape[1], dtype=numba.boolean)
+    if background_vectors is not None:
+        # initial coefficients for background vectors
+        ichosen[:background_vectors.shape[1]] = True
+        coefs_background,_,_,_ = np.linalg.lstsq(Xfull[:, ichosen], y)
+        if not refit_background:
+            y = y - np.dot(Xfull[:, ichosen], coefs_background)
+    if not max_comp:
+        max_comp = X.shape[1]
+    coefs = coefs_background
+    Xweighted = np.empty(X.shape, dtype=np.float64)
+    # iterate until maximum number of components is reached
+    while np.sum(ichosen) < max_comp:
+        # find the largest dot product among components not yet included
+        if weighted:
+            sigma_squared = beta_squared + alpha * np.sum(Xfull[:, ichosen]**2 * coefs**2, axis=1)
+            weights_sq = (1 / sigma_squared) / np.mean(1 / sigma_squared)
+            dot_product = np.abs(np.dot(Xfull.transpose(), r * weights_sq))
+        else:
+            dot_product = np.abs(np.dot(Xfull.transpose(), r))
+        best_match = np.argmax(dot_product)
+        if ichosen[best_match] == True or dot_product[best_match] < tol: # gene already added or background gene
+            break
+        else:
+            ichosen[best_match] = True
+        if weighted:
+            weights = np.sqrt(weights_sq)
+            for ix in range(X.shape[0]):
+                Xweighted[ix, :] = X[ix,:] * weights[ix]
+            # fit coefficients, including new component and calculate new residuals
+            if not refit_background:
+                coefs_new,_,_,_ = np.linalg.lstsq(Xweighted[:, ichosen[nbackground:]], y * weights)
+            else:
+                coefs_new,_,_,_ = np.linalg.lstsq(Xweighted[:, ichosen], y * weights)
+        else:
+            if not refit_background:
+                coefs_new,_,_,_ = np.linalg.lstsq(X[:, ichosen[nbackground:]], y)
+            else:
+                coefs_new,_,_,_ = np.linalg.lstsq(X[:, ichosen], y)
+        if not refit_background:
+            r = y - np.dot(X[:, ichosen[nbackground:]], coefs_new)
+            coefs = np.concatenate((coefs_background, coefs_new))
+        else:
+            r = y - np.dot(X[:, ichosen], coefs_new)
+            coefs = coefs_new
+
+    # prepare output vector
+    coefs_out = np.zeros(Xfull.shape[1])
+    if np.any(ichosen):
+        coefs_out[ichosen] = coefs
+    return coefs_out, r
+
+
 def run_omp(stack, gene_dict, tol=0.05):
     """
     Apply the OMP algorithm to every pixel of the provided image stack.
