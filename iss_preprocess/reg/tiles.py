@@ -3,7 +3,7 @@ import numpy as np
 import scipy.fft
 from functools import partial
 
-def phase_corr(reference: np.ndarray, target: np.ndarray, max_shift=None, whiten=True, fft_ref=True) -> np.ndarray:
+def phase_corr(reference: np.ndarray, target: np.ndarray, max_shift=None, min_shift=None, whiten=True, fft_ref=True) -> np.ndarray:
     """
     Compute phase correlation of two images.
 
@@ -33,6 +33,11 @@ def phase_corr(reference: np.ndarray, target: np.ndarray, max_shift=None, whiten
     if max_shift:
         cc[max_shift:-max_shift, :] = 0
         cc[:, max_shift:-max_shift] = 0
+    if min_shift:
+        cc[:min_shift, :min_shift] = 0
+        cc[-min_shift:, -min_shift:] = 0
+        cc[-min_shift:, :min_shift] = 0
+        cc[:min_shift, -min_shift:] = 0
     cc = scipy.fft.fftshift(cc)
 
     shift = np.unravel_index(np.argmax(cc), reference.shape) - np.array(reference.shape)/2
