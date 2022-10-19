@@ -1,10 +1,13 @@
 import numba
 import numpy as np
 from . import basecall_rois, call_genes, rois_to_array
-from itertools import compress
+import matplotlib.pyplot as plt
+from .call import BASES
+from ..coppafish import scaled_k_means
+from ..vis import plot_gene_templates
 
 
-def make_gene_templates(rois, codebook, max_errors=0, rounds=()):
+def make_gene_templates(rois, codebook, vis=False):
     """
     Make dictionary of fluorescence values for each gene by finding well-matching
     spots.
@@ -13,8 +16,6 @@ def make_gene_templates(rois, codebook, max_errors=0, rounds=()):
         rois (list): list of ROI objects containing fluorescence traces
         codebook (pandas.DataFrame): gene codes, containing 'gii', 'seq', and 'gene'
             columns.
-        max_errors (int): maximum number of error to include a spot. Default 0.
-        rounds (list): list of rounds to include. If empty, all rounds are used.
 
     Returns:
         N x genes numpy.ndarray containing dictionary of fluorescence values for
@@ -22,27 +23,53 @@ def make_gene_templates(rois, codebook, max_errors=0, rounds=()):
         List of detected gene names.
 
     """
-    # rounds x channels x rois matrix
-    f = rois_to_array(rois, normalize=False)
-    # only include ROIs imaged on all rounds
-    valid_rois = np.isfinite(f[0,0,:])
-    sequences, _, _ = basecall_rois(list(compress(rois, valid_rois)), separate_rounds=False, rounds=rounds)
-    f = f[:, :, valid_rois]
-    genes, errors = call_genes(sequences, codebook)
-    errors = np.array(errors)
-    genes = np.array(genes)
-    # ignore spots that have too many mismatches
-    genes[errors > max_errors] = 'nan'
-    unique_genes = np.unique(genes)
-    unique_genes = unique_genes[unique_genes != 'nan']
+    x = rois_to_array(rois, normalize=False) # round x channels x spots
+    nrounds = x.shape[0]
+    if vis:
+        plt.figure(figsize=(15,10))
+    cluster_means = []
+    for iround in range(nrounds):
+        norm_cluster_mean, cluster_eig_val, cluster_ind, top_score, cluster_ind0, top_score0 = scaled_k_means(
+            x[iround,:,:].T, np.eye(4)
+        )
+        if vis:
+            plt.subplot(2,4,iround+1)
+            plt.imshow(norm_cluster_mean)
+        cluster_means.append(norm_cluster_mean)
 
-    f = np.moveaxis(f, 2, 0)
-    f = np.reshape(f, (f.shape[0], -1))
-    gene_dict = np.empty((f.shape[1], len(unique_genes)))
-    for igene, gene in enumerate(unique_genes):
-        gene_dict[:, igene] = f[genes == gene, :].mean(axis=0)
+    gene_dict = []
+    for seq in codebook['seq']:
+        base_ids = [ np.where(b == BASES)[0][0] for b in seq ]
+        gene_barcode = [ cluster_mean[base, :] for base, cluster_mean in zip(base_ids, cluster_means) ]
+        gene_dict.append(np.concatenate(gene_barcode))
+    gene_dict = np.stack(gene_dict, axis=1)
     gene_dict /= np.linalg.norm(gene_dict, axis=0)
+    unique_genes = codebook['gene']
+
+    if vis:
+        plot_gene_templates(gene_dict, unique_genes)
+
     return gene_dict, unique_genes
+
+
+def refine_gene_templates(rois, gene_dict, unique_genes, thresh = 0.8, vis=False):
+    x = rois_to_array(rois, normalize=False)
+    x_ = np.reshape(x, (28,-1))
+    x_ /= np.linalg.norm(x_,axis=0)
+    gene_dict_refined = []
+    for igene in range(gene_dict.shape[1]):
+        matching_spots = np.dot(gene_dict[:,igene], x_) > thresh
+        if np.sum(matching_spots)>0:
+            gene_dict_refined.append(np.mean(x_[:, matching_spots], axis=1))
+        else:
+            gene_dict_refined.append(gene_dict[:,igene])
+    gene_dict_refined = np.stack(gene_dict_refined, axis=1)
+    gene_dict_refined /= np.linalg.norm(gene_dict_refined, axis=0)
+
+    if vis:
+        plot_gene_templates(gene_dict_refined, unique_genes)
+
+    return gene_dict_refined
 
 
 def make_background_vectors(nrounds=7, nchannels=4):

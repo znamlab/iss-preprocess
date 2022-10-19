@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.cluster import hierarchy
-
+from ..call import BASES
 
 def to_rgb(stack, colors, vmax=None, vmin=None):
     """
@@ -98,3 +98,13 @@ def plot_gene_matrix(gene_df, cmap='inferno', vmax=2):
     plt.imshow(gene_mat_reordered, cmap=cmap, vmax=vmax, interpolation='nearest')
     plt.xticks(range(gene_mat.shape[1]), gene_df.columns[gene_order], rotation=45)
     ax.set_aspect('auto')
+
+
+def plot_gene_templates(gene_dict, unique_genes):
+    plt.figure(figsize=(20, 40))
+    for igene, gene in enumerate(unique_genes):
+        plt.subplot(10, 9, igene + 1)
+        plt.imshow(np.reshape(gene_dict[:, igene], (7, 4)), cmap='gray')
+        plt.title(gene)
+        plt.colorbar()
+        plt.xticks(np.arange(4), BASES)
