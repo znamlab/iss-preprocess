@@ -3,6 +3,19 @@ import pandas as pd
 import numpy as np
 from skimage.feature import blob_log
 from scipy.signal import medfilt2d
+from scipy.ndimage import grey_dilation
+import scipy
+from ..coppafish import annulus
+
+
+def detect_isolated_spots(stack, detection_threshold=40, isolation_threshold=30):
+    im = np.std(stack, axis=2)
+    spots = detect_spots(im, method='dilation', threshold=detection_threshold)
+    strel = annulus(3,7)
+    strel = strel / np.sum(strel)
+    annulus_image = scipy.ndimage.correlate(im, strel)
+    isolated = annulus_image[ spots['y'], spots['x'] ] < isolation_threshold
+    return spots.iloc[isolated]
 
 
 def detect_gene_spots(im, median_filter=False, min_size=1., max_sigma=4.):
@@ -37,7 +50,7 @@ def detect_gene_spots(im, median_filter=False, min_size=1., max_sigma=4.):
     return gene_spots
 
 
-def detect_spots(stack, method='trackpy', separation=4, diameter=9, threshold=100,
+def detect_spots(im, method='trackpy', separation=4, diameter=9, threshold=100,
                  max_sigma=10):
     """
     Detect spots in a multichannel image based on standard deviation across channels
@@ -56,7 +69,6 @@ def detect_spots(stack, method='trackpy', separation=4, diameter=9, threshold=10
         pandas.DataFrame of spot location, including x, y, and size.
 
     """
-    im = np.std(stack, axis=2)
     if method == 'trackpy':
         spots = trackpy.locate(
             im,
@@ -73,6 +85,12 @@ def detect_spots(stack, method='trackpy', separation=4, diameter=9, threshold=10
             num_sigma=20,
         )
         spots = pd.DataFrame(spots_array, columns=['y', 'x', 'size'])
+    elif method == 'dilation':
+        dilate = grey_dilation(im, size=(4,4))
+        small = 1e-6
+        spots = np.logical_and(im + small > dilate, im > threshold)
+        coors = np.where(spots)
+        spots = pd.DataFrame({'y':coors[0], 'x':coors[1], 'size':np.ones(len(coors[0]))*2})
     else:
         raise(ValueError(f'Unknown spot detection method "{method}"'))
 
