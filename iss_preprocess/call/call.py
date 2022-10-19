@@ -6,8 +6,8 @@ from sklearn.decomposition import FastICA
 from scipy.spatial.distance import hamming
 import matplotlib.pyplot as plt
 
-BASES = np.array(['G','T','A','C'])
-
+#BASES = np.array(['G','T','A','C'])
+BASES = np.array(['A','C','T','G'])
 
 def call_hyb_spots(spots, stack, nprobes=3, vis=False):
     """
