@@ -12,7 +12,7 @@ def apply_corrections(im, scales, angles, shifts, ch_to_align=0):
     nchannels = im.shape[2]
     im_reg = np.zeros(im.shape)
     for channel, scale, angle, shift in zip(range(nchannels), scales, angles, shifts):
-        target_rescaled = rotate(rescale(im[:,:,channel], scale), angle)
+        target_rescaled = rotate(rescale(im[:,:,channel], scale, preserve_range=True), angle)
         target_rescaled = pad_to_size(target_rescaled, im.shape[0:2])
         #shift, _ = phase_corr(im[:,:,ch_to_align], target_rescaled)
         im_reg[:,:,channel] = scipy.ndimage.shift(target_rescaled, shift)
@@ -66,7 +66,7 @@ def pad_to_size(array, size):
 
 
 def estimate_scale_rotation_translation(reference, target, angle_range=5., scale_range=0.01, nscales=15,
-                                        niter=3, nangles=15, verbose=False):
+                                        niter=3, nangles=15, verbose=False, min_shift=None):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
     reference image. Search for the best angle is performed iteratively by decreasing the gradually
@@ -98,7 +98,7 @@ def estimate_scale_rotation_translation(reference, target, angle_range=5., scale
             target_rescaled = rescale(target, scales[iscale])
             target_rescaled = pad_to_size(target_rescaled, reference_fft.shape)
             best_angles[iscale], max_cc[iscale] = estimate_rotation_angle(reference_fft, target_rescaled, angle_range,
-                                                                          best_angle, nangles)
+                                                                          best_angle, nangles, min_shift=None)
         best_scale_index = np.argmax(max_cc)
         best_scale = scales[best_scale_index]
         best_angle = best_angles[best_scale_index]
@@ -113,12 +113,17 @@ def estimate_scale_rotation_translation(reference, target, angle_range=5., scale
 
 
 @jit(parallel=True, forceobj=True)
-def estimate_rotation_angle(reference_fft, target, angle_range, best_angle, nangles):
+def estimate_rotation_angle(reference_fft, target, angle_range, best_angle, nangles, min_shift=None):
     angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
     max_cc = np.empty(angles.shape)
     shifts = np.empty((nangles, 2))
     for iangle in prange(nangles):
-        shifts[iangle, :], cc = phase_corr(reference_fft, rotate(target, angles[iangle]), fft_ref=False)
+        shifts[iangle, :], cc = phase_corr(
+            reference_fft,
+            rotate(target, angles[iangle]),
+            fft_ref=False,
+            min_shift=min_shift
+        )
         max_cc[iangle] = np.max(cc)
     best_angle_index = np.argmax(max_cc)
     best_angle = angles[best_angle_index]
@@ -177,7 +182,7 @@ def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_
 
 
 @jit(parallel=True, forceobj=True)
-def estimate_rotation_translation(reference, target, angle_range=5., niter=3, nangles=20, scale=1.):
+def estimate_rotation_translation(reference, target, angle_range=5., niter=3, nangles=20, scale=1., min_shift=None):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
     reference image. Search for the best angle is performed iteratively by decreasing the gradually
@@ -205,7 +210,9 @@ def estimate_rotation_translation(reference, target, angle_range=5., niter=3, na
         target_rescaled = target
         reference_fft = scipy.fft.fft2(reference)
     for i in range(niter):
-        best_angle, max_cc = estimate_rotation_angle(reference_fft, target_rescaled, angle_range, best_angle, nangles)
+        best_angle, max_cc = estimate_rotation_angle(
+            reference_fft, target_rescaled, angle_range, best_angle, nangles, min_shift=min_shift
+        )
         angle_range = angle_range / 5
     shift, _ = phase_corr(reference, rotate(target, best_angle))
     return best_angle, shift
