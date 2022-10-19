@@ -4,3 +4,4 @@ from . import reg
 from . import segment
 from . import vis
 from . import call
+from . import coppafish
