@@ -197,17 +197,19 @@ def omp_weighted(y, X, background_vectors=None, max_comp=None, tol=0.05,
         Xweighted = np.empty(X.shape, dtype=np.float64)
     else:
         Xweighted = np.empty(Xfull.shape, dtype=np.float64)
+
     # iterate until maximum number of components is reached
     while np.sum(ichosen) < max_comp:
         # find the largest dot product among components not yet included
+        not_chosen = np.nonzero(np.logical_not(ichosen))[0]
         if weighted:
             sigma_squared = beta_squared + alpha * np.sum(Xfull[:, ichosen]**2 * coefs**2, axis=1)
             weights_sq = (1 / sigma_squared) / np.mean(1 / sigma_squared)
-            dot_product = np.abs(np.dot(Xfull.transpose(), r * weights_sq))
+            dot_product = np.abs(np.dot(Xfull[:, not_chosen].transpose(), r * weights_sq))
         else:
-            dot_product = np.abs(np.dot(Xfull.transpose(), r))
-        best_match = np.argmax(dot_product)
-        if ichosen[best_match] == True or dot_product[best_match] < tol: # gene already added or background gene
+            dot_product = np.abs(np.dot(Xfull[:, not_chosen].transpose(), r))
+        best_match = not_chosen[np.argmax(dot_product)]
+        if ichosen[best_match] == True or np.max(dot_product) < tol: # gene already added or background gene
             break
         else:
             ichosen[best_match] = True
@@ -241,7 +243,8 @@ def omp_weighted(y, X, background_vectors=None, max_comp=None, tol=0.05,
     return coefs_out, r
 
 
-def run_omp(stack, gene_dict, tol=0.05):
+def run_omp(stack, gene_dict, tol=0.05, weighted=True, refit_background=True, alpha=120., beta_squared=1.,
+            norm_shift=0., max_comp=None):
     """
     Apply the OMP algorithm to every pixel of the provided image stack.
 
@@ -268,13 +271,26 @@ def run_omp(stack, gene_dict, tol=0.05):
         for ix in numba.prange(stack_.shape[0]):
             if ix % 100 == 0:
                 print(f'finished row {ix} of {stack_.shape[0]}')
-            for iy in numba.prange(stack_.shape[1]):
-                g[ix, iy, :], r[ix, iy, :] = omp(
+            for iy in range(stack_.shape[1]):
+                g[ix, iy, :], r[ix, iy, :] = omp_weighted(
                     stack_[ix, iy, :, :].flatten(),
                     gene_dict_,
                     background_vectors=background_vectors_,
-                    tol=tol_
+                    tol=tol_,
+                    weighted=weighted,
+                    refit_background=refit_background,
+                    alpha=alpha,
+                    beta_squared=beta_squared,
+                    norm_shift=norm_shift,
+                    max_comp=max_comp
                 )
+                # g[ix, iy, :], r[ix, iy, :] = omp(
+                #     stack_[ix, iy, :, :].flatten(),
+                #     gene_dict_,
+                #     background_vectors=background_vectors_,
+                #     tol=tol_,
+                #     norm_shift=norm_shift
+                # )
         return g, r
     g,r = omp_loop_(stack, background_vectors, gene_dict, tol)
 
