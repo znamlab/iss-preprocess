@@ -20,15 +20,24 @@ def apply_corrections(im, scales, angles, shifts, ch_to_align=0):
     return im_reg
 
 
-def estimate_correction(im_calibration, ch_to_align=0):
-    nchannels = im_calibration.shape[2]
+def estimate_correction(im, ch_to_align=0):
+    """
+
+    Args:
+        im:
+        ch_to_align:
+
+    Returns:
+
+    """
+    nchannels = im.shape[2]
     scale_range = 0.05
     scales, angles, shifts = [], [], []
     for channel in range(nchannels):
         if channel != ch_to_align:
             scale, angle, shift = estimate_scale_rotation_translation(
-                im_calibration[:,:,ch_to_align],
-                im_calibration[:,:,channel],
+                im[:,:,ch_to_align],
+                im[:,:,channel],
                 niter=5,
                 nangles=3,
                 verbose=True,

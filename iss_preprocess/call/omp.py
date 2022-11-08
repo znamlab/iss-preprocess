@@ -1,6 +1,6 @@
 import numba
 import numpy as np
-from . import basecall_rois, call_genes, rois_to_array
+from . import rois_to_array
 import matplotlib.pyplot as plt
 from .call import BASES
 from ..coppafish import scaled_k_means
@@ -47,7 +47,7 @@ def make_gene_templates(rois, codebook, vis=False):
     unique_genes = codebook['gene']
 
     if vis:
-        plot_gene_templates(gene_dict, unique_genes)
+        plot_gene_templates(gene_dict, unique_genes, BASES)
 
     return gene_dict, unique_genes
 

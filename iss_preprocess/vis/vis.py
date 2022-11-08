@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.cluster import hierarchy
-from ..call import BASES
+
 
 def to_rgb(stack, colors, vmax=None, vmin=None):
     """
@@ -100,7 +100,7 @@ def plot_gene_matrix(gene_df, cmap='inferno', vmax=2):
     ax.set_aspect('auto')
 
 
-def plot_gene_templates(gene_dict, unique_genes):
+def plot_gene_templates(gene_dict, unique_genes, BASES):
     plt.figure(figsize=(20, 40))
     for igene, gene in enumerate(unique_genes):
         plt.subplot(10, 9, igene + 1)
