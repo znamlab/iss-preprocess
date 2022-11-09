@@ -22,9 +22,9 @@ def load_image(fname, ops):
 
 def align_channels_and_rounds(stack):
     nchannels, nrounds = stack.shape[2:]
-    angles_channels, shifts_channels = align_within_channels(stack)
+    angles_channels, shifts_channels = align_within_channels(stack, upsample=5)
     std_stack, mean_stack = get_channel_reference_images(stack, angles_channels, shifts_channels)
-    scales, angles, shifts = estimate_correction(std_stack, ch_to_align=0)
+    scales, angles, shifts = estimate_correction(std_stack, ch_to_align=0, upsample=5)
     reg_stack = np.zeros((stack.shape))
 
     for ich in range(nchannels):
@@ -45,7 +45,7 @@ def project_tile(fnames):
     write_stack(im_proj, fname + '_proj.tif', bigtiff=True)
 
 
-def align_within_channels(stack):
+def align_within_channels(stack, upsample=False):
     # align rounds to each other for each channel
     nchannels, nrounds = stack.shape[2:]
     ref_round = 0
@@ -62,7 +62,8 @@ def align_within_channels(stack):
                     niter=3,
                     nangles=15,
                     scale=1.,
-                    min_shift=2
+                    min_shift=2,
+                    upsample=upsample
                 )
             else:
                 angle, shift = 0., [0., 0.]
