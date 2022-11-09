@@ -5,6 +5,7 @@ from pystackreg import StackReg
 from numba import jit, prange
 from skimage.filters import window, difference_of_gaussians
 from skimage.transform import rotate, rescale
+from skimage.registration import phase_cross_correlation
 from . import phase_corr
 
 
@@ -20,7 +21,7 @@ def apply_corrections(im, scales, angles, shifts, ch_to_align=0):
     return im_reg
 
 
-def estimate_correction(im, ch_to_align=0):
+def estimate_correction(im, ch_to_align=0, upsample=False):
     """
 
     Args:
@@ -43,6 +44,7 @@ def estimate_correction(im, ch_to_align=0):
                 verbose=True,
                 scale_range=scale_range,
                 angle_range=1.,
+                upsample=upsample
             )
         else:
             scale, angle, shift = 1.0, 0., (0, 0)
@@ -75,7 +77,7 @@ def pad_to_size(array, size):
 
 
 def estimate_scale_rotation_translation(reference, target, angle_range=5., scale_range=0.01, nscales=15,
-                                        niter=3, nangles=15, verbose=False, min_shift=None):
+    niter=3, nangles=15, verbose=False, upsample=False):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
     reference image. Search for the best angle is performed iteratively by decreasing the gradually
@@ -117,7 +119,10 @@ def estimate_scale_rotation_translation(reference, target, angle_range=5., scale
             print(f'Best scale: {best_scale}. Best angle: {best_angle}')
     target_rescaled = rescale(target, best_scale)
     target_rescaled = pad_to_size(target_rescaled, reference_fft.shape)
-    shift, _ = phase_corr(reference_fft, rotate(target_rescaled, best_angle), fft_ref=False)
+    if not upsample:
+        shift, _ = phase_corr(reference_fft, rotate(target_rescaled, best_angle), fft_ref=False)
+    else:
+        shift = phase_cross_correlation(reference, rotate(target_rescaled, best_angle), upsample_factor=upsample)[0]
     return best_scale, best_angle, shift
 
 
@@ -191,7 +196,8 @@ def register_rounds_fine(stack, tile_size=1024, ch_to_align=0, padding=100, max_
 
 
 @jit(parallel=True, forceobj=True)
-def estimate_rotation_translation(reference, target, angle_range=5., niter=3, nangles=20, scale=1., min_shift=None):
+def estimate_rotation_translation(reference, target, angle_range=5., niter=3,
+                                  nangles=20, scale=1., min_shift=None, upsample=None):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
     reference image. Search for the best angle is performed iteratively by decreasing the gradually
@@ -223,7 +229,10 @@ def estimate_rotation_translation(reference, target, angle_range=5., niter=3, na
             reference_fft, target_rescaled, angle_range, best_angle, nangles, min_shift=min_shift
         )
         angle_range = angle_range / 5
-    shift, _ = phase_corr(reference, rotate(target, best_angle))
+    if not upsample:
+        shift, _ = phase_corr(reference, rotate(target, best_angle))
+    else:
+        shift = phase_cross_correlation(reference, rotate(target, best_angle), upsample_factor=upsample)[0]
     return best_angle, shift
 
 
