@@ -8,6 +8,101 @@ from . import phase_corr
 from math import cos, sin, radians
 
 
+def register_channels_and_rounds(stack):
+    """
+    Estimate transformation matrices for alignment across channels and rounds.
+
+    Args:
+        stack:
+
+    Returns:
+
+    """
+    nchannels, nrounds = stack.shape[2:]
+    # first register images across rounds within each channel
+    angles_channels, shifts_channels = align_within_channels(stack, upsample=5)
+    # use these to computer a reference image for each channel
+    std_stack, mean_stack = get_channel_reference_images(stack, angles_channels, shifts_channels)
+    scales, angles, shifts = estimate_correction(std_stack, ch_to_align=0, upsample=5)
+    tforms = np.empty((nchannels, nrounds), dtype=object)
+
+    for ich in range(nchannels):
+        for iround in range(nrounds):
+            tforms[ich,iround] = make_transform(scales[ich], angles[ich], shifts[ich], stack.shape[:2]) @ \
+                    make_transform(1., angles_channels[ich][iround], shifts_channels[ich][iround], stack.shape[:2])
+            tform = SimilarityTransform(matrix=tform)
+    return tforms
+
+
+def align_channels_and_rounds(stack, tforms):
+    """
+    Apply the provided transformations to align images across channels and rounds.
+
+    Args:
+        stack:
+        tforms:
+
+    Returns:
+
+    """
+    nchannels, nrounds = stack.shape[2:]
+    reg_stack = np.empty((stack.shape))
+
+    for ich in range(nchannels):
+        for iround in range(nrounds):
+            tform = SimilarityTransform(matrix=tforms[ich,iround])
+            reg_stack[:,:,ich,iround] = warp(stack[:,:,ich,iround], tform.inverse, preserve_range=True)
+    return reg_stack
+
+
+def align_within_channels(stack, upsample=False):
+    # align rounds to each other for each channel
+    nchannels, nrounds = stack.shape[2:]
+    ref_round = 0
+    angles_channels = []
+    shifts_channels = []
+    for ref_ch in range(nchannels):
+        angles = []
+        shifts = []
+        for iround in range(nrounds):
+            if ref_round != iround:
+                angle, shift = estimate_rotation_translation(
+                    stack[:,:,ref_ch,ref_round], stack[:,:,ref_ch,iround],
+                    angle_range=1.,
+                    niter=3,
+                    nangles=15,
+                    min_shift=2,
+                    upsample=upsample
+                )
+            else:
+                angle, shift = 0., [0., 0.]
+            angles.append(angle)
+            shifts.append(shift)
+            print(f'angle: {angle}, shift: {shift}')
+        angles_channels.append(angles)
+        shifts_channels.append(shifts)
+    return angles_channels, shifts_channels
+
+
+def get_channel_reference_images(stack, angles_channels, shifts_channels):
+    nchannels, nrounds = stack.shape[2:]
+
+    # get a good reference image for each channel
+    std_stack = np.zeros((stack.shape[:3]))
+    mean_stack = np.zeros((stack.shape[:3]))
+
+    for ich in range(nchannels):
+        std_stack[:,:,ich] = np.std(
+            apply_corrections(stack[:,:,ich,:], np.ones((nrounds)), angles_channels[ich], shifts_channels[ich]),
+            axis=2
+        )
+        mean_stack[:,:,ich] = np.mean(
+            apply_corrections(stack[:,:,ich,:], np.ones((nrounds)), angles_channels[ich], shifts_channels[ich]),
+            axis=2
+        )
+    return std_stack, mean_stack
+
+
 def transform_image(im, scale=1, angle=0, shift=(0,0)):
     tform = SimilarityTransform(matrix=make_transform(scale, angle, shift, im.shape))
     return warp(im, tform.inverse, preserve_range=True)

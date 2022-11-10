@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from ..image import correct_offset, fstack_channels, filter_stack
-from ..reg import register_tiles, estimate_correction, apply_corrections, estimate_rotation_translation
+from ..reg import register_tiles
 from ..io import load_stack, get_tiles, get_tile_ome, reorder_channels, write_stack
 from ..segment import detect_isolated_spots
 from ..call import extract_spots, make_gene_templates
@@ -54,23 +54,6 @@ def setup_omp(fname, nchannels=4, nrounds=7):
     return gene_dict, unique_genes, norm_shift
 
 
-def align_channels_and_rounds(stack):
-    nchannels, nrounds = stack.shape[2:]
-    # first register images across rounds within each channel
-    angles_channels, shifts_channels = align_within_channels(stack, upsample=5)
-    # use these to computer a reference image for each channel
-    std_stack, mean_stack = get_channel_reference_images(stack, angles_channels, shifts_channels)
-    scales, angles, shifts = estimate_correction(std_stack, ch_to_align=0, upsample=5)
-    reg_stack = np.zeros((stack.shape))
-
-    for ich in range(nchannels):
-        reg_stack[:,:,ich,:] = apply_corrections(stack[:,:,ich,:], np.ones((nrounds)), angles_channels[ich], shifts_channels[ich])
-    for iround in range(nrounds):
-        reg_stack[:,:,:,iround] = apply_corrections(reg_stack[:,:,:,iround], scales, angles, shifts)
-
-    return reg_stack
-
-
 def project_tile(fnames):
     for fname in fnames:
         print(f'loading {fname}')
@@ -79,51 +62,3 @@ def project_tile(fnames):
     im_proj = fstack_channels(im, sth=10)
     #im_proj = np.max(im, axis=3)
     write_stack(im_proj, fname + '_proj.tif', bigtiff=True)
-
-
-def align_within_channels(stack, upsample=False):
-    # align rounds to each other for each channel
-    nchannels, nrounds = stack.shape[2:]
-    ref_round = 0
-    angles_channels = []
-    shifts_channels = []
-    for ref_ch in range(nchannels):
-        angles = []
-        shifts = []
-        for iround in range(nrounds):
-            if ref_round != iround:
-                angle, shift = estimate_rotation_translation(
-                    stack[:,:,ref_ch,ref_round], stack[:,:,ref_ch,iround],
-                    angle_range=1.,
-                    niter=3,
-                    nangles=15,
-                    min_shift=2,
-                    upsample=upsample
-                )
-            else:
-                angle, shift = 0., [0., 0.]
-            angles.append(angle)
-            shifts.append(shift)
-            print(f'angle: {angle}, shift: {shift}')
-        angles_channels.append(angles)
-        shifts_channels.append(shifts)
-    return angles_channels, shifts_channels
-
-
-def get_channel_reference_images(stack, angles_channels, shifts_channels):
-    nchannels, nrounds = stack.shape[2:]
-
-    # get a good reference image for each channel
-    std_stack = np.zeros((stack.shape[:3]))
-    mean_stack = np.zeros((stack.shape[:3]))
-
-    for ich in range(nchannels):
-        std_stack[:,:,ich] = np.std(
-            apply_corrections(stack[:,:,ich,:], np.ones((nrounds)), angles_channels[ich], shifts_channels[ich]),
-            axis=2
-        )
-        mean_stack[:,:,ich] = np.mean(
-            apply_corrections(stack[:,:,ich,:], np.ones((nrounds)), angles_channels[ich], shifts_channels[ich]),
-            axis=2
-        )
-    return std_stack, mean_stack
