@@ -1,9 +1,7 @@
 import numba
 import numpy as np
 from . import rois_to_array
-import matplotlib.pyplot as plt
-from .call import BASES
-from ..coppafish import scaled_k_means
+from .call import BASES, get_cluster_means
 from ..vis import plot_gene_templates
 
 
@@ -23,19 +21,7 @@ def make_gene_templates(rois, codebook, vis=False):
         List of detected gene names.
 
     """
-    x = rois_to_array(rois, normalize=False) # round x channels x spots
-    nrounds = x.shape[0]
-    if vis:
-        plt.figure(figsize=(15,10))
-    cluster_means = []
-    for iround in range(nrounds):
-        norm_cluster_mean, cluster_eig_val, cluster_ind, top_score, cluster_ind0, top_score0 = scaled_k_means(
-            x[iround,:,:].T, np.eye(4)
-        )
-        if vis:
-            plt.subplot(2,4,iround+1)
-            plt.imshow(norm_cluster_mean)
-        cluster_means.append(norm_cluster_mean)
+    cluster_means = get_cluster_means(rois, vis=vis)
 
     gene_dict = []
     for seq in codebook['seq']:

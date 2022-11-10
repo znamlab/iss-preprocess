@@ -1,7 +1,10 @@
 import numpy as np
-from ..image import correct_offset, fstack_channels
+import pandas as pd
+from ..image import correct_offset, fstack_channels, filter_stack
 from ..reg import register_tiles, estimate_correction, apply_corrections, estimate_rotation_translation
-from ..io import get_tiles, get_tile_ome, reorder_channels, write_stack
+from ..io import load_stack, get_tiles, get_tile_ome, reorder_channels, write_stack
+from ..segment import detect_isolated_spots
+from ..call import extract_spots, make_gene_templates
 
 
 def load_image(fname, ops):
@@ -20,9 +23,42 @@ def load_image(fname, ops):
     return im
 
 
+def setup_omp(fname, nchannels=4, nrounds=7):
+    stack = load_stack(fname)
+    stack = np.reshape(stack, (stack.shape[0], stack.shape[1], nchannels, nrounds))
+    stack = np.moveaxis(stack, 2, 3)
+    stack = filter_stack(stack)
+
+    spots = detect_isolated_spots(
+        np.reshape(stack, (stack.shape[0], stack.shape[1], -1)),
+        detection_threshold=40,
+        isolation_threshold=30
+    )
+
+    rois = extract_spots(spots, stack)
+    codebook = pd.read_csv(
+        '/Users/znamenp/code/iss-preprocess/iss_preprocess/call/codebook_83gene_pool.csv',
+        header=None,
+        names=['gii', 'seq', 'gene']
+    )
+    gene_dict, unique_genes = make_gene_templates(rois, codebook, vis=True)
+
+    norm_shift = np.sqrt(
+        np.median(
+            np.sum(
+                np.reshape(stack,(stack.shape[0], stack.shape[1], -1))**2,
+                axis=2
+            )
+        )
+    )
+    return gene_dict, unique_genes, norm_shift
+
+
 def align_channels_and_rounds(stack):
     nchannels, nrounds = stack.shape[2:]
+    # first register images across rounds within each channel
     angles_channels, shifts_channels = align_within_channels(stack, upsample=5)
+    # use these to computer a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(stack, angles_channels, shifts_channels)
     scales, angles, shifts = estimate_correction(std_stack, ch_to_align=0, upsample=5)
     reg_stack = np.zeros((stack.shape))
@@ -61,7 +97,6 @@ def align_within_channels(stack, upsample=False):
                     angle_range=1.,
                     niter=3,
                     nangles=15,
-                    scale=1.,
                     min_shift=2,
                     upsample=upsample
                 )

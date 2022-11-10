@@ -5,9 +5,31 @@ from sklearn.mixture import GaussianMixture
 from sklearn.decomposition import FastICA
 from scipy.spatial.distance import hamming
 import matplotlib.pyplot as plt
-
+from ..coppafish import scaled_k_means
 #BASES = np.array(['G','T','A','C'])
 BASES = np.array(['A','C','T','G'])
+
+
+def get_cluster_means(rois, vis=False):
+    x = rois_to_array(rois, normalize=False) # round x channels x spots
+    nrounds = x.shape[0]
+    if vis:
+        plt.figure(figsize=(15,10))
+    cluster_means = []
+    for iround in range(nrounds):
+        norm_cluster_mean, cluster_eig_val, cluster_ind, top_score, cluster_ind0, top_score0 = scaled_k_means(
+            x[iround,:,:].T, np.eye(4)
+        )
+        if vis:
+            plt.subplot(2,4,iround+1)
+            plt.imshow(norm_cluster_mean)
+            plt.xlabel('channels')
+            plt.ylabel('clusters')
+            plt.yticks(range(4))
+            plt.title(f'round {iround+1}')
+        cluster_means.append(norm_cluster_mean)
+    return cluster_means
+
 
 def call_hyb_spots(spots, stack, nprobes=3, vis=False):
     """

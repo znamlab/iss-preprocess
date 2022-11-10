@@ -7,6 +7,25 @@ from skimage.exposure import match_histograms
 from skimage.morphology import disk
 from skimage.filters import median
 from ..io import get_tiles_micromanager
+from ..coppafish import hanning_diff
+import cv2
+
+
+def filter_stack(stack, r1=2, r2=4):
+    nchannels, nrounds = stack.shape[2:]
+
+    h = hanning_diff(r1, r2)
+    stack_filt = np.zeros(stack.shape)
+
+    for ich in range(nchannels):
+        for iround in range(nrounds):
+            stack_filt[:,:,ich, iround] = cv2.filter2D(
+                stack[:,:,ich, iround].astype(float),
+                -1,
+                np.flip(h),
+                borderType=cv2.BORDER_REPLICATE
+            )
+    return stack_filt
 
 
 def analyze_dark_frames(fname):
