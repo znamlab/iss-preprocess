@@ -30,7 +30,6 @@ def register_channels_and_rounds(stack):
         for iround in range(nrounds):
             tforms[ich,iround] = make_transform(scales[ich], angles[ich], shifts[ich], stack.shape[:2]) @ \
                     make_transform(1., angles_channels[ich][iround], shifts_channels[ich][iround], stack.shape[:2])
-            tform = SimilarityTransform(matrix=tform)
     return tforms
 
 
@@ -51,7 +50,12 @@ def align_channels_and_rounds(stack, tforms):
     for ich in range(nchannels):
         for iround in range(nrounds):
             tform = SimilarityTransform(matrix=tforms[ich,iround])
-            reg_stack[:,:,ich,iround] = warp(stack[:,:,ich,iround], tform.inverse, preserve_range=True)
+            reg_stack[:,:,ich,iround] = warp(
+                stack[:,:,ich,iround],
+                tform.inverse,
+                preserve_range=True,
+                cval=np.nan
+            )
     return reg_stack
 
 
