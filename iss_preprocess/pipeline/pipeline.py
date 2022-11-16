@@ -59,7 +59,7 @@ def check_files(data_path, nrounds=7):
     raw_path = Path(PARAMETERS['data_root']['raw'])
     data_path = raw_path / data_path
 
-    tiffs = sorted(glob.glob(data_path / 'round_01_1/*.tif'))
+    tiffs = sorted(glob.glob(str(data_path / 'round_01_1/*.tif')))
     success = True
     # check that all files exist
     for iround in range(nrounds):
@@ -71,27 +71,33 @@ def check_files(data_path, nrounds=7):
     return success, tiffs
 
 
-def project_tile(fname):
+def project_tile(fname, overwrite=False):
     """Calculates extended depth of field and max intensity projections for a single tile.
 
     Args:
         fname (str): path to tile *without* `'.ome.tif'` extension.
+        overwrite (bool): whether to repeat if already completed
 
     """
     raw_path = Path(PARAMETERS['data_root']['raw'])
     processed_path = Path(PARAMETERS['data_root']['processed'])
+    save_path_fstack = processed_path / (fname + '_proj.tif')
+    save_path_max = processed_path / (fname + '_max.tif')
+    if save_path_fstack.exists() or save_path_max.exists():
+        print(f'{fname} already projected...\n')
+        return
     print(f'loading {fname}\n')
     im = get_tile_ome(raw_path / (fname + '.ome.tif'), raw_path / (fname + '_metadata.txt'))
     print('computing projection\n')
     im_fstack = fstack_channels(im, sth=8)
     im_max = np.max(im, axis=3)
     (processed_path / fname).parent.mkdir(parents=True, exist_ok=True)
-    write_stack(im_fstack, processed_path / (fname + '_fstack.tif'), bigtiff=True)
-    write_stack(im_max, processed_path / (fname + '_max.tif'), bigtiff=True)
+    write_stack(im_fstack, save_path_fstack, bigtiff=True)
+    write_stack(im_max, save_path_max, bigtiff=True)
 
 
-def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='_proj'):
-    """_summary_
+def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='proj'):
+    """Load processed tile images across rounds 
 
     Args:
         data_path (str): relative path to dataset.
@@ -108,9 +114,10 @@ def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='_proj'
     processed_path = Path(PARAMETERS['data_root']['processed'])
     ims = []
     for iround in range(nrounds):
+        dirname = f'round_{str(iround+1).zfill(2)}_1'
         fname = f'round_{str(iround+1).zfill(2)}_1_MMStack_{tile_roi}-' + \
-            f'{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif'
-        ims.append(load_stack(processed_path / data_path / fname))
+            f'Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif'
+        ims.append(load_stack(processed_path / data_path / dirname / fname))
     return np.stack(ims, axis=3)
 
 
