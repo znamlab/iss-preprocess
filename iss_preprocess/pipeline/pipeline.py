@@ -5,29 +5,23 @@ import multiprocessing as mp
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from os.path import isfile
-
-from ..image import correct_offset, fstack_channels, filter_stack
-from ..reg import register_tiles
-from ..io import load_stack, get_tiles, get_tile_ome, reorder_channels, write_stack
+from ..image import fstack_channels, filter_stack
+from ..reg import register_channels_and_rounds, align_channels_and_rounds
+from ..io import load_stack, get_tile_ome, write_stack
 from ..segment import detect_isolated_spots
-from ..call import extract_spots, make_gene_templates
+from ..call import extract_spots, make_gene_templates, run_omp, find_gene_spots
 
 
-def setup_omp(fname, nchannels=4, nrounds=7):
-    stack = load_stack(fname)
-    stack = np.reshape(stack, (stack.shape[0], stack.shape[1], nchannels, nrounds))
-    stack = np.moveaxis(stack, 2, 3)
-    stack = filter_stack(stack)
-
+def setup_omp(stack):
     spots = detect_isolated_spots(
         np.reshape(stack, (stack.shape[0], stack.shape[1], -1)),
         detection_threshold=40,
         isolation_threshold=30
     )
-
+    
     rois = extract_spots(spots, stack)
     codebook = pd.read_csv(
-        '/Users/znamenp/code/iss-preprocess/iss_preprocess/call/codebook_83gene_pool.csv',
+        Path(__file__).parent.parent / 'call/codebook_83gene_pool.csv',
         header=None,
         names=['gii', 'seq', 'gene']
     )
@@ -139,3 +133,61 @@ def preprocess_images(data_path, nrounds=7):
     pool = mp.Pool(np.min((mp.cpu_count(), max_workers)))
     results = pool.map(project_tile, fnames)
     pool.close()
+
+
+def register_reference_tile(data_path, tile_coors=(0,0,0)):
+    stack = load_processed_tile(data_path, tile_coors)
+    tforms = register_channels_and_rounds(stack)
+
+    processed_path = Path(PARAMETERS['data_root']['processed'])
+    save_path = processed_path / data_path / 'tforms.npy'
+    np.save(save_path, tforms, allow_pickle=True)
+
+
+def load_and_register_tile(data_path, tile_coors=(0,0,0)):
+    processed_path = Path(PARAMETERS['data_root']['processed'])
+    tforms_path = processed_path / data_path / 'tforms.npy'
+    tforms = np.load(tforms_path, allow_pickle=True)
+
+    stack = load_processed_tile(data_path, tile_coors)
+
+    stack = align_channels_and_rounds(stack, tforms)
+    bad_pixels = np.any(np.isnan(stack), axis=(2,3))
+    stack[np.isnan(stack)] = 0
+
+    stack = np.moveaxis(stack, 2, 3)
+    stack = filter_stack(stack)
+    return stack, bad_pixels
+
+
+def run_omp_on_tile(data_path, tile_coors):
+    processed_path = Path(PARAMETERS['data_root']['processed'])
+    stack, bad_pixels = load_and_register_tile(data_path, tile_coors)
+
+    omp_stat = np.load(processed_path / data_path / 'gene_dict.npz', allow_pickle=True)
+    g, b, r = run_omp(
+        stack,
+        omp_stat['gene_dict'],
+        tol=0.2,
+        weighted=True,
+        refit_background=True,
+        alpha=200.,
+        norm_shift=omp_stat['norm_shift'],
+        max_comp=8
+    )
+
+    for igene in range(g.shape[2]):
+        g[bad_pixels, igene] = 0
+        
+    spot_sign_image = np.load(Path(__file__).parent.parent / 'call/spot_signimage.npy')
+    spot_sign_threshold = 0.15
+    spot_sign_image[np.abs(spot_sign_image) < spot_sign_threshold] = 0
+
+    gene_spots = find_gene_spots(g, spot_sign_image, rho=2, omp_score_threshold=0.15)
+
+    for df, gene in zip(gene_spots, omp_stat['gene_names']):
+        df['gene'] = gene
+
+    pd.concat(gene_spots).to_pickle(
+        processed_path / data_path / f'gene_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl'
+    )

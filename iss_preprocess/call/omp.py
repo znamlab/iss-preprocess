@@ -279,8 +279,8 @@ def run_omp(stack, gene_dict, tol=0.05, weighted=True, refit_background=True, al
 
     @numba.jit(nopython=True, parallel=True)
     def omp_loop_(stack_, background_vectors_, gene_dict_, tol_):
-        g = np.empty((stack_.shape[0], stack_.shape[1], gene_dict_.shape[1] + background_vectors_.shape[1]))
-        r = np.empty((stack_.shape[0], stack_.shape[1], stack_.shape[2] * stack_.shape[3]))
+        g = np.zeros((stack_.shape[0], stack_.shape[1], gene_dict_.shape[1] + background_vectors_.shape[1]))
+        r = np.zeros((stack_.shape[0], stack_.shape[1], stack_.shape[2] * stack_.shape[3]))
         for ix in numba.prange(stack_.shape[0]):
             if ix % 100 == 0:
                 print(f'finished row {ix} of {stack_.shape[0]}')
@@ -297,13 +297,6 @@ def run_omp(stack, gene_dict, tol=0.05, weighted=True, refit_background=True, al
                     norm_shift=norm_shift,
                     max_comp=max_comp
                 )
-                # g[ix, iy, :], r[ix, iy, :] = omp(
-                #     stack_[ix, iy, :, :].flatten(),
-                #     gene_dict_,
-                #     background_vectors=background_vectors_,
-                #     tol=tol_,
-                #     norm_shift=norm_shift
-                # )
         return g, r
     g,r = omp_loop_(stack, background_vectors, gene_dict, tol)
 
