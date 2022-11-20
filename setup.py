@@ -20,9 +20,11 @@ setup(
         'flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git',
         'trackpy',
         'numba',
-        'cellpose'
+        'cellpose',
+        'Click'
     ],
     entry_points='''
         [console_scripts]
+        iss=iss_preprocess.cli:cli
         ''',
 )
