@@ -4,8 +4,10 @@
 #SBATCH --time=12:00:00
 #SBATCH --mem=32G
 #SBATCH --partition=cpu
-ml Anaconda3
-source /camp/apps/eb/software/Anaconda/conda.env.sh
+ml purge
+
+ml Anaconda3/2022.05
+source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 
 conda activate iss-preprocess
 

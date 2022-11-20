@@ -160,9 +160,14 @@ def load_and_register_tile(data_path, tile_coors=(0,0,0)):
     return stack, bad_pixels
 
 
-def run_omp_on_tile(data_path, tile_coors):
+def run_omp_on_tile(data_path, tile_coors, save_stack=False):
     processed_path = Path(PARAMETERS['data_root']['processed'])
     stack, bad_pixels = load_and_register_tile(data_path, tile_coors)
+
+    if save_stack:
+        stack_path = processed_path / data_path / \
+            f'tile_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.tif'
+        write_stack(stack.copy(), stack_path, bigtiff=True)
 
     omp_stat = np.load(processed_path / data_path / 'gene_dict.npz', allow_pickle=True)
     g, b, r = run_omp(

@@ -15,4 +15,4 @@ def extract_tile(path, roi=1, x=0, y=0):
 
     """Run OMP and a single tile and detect gene spots."""
     click.echo(f'Processing ROI {roi}, tile {x}, {y} from {path}')
-    run_omp_on_tile(path, (roi,x,y))
+    run_omp_on_tile(path, (roi,x,y), save_stack=True)
