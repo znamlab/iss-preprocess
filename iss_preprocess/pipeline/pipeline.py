@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import glob
 import multiprocessing as mp
+from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from os.path import isfile
@@ -196,3 +197,59 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False):
     pd.concat(gene_spots).to_pickle(
         processed_path / data_path / f'gene_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl'
     )
+
+
+def register_adjacent_tiles(data_path, ref_coors=(1,0,0), reg_fraction=0.1,
+                            ref_ch=0, ref_round=0):
+    tile_ref = load_processed_tile(data_path, ref_coors)
+    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2]+1)
+    tile_down = load_processed_tile(data_path, down_coors)
+    right_coors = (ref_coors[0], ref_coors[1]+1, ref_coors[2])
+    tile_right = load_processed_tile(data_path, right_coors)
+
+    ypix = tile_ref.shape[0]
+    xpix = tile_ref.shape[1]
+    reg_pix_x = int(xpix * reg_fraction)
+    reg_pix_y = int(ypix * reg_fraction)
+
+    shift_right = phase_cross_correlation(
+        tile_ref[:, -reg_pix_x:, ref_ch, ref_round],
+        tile_right[:, :reg_pix_x, ref_ch, ref_round],
+        upsample_factor=5
+    )[0] + [0, xpix-reg_pix_x]
+
+    shift_down = phase_cross_correlation(
+        tile_ref[:reg_pix_y, :, ref_ch, ref_round],
+        tile_down[-reg_pix_y:, :, ref_ch, ref_round],
+        upsample_factor=5
+    )[0] - [ypix-reg_pix_y, 0]
+
+    return shift_right, shift_down, (ypix, xpix)
+
+
+def merge_roi_spots(data_path, shift_right, shift_down, tile_shape, iroi=1, ntiles=(9, 9)):
+    processed_path = Path(PARAMETERS['data_root']['processed'])
+    all_spots = []
+
+    tile_centers = np.empty((ntiles[0], ntiles[1], 2))
+    center_offset = [tile_shape[0]/2, tile_shape[1]/2]
+    for ix in range(ntiles[0]):
+        for iy in range( ntiles[1]):
+            tile_centers[ix, iy, :] = iy * shift_down + ix * shift_right + center_offset
+
+    for ix in range(ntiles[0]):
+        for iy in range(ntiles[1]):
+            spots = pd.read_pickle(processed_path / data_path / f'gene_spots_{iroi}_{ix}_{iy}.pkl')
+            spots['x'] = spots['x'] + tile_centers[ix, iy, 1] - center_offset[1]
+            spots['y'] = spots['y'] + tile_centers[ix, iy, 0] - center_offset[0]
+
+            spot_dist = (spots['x'].to_numpy()[:, np.newaxis, np.newaxis] - tile_centers[np.newaxis, :, :, 1]) ** 2 + \
+                    (spots['y'].to_numpy()[:, np.newaxis, np.newaxis] - tile_centers[np.newaxis, :, :, 0]) ** 2
+            home_tile_dist = (spot_dist[:, ix, iy]).copy()
+            spot_dist[:, ix, iy] = np.inf
+            min_spot_dist = np.min(spot_dist, axis=(1,2))
+            keep_spots = home_tile_dist < min_spot_dist
+            all_spots.append(spots[keep_spots])
+
+    spots = pd.concat(all_spots)
+    return spots
