@@ -3,4 +3,5 @@ test/*
 .DS_Store
 __pycache__
 .idea
-.out
+*.out
+*.ipynb
