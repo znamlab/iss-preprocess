@@ -27,7 +27,6 @@ def extract_tile(path, roi=1, x=0, y=0):
 @click.option('-y', default=0, help='Tile Y position.')
 @click.option("--overwrite", is_flag=True, show_default=True, default=False, 
     help="Whether to overwrite tiles if already projected.")
-
 def project_tile(path, prefix, roi=1, x=0, y=0, overwrite=False):
     from iss_preprocess.pipeline import project_tile_by_coors
 

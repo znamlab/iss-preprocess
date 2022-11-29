@@ -84,7 +84,7 @@ def project_tile_by_coors(data_path, prefix, tile_coors, overwrite=False):
     project_tile(tile_path, overwrite=overwrite)
 
 
-def project_tile(fname, overwrite=False):
+def project_tile(fname, overwrite=False, sth=8):
     """Calculates extended depth of field and max intensity projections for a single tile.
 
     Args:
@@ -102,7 +102,7 @@ def project_tile(fname, overwrite=False):
     print(f'loading {fname}\n')
     im = get_tile_ome(raw_path / (fname + '.ome.tif'), raw_path / (fname + '_metadata.txt'))
     print('computing projection\n')
-    im_fstack = fstack_channels(im, sth=8)
+    im_fstack = fstack_channels(im, sth=sth)
     im_max = np.max(im, axis=3)
     (processed_path / fname).parent.mkdir(parents=True, exist_ok=True)
     write_stack(im_fstack, save_path_fstack, bigtiff=True)
@@ -163,12 +163,12 @@ def register_reference_tile(data_path, tile_coors=(0,0,0)):
     np.save(save_path, tforms, allow_pickle=True)
 
 
-def load_and_register_tile(data_path, tile_coors=(0,0,0)):
+def load_and_register_tile(data_path, tile_coors=(0,0,0), suffix='proj'):
     processed_path = Path(PARAMETERS['data_root']['processed'])
     tforms_path = processed_path / data_path / 'tforms.npy'
     tforms = np.load(tforms_path, allow_pickle=True)
 
-    stack = load_processed_tile(data_path, tile_coors)
+    stack = load_processed_tile(data_path, tile_coors, suffix=suffix)
 
     stack = align_channels_and_rounds(stack, tforms)
     bad_pixels = np.any(np.isnan(stack), axis=(2,3))
@@ -184,8 +184,9 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False):
     stack, bad_pixels = load_and_register_tile(data_path, tile_coors)
 
     if save_stack:
-        stack_path = processed_path / data_path / \
-            f'tile_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.tif'
+        save_dir = processed_path / data_path / 'reg'
+        save_dir.mkdir(parents=True, exist_ok=True)
+        stack_path = save_dir / f'tile_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.tif'
         write_stack(stack.copy(), stack_path, bigtiff=True)
 
     omp_stat = np.load(processed_path / data_path / 'gene_dict.npz', allow_pickle=True)
@@ -197,7 +198,7 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False):
         refit_background=True,
         alpha=200.,
         norm_shift=omp_stat['norm_shift'],
-        max_comp=8
+        max_comp=12
     )
 
     for igene in range(g.shape[2]):
@@ -211,9 +212,10 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False):
 
     for df, gene in zip(gene_spots, omp_stat['gene_names']):
         df['gene'] = gene
-
+    save_dir = processed_path / data_path / 'spots'
+    save_dir.mkdir(parents=True, exist_ok=True)
     pd.concat(gene_spots).to_pickle(
-        processed_path / data_path / f'gene_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl'
+        save_dir / f'gene_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl'
     )
 
 
@@ -337,7 +339,7 @@ def merge_roi_spots(data_path, shift_right, shift_down, tile_shape, ntiles, iroi
 
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
-            spots = pd.read_pickle(processed_path / data_path / f'gene_spots_{iroi}_{ix}_{iy}.pkl')
+            spots = pd.read_pickle(processed_path / data_path / 'spots' / f'gene_spots_{iroi}_{ix}_{iy}.pkl')
             spots['x'] = spots['x'] + tile_origins[ix, iy, 1]
             spots['y'] = spots['y'] + tile_origins[ix, iy, 0]
 
@@ -349,5 +351,5 @@ def merge_roi_spots(data_path, shift_right, shift_down, tile_shape, ntiles, iroi
             keep_spots = home_tile_dist < min_spot_dist
             all_spots.append(spots[keep_spots])
 
-    spots = pd.concat(all_spots)
+    spots = pd.concat(all_spots, ignore_index=True)
     return spots
