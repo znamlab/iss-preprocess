@@ -8,7 +8,7 @@ from . import phase_corr
 from math import cos, sin, radians
 
 
-def register_channels_and_rounds(stack):
+def register_channels_and_rounds(stack, ref_ch=0, ref_round=0):
     """
     Estimate transformation matrices for alignment across channels and rounds.
 
@@ -20,10 +20,10 @@ def register_channels_and_rounds(stack):
     """
     nchannels, nrounds = stack.shape[2:]
     # first register images across rounds within each channel
-    angles_channels, shifts_channels = align_within_channels(stack, upsample=5)
+    angles_channels, shifts_channels = align_within_channels(stack, upsample=5, ref_round=ref_round)
     # use these to computer a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(stack, angles_channels, shifts_channels)
-    scales, angles, shifts = estimate_correction(std_stack, ch_to_align=0, upsample=5)
+    scales, angles, shifts = estimate_correction(std_stack, ch_to_align=ref_ch, upsample=5)
     tforms = np.empty((nchannels, nrounds), dtype=object)
 
     for ich in range(nchannels):
@@ -59,10 +59,9 @@ def align_channels_and_rounds(stack, tforms):
     return reg_stack
 
 
-def align_within_channels(stack, upsample=False):
+def align_within_channels(stack, upsample=False, ref_round=0):
     # align rounds to each other for each channel
     nchannels, nrounds = stack.shape[2:]
-    ref_round = 0
     angles_channels = []
     shifts_channels = []
     for ref_ch in range(nchannels):

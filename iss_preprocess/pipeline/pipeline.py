@@ -13,7 +13,8 @@ from ..segment import detect_isolated_spots
 from ..call import extract_spots, make_gene_templates, run_omp, find_gene_spots
 
 
-def setup_omp(stack, codebook_name='codebook_83gene_pool.csv'):
+def setup_omp(stack, codebook_name='codebook_83gene_pool.csv', detection_threshold=40,
+                isolation_threshold=30):
     """Prepare variables required to run the OMP algorithm.
 
     Args:
@@ -28,8 +29,8 @@ def setup_omp(stack, codebook_name='codebook_83gene_pool.csv'):
     """
     spots = detect_isolated_spots(
         np.reshape(stack, (stack.shape[0], stack.shape[1], -1)),
-        detection_threshold=40,
-        isolation_threshold=30
+        detection_threshold=detection_threshold,
+        isolation_threshold=isolation_threshold
     )
     
     rois = extract_spots(spots, stack)
@@ -163,7 +164,7 @@ def register_reference_tile(data_path, tile_coors=(0,0,0)):
     np.save(save_path, tforms, allow_pickle=True)
 
 
-def load_and_register_tile(data_path, tile_coors=(0,0,0), suffix='proj'):
+def load_and_register_tile(data_path, tile_coors=(0,0,0), suffix='proj', filter_r=(2,4)):
     processed_path = Path(PARAMETERS['data_root']['processed'])
     tforms_path = processed_path / data_path / 'tforms.npy'
     tforms = np.load(tforms_path, allow_pickle=True)
@@ -175,12 +176,15 @@ def load_and_register_tile(data_path, tile_coors=(0,0,0), suffix='proj'):
     stack[np.isnan(stack)] = 0
 
     stack = np.moveaxis(stack, 2, 3)
-    stack = filter_stack(stack)
+    stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
     return stack, bad_pixels
 
 
 def run_omp_on_tile(data_path, tile_coors, save_stack=False):
     processed_path = Path(PARAMETERS['data_root']['processed'])
+    ops_path = processed_path / data_path / 'ops.npy'
+    ops = np.load(ops_path, allow_pickle=True).item()
+
     stack, bad_pixels = load_and_register_tile(data_path, tile_coors)
 
     if save_stack:
@@ -193,7 +197,7 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False):
     g, b, r = run_omp(
         stack,
         omp_stat['gene_dict'],
-        tol=0.2,
+        tol=ops['omp_threshold'],
         weighted=True,
         refit_background=True,
         alpha=200.,
@@ -203,12 +207,19 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False):
 
     for igene in range(g.shape[2]):
         g[bad_pixels, igene] = 0
+
+    spot_image_path = processed_path / data_path / 'spot_sign_image.npy'
+    if spot_image_path.exists():
+        spot_sign_image = np.load(spot_image_path)
+    else:
+        print('No spot sign image for this dataset - using default.')
+        spot_sign_image = np.load(Path(__file__).parent.parent / 'call/spot_signimage.npy')
         
-    spot_sign_image = np.load(Path(__file__).parent.parent / 'call/spot_signimage.npy')
     spot_sign_threshold = 0.15
     spot_sign_image[np.abs(spot_sign_image) < spot_sign_threshold] = 0
 
-    gene_spots = find_gene_spots(g, spot_sign_image, rho=2, omp_score_threshold=0.15)
+    gene_spots = find_gene_spots(g, spot_sign_image, 
+        rho=ops['spot_rho'], omp_score_threshold=ops['spot_threshold'])
 
     for df, gene in zip(gene_spots, omp_stat['gene_names']):
         df['gene'] = gene
