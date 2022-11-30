@@ -95,7 +95,7 @@ def project_tile(fname, overwrite=False, sth=8):
     """
     raw_path = Path(PARAMETERS['data_root']['raw'])
     processed_path = Path(PARAMETERS['data_root']['processed'])
-    save_path_fstack = processed_path / (fname + '_proj.tif')
+    save_path_fstack = processed_path / (fname + '_fstack.tif')
     save_path_max = processed_path / (fname + '_max.tif')
     if not overwrite and (save_path_fstack.exists() or save_path_max.exists()):
         print(f'{fname} already projected...\n')
@@ -110,7 +110,7 @@ def project_tile(fname, overwrite=False, sth=8):
     write_stack(im_max, save_path_max, bigtiff=True)
 
 
-def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='proj'):
+def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='proj', prefix='round'):
     """Load processed tile images across rounds 
 
     Args:
@@ -128,8 +128,8 @@ def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='proj')
     processed_path = Path(PARAMETERS['data_root']['processed'])
     ims = []
     for iround in range(nrounds):
-        dirname = f'round_{str(iround+1).zfill(2)}_1'
-        fname = f'round_{str(iround+1).zfill(2)}_1_MMStack_{tile_roi}-' + \
+        dirname = f'{prefix}_{str(iround+1).zfill(2)}_1'
+        fname = f'{prefix}_{str(iround+1).zfill(2)}_1_MMStack_{tile_roi}-' + \
             f'Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif'
         ims.append(load_stack(processed_path / data_path / dirname / fname))
     return np.stack(ims, axis=3)

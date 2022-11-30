@@ -11,4 +11,4 @@ source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 
 conda activate iss-preprocess
 
-iss project-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY --overwrite
+iss project-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY
