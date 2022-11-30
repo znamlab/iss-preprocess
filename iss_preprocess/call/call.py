@@ -14,7 +14,7 @@ def get_cluster_means(rois, vis=False):
     x = rois_to_array(rois, normalize=False) # round x channels x spots
     nrounds = x.shape[0]
     if vis:
-        plt.figure(figsize=(15,10))
+        plt.figure(figsize=(10,7))
     cluster_means = []
     for iround in range(nrounds):
         norm_cluster_mean, cluster_eig_val, cluster_ind, top_score, cluster_ind0, top_score0 = scaled_k_means(

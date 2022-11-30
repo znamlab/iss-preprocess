@@ -185,7 +185,7 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False):
     ops_path = processed_path / data_path / 'ops.npy'
     ops = np.load(ops_path, allow_pickle=True).item()
 
-    stack, bad_pixels = load_and_register_tile(data_path, tile_coors)
+    stack, bad_pixels = load_and_register_tile(data_path, tile_coors, suffix=ops['projection'])
 
     if save_stack:
         save_dir = processed_path / data_path / 'reg'

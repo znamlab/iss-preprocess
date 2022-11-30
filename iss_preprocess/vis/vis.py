@@ -101,10 +101,10 @@ def plot_gene_matrix(gene_df, cmap='inferno', vmax=2):
 
 
 def plot_gene_templates(gene_dict, unique_genes, BASES):
-    plt.figure(figsize=(20, 40))
+    plt.figure(figsize=(10, 20))
     for igene, gene in enumerate(unique_genes):
         plt.subplot(10, 9, igene + 1)
         plt.imshow(np.reshape(gene_dict[:, igene], (7, 4)), cmap='gray')
         plt.title(gene)
-        plt.colorbar()
         plt.xticks(np.arange(4), BASES)
+    plt.tight_layout()
