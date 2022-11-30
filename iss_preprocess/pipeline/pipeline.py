@@ -135,23 +135,26 @@ def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='proj',
     return np.stack(ims, axis=3)
 
 
-def preprocess_images(data_path, nrounds=7):
-    success, tiffs = check_files(data_path, nrounds=nrounds)
-    if not success:
-        print('Some files were missing... aborting...')
-        return
+def project_tile_row(data_path, prefix, tile_roi, tile_row, max_col, overwrite=False):
+    """Calculate max intensity and extended DOF projections for a row of tiles in an ROI.
 
-    fnames = []
-    for tiff in tiffs:
-        for iround in range(nrounds):
-            fname = tiff \
-                .replace('round_01', f'round_{str(iround+1).zfill(2)}') \
-                .replace('.ome.tif', '')
-            fnames.append(str(Path(fname).relative_to(PARAMETERS['data_root']['raw'])))
+    Args:
+        data_path (str): relative path to dataset
+        prefix (str): directory / file name prefix, e.g. 'gene_round'
+        tile_roi (int): index of the ROI
+        tile_row (int): index of the row to process
+        max_col (int): maximum columns index. Will project tiles from column 0 to max_col
+        overwrite (bool, optional): whether to redo projection if files already exist. 
+            Defaults to False.
+    """
+    def one_tile(tile_col):
+        tile_coors = (tile_roi, tile_row, tile_col)
+        project_tile_by_coors(data_path, prefix, tile_coors, overwrite=overwrite)
 
     max_workers = 16
     pool = mp.Pool(np.min((mp.cpu_count(), max_workers)))
-    results = pool.map(project_tile, fnames)
+    cols = range(max_col+1)
+    pool.map(one_tile, cols)
     pool.close()
 
 
