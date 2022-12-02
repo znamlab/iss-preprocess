@@ -13,11 +13,8 @@ def write_stack(stack, fname, bigtiff=False):
 
     """
     stack = stack.reshape((stack.shape[0], stack.shape[1], -1))
-    stack[stack<0] = 0
+    stack[stack < 0] = 0
 
     with TiffWriter(fname, bigtiff=bigtiff) as tif:
         for frame in range(stack.shape[2]):
-            tif.write(
-                np.uint16(stack[:,:,frame]),
-                contiguous=True
-            )
+            tif.write(np.uint16(stack[:, :, frame]), contiguous=True)

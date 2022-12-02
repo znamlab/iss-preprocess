@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import glob
 import multiprocessing as mp
+import re
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
@@ -13,8 +14,12 @@ from ..segment import detect_isolated_spots
 from ..call import extract_spots, make_gene_templates, run_omp, find_gene_spots
 
 
-def setup_omp(stack, codebook_name='codebook_83gene_pool.csv', detection_threshold=40,
-                isolation_threshold=30):
+def setup_omp(
+    stack,
+    codebook_name="codebook_83gene_pool.csv",
+    detection_threshold=40,
+    isolation_threshold=30,
+):
     """Prepare variables required to run the OMP algorithm.
 
     Args:
@@ -30,22 +35,22 @@ def setup_omp(stack, codebook_name='codebook_83gene_pool.csv', detection_thresho
     spots = detect_isolated_spots(
         np.reshape(stack, (stack.shape[0], stack.shape[1], -1)),
         detection_threshold=detection_threshold,
-        isolation_threshold=isolation_threshold
+        isolation_threshold=isolation_threshold,
     )
-    
+
     rois = extract_spots(spots, stack)
     codebook = pd.read_csv(
-        Path(__file__).parent.parent / 'call' / codebook_name,
+        Path(__file__).parent.parent / "call" / codebook_name,
         header=None,
-        names=['gii', 'seq', 'gene']
+        names=["gii", "seq", "gene"],
     )
     gene_dict, unique_genes = make_gene_templates(rois, codebook, vis=True)
 
     norm_shift = np.sqrt(
         np.median(
             np.sum(
-                np.reshape(stack,(stack.shape[0], stack.shape[1], -1))**2,
-                axis=2
+                np.reshape(stack, (stack.shape[0], stack.shape[1], -1)) ** 2,
+                axis=2,
             )
         )
     )
@@ -64,23 +69,23 @@ def check_files(data_path, nrounds=7):
         list: list of tiff paths for round 1
 
     """
-    raw_path = Path(PARAMETERS['data_root']['raw'])
+    raw_path = Path(PARAMETERS["data_root"]["raw"])
     data_path = raw_path / data_path
 
-    tiffs = sorted(glob.glob(str(data_path / 'round_01_1/*.tif')))
+    tiffs = sorted(glob.glob(str(data_path / "round_01_1/*.tif")))
     success = True
     # check that all files exist
     for iround in range(nrounds):
         for tiff in tiffs:
-            fname = tiff.replace('round_01', f'round_{str(iround+1).zfill(2)}')
+            fname = tiff.replace("round_01", f"round_{str(iround+1).zfill(2)}")
             if not isfile(fname):
-                print(f'{fname} does not exist')
+                print(f"{fname} does not exist")
                 success = False
     return success, tiffs
 
 
 def project_tile_by_coors(data_path, prefix, tile_coors, overwrite=False):
-    fname = f'{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}'
+    fname = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
     tile_path = str(Path(data_path) / prefix / fname)
     project_tile(tile_path, overwrite=overwrite)
 
@@ -93,16 +98,18 @@ def project_tile(fname, overwrite=False, sth=8):
         overwrite (bool): whether to repeat if already completed
 
     """
-    raw_path = Path(PARAMETERS['data_root']['raw'])
-    processed_path = Path(PARAMETERS['data_root']['processed'])
-    save_path_fstack = processed_path / (fname + '_fstack.tif')
-    save_path_max = processed_path / (fname + '_max.tif')
+    raw_path = Path(PARAMETERS["data_root"]["raw"])
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    save_path_fstack = processed_path / (fname + "_fstack.tif")
+    save_path_max = processed_path / (fname + "_max.tif")
     if not overwrite and (save_path_fstack.exists() or save_path_max.exists()):
-        print(f'{fname} already projected...\n')
+        print(f"{fname} already projected...\n")
         return
-    print(f'loading {fname}\n')
-    im = get_tile_ome(raw_path / (fname + '.ome.tif'), raw_path / (fname + '_metadata.txt'))
-    print('computing projection\n')
+    print(f"loading {fname}\n")
+    im = get_tile_ome(
+        raw_path / (fname + ".ome.tif"), raw_path / (fname + "_metadata.txt")
+    )
+    print("computing projection\n")
     im_fstack = fstack_channels(im, sth=sth)
     im_max = np.max(im, axis=3)
     (processed_path / fname).parent.mkdir(parents=True, exist_ok=True)
@@ -110,12 +117,14 @@ def project_tile(fname, overwrite=False, sth=8):
     write_stack(im_max, save_path_max, bigtiff=True)
 
 
-def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='proj', prefix='round'):
-    """Load processed tile images across rounds 
+def load_processed_tile(
+    data_path, tile_coors=(1, 0, 0), nrounds=7, suffix="proj", prefix="round"
+):
+    """Load processed tile images across rounds
 
     Args:
         data_path (str): relative path to dataset.
-        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos. 
+        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
             Defaults to (1,0,0).
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to '_proj'.
@@ -125,12 +134,14 @@ def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='proj',
 
     """
     tile_roi, tile_x, tile_y = tile_coors
-    processed_path = Path(PARAMETERS['data_root']['processed'])
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ims = []
     for iround in range(nrounds):
-        dirname = f'{prefix}_{str(iround+1).zfill(2)}_1'
-        fname = f'{prefix}_{str(iround+1).zfill(2)}_1_MMStack_{tile_roi}-' + \
-            f'Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif'
+        dirname = f"{prefix}_{str(iround+1).zfill(2)}_1"
+        fname = (
+            f"{prefix}_{str(iround+1).zfill(2)}_1_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
+        )
         ims.append(load_stack(processed_path / data_path / dirname / fname))
     return np.stack(ims, axis=3)
 
@@ -144,38 +155,41 @@ def project_tile_row(data_path, prefix, tile_roi, tile_row, max_col, overwrite=F
         tile_roi (int): index of the ROI
         tile_row (int): index of the row to process
         max_col (int): maximum columns index. Will project tiles from column 0 to max_col
-        overwrite (bool, optional): whether to redo projection if files already exist. 
+        overwrite (bool, optional): whether to redo projection if files already exist.
             Defaults to False.
     """
+
     def one_tile(tile_col):
         tile_coors = (tile_roi, tile_row, tile_col)
         project_tile_by_coors(data_path, prefix, tile_coors, overwrite=overwrite)
 
     max_workers = 16
     pool = mp.Pool(np.min((mp.cpu_count(), max_workers)))
-    cols = range(max_col+1)
+    cols = range(max_col + 1)
     pool.map(one_tile, cols)
     pool.close()
 
 
-def register_reference_tile(data_path, tile_coors=(0,0,0)):
+def register_reference_tile(data_path, tile_coors=(0, 0, 0)):
     stack = load_processed_tile(data_path, tile_coors)
     tforms = register_channels_and_rounds(stack)
 
-    processed_path = Path(PARAMETERS['data_root']['processed'])
-    save_path = processed_path / data_path / 'tforms.npy'
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    save_path = processed_path / data_path / "tforms.npy"
     np.save(save_path, tforms, allow_pickle=True)
 
 
-def load_and_register_tile(data_path, tile_coors=(0,0,0), suffix='proj', filter_r=(2,4)):
-    processed_path = Path(PARAMETERS['data_root']['processed'])
-    tforms_path = processed_path / data_path / 'tforms.npy'
+def load_and_register_tile(
+    data_path, tile_coors=(0, 0, 0), suffix="proj", filter_r=(2, 4)
+):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    tforms_path = processed_path / data_path / "tforms.npy"
     tforms = np.load(tforms_path, allow_pickle=True)
 
     stack = load_processed_tile(data_path, tile_coors, suffix=suffix)
 
     stack = align_channels_and_rounds(stack, tforms)
-    bad_pixels = np.any(np.isnan(stack), axis=(2,3))
+    bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[np.isnan(stack)] = 0
 
     stack = np.moveaxis(stack, 2, 3)
@@ -184,57 +198,68 @@ def load_and_register_tile(data_path, tile_coors=(0,0,0), suffix='proj', filter_
 
 
 def run_omp_on_tile(data_path, tile_coors, save_stack=False):
-    processed_path = Path(PARAMETERS['data_root']['processed'])
-    ops_path = processed_path / data_path / 'ops.npy'
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
 
-    stack, bad_pixels = load_and_register_tile(data_path, tile_coors, suffix=ops['projection'])
+    stack, bad_pixels = load_and_register_tile(
+        data_path, tile_coors, suffix=ops["projection"]
+    )
 
     if save_stack:
-        save_dir = processed_path / data_path / 'reg'
+        save_dir = processed_path / data_path / "reg"
         save_dir.mkdir(parents=True, exist_ok=True)
-        stack_path = save_dir / f'tile_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.tif'
+        stack_path = (
+            save_dir / f"tile_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.tif"
+        )
         write_stack(stack.copy(), stack_path, bigtiff=True)
 
-    omp_stat = np.load(processed_path / data_path / 'gene_dict.npz', allow_pickle=True)
+    omp_stat = np.load(processed_path / data_path / "gene_dict.npz", allow_pickle=True)
     g, b, r = run_omp(
         stack,
-        omp_stat['gene_dict'],
-        tol=ops['omp_threshold'],
+        omp_stat["gene_dict"],
+        tol=ops["omp_threshold"],
         weighted=True,
         refit_background=True,
-        alpha=200.,
-        norm_shift=omp_stat['norm_shift'],
-        max_comp=12
+        alpha=200.0,
+        norm_shift=omp_stat["norm_shift"],
+        max_comp=12,
     )
 
     for igene in range(g.shape[2]):
         g[bad_pixels, igene] = 0
 
-    spot_image_path = processed_path / data_path / 'spot_sign_image.npy'
+    spot_image_path = processed_path / data_path / "spot_sign_image.npy"
     if spot_image_path.exists():
         spot_sign_image = np.load(spot_image_path)
     else:
-        print('No spot sign image for this dataset - using default.')
-        spot_sign_image = np.load(Path(__file__).parent.parent / 'call/spot_signimage.npy')
-        
+        print("No spot sign image for this dataset - using default.")
+        spot_sign_image = np.load(
+            Path(__file__).parent.parent / "call/spot_signimage.npy"
+        )
+
     spot_sign_threshold = 0.15
     spot_sign_image[np.abs(spot_sign_image) < spot_sign_threshold] = 0
 
-    gene_spots = find_gene_spots(g, spot_sign_image, 
-        rho=ops['spot_rho'], omp_score_threshold=ops['spot_threshold'])
+    gene_spots = find_gene_spots(
+        g,
+        spot_sign_image,
+        rho=ops["spot_rho"],
+        omp_score_threshold=ops["spot_threshold"],
+    )
 
-    for df, gene in zip(gene_spots, omp_stat['gene_names']):
-        df['gene'] = gene
-    save_dir = processed_path / data_path / 'spots'
+    for df, gene in zip(gene_spots, omp_stat["gene_names"]):
+        df["gene"] = gene
+    save_dir = processed_path / data_path / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     pd.concat(gene_spots).to_pickle(
-        save_dir / f'gene_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl'
+        save_dir / f"gene_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
 
 
-def register_adjacent_tiles(data_path, ref_coors=(1,0,0), reg_fraction=0.1,
-                            ref_ch=0, ref_round=0):
+def register_adjacent_tiles(
+    data_path, ref_coors=(1, 0, 0), reg_fraction=0.1, ref_ch=0, ref_round=0
+):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
     Args:
@@ -252,9 +277,9 @@ def register_adjacent_tiles(data_path, ref_coors=(1,0,0), reg_fraction=0.1,
 
     """
     tile_ref = load_processed_tile(data_path, ref_coors)
-    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2]+1)
+    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + 1)
     tile_down = load_processed_tile(data_path, down_coors)
-    right_coors = (ref_coors[0], ref_coors[1]+1, ref_coors[2])
+    right_coors = (ref_coors[0], ref_coors[1] + 1, ref_coors[2])
     tile_right = load_processed_tile(data_path, right_coors)
 
     ypix = tile_ref.shape[0]
@@ -265,14 +290,14 @@ def register_adjacent_tiles(data_path, ref_coors=(1,0,0), reg_fraction=0.1,
     shift_right = phase_cross_correlation(
         tile_ref[:, -reg_pix_x:, ref_ch, ref_round],
         tile_right[:, :reg_pix_x, ref_ch, ref_round],
-        upsample_factor=5
-    )[0] + [0, xpix-reg_pix_x]
+        upsample_factor=5,
+    )[0] + [0, xpix - reg_pix_x]
 
     shift_down = phase_cross_correlation(
         tile_ref[:reg_pix_y, :, ref_ch, ref_round],
         tile_down[-reg_pix_y:, :, ref_ch, ref_round],
-        upsample_factor=5
-    )[0] - [ypix-reg_pix_y, 0]
+        upsample_factor=5,
+    )[0] - [ypix - reg_pix_y, 0]
 
     return shift_right, shift_down, (ypix, xpix)
 
@@ -294,16 +319,20 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
     tile_centers = np.empty((ntiles[0], ntiles[1], 2))
     tile_origins = np.empty((ntiles[0], ntiles[1], 2))
 
-    center_offset = np.array([tile_shape[0]/2, tile_shape[1]/2])
+    center_offset = np.array([tile_shape[0] / 2, tile_shape[1] / 2])
     for ix in range(ntiles[0]):
-        for iy in range( ntiles[1]):
+        for iy in range(ntiles[1]):
             tile_origins[ix, iy, :] = iy * shift_down + ix * shift_right
-    tile_origins = tile_origins - np.min(tile_origins, axis=(0,1))[np.newaxis, np.newaxis, :]
+    tile_origins = (
+        tile_origins - np.min(tile_origins, axis=(0, 1))[np.newaxis, np.newaxis, :]
+    )
     tile_centers = tile_origins + center_offset[np.newaxis, np.newaxis, :]
     return tile_origins, tile_centers
 
 
-def stitch_tiles(data_path, prefix, tile_origins, tile_shape, roi=1, suffix='proj', ich=0):
+def stitch_tiles(
+    data_path, prefix, tile_origins, tile_shape, roi=1, suffix="proj", ich=0
+):
     """Load and stitch tile images using provided tile origin locations.
 
     Args:
@@ -317,19 +346,21 @@ def stitch_tiles(data_path, prefix, tile_origins, tile_shape, roi=1, suffix='pro
 
     Returns:
         numpy.ndarray: stitched image.
-        
+
     """
-    processed_path = Path(PARAMETERS['data_root']['processed'])
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ntiles = tile_origins.shape[:2]
     tile_origins = tile_origins.astype(int)
-    max_origin = np.max(tile_origins, axis=(0,1))
+    max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros(max_origin + tile_shape)
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
-            fname = f'{prefix}_MMStack_{roi}-Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}_{suffix}.tif'
+            fname = f"{prefix}_MMStack_{roi}-Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}_{suffix}.tif"
             stack = load_stack(processed_path / data_path / prefix / fname)
-            stitched_stack[tile_origins[ix, iy, 0]:tile_origins[ix, iy, 0]+tile_shape[0],
-                           tile_origins[ix, iy, 1]:tile_origins[ix, iy, 1]+tile_shape[1]] = stack[:,:,ich]
+            stitched_stack[
+                tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
+                tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
+            ] = stack[:, :, ich]
     return stitched_stack
 
 
@@ -347,21 +378,33 @@ def merge_roi_spots(data_path, shift_right, shift_down, tile_shape, ntiles, iroi
     Returns:
         pandas.DataFrame: table containing spot locations across all tiles.
     """
-    processed_path = Path(PARAMETERS['data_root']['processed'])
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
     all_spots = []
-    tile_origins, tile_centers = calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
+    tile_origins, tile_centers = calculate_tile_positions(
+        shift_right, shift_down, tile_shape, ntiles
+    )
 
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
-            spots = pd.read_pickle(processed_path / data_path / 'spots' / f'gene_spots_{iroi}_{ix}_{iy}.pkl')
-            spots['x'] = spots['x'] + tile_origins[ix, iy, 1]
-            spots['y'] = spots['y'] + tile_origins[ix, iy, 0]
+            spots = pd.read_pickle(
+                processed_path
+                / data_path
+                / "spots"
+                / f"gene_spots_{iroi}_{ix}_{iy}.pkl"
+            )
+            spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
+            spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
-            spot_dist = (spots['x'].to_numpy()[:, np.newaxis, np.newaxis] - tile_centers[np.newaxis, :, :, 1]) ** 2 + \
-                    (spots['y'].to_numpy()[:, np.newaxis, np.newaxis] - tile_centers[np.newaxis, :, :, 0]) ** 2
+            spot_dist = (
+                spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
+                - tile_centers[np.newaxis, :, :, 1]
+            ) ** 2 + (
+                spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
+                - tile_centers[np.newaxis, :, :, 0]
+            ) ** 2
             home_tile_dist = (spot_dist[:, ix, iy]).copy()
             spot_dist[:, ix, iy] = np.inf
-            min_spot_dist = np.min(spot_dist, axis=(1,2))
+            min_spot_dist = np.min(spot_dist, axis=(1, 2))
             keep_spots = home_tile_dist < min_spot_dist
             all_spots.append(spots[keep_spots])
 
