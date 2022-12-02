@@ -11,4 +11,4 @@ source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 
 conda activate iss-preprocess
 
-iss project-row -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -m $MAX_COL
+iss project-row -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -m $MAX_COL $OVERWRITE

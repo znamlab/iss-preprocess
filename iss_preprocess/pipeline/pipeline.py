@@ -3,10 +3,12 @@ import pandas as pd
 import glob
 import multiprocessing as mp
 import re
+import shutil
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from os.path import isfile
+from os import system
 from ..image import fstack_channels, filter_stack
 from ..reg import register_channels_and_rounds, align_channels_and_rounds
 from ..io import load_stack, get_tile_ome, write_stack
@@ -82,6 +84,69 @@ def check_files(data_path, nrounds=7):
                 print(f"{fname} does not exist")
                 success = False
     return success, tiffs
+
+
+def project_round(data_path, prefix, overwrite=False):
+    rois_list = get_roi_dimensions(data_path, prefix)
+    script_path = str(Path(__file__).parent.parent.parent / "project_row.sh")
+    for roi in rois_list:
+        for tilex in range(roi[1] + 1):
+            args = f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={tilex},MAXCOL={roi[2]},PREFIX={prefix}"
+            if overwrite:
+                args = args + ",OVERWRITE=--overwrite"
+            command = f"sbatch {args} {script_path}"
+            print(command)
+            system(command)
+
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    raw_path = Path(PARAMETERS["data_root"]["raw"])
+    metadata_fname = f"{prefix}_MMStack_{rois_list[0][0]}-Pos000_000_metadata.txt"
+    target_path = processed_path / data_path / prefix
+    target_path.mkdir(parents=True, exist_ok=True)
+    shutil.copy(
+        raw_path / data_path / prefix / metadata_fname,
+        target_path / metadata_fname,
+    )
+
+
+def save_roi_dimensions(data_path, prefix):
+    rois_list = get_roi_dimensions(data_path, prefix)
+
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    (processed_path / data_path).mkdir(parents=True, exist_ok=True)
+
+    np.save(processed_path / data_path / "roi_dims.npy", rois_list)
+
+
+def get_roi_dimensions(data_path, prefix):
+    """Find imaging ROIs and determine their dimensions.
+
+    Args:
+        data_path (str): path to data in the raw data directory.
+        prefix (str): directory and file name prefix, e.g. 'round_01_1'
+
+    """
+    raw_path = Path(PARAMETERS["data_root"]["raw"])
+    data_dir = raw_path / data_path / prefix
+    fnames = [p.name for p in data_dir.glob("*.tif")]
+    pattern = f"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
+    matcher = re.compile(pattern=pattern)
+    tile_coors = np.stack(
+        [np.array(matcher.match(fname).groups(), dtype=int) for fname in fnames]
+    )
+
+    rois = np.unique(tile_coors[:, 0])
+    roi_list = []
+    for roi in rois:
+        roi_list.append(
+            [
+                roi,
+                np.max(tile_coors[tile_coors[:, 0] == roi, 1]),
+                np.max(tile_coors[tile_coors[:, 0] == roi, 2]),
+            ]
+        )
+
+    return roi_list
 
 
 def project_tile_by_coors(data_path, prefix, tile_coors, overwrite=False):

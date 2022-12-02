@@ -69,3 +69,23 @@ def project_row(path, prefix, roi=1, x=0, max_col=0, overwrite=False):
     """Run OMP and a single tile and detect gene spots."""
     click.echo(f"Projecting ROI {roi}, {prefix}, row {x}, {y} from {path}")
     project_tile_row(path, prefix, roi, x, max_col, overwrite=overwrite)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
+)
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Whether to overwrite tiles if already projected.",
+)
+def project_round(path, prefix, overwrite=False):
+    from iss_preprocess.pipeline import project_round
+
+    """Run OMP and a single tile and detect gene spots."""
+    click.echo(f"Projecting ROI {prefix} from {path}")
+    project_round(path, prefix, overwrite=overwrite)
