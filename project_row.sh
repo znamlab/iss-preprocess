@@ -2,7 +2,8 @@
 #SBATCH --job-name=iss_project_row
 #SBATCH --ntasks=1
 #SBATCH --time=12:00:00
-#SBATCH --mem=32G
+#SBATCH --mem=64G
+#SBATCH --cpus-per-task=12
 #SBATCH --partition=cpu
 ml purge
 

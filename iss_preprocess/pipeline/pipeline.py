@@ -4,6 +4,7 @@ import glob
 import multiprocessing as mp
 import re
 import shutil
+from functools import partial
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
@@ -88,15 +89,19 @@ def check_files(data_path, nrounds=7):
 
 def project_round(data_path, prefix, overwrite=False):
     rois_list = get_roi_dimensions(data_path, prefix)
-    script_path = str(Path(__file__).parent.parent.parent / "project_row.sh")
+    script_path = str(Path(__file__).parent.parent.parent / "project_tile.sh")
     for roi in rois_list:
         for tilex in range(roi[1] + 1):
-            args = f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={tilex},MAXCOL={roi[2]},PREFIX={prefix}"
-            if overwrite:
-                args = args + ",OVERWRITE=--overwrite"
-            command = f"sbatch {args} {script_path}"
-            print(command)
-            system(command)
+            for tiley in range(roi[2] + 1):
+                args = f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={tilex},TILEY={tiley},PREFIX={prefix}"
+                if overwrite:
+                    args = args + ",OVERWRITE=--overwrite"
+                args = (
+                    args + f" --output={Path.home()}/slurm_logs/iss_project_tile_%j.out"
+                )
+                command = f"sbatch {args} {script_path}"
+                print(command)
+                system(command)
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     raw_path = Path(PARAMETERS["data_root"]["raw"])
@@ -149,7 +154,7 @@ def get_roi_dimensions(data_path, prefix):
     return roi_list
 
 
-def project_tile_by_coors(data_path, prefix, tile_coors, overwrite=False):
+def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     fname = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
     tile_path = str(Path(data_path) / prefix / fname)
     project_tile(tile_path, overwrite=overwrite)
@@ -223,15 +228,21 @@ def project_tile_row(data_path, prefix, tile_roi, tile_row, max_col, overwrite=F
         overwrite (bool, optional): whether to redo projection if files already exist.
             Defaults to False.
     """
-
-    def one_tile(tile_col):
-        tile_coors = (tile_roi, tile_row, tile_col)
-        project_tile_by_coors(data_path, prefix, tile_coors, overwrite=overwrite)
-
-    max_workers = 16
-    pool = mp.Pool(np.min((mp.cpu_count(), max_workers)))
+    n_workers = np.min((mp.cpu_count(), max_col + 1))
+    print(f"Starting a pool with {n_workers} workers on {mp.cpu_count()} CPUs.")
+    pool = mp.Pool(n_workers)
     cols = range(max_col + 1)
-    pool.map(one_tile, cols)
+    tile_coors = [[tile_roi, tile_row, tile_col] for tile_col in cols]
+
+    pool.map(
+        partial(
+            project_tile_by_coors,
+            data_path=data_path,
+            prefix=prefix,
+            overwrite=overwrite,
+        ),
+        tile_coors,
+    )
     pool.close()
 
 

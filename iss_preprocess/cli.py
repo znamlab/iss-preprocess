@@ -43,7 +43,7 @@ def project_tile(path, prefix, roi=1, x=0, y=0, overwrite=False):
 
     """Run OMP and a single tile and detect gene spots."""
     click.echo(f"Projecting ROI {roi}, {prefix}, tile {x}, {y} from {path}")
-    project_tile_by_coors(path, prefix, (roi, x, y), overwrite=overwrite)
+    project_tile_by_coors((roi, x, y), path, prefix, overwrite=overwrite)
 
 
 @cli.command()
@@ -67,7 +67,7 @@ def project_row(path, prefix, roi=1, x=0, max_col=0, overwrite=False):
     from iss_preprocess.pipeline import project_tile_row
 
     """Run OMP and a single tile and detect gene spots."""
-    click.echo(f"Projecting ROI {roi}, {prefix}, row {x}, {y} from {path}")
+    click.echo(f"Projecting ROI {roi}, {prefix}, row {x}, from {path}")
     project_tile_row(path, prefix, roi, x, max_col, overwrite=overwrite)
 
 
