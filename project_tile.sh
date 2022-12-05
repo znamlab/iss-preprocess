@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=iss_project_tile
 #SBATCH --ntasks=1
-#SBATCH --time=12:00:00
+#SBATCH --time=1:00:00
 #SBATCH --mem=32G
 #SBATCH --partition=cpu
 ml purge
