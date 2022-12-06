@@ -13,12 +13,14 @@ def cli():
 )
 @click.option("-x", default=0, help="Tile X position")
 @click.option("-y", default=0, help="Tile Y position.")
-def extract_tile(path, roi=1, x=0, y=0):
+@click.option("--save", is_flag=True, show_default=True, default=False,
+    help="Whether to save registered tile images.")
+def extract_tile(path, roi=1, x=0, y=0, save=False):
     from iss_preprocess.pipeline import run_omp_on_tile
 
     """Run OMP and a single tile and detect gene spots."""
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
-    run_omp_on_tile(path, (roi, x, y), save_stack=True)
+    run_omp_on_tile(path, (roi, x, y), save_stack=save, correct_channels=True)
 
 
 @cli.command()

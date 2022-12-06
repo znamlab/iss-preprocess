@@ -21,7 +21,7 @@ def setup_omp(
     """Prepare variables required to run the OMP algorithm.
 
     Args:
-        stack (numpy.ndarray): X x Y x R x C image stack.
+        stack (numpy.ndarray): X x Y x C x R image stack.
 
     Returns:
         numpy.ndarray: N x M dictionary, where N = R * C and M is the
@@ -30,8 +30,10 @@ def setup_omp(
         float: norm shift for the OMP algorithm, estimated as median norm of all pixels.
 
     """
+    stack = np.moveaxis(stack, 2, 3)
+
     spots = detect_isolated_spots(
-        np.reshape(stack, (stack.shape[0], stack.shape[1], -1)),
+        stack,
         detection_threshold=detection_threshold,
         isolation_threshold=isolation_threshold,
     )
@@ -160,30 +162,78 @@ def register_reference_tile(data_path, tile_coors=(0, 0, 0), prefix="round"):
     np.save(save_path, tforms, allow_pickle=True)
 
 
+def estimate_channel_correction(data_path, ops, prefix="round"):
+    stack = load_processed_tile(
+        data_path, ops["ref_tile"], suffix=ops["projection"], prefix=prefix
+    )
+    nch, nrounds = stack.shape[2:]
+    max_val = 65535
+    pixel_dist = np.zeros((max_val + 1, nch, nrounds))
+
+    for ix in ops["correction_tiles_x"]:
+        for iy in ops["correction_tiles_y"]:
+            print(f"counting pixel values for tile {ix}, {iy}")
+            stack = filter_stack(
+                load_processed_tile(
+                    data_path,
+                    [ops["correction_roi"], ix, iy],
+                    suffix=ops["projection"],
+                    prefix=prefix,
+                ),
+                r1=ops["filter_r"][0],
+                r2=ops["filter_r"][1],
+            )
+            for iround in range(nrounds):
+                for ich in range(nch):
+                    stack[stack < 0] = 0
+                    pixel_dist[:, ich, iround] += np.bincount(
+                        stack[:, :, ich, iround].flatten().astype(np.uint16),
+                        minlength=max_val + 1,
+                    )
+
+    cumulative_pixel_dist = np.cumsum(pixel_dist, axis=0)
+    cumulative_pixel_dist = cumulative_pixel_dist / cumulative_pixel_dist[-1, :, :]
+    norm_factors = np.zeros((nch, nrounds))
+    for iround in range(nrounds):
+        for ich in range(nch):
+            norm_factors[ich, iround] = np.argmax(
+                cumulative_pixel_dist[:, ich, iround] > ops["correction_quantile"]
+            )
+    return pixel_dist, norm_factors
+
+
 def load_and_register_tile(
-    data_path, tile_coors=(0, 0, 0), suffix="proj", filter_r=(2, 4)
+    data_path,
+    tile_coors=(0, 0, 0),
+    suffix="proj",
+    filter_r=(2, 4),
+    correct_channels=False,
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     tforms_path = processed_path / data_path / "tforms.npy"
     tforms = np.load(tforms_path, allow_pickle=True)
 
     stack = load_processed_tile(data_path, tile_coors, suffix=suffix)
-
     stack = align_channels_and_rounds(stack, tforms)
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[np.isnan(stack)] = 0
 
     stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
+    if correct_channels:
+        correction_path = processed_path / data_path / "correction.npz"
+        norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
+        stack = stack / norm_factors[np.newaxis, np.newaxis, :, :]
+
     return stack, bad_pixels
 
 
-def run_omp_on_tile(data_path, tile_coors, save_stack=False):
+def run_omp_on_tile(data_path, tile_coors, save_stack=False, correct_channels=False):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
 
     stack, bad_pixels = load_and_register_tile(
-        data_path, tile_coors, suffix=ops["projection"]
+        data_path, tile_coors, suffix=ops["projection"], correct_channels=correct_channels
     )
 
     if save_stack:

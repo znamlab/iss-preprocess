@@ -9,7 +9,7 @@ from ..coppafish import annulus
 
 
 def detect_isolated_spots(stack, detection_threshold=40, isolation_threshold=30):
-    im = np.std(stack, axis=2)
+    im = np.std(stack, axis=(2,3))
     spots = detect_spots(im, method="dilation", threshold=detection_threshold)
     strel = annulus(3, 7)
     strel = strel / np.sum(strel)

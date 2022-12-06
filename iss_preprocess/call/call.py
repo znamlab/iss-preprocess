@@ -43,8 +43,6 @@ def get_cluster_means(rois, vis=False):
                     ".",
                     markersize=1,
                 )
-                plt.xlim([-100, 500])
-                plt.ylim([-100, 300])
     # normalize intensity to first round
     cluster_intensity = cluster_intensity / cluster_intensity[0, :]
     for iround in range(nrounds):
