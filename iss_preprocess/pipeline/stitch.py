@@ -6,8 +6,16 @@ from pathlib import Path
 from ..io import load_stack
 from . import load_processed_tile
 
+
 def register_adjacent_tiles(
-    data_path, ref_coors=(1, 0, 0), reg_fraction=0.1, ref_ch=0, ref_round=0
+    data_path,
+    ref_coors=(1, 0, 0),
+    reg_fraction=0.1,
+    ref_ch=0,
+    ref_round=0,
+    nrounds=7,
+    suffix="proj",
+    prefix="round",
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -18,6 +26,9 @@ def register_adjacent_tiles(
         reg_fraction (float, optional): overlap fraction used for registration. Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
+        nrounds (int, optional): Number of rounds to load. Defaults to 7.
+        suffix (str, optional): File name suffix. Defaults to 'proj'.
+        prefix (str, optional): the folder name prefix, before round number. Defaults to "round"
 
     Returns:
         numpy.array: `shift_right`, X and Y shifts between different columns
@@ -25,11 +36,11 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
-    tile_ref = load_processed_tile(data_path, ref_coors)
+    tile_ref = load_processed_tile(data_path, ref_coors, nrounds, suffix, prefix)
     down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + 1)
-    tile_down = load_processed_tile(data_path, down_coors)
+    tile_down = load_processed_tile(data_path, down_coors, nrounds, suffix, prefix)
     right_coors = (ref_coors[0], ref_coors[1] + 1, ref_coors[2])
-    tile_right = load_processed_tile(data_path, right_coors)
+    tile_right = load_processed_tile(data_path, right_coors, nrounds, suffix, prefix)
 
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
