@@ -235,7 +235,7 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False):
 
 
 def register_adjacent_tiles(data_path, ref_coors=(1,0,0), reg_fraction=0.1,
-                            ref_ch=0, ref_round=0):
+                            ref_ch=0, ref_round=0, suffix="proj", prefix="round"):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
     Args:
@@ -245,6 +245,8 @@ def register_adjacent_tiles(data_path, ref_coors=(1,0,0), reg_fraction=0.1,
         reg_fraction (float, optional): overlap fraction used for registration. Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
+        suffix (str, optional): File name suffix. Defaults to 'proj'.
+        prefix (str, optional): the folder name prefix, before round number. Defaults to "round"
 
     Returns:
         numpy.array: `shift_right`, X and Y shifts between different columns
@@ -252,11 +254,16 @@ def register_adjacent_tiles(data_path, ref_coors=(1,0,0), reg_fraction=0.1,
         numpy.array: shape of the tile
 
     """
-    tile_ref = load_processed_tile(data_path, ref_coors)
+    tile_ref = load_processed_tile(data_path, ref_coors, prefix=prefix, suffix=suffix)
     down_coors = (ref_coors[0], ref_coors[1], ref_coors[2]+1)
-    tile_down = load_processed_tile(data_path, down_coors)
+    tile_down = load_processed_tile(data_path, down_coors, prefix=prefix, suffix=suffix)
     right_coors = (ref_coors[0], ref_coors[1]+1, ref_coors[2])
-    tile_right = load_processed_tile(data_path, right_coors)
+    tile_right = load_processed_tile(
+        data_path,
+        right_coors, 
+        prefix=prefix, 
+        suffix=suffix
+    )
 
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
