@@ -118,7 +118,8 @@ def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='proj',
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos. 
             Defaults to (1,0,0).
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
-        suffix (str, optional): File name suffix. Defaults to '_proj'.
+        suffix (str, optional): File name suffix. Defaults to 'proj'.
+        prefix (str, optional): the folder name prefix, before round number. Defaults to "round"
 
     Returns:
         numpy.ndarray: X x Y x channels x rounds stack.
@@ -128,8 +129,8 @@ def load_processed_tile(data_path, tile_coors=(1,0,0), nrounds=7, suffix='proj',
     processed_path = Path(PARAMETERS['data_root']['processed'])
     ims = []
     for iround in range(nrounds):
-        dirname = f'{prefix}_{str(iround+1).zfill(2)}_1'
-        fname = f'{prefix}_{str(iround+1).zfill(2)}_1_MMStack_{tile_roi}-' + \
+        dirname = f'{prefix}_{str(iround+1)}_1'
+        fname = f'{prefix}_{str(iround+1)}_1_MMStack_{tile_roi}-' + \
             f'Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif'
         ims.append(load_stack(processed_path / data_path / dirname / fname))
     return np.stack(ims, axis=3)
