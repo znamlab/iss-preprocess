@@ -4,7 +4,7 @@ import scipy
 import warnings
 
 
-def ftrans2(b, t = None) -> np.ndarray:
+def ftrans2(b, t=None) -> np.ndarray:
     """
     Produces a 2D convolve kernel that corresponds to the 1D convolve kernel, `b`, using the transform, `t`.
     Copied from [MATLAB `ftrans2`](https://www.mathworks.com/help/images/ref/ftrans2.html).
@@ -26,7 +26,7 @@ def ftrans2(b, t = None) -> np.ndarray:
     n = int(round((len(b) - 1) / 2))
     b = b.reshape(-1, 1)
     b = np.rot90(np.fft.fftshift(np.rot90(b)))
-    a = np.concatenate((b[:1], 2 * b[1:n + 1]))
+    a = np.concatenate((b[:1], 2 * b[1 : n + 1]))
 
     inset = np.floor((np.array(t.shape) - 1) / 2).astype(int)
 
@@ -69,7 +69,7 @@ def hanning_diff(r1: int, r2: int) -> np.ndarray:
     h_inner = np.hanning(2 * r1 + 3)[1:-1]
     h_inner = h_inner / h_inner.sum()
     h = h_outer.copy()
-    h[r2 - r1:r2 + r1 + 1] += h_inner
+    h[r2 - r1 : r2 + r1 + 1] += h_inner
     h = ftrans2(h)
     return h
 
@@ -91,17 +91,23 @@ def annulus(r0, r_xy) -> np.ndarray:
 
     """
     r_xy1_int = floor(r_xy)
-    y, x = np.meshgrid(np.arange(-r_xy1_int, r_xy1_int + 1), np.arange(-r_xy1_int, r_xy1_int + 1))
-    m = x ** 2 + y ** 2
+    y, x = np.meshgrid(
+        np.arange(-r_xy1_int, r_xy1_int + 1), np.arange(-r_xy1_int, r_xy1_int + 1)
+    )
+    m = x**2 + y**2
     # only use upper radius in xy direction as z direction has different pixel size.
-    annulus = r_xy ** 2 >= m
-    annulus = np.logical_and(annulus, m > r0 ** 2)
+    annulus = r_xy**2 >= m
+    annulus = np.logical_and(annulus, m > r0**2)
     return annulus.astype(int)
 
 
-def scaled_k_means(x: np.ndarray, initial_cluster_mean: np.ndarray,
-                   score_thresh = 0, min_cluster_size = 10,
-                   n_iter = 100):
+def scaled_k_means(
+    x: np.ndarray,
+    initial_cluster_mean: np.ndarray,
+    score_thresh=0,
+    min_cluster_size=10,
+    n_iter=100,
+):
     """
     Does a clustering that minimizes the norm of ```x[i] - g[i] * cluster_mean[cluster_ind[i]]```
     for each data point ```i``` in ```x```, where ```g``` is the gain which is not explicitly computed.
@@ -133,11 +139,15 @@ def scaled_k_means(x: np.ndarray, initial_cluster_mean: np.ndarray,
             `top_score0[i]` is the dot product score between `x[i]` and `initial_cluster_mean[cluster_ind0[i]]`.
     """
     # normalise starting points and original data
-    norm_cluster_mean = initial_cluster_mean / np.linalg.norm(initial_cluster_mean, axis=1).reshape(-1, 1)
+    norm_cluster_mean = initial_cluster_mean / np.linalg.norm(
+        initial_cluster_mean, axis=1
+    ).reshape(-1, 1)
     x_norm = x / np.linalg.norm(x, axis=1).reshape(-1, 1)
     n_clusters = initial_cluster_mean.shape[0]
     n_points, n_dims = x.shape
-    cluster_ind = np.ones(x.shape[0], dtype=int) * -2  # set all to -2 so won't end on first iteration
+    cluster_ind = (
+        np.ones(x.shape[0], dtype=int) * -2
+    )  # set all to -2 so won't end on first iteration
     cluster_eig_val = np.zeros(n_clusters)
 
     if len(np.array([score_thresh]).flatten()) == 1:
@@ -151,7 +161,9 @@ def scaled_k_means(x: np.ndarray, initial_cluster_mean: np.ndarray,
         score = x_norm @ norm_cluster_mean.transpose()
         cluster_ind = np.argmax(score, axis=1)  # find best cluster for each point
         top_score = score[np.arange(n_points), cluster_ind]
-        top_score[np.where(np.isnan(top_score))[0]] = score_thresh.min()-1  # don't include nan values
+        top_score[np.where(np.isnan(top_score))[0]] = (
+            score_thresh.min() - 1
+        )  # don't include nan values
         cluster_ind[top_score < score_thresh[cluster_ind]] = -1  # unclusterable points
         if i == 0:
             top_score0 = top_score.copy()
@@ -161,16 +173,31 @@ def scaled_k_means(x: np.ndarray, initial_cluster_mean: np.ndarray,
             break
 
         for c in range(n_clusters):
-            my_points = x[cluster_ind == c]  # don't use normalized, to avoid overweighting weak points
+            my_points = x[
+                cluster_ind == c
+            ]  # don't use normalized, to avoid overweighting weak points
             n_my_points = my_points.shape[0]
             if n_my_points < min_cluster_size:
                 norm_cluster_mean[c] = 0
-                warnings.warn(f"Cluster c only had {n_my_points} vectors assigned to it.\n "
-                              f"This is less than min_cluster_size = {min_cluster_size} so setting this cluster to 0.")
+                warnings.warn(
+                    f"Cluster c only had {n_my_points} vectors assigned to it.\n "
+                    f"This is less than min_cluster_size = {min_cluster_size} so setting this cluster to 0."
+                )
                 continue
-            eig_vals, eigs = np.linalg.eig(my_points.transpose() @ my_points / n_my_points)
+            eig_vals, eigs = np.linalg.eig(
+                my_points.transpose() @ my_points / n_my_points
+            )
             best_eig_ind = np.argmax(eig_vals)
-            norm_cluster_mean[c] = eigs[:, best_eig_ind] * np.sign(eigs[:, best_eig_ind].mean())  # make them positive
+            norm_cluster_mean[c] = eigs[:, best_eig_ind] * np.sign(
+                eigs[:, best_eig_ind].mean()
+            )  # make them positive
             cluster_eig_val[c] = eig_vals[best_eig_ind]
 
-    return norm_cluster_mean, cluster_eig_val, cluster_ind, top_score, cluster_ind0, top_score0
+    return (
+        norm_cluster_mean,
+        cluster_eig_val,
+        cluster_ind,
+        top_score,
+        cluster_ind0,
+        top_score0,
+    )

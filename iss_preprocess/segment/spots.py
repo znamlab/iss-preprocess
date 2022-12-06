@@ -9,16 +9,16 @@ from ..coppafish import annulus
 
 
 def detect_isolated_spots(stack, detection_threshold=40, isolation_threshold=30):
-    im = np.std(stack, axis=2)
-    spots = detect_spots(im, method='dilation', threshold=detection_threshold)
-    strel = annulus(3,7)
+    im = np.std(stack, axis=(2,3))
+    spots = detect_spots(im, method="dilation", threshold=detection_threshold)
+    strel = annulus(3, 7)
     strel = strel / np.sum(strel)
     annulus_image = scipy.ndimage.correlate(im, strel)
-    isolated = annulus_image[ spots['y'], spots['x'] ] < isolation_threshold
+    isolated = annulus_image[spots["y"], spots["x"]] < isolation_threshold
     return spots.iloc[isolated]
 
 
-def detect_gene_spots(im, median_filter=False, min_size=1., max_sigma=4.):
+def detect_gene_spots(im, median_filter=False, min_size=1.0, max_sigma=4.0):
     """
     Detect spots corresponding to single rolonies from OMP coefficient images.
 
@@ -39,19 +39,20 @@ def detect_gene_spots(im, median_filter=False, min_size=1., max_sigma=4.):
     spots_array = blob_log(
         im,
         max_sigma=max_sigma,
-        min_sigma=.5,
+        min_sigma=0.5,
         num_sigma=10,
         log_scale=True,
         overlap=0.9,
-        exclude_border=10
+        exclude_border=10,
     )
-    gene_spots = pd.DataFrame(spots_array, columns=['y', 'x', 'size'])
-    gene_spots = gene_spots[gene_spots['size'] >= min_size]
+    gene_spots = pd.DataFrame(spots_array, columns=["y", "x", "size"])
+    gene_spots = gene_spots[gene_spots["size"] >= min_size]
     return gene_spots
 
 
-def detect_spots(im, method='trackpy', separation=4, diameter=9, threshold=100,
-                 max_sigma=10):
+def detect_spots(
+    im, method="trackpy", separation=4, diameter=9, threshold=100, max_sigma=10
+):
     """
     Detect spots in a multichannel image based on standard deviation across channels
     using the selected detection method.
@@ -69,30 +70,29 @@ def detect_spots(im, method='trackpy', separation=4, diameter=9, threshold=100,
         pandas.DataFrame of spot location, including x, y, and size.
 
     """
-    if method == 'trackpy':
+    if method == "trackpy":
         spots = trackpy.locate(
-            im,
-            separation=separation,
-            diameter=diameter,
-            threshold=threshold
+            im, separation=separation, diameter=diameter, threshold=threshold
         )
-    elif method == 'skimage':
+    elif method == "skimage":
         spots_array = blob_log(
             im,
             max_sigma=max_sigma,
             threshold=threshold,
-            min_sigma=1.,
+            min_sigma=1.0,
             num_sigma=20,
         )
-        spots = pd.DataFrame(spots_array, columns=['y', 'x', 'size'])
-    elif method == 'dilation':
-        dilate = grey_dilation(im, size=(4,4))
+        spots = pd.DataFrame(spots_array, columns=["y", "x", "size"])
+    elif method == "dilation":
+        dilate = grey_dilation(im, size=(4, 4))
         small = 1e-6
         spots = np.logical_and(im + small > dilate, im > threshold)
         coors = np.where(spots)
-        spots = pd.DataFrame({'y':coors[0], 'x':coors[1], 'size':np.ones(len(coors[0]))*2})
+        spots = pd.DataFrame(
+            {"y": coors[0], "x": coors[1], "size": np.ones(len(coors[0])) * 2}
+        )
     else:
-        raise(ValueError(f'Unknown spot detection method "{method}"'))
+        raise (ValueError(f'Unknown spot detection method "{method}"'))
 
     return spots
 
@@ -111,7 +111,7 @@ def filter_spots(spots, min_dist):
     """
     clean_spots = spots.copy()
     for ispot, spot in spots.iterrows():
-        dist = np.sqrt((clean_spots.x - spot.x)**2 + (clean_spots.y - spot.y)**2)
+        dist = np.sqrt((clean_spots.x - spot.x) ** 2 + (clean_spots.y - spot.y) ** 2)
         if np.sum(dist < min_dist) > 1:
             # set x to nan to skip this spot
             clean_spots.iloc[ispot].x = np.nan

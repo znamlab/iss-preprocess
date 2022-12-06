@@ -1,15 +1,21 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from cellpose.io import imread
 from cellpose.models import CellposeModel
 from cellpose import plot
 from skimage.morphology import dilation
 
 
-def cellpose_segmentation(fname, channels=(3, 2), flow_threshold=2,
-                          min_pix=500, vis=False, dilate_pix=50, rescale=0.55,
-                          model_type='cyto'):
+def cellpose_segmentation(
+    img,
+    channels=(3, 2),
+    flow_threshold=2,
+    min_pix=500,
+    vis=False,
+    dilate_pix=50,
+    rescale=0.55,
+    model_type="cyto",
+):
     """
     Segment cells using Cellpose.
 
@@ -28,7 +34,6 @@ def cellpose_segmentation(fname, channels=(3, 2), flow_threshold=2,
 
     """
     model = CellposeModel(gpu=False, model_type=model_type, net_avg=True)
-    img = imread(fname)
     masks, flows, styles = model.eval(
         img,
         rescale=rescale,
@@ -55,24 +60,28 @@ def cellpose_segmentation(fname, channels=(3, 2), flow_threshold=2,
     return masks
 
 
-def count_rolonies(masks, rolony_locations, gene_names):
+def count_rolonies(masks, spots):
     """
     Count number of rolonies within each mask and return a DataFrame of gene counts.
 
     Args:
         masks (numpy.ndarray): cell masks
-        rolony_locations (list): list of DataFrames with spot locations for each gene
-        gene_names (list): names of genes
+        spots (pandas.DataFrame): table of spot locations for each gene
 
     Returns:
         A DataFrame of gene counts.
 
     """
+    gene_names = spots["gene"].unique()
     nmasks = np.max(masks)
     gene_matrix = np.zeros((nmasks + 1, len(gene_names)))
     gene_df = pd.DataFrame(gene_matrix, columns=gene_names)
-    for gene, spots in zip(gene_names, rolony_locations):
-        mask_ids = masks[spots['y'].round().to_numpy().astype(int), spots['x'].round().to_numpy().astype(int)]
+    for gene in gene_names:
+        this_gene = spots[spots["gene"] == gene]
+        mask_ids = masks[
+            this_gene["y"].round().to_numpy().astype(int),
+            this_gene["x"].round().to_numpy().astype(int),
+        ]
         for mask in mask_ids:
             gene_df.loc[mask, gene] += 1
     return gene_df

@@ -19,11 +19,11 @@ def filter_stack(stack, r1=2, r2=4):
 
     for ich in range(nchannels):
         for iround in range(nrounds):
-            stack_filt[:,:,ich, iround] = cv2.filter2D(
-                stack[:,:,ich, iround].astype(float),
+            stack_filt[:, :, ich, iround] = cv2.filter2D(
+                stack[:, :, ich, iround].astype(float),
                 -1,
                 np.flip(h),
-                borderType=cv2.BORDER_REPLICATE
+                borderType=cv2.BORDER_REPLICATE,
             )
     return stack_filt
 
@@ -48,8 +48,15 @@ def analyze_dark_frames(fname):
     return dark_frames.mean(), dark_frames.std()
 
 
-def compute_mean_image(dirs, tile_shape, suffix=None, black_level=300,
-                       max_value=1000, verbose=False, median_filter=None):
+def compute_mean_image(
+    dirs,
+    tile_shape,
+    suffix=None,
+    black_level=300,
+    max_value=1000,
+    verbose=False,
+    median_filter=None,
+):
     """
     Compute mean image to use for illumination correction.
 
@@ -78,12 +85,12 @@ def compute_mean_image(dirs, tile_shape, suffix=None, black_level=300,
         im_name = os.path.split(dir)[1]
         if verbose:
             print(im_name)
-        tiffs = glob.glob(subdir + '/*.tif')
+        tiffs = glob.glob(subdir + "/*.tif")
         tiles = get_tiles_micromanager(tiffs)
-        this_mean_image = np.zeros(tiles.iloc[0]['data'].shape)
+        this_mean_image = np.zeros(tiles.iloc[0]["data"].shape)
         for _, tile in tiles.iterrows():
-            data = tile['data']
-            data[data>max_value] = max_value
+            data = tile["data"]
+            data[data > max_value] = max_value
             data = data - black_level
             this_mean_image += data
         this_mean_image = this_mean_image / np.max(this_mean_image)
@@ -94,7 +101,7 @@ def compute_mean_image(dirs, tile_shape, suffix=None, black_level=300,
     return correction_image
 
 
-def correct_offset(tiles, method='metadata', metadata=None, n_components=5):
+def correct_offset(tiles, method="metadata", metadata=None, n_components=5):
     """
     Estimate image offset for each channel as the minimum value or using a
     Gaussian mixture model and substract it from input images.
@@ -110,29 +117,33 @@ def correct_offset(tiles, method='metadata', metadata=None, n_components=5):
     """
     if metadata:
         channels_metadata = metadata.findall(
-            './Metadata/Information/Image/Dimensions/Channels/Channel'
+            "./Metadata/Information/Image/Dimensions/Channels/Channel"
         )
 
     channels = tiles.C.unique()
     for channel in channels:
-        this_channel = tiles[(tiles['C'] == channel) & (tiles['Z'] == 0)]['data']
-        #Creating ragged nested ndarrays is deprecated. Suggested fix is to make dtype=object
+        this_channel = tiles[(tiles["C"] == channel) & (tiles["Z"] == 0)]["data"]
+        # Creating ragged nested ndarrays is deprecated. Suggested fix is to make dtype=object
         data = np.concatenate(this_channel.to_numpy(), dtype=object).reshape(-1, 1)
-        if method == 'metadata' and metadata:
-            offset = float(channels_metadata[channel].find('./DetectorSettings/Offset').text)
-        elif method == 'min':
+        if method == "metadata" and metadata:
+            offset = float(
+                channels_metadata[channel].find("./DetectorSettings/Offset").text
+            )
+        elif method == "min":
             offset = np.min(data)
         else:
             gm = GaussianMixture(n_components=n_components, random_state=0).fit(
-                data[:10:,:]
+                data[:10:, :]
             )
             offset = np.min(gm.means_)
-        v = tiles[tiles['C'] == channel]['data'].transform(lambda x: x.astype(float) - offset)
+        v = tiles[tiles["C"] == channel]["data"].transform(
+            lambda x: x.astype(float) - offset
+        )
         tiles.update(v)
     return tiles
 
 
-def correct_levels(stacks, reference, method='histogram'):
+def correct_levels(stacks, reference, method="histogram"):
     """
     Correct illumination levels of an image using a selected method.
 
@@ -159,20 +170,28 @@ def correct_levels(stacks, reference, method='histogram'):
         corrected_stack = np.empty(stack.shape)
         nchannels = stack.shape[2]
         for channel in range(nchannels):
-            if method == 'histogram':
-                corrected_stack[:, :, channel] = \
-                    match_histograms(stack[:, :, channel], reference)
-            elif method == 'mean':
-                corrected_stack[:, :, channel] = \
-                    stack[:, :, channel] / np.mean(stack[:, :, channel]) * reference_mean
-            elif method == 'median':
-                corrected_stack[:, :, channel] = \
-                    stack[:, :, channel] / np.median(stack[:, :, channel]) * reference_median
-            elif method == 'minmax':
+            if method == "histogram":
+                corrected_stack[:, :, channel] = match_histograms(
+                    stack[:, :, channel], reference
+                )
+            elif method == "mean":
+                corrected_stack[:, :, channel] = (
+                    stack[:, :, channel]
+                    / np.mean(stack[:, :, channel])
+                    * reference_mean
+                )
+            elif method == "median":
+                corrected_stack[:, :, channel] = (
+                    stack[:, :, channel]
+                    / np.median(stack[:, :, channel])
+                    * reference_median
+                )
+            elif method == "minmax":
                 im_min = np.min(stack[:, :, channel])
                 im_max = np.max(stack[:, :, channel])
-                corrected_stack[:, :, channel] = reference_min + \
-                    reference_scale * (stack[:, :, channel] - im_min) / (im_max - im_min)
+                corrected_stack[:, :, channel] = reference_min + reference_scale * (
+                    stack[:, :, channel] - im_min
+                ) / (im_max - im_min)
             else:
                 raise (ValueError(f'Unknown correction method "{method}"'))
         corrected_stacks.append(corrected_stack)
