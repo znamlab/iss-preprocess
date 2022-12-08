@@ -6,7 +6,12 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 from os.path import isfile
 from ..image import filter_stack
-from ..reg import register_channels_and_rounds, align_channels_and_rounds
+from ..reg import (
+    register_channels_and_rounds,
+    align_channels_and_rounds,
+    estimate_shifts_for_tile,
+    generate_channel_round_transforms,
+)
 from ..io import load_stack, write_stack
 from ..segment import detect_isolated_spots
 from ..call import extract_spots, make_gene_templates, run_omp, find_gene_spots
@@ -125,7 +130,7 @@ def get_roi_dimensions(data_path, prefix):
 
 
 def load_processed_tile(
-    data_path, tile_coors=(1, 0, 0), nrounds=7, suffix="proj", prefix="round"
+    data_path, tile_coors=(1, 0, 0), nrounds=7, suffix="fstack", prefix="round"
 ):
     """Load processed tile images across rounds
 
@@ -134,7 +139,7 @@ def load_processed_tile(
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
             Defaults to (1,0,0).
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
-        suffix (str, optional): File name suffix. Defaults to 'proj'.
+        suffix (str, optional): File name suffix. Defaults to 'fstack'.
         prefix (str, optional): the folder name prefix, before round number. Defaults to "round"
 
     Returns:
@@ -145,9 +150,10 @@ def load_processed_tile(
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ims = []
     for iround in range(nrounds):
-        dirname = f"{prefix}_{str(iround+1)}_1"
+        # dirname = f"{prefix}_{str(iround+1).zfill(2)}_1"
+        dirname = f"{prefix}_{iround+1}_1"
         fname = (
-            f"{prefix}_{str(iround+1)}_1_MMStack_{tile_roi}-"
+            f"{prefix}_{iround+1}_1_MMStack_{tile_roi}-"
             + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
         )
         ims.append(load_stack(processed_path / data_path / dirname / fname))
@@ -206,15 +212,50 @@ def estimate_channel_correction(data_path, ops, prefix="round"):
 def load_and_register_tile(
     data_path,
     tile_coors=(0, 0, 0),
+    prefix="round",
     suffix="proj",
     filter_r=(2, 4),
     correct_channels=False,
+    estimate_shifts=False,
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    tforms_path = processed_path / data_path / "tforms.npy"
-    tforms = np.load(tforms_path, allow_pickle=True)
+    tforms_path = processed_path / data_path / "tforms.npz"
+    reference_tforms = np.load(tforms_path, allow_pickle=True)
 
-    stack = load_processed_tile(data_path, tile_coors, suffix=suffix)
+    stack = load_processed_tile(data_path, tile_coors, suffix=suffix, prefix=prefix)
+    if estimate_shifts:
+        (
+            tforms,
+            shifts_within_channels,
+            shifts_between_channels,
+        ) = estimate_shifts_for_tile(
+            stack,
+            reference_tforms["angles_within_channels"],
+            reference_tforms["scales_between_channels"],
+            reference_tforms["angles_between_channels"],
+            ref_ch=0,
+            ref_round=0,
+        )
+        save_dir = processed_path / data_path / "reg"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        np.savez(
+            save_dir / f"tforms_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
+            angles_within_channels=reference_tforms["angles_within_channels"],
+            shifts_within_channels=shifts_within_channels,
+            scales_between_channels=reference_tforms["scales_between_channels"],
+            angles_between_channels=reference_tforms["angles_between_channels"],
+            shifts_between_channels=shifts_between_channels,
+            allow_pickle=True,
+        )
+    else:
+        tforms = generate_channel_round_transforms(
+            reference_tforms["angles_within_channels"],
+            reference_tforms["shifts_within_channels"],
+            reference_tforms["scales_between_channels"],
+            reference_tforms["angles_between_channels"],
+            reference_tforms["shifts_between_channels"],
+            stack.shape[:2],
+        )
     stack = align_channels_and_rounds(stack, tforms)
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[np.isnan(stack)] = 0
@@ -228,14 +269,26 @@ def load_and_register_tile(
     return stack, bad_pixels
 
 
-def run_omp_on_tile(data_path, tile_coors, save_stack=False, correct_channels=False):
+def run_omp_on_tile(
+    data_path,
+    tile_coors,
+    save_stack=False,
+    correct_channels=False,
+    prefix="genes_round",
+):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
 
     stack, bad_pixels = load_and_register_tile(
-        data_path, tile_coors, suffix=ops["projection"], correct_channels=correct_channels
+        data_path,
+        tile_coors,
+        suffix=ops["projection"],
+        correct_channels=correct_channels,
+        estimate_shifts=True,
+        prefix=prefix,
     )
+    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 
     if save_stack:
         save_dir = processed_path / data_path / "reg"
@@ -248,7 +301,7 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False, correct_channels=Fa
     stack = np.moveaxis(stack, 2, 3)
 
     omp_stat = np.load(processed_path / data_path / "gene_dict.npz", allow_pickle=True)
-    g, b, r = run_omp(
+    g, _, _ = run_omp(
         stack,
         omp_stat["gene_dict"],
         tol=ops["omp_threshold"],
@@ -257,6 +310,7 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False, correct_channels=Fa
         alpha=200.0,
         norm_shift=omp_stat["norm_shift"],
         max_comp=12,
+        min_intensity=ops["omp_min_intensity"],
     )
 
     for igene in range(g.shape[2]):
@@ -286,5 +340,5 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False, correct_channels=Fa
     save_dir = processed_path / data_path / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     pd.concat(gene_spots).to_pickle(
-        save_dir / f"gene_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+        save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )

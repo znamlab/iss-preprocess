@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 from ..coppafish import scaled_k_means
 
 # BASES = np.array(['G','T','A','C'])
-BASES = np.array(["A", "C", "T", "G"])
+# BASES = np.array(["A", "C", "T", "G"])
+BASES = np.array(["G", "T", "A", "C"])
 
 
 def get_cluster_means(rois, vis=False):

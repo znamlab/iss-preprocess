@@ -14,8 +14,8 @@ def register_adjacent_tiles(
     ref_ch=0,
     ref_round=0,
     nrounds=7,
-    suffix="proj",
-    prefix="round",
+    suffix="fstack",
+    prefix="genes_round",
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -36,11 +36,17 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
-    tile_ref = load_processed_tile(data_path, ref_coors, nrounds, suffix, prefix)
+    tile_ref = load_processed_tile(
+        data_path, ref_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    )
     down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + 1)
-    tile_down = load_processed_tile(data_path, down_coors, nrounds, suffix, prefix)
+    tile_down = load_processed_tile(
+        data_path, down_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    )
     right_coors = (ref_coors[0], ref_coors[1] + 1, ref_coors[2])
-    tile_right = load_processed_tile(data_path, right_coors, nrounds, suffix, prefix)
+    tile_right = load_processed_tile(
+        data_path, right_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    )
 
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
@@ -124,7 +130,9 @@ def stitch_tiles(
     return stitched_stack
 
 
-def merge_roi_spots(data_path, shift_right, shift_down, tile_shape, ntiles, iroi=1):
+def merge_roi_spots(
+    data_path, shift_right, shift_down, tile_shape, ntiles, iroi=1, prefix="genes_round"
+):
     """Load and combine spot locations across all tiles for an ROI.
 
     Args:
@@ -150,7 +158,7 @@ def merge_roi_spots(data_path, shift_right, shift_down, tile_shape, ntiles, iroi
                 processed_path
                 / data_path
                 / "spots"
-                / f"gene_spots_{iroi}_{ix}_{iy}.pkl"
+                / f"{prefix}_spots_{iroi}_{ix}_{iy}.pkl"
             )
             spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
             spots["y"] = spots["y"] + tile_origins[ix, iy, 0]

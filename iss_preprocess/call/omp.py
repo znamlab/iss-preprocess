@@ -1,7 +1,7 @@
 import numba
 import numpy as np
-from . import rois_to_array
-from .call import BASES, get_cluster_means
+from . import rois_to_array, BASES
+from .call import get_cluster_means
 from ..vis import plot_gene_templates
 
 
@@ -285,6 +285,7 @@ def run_omp(
     beta_squared=1.0,
     norm_shift=0.0,
     max_comp=None,
+    min_intensity=0
 ):
     """
     Apply the OMP algorithm to every pixel of the provided image stack.
@@ -323,18 +324,19 @@ def run_omp(
             if ix % 100 == 0:
                 print(f"finished row {ix} of {stack_.shape[0]}")
             for iy in range(stack_.shape[1]):
-                g[ix, iy, :], r[ix, iy, :] = omp_weighted(
-                    stack_[ix, iy, :, :].flatten(),
-                    gene_dict_,
-                    background_vectors=background_vectors_,
-                    tol=tol_,
-                    weighted=weighted,
-                    refit_background=refit_background,
-                    alpha=alpha,
-                    beta_squared=beta_squared,
-                    norm_shift=norm_shift,
-                    max_comp=max_comp,
-                )
+                if np.mean(np.abs(stack_[ix, iy, :, :])) > min_intensity:
+                    g[ix, iy, :], r[ix, iy, :] = omp_weighted(
+                        stack_[ix, iy, :, :].flatten(),
+                        gene_dict_,
+                        background_vectors=background_vectors_,
+                        tol=tol_,
+                        weighted=weighted,
+                        refit_background=refit_background,
+                        alpha=alpha,
+                        beta_squared=beta_squared,
+                        norm_shift=norm_shift,
+                        max_comp=max_comp,
+                    )
         return g, r
 
     g, r = omp_loop_(stack, background_vectors, gene_dict, tol)
