@@ -18,29 +18,53 @@ def register_channels_and_rounds(stack, ref_ch=0, ref_round=0):
     Returns:
 
     """
-    nchannels, nrounds = stack.shape[2:]
     # first register images across rounds within each channel
-    angles_channels, shifts_channels = align_within_channels(
+    angles_within_channels, shifts_within_channels = align_within_channels(
         stack, upsample=5, ref_round=ref_round
     )
     # use these to computer a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(
-        stack, angles_channels, shifts_channels
+        stack, angles_within_channels, shifts_within_channels
     )
-    scales, angles, shifts = estimate_correction(
-        std_stack, ch_to_align=ref_ch, upsample=5
+    (
+        scales_between_channels,
+        angles_between_channels,
+        shifts_between_channels,
+    ) = estimate_correction(std_stack, ch_to_align=ref_ch, upsample=5)
+
+    return (
+        angles_within_channels,
+        shifts_within_channels,
+        scales_between_channels,
+        angles_between_channels,
+        shifts_between_channels,
     )
+
+
+def generate_channel_round_transforms(
+    angles_within_channels,
+    shifts_within_channels,
+    scales_between_channels,
+    angles_between_channels,
+    shifts_between_channels,
+    stack_shape,
+):
+    nrounds = len(angles_within_channels[0])
+    nchannels = len(angles_within_channels)
     tforms = np.empty((nchannels, nrounds), dtype=object)
 
     for ich in range(nchannels):
         for iround in range(nrounds):
             tforms[ich, iround] = make_transform(
-                scales[ich], angles[ich], shifts[ich], stack.shape[:2]
+                scales_between_channels[ich],
+                angles_between_channels[ich],
+                shifts_between_channels[ich],
+                stack_shape,
             ) @ make_transform(
                 1.0,
-                angles_channels[ich][iround],
-                shifts_channels[ich][iround],
-                stack.shape[:2],
+                angles_within_channels[ich][iround],
+                shifts_within_channels[ich][iround],
+                stack_shape,
             )
     return tforms
 
@@ -98,6 +122,74 @@ def align_within_channels(stack, upsample=False, ref_round=0):
         angles_channels.append(angles)
         shifts_channels.append(shifts)
     return angles_channels, shifts_channels
+
+
+def estimate_shifts_for_tile(
+    stack,
+    angles_within_channels,
+    scales_between_channels,
+    angles_between_channels,
+    ref_ch=0,
+    ref_round=0,
+):
+    """Use precompute rotations and scale factors to re-estimate shifts for every round and between channels.
+
+    Args:
+        stack (_type_): _description_
+        angles_within_channels (_type_): _description_
+        scales_between_channels (_type_): _description_
+        angles_between_channels (_type_): _description_
+        ref_ch (int, optional): _description_. Defaults to 0.
+        ref_round (int, optional): _description_. Defaults to 0.
+
+    Returns:
+        _type_: _description_
+    """
+    nchannels, nrounds = stack.shape[2:]
+    shifts_within_channels = []
+    for ich in range(nchannels):
+        shifts = []
+        reference_fft = scipy.fft.fft2(stack[:, :, ich, ref_round])
+        for iround in range(nrounds):
+            if iround != ref_round:
+                shift = phase_corr(
+                    reference_fft,
+                    transform_image(
+                        stack[:, :, ich, iround],
+                        angle=angles_within_channels[ich][iround],
+                    ),
+                    fft_ref=False,
+                    min_shift=2,
+                )[0]
+            else:
+                shift = [0.0, 0.0]
+            shifts.append(shift)
+        shifts_within_channels.append(shifts)
+    std_stack, _ = get_channel_reference_images(
+        stack, angles_within_channels, shifts_within_channels
+    )
+    shifts_between_channels = []
+    for ich in range(nchannels):
+        shifts_between_channels.append(
+            phase_cross_correlation(
+                std_stack[:, :, ref_ch],
+                transform_image(
+                    std_stack[:, :, ich],
+                    scale=scales_between_channels[ich],
+                    angle=angles_between_channels[ich],
+                ),
+                upsample_factor=5,
+            )[0]
+        )
+    tforms = generate_channel_round_transforms(
+        angles_within_channels,
+        shifts_within_channels,
+        scales_between_channels,
+        angles_between_channels,
+        shifts_between_channels,
+        stack.shape[:2],
+    )
+    return tforms, shifts_within_channels, shifts_between_channels
 
 
 def get_channel_reference_images(stack, angles_channels, shifts_channels):
@@ -319,12 +411,11 @@ def estimate_rotation_translation(
 
     """
     best_angle = 0
-    target_rescaled = target
     reference_fft = scipy.fft.fft2(reference)
     for i in range(niter):
         best_angle, max_cc = estimate_rotation_angle(
             reference_fft,
-            target_rescaled,
+            target,
             angle_range,
             best_angle,
             nangles,
