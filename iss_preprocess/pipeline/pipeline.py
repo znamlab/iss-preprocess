@@ -130,7 +130,7 @@ def get_roi_dimensions(data_path, prefix):
 
 
 def load_processed_tile(
-    data_path, tile_coors=(1, 0, 0), nrounds=7, suffix="proj", prefix="round"
+    data_path, tile_coors=(1, 0, 0), nrounds=7, suffix="fstack", prefix="round"
 ):
     """Load processed tile images across rounds
 
@@ -139,7 +139,7 @@ def load_processed_tile(
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
             Defaults to (1,0,0).
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
-        suffix (str, optional): File name suffix. Defaults to '_proj'.
+        suffix (str, optional): File name suffix. Defaults to '_fstack'.
 
     Returns:
         numpy.ndarray: X x Y x channels x rounds stack.
@@ -238,13 +238,13 @@ def load_and_register_tile(
         save_dir = processed_path / data_path / "reg"
         save_dir.mkdir(parents=True, exist_ok=True)
         np.savez(
-            save_dir / f"tforms_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz", 
+            save_dir / f"tforms_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
             angles_within_channels=reference_tforms["angles_within_channels"],
-            shifts_within_channels=shifts_within_channels, 
-            scales_between_channels=reference_tforms["scales_between_channels"], 
-            angles_between_channels=reference_tforms["angles_between_channels"], 
-            shifts_between_channels=shifts_between_channels, 
-            allow_pickle=True
+            shifts_within_channels=shifts_within_channels,
+            scales_between_channels=reference_tforms["scales_between_channels"],
+            angles_between_channels=reference_tforms["angles_between_channels"],
+            shifts_between_channels=shifts_between_channels,
+            allow_pickle=True,
         )
     else:
         tforms = generate_channel_round_transforms(
@@ -268,7 +268,13 @@ def load_and_register_tile(
     return stack, bad_pixels
 
 
-def run_omp_on_tile(data_path, tile_coors, save_stack=False, correct_channels=False, prefix='genes_round'):
+def run_omp_on_tile(
+    data_path,
+    tile_coors,
+    save_stack=False,
+    correct_channels=False,
+    prefix="genes_round",
+):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
@@ -279,8 +285,9 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False, correct_channels=Fa
         suffix=ops["projection"],
         correct_channels=correct_channels,
         estimate_shifts=True,
-        prefix=prefix
+        prefix=prefix,
     )
+    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 
     if save_stack:
         save_dir = processed_path / data_path / "reg"
@@ -302,7 +309,7 @@ def run_omp_on_tile(data_path, tile_coors, save_stack=False, correct_channels=Fa
         alpha=200.0,
         norm_shift=omp_stat["norm_shift"],
         max_comp=12,
-        min_intensity=ops["omp_min_intensity"]
+        min_intensity=ops["omp_min_intensity"],
     )
 
     for igene in range(g.shape[2]):
