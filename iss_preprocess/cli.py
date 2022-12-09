@@ -139,3 +139,12 @@ def correct_shifts(path):
     from iss_preprocess.pipeline import correct_shifts
 
     correct_shifts(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def extract(path):
+    """Correct X-Y shifts using robust regression across tiles."""
+    from iss_preprocess.pipeline import run_omp_all_rois
+
+    run_omp_all_rois(path)

@@ -1,3 +1,4 @@
+from os import system
 import numpy as np
 import pandas as pd
 import glob
@@ -230,6 +231,26 @@ def load_and_register_tile(
         stack = stack / norm_factors[np.newaxis, np.newaxis, :, :]
 
     return stack, bad_pixels
+
+
+def run_omp_all_rois(data_path):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    script_path = str(Path(__file__).parent.parent.parent / "extract_tile.sh")
+    for roi in roi_dims:
+        nx = roi[1] + 1
+        ny = roi[2] + 1
+        for iy in range(ny):
+            for ix in range(nx):
+                args = (
+                    f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
+                )
+                args = (
+                    args + f" --output={Path.home()}/slurm_logs/iss_extract_tile_%j.out"
+                )
+                command = f"sbatch {args} {script_path}"
+                print(command)
+                system(command)
 
 
 def run_omp_on_tile(

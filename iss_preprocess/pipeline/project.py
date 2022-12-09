@@ -9,6 +9,7 @@ from ..image import fstack_channels
 from ..io import get_tile_ome, write_stack
 from . import get_roi_dimensions
 
+
 def project_round(data_path, prefix, overwrite=False):
     rois_list = get_roi_dimensions(data_path, prefix)
     script_path = str(Path(__file__).parent.parent.parent / "project_tile.sh")
