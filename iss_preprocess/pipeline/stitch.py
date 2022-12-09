@@ -13,6 +13,7 @@ def register_adjacent_tiles(
     reg_fraction=0.1,
     ref_ch=0,
     ref_round=0,
+    nrounds=7,
     suffix="fstack",
     prefix="genes_round",
 ):
@@ -25,6 +26,9 @@ def register_adjacent_tiles(
         reg_fraction (float, optional): overlap fraction used for registration. Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
+        nrounds (int, optional): Number of rounds to load. Defaults to 7.
+        suffix (str, optional): File name suffix. Defaults to 'proj'.
+        prefix (str, optional): the folder name prefix, before round number. Defaults to "round"
 
     Returns:
         numpy.array: `shift_right`, X and Y shifts between different columns
@@ -32,12 +36,16 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
-    tile_ref = load_processed_tile(data_path, ref_coors, suffix=suffix, prefix=prefix)
+    tile_ref = load_processed_tile(
+        data_path, ref_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    )
     down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + 1)
-    tile_down = load_processed_tile(data_path, down_coors, suffix=suffix, prefix=prefix)
+    tile_down = load_processed_tile(
+        data_path, down_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    )
     right_coors = (ref_coors[0], ref_coors[1] + 1, ref_coors[2])
     tile_right = load_processed_tile(
-        data_path, right_coors, suffix=suffix, prefix=prefix
+        data_path, right_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
 
     ypix = tile_ref.shape[0]

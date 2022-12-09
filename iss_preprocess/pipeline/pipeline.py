@@ -134,7 +134,8 @@ def load_processed_tile(
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
             Defaults to (1,0,0).
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
-        suffix (str, optional): File name suffix. Defaults to '_fstack'.
+        suffix (str, optional): File name suffix. Defaults to 'fstack'.
+        prefix (str, optional): the folder name prefix, before round number. Defaults to "round"
 
     Returns:
         numpy.ndarray: X x Y x channels x rounds stack.
