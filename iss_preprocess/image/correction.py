@@ -36,8 +36,8 @@ def analyze_dark_frames(fname):
         fname (str): path to dark frame TIFF file
 
     Returns:
-        Mean (np.array): Average black level per channel
-        STD (np.array): Readout noise per channel
+        numpy.array: Average black level per channel
+        numpy.array: Readout noise per channel
 
     """
     images = []
