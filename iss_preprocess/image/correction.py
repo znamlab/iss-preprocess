@@ -1,14 +1,14 @@
 import numpy as np
 import glob
 import os
+import cv2
 from tifffile import TiffFile
 from sklearn.mixture import GaussianMixture
 from skimage.exposure import match_histograms
 from skimage.morphology import disk
 from skimage.filters import median
-from ..io import get_tiles_micromanager
+from ..io.load import load_stack
 from ..coppafish import hanning_diff
-import cv2
 
 
 def filter_stack(stack, r1=2, r2=4):
@@ -49,56 +49,66 @@ def analyze_dark_frames(fname):
 
 
 def compute_mean_image(
-    dirs,
-    tile_shape,
+    dir,
     suffix=None,
-    black_level=300,
+    black_level=0,
     max_value=1000,
     verbose=False,
     median_filter=None,
+    normalise=False,
 ):
     """
     Compute mean image to use for illumination correction.
 
     Args:
-        dirs (list): list of directories containing images
-        tile_shape (tuple): shape of image tiles
+        dir (str): directory containing images
         suffix (str): subdirectory inside each of `dirs` containing images
         black_level (float): image black level to subtract before calculating
-            each mean image
+            each mean image. Default to 0
         max_value (float): image values are clipped to this value. This reduces
-            the effect of extremely bright features skewing the average image
+            the effect of extremely bright features skewing the average image. Default
+            to 1000.
         verbose (bool): whether to report on progress
         median_filter (int): size of median filter to apply to the correction image.
             If None, no median filtering is applied.
+        normalise (bool): Divide each channel by its maximum value. Default to False
+
 
     Returns:
         numpy.ndarray correction image
 
     """
-    mean_image = np.zeros(tile_shape)
-    for dir in dirs:
-        if suffix:
-            subdir = os.path.join(dir, suffix)
-        else:
-            subdir = dir
-        im_name = os.path.split(dir)[1]
-        if verbose:
-            print(im_name)
-        tiffs = glob.glob(subdir + "/*.tif")
-        tiles = get_tiles_micromanager(tiffs)
-        this_mean_image = np.zeros(tiles.iloc[0]["data"].shape)
-        for _, tile in tiles.iterrows():
-            data = tile["data"]
-            data[data > max_value] = max_value
-            data = data - black_level
-            this_mean_image += data
-        this_mean_image = this_mean_image / np.max(this_mean_image)
-        mean_image += this_mean_image
+
+    if suffix:
+        subdir = os.path.join(dir, suffix)
+    else:
+        subdir = dir
+    im_name = os.path.split(dir)[1]
+    tiffs = glob.glob(subdir + "/*.tif")
+    if verbose:
+        print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name))
+
+    data = load_stack(tiffs[0])
+
+    # initialise folder mean with first frame
+    mean_image = np.array(data, dtype=float)
+    mean_image = np.clip(mean_image, None, max_value) - black_level
+    mean_image /= len(tiffs)
+    for itile, tile in enumerate(tiffs[1:]):  # processing the rest of the tiffs
+        if verbose and not (itile % 10):
+            print("   ...{0}/{1}.".format(itile + 1, len(tiffs)))
+        data = np.array(load_stack(tile), dtype=float)
+        data = np.clip(data, None, max_value) - black_level
+        mean_image += data / len(tiffs)
+
     if median_filter is not None:
-        correction_image = median(mean_image, disk(median_filter))
-    correction_image = correction_image / np.max(correction_image)
-    return correction_image
+        mean_image = median(mean_image, disk(median_filter))
+
+    if normalise:
+        max_by_chan = np.nanmax(mean_image.reshape((-1, mean_image.shape[-1])), axis=0)
+        mean_image /= max_by_chan.reshape((1, 1, -1))
+
+    return mean_image
 
 
 def correct_offset(tiles, method="metadata", metadata=None, n_components=5):
