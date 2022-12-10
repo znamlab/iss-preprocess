@@ -131,7 +131,7 @@ def stitch_tiles(
 
 
 def merge_roi_spots(
-    data_path, shift_right, shift_down, tile_shape, ntiles, iroi=1, prefix="genes_round"
+    data_path, shift_right, shift_down, tile_shape, iroi=1, prefix="genes_round"
 ):
     """Load and combine spot locations across all tiles for an ROI.
 
@@ -140,14 +140,15 @@ def merge_roi_spots(
         shift_right (numpy.array): X and Y shifts between different columns
         shift_down (numpy.array): X and Y shifts between different rows
         tile_shape (numpy.array): shape of each tile
-        ntiles (numpy.array): number of tile rows and columns
         iroi (int, optional): ID of ROI to load. Defaults to 1.
 
     Returns:
         pandas.DataFrame: table containing spot locations across all tiles.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     all_spots = []
+    ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
     tile_origins, tile_centers = calculate_tile_positions(
         shift_right, shift_down, tile_shape, ntiles
     )
