@@ -290,9 +290,9 @@ def run_omp_on_tile(
         tol=ops["omp_threshold"],
         weighted=True,
         refit_background=True,
-        alpha=200.0,
+        alpha=ops["omp_alpha"],
         norm_shift=omp_stat["norm_shift"],
-        max_comp=12,
+        max_comp=ops["omp_max_genes"],
         min_intensity=ops["omp_min_intensity"],
     )
 
@@ -308,8 +308,7 @@ def run_omp_on_tile(
             Path(__file__).parent.parent / "call/spot_signimage.npy"
         )
 
-    spot_sign_threshold = 0.15
-    spot_sign_image[np.abs(spot_sign_image) < spot_sign_threshold] = 0
+    spot_sign_image[np.abs(spot_sign_image) < ops["spot_threshold"]] = 0
 
     gene_spots = find_gene_spots(
         g,
