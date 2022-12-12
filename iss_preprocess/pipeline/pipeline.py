@@ -1,3 +1,4 @@
+from os import system
 import numpy as np
 import pandas as pd
 import glob
@@ -6,12 +7,7 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 from os.path import isfile
 from ..image import filter_stack
-from ..reg import (
-    register_channels_and_rounds,
-    align_channels_and_rounds,
-    estimate_shifts_for_tile,
-    generate_channel_round_transforms,
-)
+from ..reg import align_channels_and_rounds, generate_channel_round_transforms
 from ..io import load_stack, write_stack
 from ..segment import detect_isolated_spots
 from ..call import extract_spots, make_gene_templates, run_omp, find_gene_spots
@@ -139,7 +135,8 @@ def load_processed_tile(
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
             Defaults to (1,0,0).
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
-        suffix (str, optional): File name suffix. Defaults to '_fstack'.
+        suffix (str, optional): File name suffix. Defaults to 'fstack'.
+        prefix (str, optional): the folder name prefix, before round number. Defaults to "round"
 
     Returns:
         numpy.ndarray: X x Y x channels x rounds stack.
@@ -157,15 +154,6 @@ def load_processed_tile(
         )
         ims.append(load_stack(processed_path / data_path / dirname / fname))
     return np.stack(ims, axis=3)
-
-
-def register_reference_tile(data_path, tile_coors=(0, 0, 0), prefix="round"):
-    stack = load_processed_tile(data_path, tile_coors, prefix=prefix)
-    tforms = register_channels_and_rounds(stack)
-
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    save_path = processed_path / data_path / "tforms.npy"
-    np.save(save_path, tforms, allow_pickle=True)
 
 
 def estimate_channel_correction(data_path, ops, prefix="round"):
@@ -215,46 +203,23 @@ def load_and_register_tile(
     suffix="proj",
     filter_r=(2, 4),
     correct_channels=False,
-    estimate_shifts=False,
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    tforms_path = processed_path / data_path / "tforms.npz"
-    reference_tforms = np.load(tforms_path, allow_pickle=True)
+    tforms_fname = (
+        f"tforms_corrected_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+    )
+    tforms_path = processed_path / data_path / "reg" / tforms_fname
+    tforms = np.load(tforms_path, allow_pickle=True)
 
     stack = load_processed_tile(data_path, tile_coors, suffix=suffix, prefix=prefix)
-    if estimate_shifts:
-        (
-            tforms,
-            shifts_within_channels,
-            shifts_between_channels,
-        ) = estimate_shifts_for_tile(
-            stack,
-            reference_tforms["angles_within_channels"],
-            reference_tforms["scales_between_channels"],
-            reference_tforms["angles_between_channels"],
-            ref_ch=0,
-            ref_round=0,
-        )
-        save_dir = processed_path / data_path / "reg"
-        save_dir.mkdir(parents=True, exist_ok=True)
-        np.savez(
-            save_dir / f"tforms_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
-            angles_within_channels=reference_tforms["angles_within_channels"],
-            shifts_within_channels=shifts_within_channels,
-            scales_between_channels=reference_tforms["scales_between_channels"],
-            angles_between_channels=reference_tforms["angles_between_channels"],
-            shifts_between_channels=shifts_between_channels,
-            allow_pickle=True,
-        )
-    else:
-        tforms = generate_channel_round_transforms(
-            reference_tforms["angles_within_channels"],
-            reference_tforms["shifts_within_channels"],
-            reference_tforms["scales_between_channels"],
-            reference_tforms["angles_between_channels"],
-            reference_tforms["shifts_between_channels"],
-            stack.shape[:2],
-        )
+    tforms = generate_channel_round_transforms(
+        tforms["angles_within_channels"],
+        tforms["shifts_within_channels"],
+        tforms["scales_between_channels"],
+        tforms["angles_between_channels"],
+        tforms["shifts_between_channels"],
+        stack.shape[:2],
+    )
     stack = align_channels_and_rounds(stack, tforms)
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[np.isnan(stack)] = 0
@@ -266,6 +231,26 @@ def load_and_register_tile(
         stack = stack / norm_factors[np.newaxis, np.newaxis, :, :]
 
     return stack, bad_pixels
+
+
+def run_omp_all_rois(data_path):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    script_path = str(Path(__file__).parent.parent.parent / "extract_tile.sh")
+    for roi in roi_dims:
+        nx = roi[1] + 1
+        ny = roi[2] + 1
+        for iy in range(ny):
+            for ix in range(nx):
+                args = (
+                    f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
+                )
+                args = (
+                    args + f" --output={Path.home()}/slurm_logs/iss_extract_tile_%j.out"
+                )
+                command = f"sbatch {args} {script_path}"
+                print(command)
+                system(command)
 
 
 def run_omp_on_tile(
@@ -284,7 +269,6 @@ def run_omp_on_tile(
         tile_coors,
         suffix=ops["projection"],
         correct_channels=correct_channels,
-        estimate_shifts=True,
         prefix=prefix,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
