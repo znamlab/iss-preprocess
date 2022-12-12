@@ -10,13 +10,32 @@ from ..reg import (
 from . import load_processed_tile
 
 
-def register_reference_tile(data_path, tile_coors=(0, 0, 0), prefix="round"):
-    stack = load_processed_tile(data_path, tile_coors, prefix=prefix)
-    tforms = register_channels_and_rounds(stack)
-
+def register_reference_tile(data_path, prefix="genes_round"):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    save_path = processed_path / data_path / "tforms.npy"
-    np.save(save_path, tforms, allow_pickle=True)
+    ops_path = processed_path / data_path / "ops.npy"
+    ops = np.load(ops_path, allow_pickle=True).item()
+    stack = load_processed_tile(
+        data_path, ops["ref_tile"], prefix=prefix, suffix=ops["projection"]
+    )
+    (
+        angles_within_channels,
+        shifts_within_channels,
+        scales_between_channels,
+        angles_between_channels,
+        shifts_between_channels,
+    ) = register_channels_and_rounds(
+        stack, ref_ch=ops["ref_ch"], ref_round=ops["ref_round"]
+    )
+    save_path = processed_path / data_path / "tforms.npz"
+    np.savez(
+        save_path,
+        angles_within_channels=angles_within_channels,
+        shifts_within_channels=shifts_within_channels,
+        scales_between_channels=scales_between_channels,
+        angles_between_channels=angles_between_channels,
+        shifts_between_channels=shifts_between_channels,
+        allow_pickle=True,
+    )
 
 
 def estimate_shifts_by_coors(
