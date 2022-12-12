@@ -36,16 +36,14 @@ def analyze_dark_frames(fname):
         fname (str): path to dark frame TIFF file
 
     Returns:
-        Mean and STD of dark frames corresponding to black level and readout noise
+        numpy.array: Average black level per channel
+        numpy.array: Readout noise per channel
 
     """
-    images = []
-    with TiffFile(fname) as stack:
-        for page in stack.pages:
-            images.append(page.asarray())
-
-    dark_frames = np.stack(images, axis=0)
-    return dark_frames.mean(), dark_frames.std()
+    dark_frames = load_stack(fname)
+    # reshape to get max/std accross all pixels for each channel
+    dark_frames = dark_frames.reshape((-1, dark_frames.shape[0]))
+    return dark_frames.mean(axis=0), dark_frames.std(axis=0)
 
 
 def compute_mean_image(
