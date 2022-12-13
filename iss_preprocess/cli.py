@@ -158,3 +158,26 @@ def register_ref_tile(path, prefix):
     from iss_preprocess.pipeline import register_reference_tile
 
     register_reference_tile(path, prefix=prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
+)
+@click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
+def segment(path, prefix, roi=1):
+    from iss_preprocess.pipeline import segment_roi
+
+    segment_roi(path, roi, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
+)
+def segment_all(path, prefix):
+    from iss_preprocess.pipeline import segment_all_rois
+
+    segment_all_rois(path, prefix)
