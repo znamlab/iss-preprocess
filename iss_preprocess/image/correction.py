@@ -42,7 +42,7 @@ def analyze_dark_frames(fname):
     """
     dark_frames = load_stack(fname)
     # reshape to get max/std accross all pixels for each channel
-    dark_frames = dark_frames.reshape((-1, dark_frames.shape[0]))
+    dark_frames = dark_frames.reshape((-1, dark_frames.shape[-1]))
     return dark_frames.mean(axis=0), dark_frames.std(axis=0)
 
 
@@ -90,13 +90,13 @@ def compute_mean_image(
 
     # initialise folder mean with first frame
     mean_image = np.array(data, dtype=float)
-    mean_image = np.clip(mean_image, None, max_value) - black_level
+    mean_image = np.clip(mean_image, None, max_value) - black_level.reshape(1, 1, -1)
     mean_image /= len(tiffs)
     for itile, tile in enumerate(tiffs[1:]):  # processing the rest of the tiffs
         if verbose and not (itile % 10):
             print("   ...{0}/{1}.".format(itile + 1, len(tiffs)))
         data = np.array(load_stack(tile), dtype=float)
-        data = np.clip(data, None, max_value) - black_level
+        data = np.clip(data, None, max_value) - black_level.reshape(1, 1, -1)
         mean_image += data / len(tiffs)
 
     if median_filter is not None:
