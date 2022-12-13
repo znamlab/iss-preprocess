@@ -1,18 +1,14 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from cellpose.models import CellposeModel
-from cellpose import plot
 from skimage.morphology import dilation
 
 
 def cellpose_segmentation(
     img,
-    channels=(3, 2),
-    flow_threshold=2,
-    min_pix=500,
-    vis=False,
-    dilate_pix=50,
+    channels=(0, 0),
+    flow_threshold=0.4,
+    min_pix=0,
+    dilate_pix=0,
     rescale=0.55,
     model_type="cyto",
 ):
@@ -30,32 +26,30 @@ def cellpose_segmentation(
         model_type (str): Cellpose mode to use, default 'cyto'
 
     Returns:
-        nummpy.ndarray of masks
+        numpy.ndarray of masks
 
     """
-    model = CellposeModel(gpu=False, model_type=model_type, net_avg=True)
+    from cellpose.models import CellposeModel
+
+    model = CellposeModel(gpu=False, model_type=model_type, net_avg=False)
     masks, flows, styles = model.eval(
         img,
         rescale=rescale,
         channels=channels,
         flow_threshold=flow_threshold,
+        tile=True,
     )
-
-    nmasks = np.max(masks)
-    npix = np.empty(nmasks)
-    for mask in range(nmasks):
-        npix[mask] = np.sum(masks == mask + 1)
-        if npix[mask] < min_pix:
-            masks[masks == mask + 1] = 0
+    if min_pix > 0:
+        nmasks = np.max(masks)
+        npix = np.empty(nmasks)
+        for mask in range(nmasks):
+            npix[mask] = np.sum(masks == mask + 1)
+            if npix[mask] < min_pix:
+                masks[masks == mask + 1] = 0
 
     for i in range(dilate_pix):
         masks_dilated = dilation(masks)
         masks[masks == 0] = masks_dilated[masks == 0]
-
-    if vis:
-        plt.figure(figsize=(15, 15))
-        plt.imshow(plot.mask_rgb(masks))
-        plt.show()
 
     return masks
 

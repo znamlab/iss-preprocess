@@ -14,6 +14,8 @@ def register_channels_and_rounds(stack, ref_ch=0, ref_round=0):
 
     Args:
         stack:
+        ref_ch (int): channel to align to
+        ref_round (int): round to align to
 
     Returns:
 
@@ -101,6 +103,7 @@ def align_within_channels(stack, upsample=False, ref_round=0):
     angles_channels = []
     shifts_channels = []
     for ref_ch in range(nchannels):
+        print(f"optimizing angles and shifts for channel {ref_ch}")
         angles = []
         shifts = []
         for iround in range(nrounds):
@@ -273,6 +276,7 @@ def estimate_correction(im, ch_to_align=0, upsample=False):
     scale_range = 0.05
     scales, angles, shifts = [], [], []
     for channel in range(nchannels):
+        print(f"optimizing rotation and scale for channel {channel}")
         if channel != ch_to_align:
             scale, angle, shift = estimate_scale_rotation_translation(
                 im[:, :, ch_to_align],
@@ -305,7 +309,7 @@ def estimate_scale_rotation_translation(
 ):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
-    reference image. Search for the best angle is performed iteratively by decreasing the gradually
+    reference image. Search for the best angle is performed iteratively by gradually
     searching over small and smaller angle range.
 
     Args:
