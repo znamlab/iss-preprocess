@@ -83,6 +83,10 @@ def compute_mean_image(
         subdir = dir
     im_name = os.path.split(dir)[1]
     tiffs = glob.glob(subdir + "/*.tif")
+    if not len(tiffs):
+        print("NO tifs in folder %s" % subdir)
+        return
+
     if verbose:
         print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name))
 
