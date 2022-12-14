@@ -11,6 +11,7 @@ def cellpose_segmentation(
     dilate_pix=0,
     rescale=0.55,
     model_type="cyto",
+    use_gpu=False,
 ):
     """
     Segment cells using Cellpose.
@@ -31,7 +32,7 @@ def cellpose_segmentation(
     """
     from cellpose.models import CellposeModel
 
-    model = CellposeModel(gpu=False, model_type=model_type, net_avg=False)
+    model = CellposeModel(gpu=use_gpu, model_type=model_type, net_avg=False)
     masks, flows, styles = model.eval(
         img,
         rescale=rescale,

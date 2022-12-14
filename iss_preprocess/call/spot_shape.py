@@ -121,6 +121,8 @@ def find_gene_spots(g, spot_sign_image, rho=2, omp_score_threshold=0.05):
         neg_pixels = gene_filt_neg[gene_spots["y"], gene_spots["x"]]
         omp_score = (neg_pixels + pos_pixels * rho) / (neg_max + pos_max * rho)
         gene_spots["omp_score"] = omp_score
+        gene_spots["pos_pixels"] = pos_pixels
+        gene_spots["neg_pixels"] = neg_pixels
         gene_spots = gene_spots.iloc[omp_score > omp_score_threshold]
         all_genes.append(gene_spots)
     return all_genes
