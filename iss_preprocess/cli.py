@@ -166,10 +166,17 @@ def register_ref_tile(path, prefix):
     "-n", "--prefix", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
 )
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
-def segment(path, prefix, roi=1):
+@click.option(
+    "--use-gpu",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Whether to use the GPU",
+)
+def segment(path, prefix, roi=1, use_gpu=False):
     from iss_preprocess.pipeline import segment_roi
 
-    segment_roi(path, roi, prefix)
+    segment_roi(path, roi, prefix, use_gpu=use_gpu)
 
 
 @cli.command()
@@ -177,7 +184,14 @@ def segment(path, prefix, roi=1):
 @click.option(
     "-n", "--prefix", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
 )
-def segment_all(path, prefix):
+@click.option(
+    "--use-gpu",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Whether to use the GPU",
+)
+def segment_all(path, prefix, use_gpu=False):
     from iss_preprocess.pipeline import segment_all_rois
 
-    segment_all_rois(path, prefix)
+    segment_all_rois(path, prefix, use_gpu=use_gpu)
