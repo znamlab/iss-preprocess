@@ -97,7 +97,15 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
 
 
 def stitch_tiles(
-    data_path, prefix, shift_right, shift_down, roi=1, suffix="fstack", ich=0
+    data_path,
+    prefix,
+    shift_right,
+    shift_down,
+    roi=1,
+    suffix="fstack",
+    ich=0,
+    black_level=0,
+    correction_image=None,
 ):
     """Load and stitch tile images using provided tile shifts.
 
@@ -109,6 +117,9 @@ def stitch_tiles(
         roi (int, optional): id of ROI to load. Defaults to 1.
         suffix (str, optional): filename suffix. Defaults to 'proj'.
         ich (int, optional): index of the channel to stitch. Defaults to 0.
+        black_level (int, optional): the black level for thischannel. Defaults to 0.
+        correction_image (np.array, optional): Image for illumination correction for 
+            channel `ich`. Defaults to None (no correction)
 
     Returns:
         numpy.ndarray: stitched image.
@@ -135,11 +146,20 @@ def stitch_tiles(
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             fname = f"{prefix}_MMStack_{roi}-Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}_{suffix}.tif"
-            stack = load_stack(processed_path / data_path / prefix / fname)
+            stack = load_stack(processed_path / data_path / prefix / fname)[:, :, ich]
+            # do correction as float and convert back, cliping to avoid overflow
+            dtype = stack.dtype
+            dtype_info = np.iinfo(dtype)
+            stack = np.array(stack, dtype=float) - float(black_level)
+            if correction_image is not None:
+                stack /= correction_image
+            stack = np.clip(stack, dtype_info.min, dtype_info.max)
+            stack = np.array(stack, dtype=dtype)
+                
             stitched_stack[
                 tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
                 tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
-            ] = stack[:, :, ich]
+            ] = stack
     return stitched_stack
 
 
