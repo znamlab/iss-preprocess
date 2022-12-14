@@ -4,7 +4,7 @@ from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from ..io import load_stack
-from .pipeline import load_processed_tile
+from ..reg import estimate_rotation_translation, transform_image
 
 
 def register_adjacent_tiles(
@@ -12,8 +12,6 @@ def register_adjacent_tiles(
     ref_coors=(1, 0, 0),
     reg_fraction=0.1,
     ref_ch=0,
-    ref_round=0,
-    nrounds=7,
     suffix="fstack",
     prefix="genes_round",
 ):
@@ -36,16 +34,27 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
-    tile_ref = load_processed_tile(
-        data_path, ref_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+
+    tile_ref = load_stack(
+        processed_path
+        / data_path
+        / prefix
+        / f"{prefix}_MMStack_{ref_coors[0]}-Pos{str(ref_coors[1]).zfill(3)}_{str(ref_coors[2]).zfill(3)}_{suffix}.tif"
     )
     down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + 1)
-    tile_down = load_processed_tile(
-        data_path, down_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    tile_down = load_stack(
+        processed_path
+        / data_path
+        / prefix
+        / f"{prefix}_MMStack_{down_coors[0]}-Pos{str(down_coors[1]).zfill(3)}_{str(down_coors[2]).zfill(3)}_{suffix}.tif"
     )
     right_coors = (ref_coors[0], ref_coors[1] + 1, ref_coors[2])
-    tile_right = load_processed_tile(
-        data_path, right_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    tile_right = load_stack(
+        processed_path
+        / data_path
+        / prefix
+        / f"{prefix}_MMStack_{right_coors[0]}-Pos{str(right_coors[1]).zfill(3)}_{str(right_coors[2]).zfill(3)}_{suffix}.tif"
     )
 
     ypix = tile_ref.shape[0]
@@ -54,14 +63,14 @@ def register_adjacent_tiles(
     reg_pix_y = int(ypix * reg_fraction)
 
     shift_right = phase_cross_correlation(
-        tile_ref[:, -reg_pix_x:, ref_ch, ref_round],
-        tile_right[:, :reg_pix_x, ref_ch, ref_round],
+        tile_ref[:, -reg_pix_x:, ref_ch],
+        tile_right[:, :reg_pix_x, ref_ch],
         upsample_factor=5,
     )[0] + [0, xpix - reg_pix_x]
 
     shift_down = phase_cross_correlation(
-        tile_ref[:reg_pix_y, :, ref_ch, ref_round],
-        tile_down[-reg_pix_y:, :, ref_ch, ref_round],
+        tile_ref[:reg_pix_y, :, ref_ch],
+        tile_down[-reg_pix_y:, :, ref_ch],
         upsample_factor=5,
     )[0] - [ypix - reg_pix_y, 0]
 
@@ -192,3 +201,58 @@ def merge_roi_spots(
 
     spots = pd.concat(all_spots, ignore_index=True)
     return spots
+
+
+def stitch_and_register(
+    data_path, reference_prefix, target_prefix, roi=1, downsample=5
+):
+    """Stitch target and reference stacks and align target to reference
+
+    Args:
+        data_path (_type_): _description_
+        reference_prefix (_type_): _description_
+        target_prefix (_type_): _description_
+        roi (int, optional): _description_. Defaults to 1.
+        downsample (int, optional): _description_. Defaults to 5.
+
+    Returns:
+        _type_: _description_
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    shift_right, shift_down, tile_shape = register_adjacent_tiles(
+        data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
+    )
+    stitched_stack_target = stitch_tiles(
+        data_path,
+        target_prefix,
+        shift_right,
+        shift_down,
+        suffix=ops["projection"],
+        roi=roi,
+    )
+    stitched_stack_target = stitched_stack_target.astype(np.single)  # to save memory
+    stitched_stack_reference = stitch_tiles(
+        data_path,
+        reference_prefix,
+        shift_right,
+        shift_down,
+        suffix=ops["projection"],
+        roi=roi,
+    )
+    stitched_stack_reference = stitched_stack_reference.astype(np.single)
+
+    best_angle, shift = estimate_rotation_translation(
+        stitched_stack_reference[::downsample, ::downsample],
+        stitched_stack_target[::downsample, ::downsample],
+        angle_range=1.0,
+        niter=3,
+        nangles=11,
+        min_shift=2,
+        upsample=None,
+    )
+
+    stitched_stack_target = transform_image(
+        stitched_stack_target, scale=1, angle=best_angle, shift=shift * downsample
+    )
+    return stitched_stack_target

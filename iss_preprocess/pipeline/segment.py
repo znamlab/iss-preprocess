@@ -3,7 +3,7 @@ import numpy as np
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from ..segment import cellpose_segmentation
-from .stitch import stitch_tiles, register_adjacent_tiles
+from .stitch import stitch_and_register
 
 
 def segment_all_rois(data_path, prefix="DAPI_1"):
@@ -18,17 +18,14 @@ def segment_all_rois(data_path, prefix="DAPI_1"):
         system(command)
 
 
-def segment_roi(data_path, iroi, prefix="DAPI_1"):
+def segment_roi(data_path, iroi, prefix="DAPI_1", reference="genes_round_1_1"):
     print(f"running segmentation on roi {iroi} from {data_path} using {prefix}")
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
-    shift_right, shift_down, tile_shape = register_adjacent_tiles(
-        data_path, ref_coors=ops["ref_tile"], suffix=ops["projection"]
-    )
-    stitched_stack = stitch_tiles(
-        data_path, prefix, shift_right, shift_down, roi=iroi, suffix=ops["projection"]
-    )
+    print(f"stitching {prefix} and aligning to {reference}", flush=True)
+    stitched_stack = stitch_and_register(data_path, reference, prefix, roi=iroi)
+    print("starting segmentation", flush=True)
     masks = cellpose_segmentation(
         stitched_stack,
         channels=(0, 0),
