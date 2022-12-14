@@ -80,7 +80,7 @@ def compute_mean_image(
     if suffix:
         subdir = os.path.join(dir, suffix)
     else:
-        subdir = dir
+        subdir = str(dir)
     im_name = os.path.split(dir)[1]
     tiffs = glob.glob(subdir + "/*.tif")
     if not len(tiffs):
@@ -91,6 +91,8 @@ def compute_mean_image(
         print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name))
 
     data = load_stack(tiffs[0])
+    assert data.ndim == 3
+    black_level = np.asarray(black_level)  # in case we have just a float
 
     # initialise folder mean with first frame
     mean_image = np.array(data, dtype=float)
@@ -104,7 +106,8 @@ def compute_mean_image(
         mean_image += data / len(tiffs)
 
     if median_filter is not None:
-        mean_image = median(mean_image, disk(median_filter))
+        for ic in range(mean_image.shape[2]):
+            mean_image[:, :, ic] = median(mean_image[:, :, ic], disk(median_filter))
 
     if normalise:
         max_by_chan = np.nanmax(mean_image.reshape((-1, mean_image.shape[-1])), axis=0)
