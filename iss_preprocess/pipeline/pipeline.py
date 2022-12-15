@@ -153,9 +153,13 @@ def load_sequencing_rounds(
     return np.stack(ims, axis=3)
 
 
-def estimate_channel_correction(data_path, ops, prefix="round"):
+def estimate_channel_correction(data_path, ops, prefix="round", nrounds=7):
     stack = load_sequencing_rounds(
-        data_path, ops["ref_tile"], suffix=ops["projection"], prefix=prefix
+        data_path,
+        ops["ref_tile"],
+        suffix=ops["projection"],
+        prefix=prefix,
+        nrounds=nrounds,
     )
     nch, nrounds = stack.shape[2:]
     max_val = 65535
@@ -170,6 +174,7 @@ def estimate_channel_correction(data_path, ops, prefix="round"):
                     [ops["correction_roi"], ix, iy],
                     suffix=ops["projection"],
                     prefix=prefix,
+                    nrounds=nrounds,
                 ),
                 r1=ops["filter_r"][0],
                 r2=ops["filter_r"][1],
@@ -200,12 +205,15 @@ def load_and_register_tile(
     suffix="proj",
     filter_r=(2, 4),
     correct_channels=False,
+    corrected_shifts=True,
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    tforms_fname = (
-        f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
-    )
-    tforms_path = processed_path / data_path / "reg" / tforms_fname
+    if corrected_shifts:
+        tforms_fname = f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        tforms_path = processed_path / data_path / "reg" / tforms_fname
+    else:
+        tforms_fname = f"tforms_{prefix}.npz"
+        tforms_path = processed_path / data_path / tforms_fname
     tforms = np.load(tforms_path, allow_pickle=True)
 
     stack = load_sequencing_rounds(data_path, tile_coors, suffix=suffix, prefix=prefix)
@@ -234,7 +242,9 @@ def run_omp_all_rois(data_path):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     script_path = str(Path(__file__).parent.parent.parent / "extract_tile.sh")
-    for roi in roi_dims:
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
         ny = roi[2] + 1
         for iy in range(ny):

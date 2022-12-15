@@ -43,14 +43,13 @@ def register_reference_tile(data_path, prefix="genes_round", nrounds=7):
 
 
 def estimate_shifts_by_coors(
-    data_path,
-    tile_coors=(0, 0, 0),
-    prefix="round",
-    suffix="fstack",
+    data_path, tile_coors=(0, 0, 0), prefix="round", suffix="fstack", nrounds=7
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     tforms_path = processed_path / data_path / f"tforms_{prefix}.npz"
-    stack = load_sequencing_rounds(data_path, tile_coors, suffix=suffix, prefix=prefix)
+    stack = load_sequencing_rounds(
+        data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
     (_, shifts_within_channels, shifts_between_channels,) = estimate_shifts_for_tile(
         stack,
@@ -74,14 +73,21 @@ def estimate_shifts_by_coors(
     )
 
 
-def estimate_shifts_all_tiles(data_path, prefix, suffix):
+def estimate_shifts_all_tiles(data_path, prefix, suffix, nrounds=7):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     script_path = str(Path(__file__).parent.parent.parent / "register_tile.sh")
-    for roi in roi_dims:
+
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    for roi in roi_dims[use_rois, :]:
         for tilex in range(roi[1] + 1):
             for tiley in range(roi[2] + 1):
-                args = f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={tilex},TILEY={tiley},PREFIX={prefix},SUFFIX={suffix}"
+                args = (
+                    f"--export=DATAPATH={data_path},"
+                    + f"ROI={roi[0]},TILEX={tilex},TILEY={tiley},"
+                    + f"PREFIX={prefix},SUFFIX={suffix},NROUNDS={nrounds}"
+                )
                 args = (
                     args
                     + f" --output={Path.home()}/slurm_logs/iss_register_tile_%j.out"
@@ -94,7 +100,9 @@ def estimate_shifts_all_tiles(data_path, prefix, suffix):
 def correct_shifts(data_path):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    for roi in roi_dims:
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    for roi in roi_dims[use_rois, :]:
         correct_shifts_roi(data_path, roi)
 
 

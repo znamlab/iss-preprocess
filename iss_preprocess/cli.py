@@ -109,13 +109,18 @@ def project_round(path, prefix, overwrite=False):
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
+@click.option("-m", "--nrounds", default=7, help="Number of sequencing rounds")
+def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_by_coors
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
+        path,
+        tile_coors=(roi, tilex, tiley),
+        prefix=prefix,
+        suffix=suffix,
+        nrounds=nrounds,
     )
 
 
@@ -125,11 +130,12 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-def estimate_shifts(path, prefix, suffix="fstack"):
+@click.option("-m", "--nrounds", default=7, help="Number of sequencing rounds")
+def estimate_shifts(path, prefix, suffix="fstack", nrounds=7):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
     from iss_preprocess.pipeline import estimate_shifts_all_tiles
 
-    estimate_shifts_all_tiles(path, prefix, suffix)
+    estimate_shifts_all_tiles(path, prefix, suffix, nrounds=nrounds)
 
 
 @cli.command()
