@@ -8,7 +8,7 @@ from pathlib import Path
 from os.path import isfile
 from ..image import filter_stack
 from ..reg import align_channels_and_rounds, generate_channel_round_transforms
-from ..io import load_stack, write_stack
+from ..io import load_stack, write_stack, load_tile_by_coors
 from ..segment import detect_isolated_spots
 from ..call import extract_spots, make_gene_templates, run_omp, find_gene_spots
 
@@ -125,7 +125,7 @@ def get_roi_dimensions(data_path, prefix):
     return roi_list
 
 
-def load_processed_tile(
+def load_sequencing_rounds(
     data_path, tile_coors=(1, 0, 0), nrounds=7, suffix="fstack", prefix="round"
 ):
     """Load processed tile images across rounds
@@ -142,22 +142,19 @@ def load_processed_tile(
         numpy.ndarray: X x Y x channels x rounds stack.
 
     """
-    tile_roi, tile_x, tile_y = tile_coors
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ims = []
     for iround in range(nrounds):
-        # dirname = f"{prefix}_{str(iround+1).zfill(2)}_1"
         dirname = f"{prefix}_{iround+1}_1"
-        fname = (
-            f"{prefix}_{iround+1}_1_MMStack_{tile_roi}-"
-            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
+        ims.append(
+            load_tile_by_coors(
+                data_path, tile_coors=tile_coors, suffix=suffix, prefix=dirname
+            )
         )
-        ims.append(load_stack(processed_path / data_path / dirname / fname))
     return np.stack(ims, axis=3)
 
 
 def estimate_channel_correction(data_path, ops, prefix="round"):
-    stack = load_processed_tile(
+    stack = load_sequencing_rounds(
         data_path, ops["ref_tile"], suffix=ops["projection"], prefix=prefix
     )
     nch, nrounds = stack.shape[2:]
@@ -168,7 +165,7 @@ def estimate_channel_correction(data_path, ops, prefix="round"):
         for iy in ops["correction_tiles_y"]:
             print(f"counting pixel values for tile {ix}, {iy}")
             stack = filter_stack(
-                load_processed_tile(
+                load_sequencing_rounds(
                     data_path,
                     [ops["correction_roi"], ix, iy],
                     suffix=ops["projection"],
@@ -206,12 +203,12 @@ def load_and_register_tile(
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     tforms_fname = (
-        f"tforms_corrected_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
     )
     tforms_path = processed_path / data_path / "reg" / tforms_fname
     tforms = np.load(tforms_path, allow_pickle=True)
 
-    stack = load_processed_tile(data_path, tile_coors, suffix=suffix, prefix=prefix)
+    stack = load_sequencing_rounds(data_path, tile_coors, suffix=suffix, prefix=prefix)
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],

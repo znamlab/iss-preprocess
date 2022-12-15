@@ -144,7 +144,7 @@ def correct_shifts(path):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def extract(path):
-    """Correct X-Y shifts using robust regression across tiles."""
+    """Start batch jobs to run OMP on all tiles in a dataset."""
     from iss_preprocess.pipeline import run_omp_all_rois
 
     run_omp_all_rois(path)
@@ -153,11 +153,12 @@ def extract(path):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
-def register_ref_tile(path, prefix):
-    """Correct X-Y shifts using robust regression across tiles."""
+@click.option("-r", "--rounds", default=7, help="Number of sequencing rounds")
+def register_ref_tile(path, prefix, rounds=7):
+    """Run registration across channels and rounds for the reference tile."""
     from iss_preprocess.pipeline import register_reference_tile
 
-    register_reference_tile(path, prefix=prefix)
+    register_reference_tile(path, prefix=prefix, nrounds=rounds)
 
 
 @cli.command()

@@ -22,7 +22,7 @@ def register_channels_and_rounds(stack, ref_ch=0, ref_round=0):
     """
     # first register images across rounds within each channel
     angles_within_channels, shifts_within_channels = align_within_channels(
-        stack, upsample=5, ref_round=ref_round
+        stack, upsample=False, ref_round=ref_round
     )
     # use these to computer a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(
@@ -103,7 +103,7 @@ def align_within_channels(stack, upsample=False, ref_round=0):
     angles_channels = []
     shifts_channels = []
     for ref_ch in range(nchannels):
-        print(f"optimizing angles and shifts for channel {ref_ch}")
+        print(f"optimizing angles and shifts for channel {ref_ch}", flush=True)
         angles = []
         shifts = []
         for iround in range(nrounds):
@@ -121,7 +121,7 @@ def align_within_channels(stack, upsample=False, ref_round=0):
                 angle, shift = 0.0, [0.0, 0.0]
             angles.append(angle)
             shifts.append(shift)
-            print(f"angle: {angle}, shift: {shift}")
+            print(f"angle: {angle}, shift: {shift}", flush=True)
         angles_channels.append(angles)
         shifts_channels.append(shifts)
     return angles_channels, shifts_channels
@@ -276,7 +276,7 @@ def estimate_correction(im, ch_to_align=0, upsample=False):
     scale_range = 0.05
     scales, angles, shifts = [], [], []
     for channel in range(nchannels):
-        print(f"optimizing rotation and scale for channel {channel}")
+        print(f"optimizing rotation and scale for channel {channel}", flush=True)
         if channel != ch_to_align:
             scale, angle, shift = estimate_scale_rotation_translation(
                 im[:, :, ch_to_align],
@@ -350,7 +350,7 @@ def estimate_scale_rotation_translation(
         angle_range = angle_range / 5
         scale_range = scale_range / 5
         if verbose:
-            print(f"Best scale: {best_scale}. Best angle: {best_angle}")
+            print(f"Best scale: {best_scale}. Best angle: {best_angle}", flush=True)
     if not upsample:
         shift, _ = phase_corr(
             reference_fft,
@@ -427,7 +427,9 @@ def estimate_rotation_translation(
         )
         angle_range = angle_range / 5
     if not upsample:
-        shift, _ = phase_corr(reference, transform_image(target, angle=best_angle))
+        shift, _ = phase_corr(
+            reference, transform_image(target, angle=best_angle), min_shift=min_shift
+        )
     else:
         shift = phase_cross_correlation(
             reference,

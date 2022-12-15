@@ -4,15 +4,41 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from tifffile import TiffFile
 import json
+from flexiznam.config import PARAMETERS
+from pathlib import Path
+
+
+def load_tile_by_coors(
+    data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
+):
+    """Load processed tile images across rounds
+
+    Args:
+        data_path (str): relative path to dataset.
+        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
+            Defaults to (1,0,0).
+        suffix (str, optional): File name suffix. Defaults to "fstack".
+        prefix (str, optional): the folder name prefix, before round number. Defaults to "genes_round_1_1"
+
+    Returns:
+        numpy.ndarray: X x Y x channels x rounds stack.
+
+    """
+    tile_roi, tile_x, tile_y = tile_coors
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    fname = (
+        f"{prefix}_MMStack_{tile_roi}-"
+        + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
+    )
+    return load_stack(processed_path / data_path / prefix / fname)
 
 
 def load_stack(fname):
-    stack = TiffFile(fname)
-    ims = []
-    for page in stack.pages:
-        ims.append(page.asarray())
-    im_calibration = np.stack(ims, axis=2)
-    return im_calibration
+    with TiffFile(fname) as stack:
+        ims = []
+        for page in stack.pages:
+            ims.append(page.asarray())
+    return np.stack(ims, axis=2)
 
 
 def get_tile_ome(fname, fmetadata):

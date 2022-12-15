@@ -3,7 +3,7 @@ import pandas as pd
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from ..io import load_stack
+from ..io import load_tile_by_coors
 from ..reg import estimate_rotation_translation, transform_image
 
 
@@ -34,29 +34,17 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-
-    tile_ref = load_stack(
-        processed_path
-        / data_path
-        / prefix
-        / f"{prefix}_MMStack_{ref_coors[0]}-Pos{str(ref_coors[1]).zfill(3)}_{str(ref_coors[2]).zfill(3)}_{suffix}.tif"
+    tile_ref = load_tile_by_coors(
+        data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
     down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + 1)
-    tile_down = load_stack(
-        processed_path
-        / data_path
-        / prefix
-        / f"{prefix}_MMStack_{down_coors[0]}-Pos{str(down_coors[1]).zfill(3)}_{str(down_coors[2]).zfill(3)}_{suffix}.tif"
+    tile_down = load_tile_by_coors(
+        data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
     )
     right_coors = (ref_coors[0], ref_coors[1] + 1, ref_coors[2])
-    tile_right = load_stack(
-        processed_path
-        / data_path
-        / prefix
-        / f"{prefix}_MMStack_{right_coors[0]}-Pos{str(right_coors[1]).zfill(3)}_{str(right_coors[2]).zfill(3)}_{suffix}.tif"
+    tile_right = load_tile_by_coors(
+        data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
     )
-
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
     reg_pix_x = int(xpix * reg_fraction)
@@ -127,11 +115,8 @@ def stitch_tiles(
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     # load first tile to get shape
-    stack = load_stack(
-        processed_path
-        / data_path
-        / prefix
-        / f"{prefix}_MMStack_{roi}-Pos{str(0).zfill(3)}_{str(0).zfill(3)}_{suffix}.tif"
+    stack = load_tile_by_coors(
+        data_path, tile_coors=(roi, 0, 0), suffix=suffix, prefix=prefix
     )
     tile_shape = stack.shape[:2]
 
@@ -143,8 +128,9 @@ def stitch_tiles(
     stitched_stack = np.zeros(max_origin + tile_shape)
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
-            fname = f"{prefix}_MMStack_{roi}-Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}_{suffix}.tif"
-            stack = load_stack(processed_path / data_path / prefix / fname)
+            stack = load_tile_by_coors(
+                data_path, tile_coors=(roi, ix, iy), suffix=suffix, prefix=prefix
+            )
             stitched_stack[
                 tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
                 tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
@@ -204,7 +190,13 @@ def merge_roi_spots(
 
 
 def stitch_and_register(
-    data_path, reference_prefix, target_prefix, roi=1, downsample=5
+    data_path,
+    reference_prefix,
+    target_prefix,
+    roi=1,
+    downsample=5,
+    ref_ch=0,
+    target_ch=0,
 ):
     """Stitch target and reference stacks and align target to reference
 
@@ -230,6 +222,7 @@ def stitch_and_register(
         shift_down,
         suffix=ops["projection"],
         roi=roi,
+        ich=target_ch,
     )
     stitched_stack_target = stitched_stack_target.astype(np.single)  # to save memory
     stitched_stack_reference = stitch_tiles(
@@ -239,6 +232,7 @@ def stitch_and_register(
         shift_down,
         suffix=ops["projection"],
         roi=roi,
+        ich=ref_ch,
     )
     stitched_stack_reference = stitched_stack_reference.astype(np.single)
 

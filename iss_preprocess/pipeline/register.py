@@ -7,15 +7,19 @@ from ..reg import (
     register_channels_and_rounds,
     estimate_shifts_for_tile,
 )
-from . import load_processed_tile
+from . import load_sequencing_rounds
 
 
-def register_reference_tile(data_path, prefix="genes_round"):
+def register_reference_tile(data_path, prefix="genes_round", nrounds=7):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
-    stack = load_processed_tile(
-        data_path, ops["ref_tile"], prefix=prefix, suffix=ops["projection"]
+    stack = load_sequencing_rounds(
+        data_path,
+        ops["ref_tile"],
+        prefix=prefix,
+        suffix=ops["projection"],
+        nrounds=nrounds,
     )
     (
         angles_within_channels,
@@ -26,7 +30,7 @@ def register_reference_tile(data_path, prefix="genes_round"):
     ) = register_channels_and_rounds(
         stack, ref_ch=ops["ref_ch"], ref_round=ops["ref_round"]
     )
-    save_path = processed_path / data_path / "tforms.npz"
+    save_path = processed_path / data_path / f"tforms_{prefix}.npz"
     np.savez(
         save_path,
         angles_within_channels=angles_within_channels,
@@ -45,8 +49,8 @@ def estimate_shifts_by_coors(
     suffix="fstack",
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    tforms_path = processed_path / data_path / "tforms.npz"
-    stack = load_processed_tile(data_path, tile_coors, suffix=suffix, prefix=prefix)
+    tforms_path = processed_path / data_path / f"tforms_{prefix}.npz"
+    stack = load_sequencing_rounds(data_path, tile_coors, suffix=suffix, prefix=prefix)
     reference_tforms = np.load(tforms_path, allow_pickle=True)
     (_, shifts_within_channels, shifts_between_channels,) = estimate_shifts_for_tile(
         stack,
@@ -59,7 +63,8 @@ def estimate_shifts_by_coors(
     save_dir = processed_path / data_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
     np.savez(
-        save_dir / f"tforms_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
+        save_dir
+        / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
         angles_within_channels=reference_tforms["angles_within_channels"],
         shifts_within_channels=shifts_within_channels,
         scales_between_channels=reference_tforms["scales_between_channels"],
@@ -93,7 +98,7 @@ def correct_shifts(data_path):
         correct_shifts_roi(data_path, roi)
 
 
-def correct_shifts_roi(data_path, roi_dims):
+def correct_shifts_roi(data_path, roi_dims, prefix="genes_round"):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi = roi_dims[0]
     nx = roi_dims[1] + 1
@@ -104,7 +109,10 @@ def correct_shifts_roi(data_path, roi_dims):
     for iy in range(ny):
         for ix in range(nx):
             tforms = np.load(
-                processed_path / data_path / "reg" / f"tforms_{roi}_{ix}_{iy}.npz"
+                processed_path
+                / data_path
+                / "reg"
+                / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
             )
             shifts_within_channels.append(tforms["shifts_within_channels"])
             shifts_between_channels.append(tforms["shifts_between_channels"])
@@ -145,7 +153,7 @@ def correct_shifts_roi(data_path, roi_dims):
     for iy in range(ny):
         for ix in range(nx):
             np.savez(
-                save_dir / f"tforms_corrected_{roi}_{ix}_{iy}.npz",
+                save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
                 angles_within_channels=tforms["angles_within_channels"],
                 shifts_within_channels=shifts_within_channels_corrected[:, :, :, itile],
                 scales_between_channels=tforms["scales_between_channels"],
