@@ -236,7 +236,7 @@ def stitch_and_register(
     )
     stitched_stack_reference = stitched_stack_reference.astype(np.single)
 
-    best_angle, shift = estimate_rotation_translation(
+    angle, shift = estimate_rotation_translation(
         stitched_stack_reference[::downsample, ::downsample],
         stitched_stack_target[::downsample, ::downsample],
         angle_range=1.0,
@@ -247,6 +247,6 @@ def stitch_and_register(
     )
 
     stitched_stack_target = transform_image(
-        stitched_stack_target, scale=1, angle=best_angle, shift=shift * downsample
+        stitched_stack_target, scale=1, angle=angle, shift=shift * downsample
     )
-    return stitched_stack_target
+    return stitched_stack_target, angle, shift
