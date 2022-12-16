@@ -31,6 +31,21 @@ def extract_tile(path, roi=1, x=0, y=0, save=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", default=0, help="Tile X position")
+@click.option("-y", default=0, help="Tile Y position.")
+def basecall_tile(path, roi=1, x=0, y=0):
+    """Run basecalling for barcodes on a single tile."""
+    from iss_preprocess.pipeline import basecall_tile
+
+    click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
+    basecall_tile(path, (roi, x, y))
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
     "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
 )
 @click.option(
@@ -140,20 +155,30 @@ def estimate_shifts(path, prefix, suffix="fstack", nrounds=7):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def correct_shifts(path):
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+def correct_shifts(path, prefix):
     """Correct X-Y shifts using robust regression across tiles."""
     from iss_preprocess.pipeline import correct_shifts
 
-    correct_shifts(path)
+    correct_shifts(path, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def basecall(path):
+    """Start batch jobs to run OMP on all tiles in a dataset."""
+    from iss_preprocess.pipeline import batch_process_tiles
+
+    batch_process_tiles(path, "basecall_tile")
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def extract(path):
     """Start batch jobs to run OMP on all tiles in a dataset."""
-    from iss_preprocess.pipeline import run_omp_all_rois
+    from iss_preprocess.pipeline import batch_process_tiles
 
-    run_omp_all_rois(path)
+    batch_process_tiles(path, "extract_tile")
 
 
 @cli.command()

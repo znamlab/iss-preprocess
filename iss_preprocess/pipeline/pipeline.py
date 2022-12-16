@@ -8,9 +8,91 @@ from pathlib import Path
 from os.path import isfile
 from ..image import filter_stack
 from ..reg import align_channels_and_rounds, generate_channel_round_transforms
-from ..io import load_stack, write_stack, load_tile_by_coors
-from ..segment import detect_isolated_spots
-from ..call import extract_spots, make_gene_templates, run_omp, find_gene_spots
+from ..io import write_stack, load_tile_by_coors
+from ..segment import detect_isolated_spots, detect_spots
+from ..call import (
+    extract_spots,
+    make_gene_templates,
+    run_omp,
+    find_gene_spots,
+    get_cluster_means,
+    rois_to_array,
+)
+
+
+def setup_barcode_calling(data_path, nrounds=10):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    stack, bad_pixels = load_and_register_tile(
+        data_path,
+        ops["ref_tile"],
+        filter_r=ops["filter_r"],
+        prefix="barcode_round",
+        suffix=ops["projection"],
+        nrounds=nrounds,
+        correct_channels=True,
+        corrected_shifts=False,
+    )
+    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+    spots = detect_isolated_spots(
+        stack,
+        detection_threshold=ops["barcode_detection_threshold"],
+        isolation_threshold=ops["barcode_isolation_threshold"],
+    )
+    rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
+    cluster_means = get_cluster_means(rois, vis=True)
+    return cluster_means
+
+
+def basecall_tile(data_path, tile_coors):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    cluster_means = np.load(processed_path / data_path / "barcode_cluster_means.npy")
+    nrounds = cluster_means.shape[0]
+
+    stack, bad_pixels = load_and_register_tile(
+        data_path,
+        tile_coors,
+        filter_r=ops["filter_r"],
+        prefix="barcode_round",
+        suffix=ops["projection"],
+        nrounds=nrounds,
+        correct_channels=True,
+        corrected_shifts=True,
+    )
+    stack[bad_pixels, :, :] = 0
+    spots = detect_spots(
+        np.std(stack, axis=(2, 3)), threshold=ops["barcode_detection_threshold"]
+    )
+    x = rois_to_array(extract_spots(spots, np.moveaxis(stack, 2, 3)), normalize=False)
+    cluster_inds = []
+    top_score = []
+    nrounds = x.shape[0]
+
+    for iround in range(nrounds):
+        this_round_means = cluster_means[iround]
+        this_round_means = this_round_means / np.linalg.norm(this_round_means, axis=1)
+        x_norm = (
+            x[iround, :, :].T / np.linalg.norm(x[iround, :, :].T, axis=1)[:, np.newaxis]
+        )
+        score = x_norm @ this_round_means
+        cluster_ind = np.argmax(score, axis=1)
+        cluster_inds.append(cluster_ind)
+        top_score.append(np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind]))
+
+    mean_score = np.mean(np.stack(top_score, axis=1), axis=1)
+    sequences = np.stack(cluster_inds, axis=1)
+    spots["sequence"] = [seq for seq in sequences]
+    scores = np.stack(top_score, axis=1)
+    spots["scores"] = [s for s in scores]
+    spots["mean_score"] = mean_score
+
+    save_dir = processed_path / data_path / "spots"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    spots.to_pickle(
+        save_dir
+        / f"barcode_round_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+    )
 
 
 def setup_omp(
@@ -32,7 +114,6 @@ def setup_omp(
 
     """
     stack = np.moveaxis(stack, 2, 3)
-
     spots = detect_isolated_spots(
         stack,
         detection_threshold=detection_threshold,
@@ -40,12 +121,13 @@ def setup_omp(
     )
 
     rois = extract_spots(spots, stack)
+    cluster_means = get_cluster_means(rois, vis=True)
     codebook = pd.read_csv(
         Path(__file__).parent.parent / "call" / codebook_name,
         header=None,
         names=["gii", "seq", "gene"],
     )
-    gene_dict, unique_genes = make_gene_templates(rois, codebook, vis=True)
+    gene_dict, unique_genes = make_gene_templates(cluster_means, codebook, vis=True)
 
     norm_shift = np.sqrt(
         np.median(
@@ -56,33 +138,6 @@ def setup_omp(
         )
     )
     return gene_dict, unique_genes, norm_shift
-
-
-def check_files(data_path, nrounds=7):
-    """Check that TIFFs are present for all imaging rounds and return their list
-
-    Args:
-        data_path (str): relative path to the raw data
-        nrounds (int, optional): number of sequencing rounds to look for
-
-    Returns:
-        bool: whether matching TIFFs for found for all rounds
-        list: list of tiff paths for round 1
-
-    """
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
-    data_path = raw_path / data_path
-
-    tiffs = sorted(glob.glob(str(data_path / "round_01_1/*.tif")))
-    success = True
-    # check that all files exist
-    for iround in range(nrounds):
-        for tiff in tiffs:
-            fname = tiff.replace("round_01", f"round_{str(iround+1).zfill(2)}")
-            if not isfile(fname):
-                print(f"{fname} does not exist")
-                success = False
-    return success, tiffs
 
 
 def save_roi_dimensions(data_path, prefix):
@@ -153,7 +208,9 @@ def load_sequencing_rounds(
     return np.stack(ims, axis=3)
 
 
-def estimate_channel_correction(data_path, ops, prefix="round", nrounds=7):
+def estimate_channel_correction(data_path, prefix="round", nrounds=7):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     stack = load_sequencing_rounds(
         data_path,
         ops["ref_tile"],
@@ -206,6 +263,7 @@ def load_and_register_tile(
     filter_r=(2, 4),
     correct_channels=False,
     corrected_shifts=True,
+    nrounds=7,
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     if corrected_shifts:
@@ -216,7 +274,9 @@ def load_and_register_tile(
         tforms_path = processed_path / data_path / tforms_fname
     tforms = np.load(tforms_path, allow_pickle=True)
 
-    stack = load_sequencing_rounds(data_path, tile_coors, suffix=suffix, prefix=prefix)
+    stack = load_sequencing_rounds(
+        data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    )
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],
@@ -231,17 +291,17 @@ def load_and_register_tile(
 
     stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
     if correct_channels:
-        correction_path = processed_path / data_path / "correction.npz"
+        correction_path = processed_path / data_path / f"correction_{prefix}.npz"
         norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
         stack = stack / norm_factors[np.newaxis, np.newaxis, :, :]
 
     return stack, bad_pixels
 
 
-def run_omp_all_rois(data_path):
+def batch_process_tiles(data_path, script):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    script_path = str(Path(__file__).parent.parent.parent / "extract_tile.sh")
+    script_path = str(Path(__file__).parent.parent.parent / f"{script}.sh")
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
@@ -252,9 +312,7 @@ def run_omp_all_rois(data_path):
                 args = (
                     f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
                 )
-                args = (
-                    args + f" --output={Path.home()}/slurm_logs/iss_extract_tile_%j.out"
-                )
+                args = args + f" --output={Path.home()}/slurm_logs/iss_{script}_%j.out"
                 command = f"sbatch {args} {script_path}"
                 print(command)
                 system(command)

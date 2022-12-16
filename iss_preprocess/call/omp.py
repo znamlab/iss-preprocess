@@ -1,11 +1,10 @@
 import numba
 import numpy as np
 from . import rois_to_array, BASES
-from .call import get_cluster_means
 from ..vis import plot_gene_templates
 
 
-def make_gene_templates(rois, codebook, vis=False):
+def make_gene_templates(cluster_means, codebook, vis=False):
     """
     Make dictionary of fluorescence values for each gene by finding well-matching
     spots.
@@ -21,8 +20,6 @@ def make_gene_templates(rois, codebook, vis=False):
         List of detected gene names.
 
     """
-    cluster_means = get_cluster_means(rois, vis=vis)
-
     gene_dict = []
     for seq in codebook["seq"]:
         base_ids = [np.where(b == BASES)[0][0] for b in seq]
@@ -285,7 +282,7 @@ def run_omp(
     beta_squared=1.0,
     norm_shift=0.0,
     max_comp=None,
-    min_intensity=0
+    min_intensity=0,
 ):
     """
     Apply the OMP algorithm to every pixel of the provided image stack.

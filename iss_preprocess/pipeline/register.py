@@ -97,13 +97,13 @@ def estimate_shifts_all_tiles(data_path, prefix, suffix, nrounds=7):
                 system(command)
 
 
-def correct_shifts(data_path):
+def correct_shifts(data_path, prefix):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
-        correct_shifts_roi(data_path, roi)
+        correct_shifts_roi(data_path, roi, prefix=prefix)
 
 
 def correct_shifts_roi(data_path, roi_dims, prefix="genes_round"):

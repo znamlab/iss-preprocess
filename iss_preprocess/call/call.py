@@ -1,4 +1,5 @@
 import numpy as np
+from math import ceil
 from skimage.draw import disk
 from ..segment import ROI
 from sklearn.mixture import GaussianMixture
@@ -17,8 +18,8 @@ def get_cluster_means(rois, vis=False):
     nrounds = x.shape[0]
     nch = x.shape[1]
     if vis:
-        _, ax1 = plt.subplots(nrows=2, ncols=4)
-        _, ax2 = plt.subplots(nrows=2, ncols=4)
+        _, ax1 = plt.subplots(nrows=2, ncols=ceil(nrounds / 2))
+        _, ax2 = plt.subplots(nrows=2, ncols=ceil(nrounds / 2))
     cluster_means = []
     cluster_means = []
     cluster_intensity = np.zeros((nrounds, nch))
