@@ -13,7 +13,7 @@ from ..coppafish import scaled_k_means
 BASES = np.array(["G", "T", "A", "C"])
 
 
-def get_cluster_means(rois, vis=False):
+def get_cluster_means(rois, vis=False, score_thresh=0):
     x = rois_to_array(rois, normalize=False)  # round x channels x spots
     nrounds = x.shape[0]
     nch = x.shape[1]
@@ -25,7 +25,7 @@ def get_cluster_means(rois, vis=False):
     cluster_intensity = np.zeros((nrounds, nch))
     for iround in range(nrounds):
         norm_cluster_mean, _, cluster_ind, _, _, _ = scaled_k_means(
-            x[iround, :, :].T, np.eye(nch)
+            x[iround, :, :].T, np.eye(nch), score_thresh=score_thresh
         )
         cluster_means.append(norm_cluster_mean)
         for ich in range(nch):

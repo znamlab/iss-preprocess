@@ -20,7 +20,7 @@ from ..call import (
 )
 
 
-def setup_barcode_calling(data_path, nrounds=10):
+def setup_barcode_calling(data_path, nrounds=10, score_thresh=0.5):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     stack, bad_pixels = load_and_register_tile(
@@ -40,7 +40,7 @@ def setup_barcode_calling(data_path, nrounds=10):
         isolation_threshold=ops["barcode_isolation_threshold"],
     )
     rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
-    cluster_means = get_cluster_means(rois, vis=True)
+    cluster_means = get_cluster_means(rois, vis=True, score_thresh=score_thresh)
     return cluster_means
 
 
