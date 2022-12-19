@@ -17,10 +17,11 @@ from ..call import (
     find_gene_spots,
     get_cluster_means,
     rois_to_array,
+    BASES,
 )
 
 
-def setup_barcode_calling(data_path, nrounds=10, score_thresh=0.5):
+def setup_barcode_calling(data_path, nrounds=10, score_thresh=0.5, spot_size=2):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     stack, bad_pixels = load_and_register_tile(
@@ -39,6 +40,7 @@ def setup_barcode_calling(data_path, nrounds=10, score_thresh=0.5):
         detection_threshold=ops["barcode_detection_threshold"],
         isolation_threshold=ops["barcode_isolation_threshold"],
     )
+    spots["size"] = np.ones(len(spots)) * spot_size
     rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
     cluster_means = get_cluster_means(rois, vis=True, score_thresh=score_thresh)
     return cluster_means
@@ -60,15 +62,19 @@ def basecall_tile(data_path, tile_coors):
         correct_channels=True,
         corrected_shifts=True,
     )
+    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
     stack[bad_pixels, :, :] = 0
     spots = detect_spots(
         np.std(stack, axis=(2, 3)), threshold=ops["barcode_detection_threshold"]
     )
-    x = rois_to_array(extract_spots(spots, np.moveaxis(stack, 2, 3)), normalize=False)
+    spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
+    spot_rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
+    x = rois_to_array(spot_rois, normalize=False)
+    spots["trace"] = [roi.trace for roi in spot_rois]
     cluster_inds = []
     top_score = []
-    nrounds = x.shape[0]
 
+    nrounds = x.shape[0]
     for iround in range(nrounds):
         this_round_means = cluster_means[iround]
         this_round_means = this_round_means / np.linalg.norm(this_round_means, axis=1)
@@ -86,6 +92,7 @@ def basecall_tile(data_path, tile_coors):
     scores = np.stack(top_score, axis=1)
     spots["scores"] = [s for s in scores]
     spots["mean_score"] = mean_score
+    spots["bases"] = ["".join(BASES[seq]) for seq in spots["sequence"]]
 
     save_dir = processed_path / data_path / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -288,8 +295,8 @@ def load_and_register_tile(
     stack = align_channels_and_rounds(stack, tforms)
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[np.isnan(stack)] = 0
-
-    stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
+    if filter_r:
+        stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
     if correct_channels:
         correction_path = processed_path / data_path / f"correction_{prefix}.npz"
         norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
