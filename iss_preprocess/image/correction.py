@@ -42,8 +42,7 @@ def analyze_dark_frames(fname):
     """
     dark_frames = load_stack(fname)
     # reshape to get max/std accross all pixels for each channel
-    dark_frames = dark_frames.reshape((-1, dark_frames.shape[0]))
-    return dark_frames.mean(axis=0), dark_frames.std(axis=0)
+    return dark_frames.mean(axis=(0,1)), dark_frames.std(axis=(0,1))
 
 
 def compute_mean_image(
