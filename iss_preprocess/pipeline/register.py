@@ -106,7 +106,7 @@ def correct_shifts(data_path, prefix):
         correct_shifts_roi(data_path, roi, prefix=prefix)
 
 
-def correct_shifts_roi(data_path, roi_dims, prefix="genes_round"):
+def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi = roi_dims[0]
     nx = roi_dims[1] + 1
@@ -144,14 +144,18 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round"):
 
     for ich in range(shifts_within_channels.shape[0]):
         for iround in range(shifts_within_channels.shape[1]):
+            inliers = np.all(
+                np.abs(shifts_within_channels[ich, iround, :, :]) < max_shift, axis=0
+            )
             for idim in range(2):
                 reg = RANSACRegressor(random_state=0).fit(
-                    X, shifts_within_channels[ich, iround, idim, :]
+                    X[inliers, :], shifts_within_channels[ich, iround, idim, inliers]
                 )
                 shifts_within_channels_corrected[ich, iround, idim, :] = reg.predict(X)
+        inliers = np.all(np.abs(shifts_between_channels[ich, :, :]) < max_shift, axis=0)
         for idim in range(2):
             reg = RANSACRegressor(random_state=0).fit(
-                X, shifts_between_channels[ich, idim, :]
+                X[inliers, :], shifts_between_channels[ich, idim, inliers]
             )
             shifts_between_channels_corrected[ich, idim, :] = reg.predict(X)
 
