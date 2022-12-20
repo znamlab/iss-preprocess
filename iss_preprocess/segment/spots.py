@@ -8,10 +8,11 @@ import scipy
 from ..coppafish import annulus
 
 
-def detect_isolated_spots(stack, detection_threshold=40, isolation_threshold=30):
-    im = np.std(stack, axis=(2, 3))
+def detect_isolated_spots(
+    im, detection_threshold=40, isolation_threshold=30, annulus_r=(3, 7)
+):
     spots = detect_spots(im, threshold=detection_threshold)
-    strel = annulus(3, 7)
+    strel = annulus(annulus_r[0], annulus_r[1])
     strel = strel / np.sum(strel)
     annulus_image = scipy.ndimage.correlate(im, strel)
     isolated = annulus_image[spots["y"], spots["x"]] < isolation_threshold

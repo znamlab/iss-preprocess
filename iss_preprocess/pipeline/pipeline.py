@@ -1,14 +1,12 @@
 from os import system
 import numpy as np
 import pandas as pd
-import glob
 import re
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from os.path import isfile
 from ..image import filter_stack
 from ..reg import align_channels_and_rounds, generate_channel_round_transforms
-from ..io import write_stack, load_tile_by_coors
+from ..io import load_stack, write_stack, load_tile_by_coors
 from ..segment import detect_isolated_spots, detect_spots
 from ..call import (
     extract_spots,
@@ -24,26 +22,30 @@ from ..call import (
 def setup_barcode_calling(data_path, nrounds=10, score_thresh=0.5, spot_size=2):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    stack, bad_pixels = load_and_register_tile(
-        data_path,
-        ops["ref_tile"],
-        filter_r=ops["filter_r"],
-        prefix="barcode_round",
-        suffix=ops["projection"],
-        nrounds=nrounds,
-        correct_channels=True,
-        corrected_shifts=False,
-    )
-    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
-    spots = detect_isolated_spots(
-        stack,
-        detection_threshold=ops["barcode_detection_threshold"],
-        isolation_threshold=ops["barcode_isolation_threshold"],
-    )
-    spots["size"] = np.ones(len(spots)) * spot_size
-    rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
+    rois = []
+    for ref_tile in ops["barcode_ref_tiles"]:
+        print(f"detecting spots in tile {ref_tile}")
+        stack, bad_pixels = load_and_register_tile(
+            data_path,
+            ref_tile,
+            filter_r=ops["filter_r"],
+            prefix="barcode_round",
+            suffix=ops["projection"],
+            nrounds=nrounds,
+            correct_channels=True,
+            corrected_shifts=True,
+            correct_illumination=True,
+        )
+        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+        spots = detect_isolated_spots(
+            np.mean(stack, axis=(2, 3)),
+            detection_threshold=ops["barcode_detection_threshold"],
+            isolation_threshold=ops["barcode_isolation_threshold"],
+        )
+        spots["size"] = np.ones(len(spots)) * spot_size
+        rois.extend(extract_spots(spots, np.moveaxis(stack, 2, 3)))
     cluster_means = get_cluster_means(rois, vis=True, score_thresh=score_thresh)
-    return cluster_means
+    return cluster_means, rois
 
 
 def basecall_tile(data_path, tile_coors):
@@ -61,11 +63,13 @@ def basecall_tile(data_path, tile_coors):
         nrounds=nrounds,
         correct_channels=True,
         corrected_shifts=True,
+        correct_illumination=True,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
     stack[bad_pixels, :, :] = 0
     spots = detect_spots(
-        np.std(stack, axis=(2, 3)), threshold=ops["barcode_detection_threshold"]
+        np.mean(stack, axis=(2, 3)),
+        threshold=ops["barcode_detection_threshold_basecalling"],
     )
     spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
     spot_rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
@@ -122,7 +126,7 @@ def setup_omp(
     """
     stack = np.moveaxis(stack, 2, 3)
     spots = detect_isolated_spots(
-        stack,
+        np.std(stack, axis=(2, 3)),
         detection_threshold=detection_threshold,
         isolation_threshold=isolation_threshold,
     )
@@ -265,11 +269,12 @@ def estimate_channel_correction(data_path, prefix="round", nrounds=7):
 def load_and_register_tile(
     data_path,
     tile_coors=(0, 0, 0),
-    prefix="round",
-    suffix="proj",
+    prefix="genes_round",
+    suffix="fstack",
     filter_r=(2, 4),
     correct_channels=False,
     corrected_shifts=True,
+    correct_illumination=False,
     nrounds=7,
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -284,6 +289,7 @@ def load_and_register_tile(
     stack = load_sequencing_rounds(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
+
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],
@@ -293,6 +299,23 @@ def load_and_register_tile(
         stack.shape[:2],
     )
     stack = align_channels_and_rounds(stack, tforms)
+    if correct_illumination:
+        ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+        average_image_fname = (
+            processed_path
+            / data_path
+            / "register_to_ara"
+            / "averages"
+            / f"{prefix}_average_image.tif"
+        )
+        average_image = load_stack(average_image_fname).astype(float)
+        average_image = (
+            average_image
+            / np.max(average_image, axis=(0, 1))[np.newaxis, np.newaxis, :]
+        )
+        stack = (
+            stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
+        ) / average_image[:, :, :, np.newaxis]
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[np.isnan(stack)] = 0
     if filter_r:
