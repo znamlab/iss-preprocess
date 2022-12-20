@@ -81,6 +81,28 @@ def make_background_vectors(nrounds=7, nchannels=4):
     return m
 
 
+def barcode_spots_dot_product(spots, cluster_means, norm_shift=0):
+    nrounds = cluster_means.shape[0]
+    nchannels = cluster_means.shape[1]
+    background_vectors = make_background_vectors(nrounds=nrounds, nchannels=nchannels)
+    dot_product_scores = []
+    for i, spot in spots.iterrows():
+        if np.all(np.isfinite(spot["trace"])):
+            synthetic_trace = cluster_means[
+                np.arange(nrounds), :, spot["sequence"]
+            ].flatten()
+            synthetic_trace /= np.linalg.norm(synthetic_trace)
+            y = spot["trace"].flatten()
+            norm_y = np.linalg.norm(y)
+            y /= norm_y + norm_shift
+            coefs_background, _, _, _ = np.linalg.lstsq(background_vectors, y)
+            r = y - np.dot(background_vectors, coefs_background)
+            dot_product_scores.append(np.dot(r, synthetic_trace))
+        else:
+            dot_product_scores.append(np.nan)
+    return dot_product_scores
+
+
 @numba.jit(nopython=True)
 def omp(y, X, background_vectors=None, max_comp=None, tol=0.05):
     """

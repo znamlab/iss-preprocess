@@ -15,6 +15,7 @@ from ..call import (
     find_gene_spots,
     get_cluster_means,
     rois_to_array,
+    barcode_spots_dot_product,
     BASES,
 )
 
@@ -34,11 +35,11 @@ def setup_barcode_calling(data_path, nrounds=10, score_thresh=0.5, spot_size=2):
             nrounds=nrounds,
             correct_channels=True,
             corrected_shifts=True,
-            correct_illumination=True,
+            correct_illumination=False,
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
         spots = detect_isolated_spots(
-            np.mean(stack, axis=(2, 3)),
+            np.std(stack, axis=(2, 3)),
             detection_threshold=ops["barcode_detection_threshold"],
             isolation_threshold=ops["barcode_isolation_threshold"],
         )
@@ -97,7 +98,7 @@ def basecall_tile(data_path, tile_coors):
     spots["scores"] = [s for s in scores]
     spots["mean_score"] = mean_score
     spots["bases"] = ["".join(BASES[seq]) for seq in spots["sequence"]]
-
+    spots["dot_product_score"] = barcode_spots_dot_product(spots, cluster_means)
     save_dir = processed_path / data_path / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     spots.to_pickle(
@@ -233,27 +234,26 @@ def estimate_channel_correction(data_path, prefix="round", nrounds=7):
     max_val = 65535
     pixel_dist = np.zeros((max_val + 1, nch, nrounds))
 
-    for ix in ops["correction_tiles_x"]:
-        for iy in ops["correction_tiles_y"]:
-            print(f"counting pixel values for tile {ix}, {iy}")
-            stack = filter_stack(
-                load_sequencing_rounds(
-                    data_path,
-                    [ops["correction_roi"], ix, iy],
-                    suffix=ops["projection"],
-                    prefix=prefix,
-                    nrounds=nrounds,
-                ),
-                r1=ops["filter_r"][0],
-                r2=ops["filter_r"][1],
-            )
-            for iround in range(nrounds):
-                for ich in range(nch):
-                    stack[stack < 0] = 0
-                    pixel_dist[:, ich, iround] += np.bincount(
-                        stack[:, :, ich, iround].flatten().astype(np.uint16),
-                        minlength=max_val + 1,
-                    )
+    for tile in ops["correction_tiles"]:
+        print(f"counting pixel values for roi {tile[0]}, tile {tile[1]}, {tile[2]}")
+        stack = filter_stack(
+            load_sequencing_rounds(
+                data_path,
+                tile,
+                suffix=ops["projection"],
+                prefix=prefix,
+                nrounds=nrounds,
+            ),
+            r1=ops["filter_r"][0],
+            r2=ops["filter_r"][1],
+        )
+        for iround in range(nrounds):
+            for ich in range(nch):
+                stack[stack < 0] = 0
+                pixel_dist[:, ich, iround] += np.bincount(
+                    stack[:, :, ich, iround].flatten().astype(np.uint16),
+                    minlength=max_val + 1,
+                )
 
     cumulative_pixel_dist = np.cumsum(pixel_dist, axis=0)
     cumulative_pixel_dist = cumulative_pixel_dist / cumulative_pixel_dist[-1, :, :]
