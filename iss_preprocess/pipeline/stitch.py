@@ -1,10 +1,16 @@
+from os import system
 import numpy as np
 import pandas as pd
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from ..io import load_tile_by_coors
-from ..reg import estimate_rotation_translation, transform_image
+from ..io import load_tile_by_coors, load_stack
+from ..reg import (
+    estimate_rotation_translation,
+    estimate_scale_rotation_translation,
+    transform_image,
+    make_transform,
+)
 
 
 def register_adjacent_tiles(
@@ -94,7 +100,14 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
 
 
 def stitch_tiles(
-    data_path, prefix, shift_right, shift_down, roi=1, suffix="fstack", ich=0
+    data_path,
+    prefix,
+    shift_right,
+    shift_down,
+    roi=1,
+    suffix="fstack",
+    ich=0,
+    correct_illumination=False,
 ):
     """Load and stitch tile images using provided tile shifts.
 
@@ -126,15 +139,28 @@ def stitch_tiles(
     tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros(max_origin + tile_shape)
+    if correct_illumination:
+        ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+        average_image_fname = (
+            processed_path
+            / data_path
+            / "register_to_ara"
+            / "averages"
+            / f"{prefix}_average_image.tif"
+        )
+        average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
+        average_image = average_image / np.max(average_image, axis=(0, 1))
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_tile_by_coors(
                 data_path, tile_coors=(roi, ix, iy), suffix=suffix, prefix=prefix
-            )
+            )[:, :, ich]
+            if correct_illumination:
+                stack = (stack.astype(float) - ops["black_level"][ich]) / average_image
             stitched_stack[
                 tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
                 tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
-            ] = stack[:, :, ich]
+            ] = stack
     return stitched_stack
 
 
@@ -200,6 +226,7 @@ def stitch_and_register(
     downsample=5,
     ref_ch=0,
     target_ch=0,
+    estimate_scale=False,
 ):
     """Stitch target and reference stacks and align target to reference
 
@@ -226,6 +253,7 @@ def stitch_and_register(
         suffix=ops["projection"],
         roi=roi,
         ich=target_ch,
+        correct_illumination=True,
     )
     stitched_stack_target = stitched_stack_target.astype(np.single)  # to save memory
     stitched_stack_reference = stitch_tiles(
@@ -236,20 +264,80 @@ def stitch_and_register(
         suffix=ops["projection"],
         roi=roi,
         ich=ref_ch,
+        correct_illumination=True,
     )
     stitched_stack_reference = stitched_stack_reference.astype(np.single)
-
-    angle, shift = estimate_rotation_translation(
-        stitched_stack_reference[::downsample, ::downsample],
-        stitched_stack_target[::downsample, ::downsample],
-        angle_range=1.0,
-        niter=3,
-        nangles=11,
-        min_shift=2,
-        upsample=None,
-    )
+    if estimate_scale:
+        scale, angle, shift = estimate_scale_rotation_translation(
+            stitched_stack_reference[::downsample, ::downsample],
+            stitched_stack_target[::downsample, ::downsample],
+            niter=3,
+            nangles=11,
+            verbose=True,
+            scale_range=0.01,
+            angle_range=1.0,
+            upsample=False,
+        )
+    else:
+        angle, shift = estimate_rotation_translation(
+            stitched_stack_reference[::downsample, ::downsample],
+            stitched_stack_target[::downsample, ::downsample],
+            angle_range=1.0,
+            niter=3,
+            nangles=11,
+            upsample=None,
+        )
+        scale = 1
 
     stitched_stack_target = transform_image(
-        stitched_stack_target, scale=1, angle=angle, shift=shift * downsample
+        stitched_stack_target, scale=scale, angle=angle, shift=shift * downsample
     )
     return stitched_stack_target, stitched_stack_reference, angle, shift * downsample
+
+
+def merge_and_align_barcodes(data_path, roi):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+
+    ref_prefix = f'genes_round_{ops["ref_round"]}_1'
+    stitched_stack_barcodes, _, angle, shift = stitch_and_register(
+        data_path, ref_prefix, "barcode_round_1_1", roi=roi, downsample=5
+    )
+    barcodes_tform = make_transform(1, angle, shift, stitched_stack_barcodes.shape)
+    shift_right, shift_down, tile_shape = register_adjacent_tiles(
+        data_path, ref_coors=ops["ref_tile"], prefix=ref_prefix
+    )
+    barcode_spots = merge_roi_spots(
+        data_path,
+        shift_right,
+        shift_down,
+        tile_shape,
+        iroi=roi,
+        prefix="barcode_round",
+    )
+    transformed_coors = barcodes_tform @ np.stack(
+        [barcode_spots["x"], barcode_spots["y"], np.ones(len(barcode_spots))]
+    )
+    barcode_spots["x"] = [x for x in transformed_coors[0, :]]
+    barcode_spots["y"] = [y for y in transformed_coors[1, :]]
+    barcode_spots.to_pickle(processed_path / data_path / f"barcode_spots_{roi}.pkl")
+    np.savez(
+        processed_path / data_path / f"barcode_spots_tform_{roi}.npz",
+        angle=angle,
+        shift=shift,
+        tform=barcodes_tform,
+    )
+
+
+def merge_and_align_barcodes_all_rois(data_path):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    script_path = str(Path(__file__).parent.parent.parent / f"align_barcodes.sh")
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    for roi in roi_dims[use_rois, 0]:
+        args = f"--export=DATAPATH={data_path},ROI={roi}"
+        args = args + f" --output={Path.home()}/slurm_logs/iss_align_barcodes_%j.out"
+        command = f"sbatch {args} {script_path}"
+        print(command)
+        system(command)

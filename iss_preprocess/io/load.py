@@ -11,7 +11,7 @@ from pathlib import Path
 def load_tile_by_coors(
     data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
 ):
-    """Load processed tile images across rounds
+    """Load processed tile images
 
     Args:
         data_path (str): relative path to dataset.
@@ -21,7 +21,7 @@ def load_tile_by_coors(
         prefix (str, optional): the folder name prefix, before round number. Defaults to "genes_round_1_1"
 
     Returns:
-        numpy.ndarray: X x Y x channels x rounds stack.
+        numpy.ndarray: X x Y x channels stack.
 
     """
     tile_roi, tile_x, tile_y = tile_coors

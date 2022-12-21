@@ -227,3 +227,20 @@ def segment_all(path, prefix, use_gpu=False):
     from iss_preprocess.pipeline import segment_all_rois
 
     segment_all_rois(path, prefix, use_gpu=use_gpu)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def align_barcodes(path):
+    from iss_preprocess.pipeline import merge_and_align_barcodes_all_rois
+
+    merge_and_align_barcodes_all_rois(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
+def align_barcodes_roi(path, roi=1):
+    from iss_preprocess.pipeline import merge_and_align_barcodes
+
+    merge_and_align_barcodes(path, roi)
