@@ -13,6 +13,7 @@ from ..call import (
     make_gene_templates,
     run_omp,
     find_gene_spots,
+    detect_spots_by_shape,
     get_cluster_means,
     rois_to_array,
     barcode_spots_dot_product,
@@ -68,9 +69,12 @@ def basecall_tile(data_path, tile_coors):
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
     stack[bad_pixels, :, :] = 0
-    spots = detect_spots(
+    spot_sign_image = load_spot_sign_image(data_path, ops["spot_threshold"])
+    spots = detect_spots_by_shape(
         np.mean(stack, axis=(2, 3)),
+        spot_sign_image,
         threshold=ops["barcode_detection_threshold_basecalling"],
+        rho=ops["barcode_spot_rho"],
     )
     spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
     spot_rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
@@ -99,6 +103,7 @@ def basecall_tile(data_path, tile_coors):
     spots["mean_score"] = mean_score
     spots["bases"] = ["".join(BASES[seq]) for seq in spots["sequence"]]
     spots["dot_product_score"] = barcode_spots_dot_product(spots, cluster_means)
+    spots["mean_intensity"] = [np.mean(np.abs(trace)) for trace in spots["trace"]]
     save_dir = processed_path / data_path / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     spots.to_pickle(
@@ -348,6 +353,20 @@ def batch_process_tiles(data_path, script):
                 system(command)
 
 
+def load_spot_sign_image(data_path, threshold):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    spot_image_path = processed_path / data_path / "spot_sign_image.npy"
+    if spot_image_path.exists():
+        spot_sign_image = np.load(spot_image_path)
+    else:
+        print("No spot sign image for this dataset - using default.")
+        spot_sign_image = np.load(
+            Path(__file__).parent.parent / "call/spot_signimage.npy"
+        )
+    spot_sign_image[np.abs(spot_sign_image) < threshold] = 0
+    return spot_sign_image
+
+
 def run_omp_on_tile(
     data_path,
     tile_coors,
@@ -394,17 +413,7 @@ def run_omp_on_tile(
     for igene in range(g.shape[2]):
         g[bad_pixels, igene] = 0
 
-    spot_image_path = processed_path / data_path / "spot_sign_image.npy"
-    if spot_image_path.exists():
-        spot_sign_image = np.load(spot_image_path)
-    else:
-        print("No spot sign image for this dataset - using default.")
-        spot_sign_image = np.load(
-            Path(__file__).parent.parent / "call/spot_signimage.npy"
-        )
-
-    spot_sign_image[np.abs(spot_sign_image) < ops["spot_threshold"]] = 0
-
+    spot_sign_image = load_spot_sign_image(data_path, ops["spot_threshold"])
     gene_spots = find_gene_spots(
         g,
         spot_sign_image,
