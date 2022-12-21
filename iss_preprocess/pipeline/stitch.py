@@ -163,27 +163,30 @@ def merge_roi_spots(
 
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
-            spots = pd.read_pickle(
-                processed_path
-                / data_path
-                / "spots"
-                / f"{prefix}_spots_{iroi}_{ix}_{iy}.pkl"
-            )
-            spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
-            spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
+            try:
+                spots = pd.read_pickle(
+                    processed_path
+                    / data_path
+                    / "spots"
+                    / f"{prefix}_spots_{iroi}_{ix}_{iy}.pkl"
+                )
+                spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
+                spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
-            spot_dist = (
-                spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
-                - tile_centers[np.newaxis, :, :, 1]
-            ) ** 2 + (
-                spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
-                - tile_centers[np.newaxis, :, :, 0]
-            ) ** 2
-            home_tile_dist = (spot_dist[:, ix, iy]).copy()
-            spot_dist[:, ix, iy] = np.inf
-            min_spot_dist = np.min(spot_dist, axis=(1, 2))
-            keep_spots = home_tile_dist < min_spot_dist
-            all_spots.append(spots[keep_spots])
+                spot_dist = (
+                    spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 1]
+                ) ** 2 + (
+                    spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 0]
+                ) ** 2
+                home_tile_dist = (spot_dist[:, ix, iy]).copy()
+                spot_dist[:, ix, iy] = np.inf
+                min_spot_dist = np.min(spot_dist, axis=(1, 2))
+                keep_spots = home_tile_dist < min_spot_dist
+                all_spots.append(spots[keep_spots])
+            except FileNotFoundError:
+                print(f"coult not load roi {iroi}, tile {ix}, {iy}")
 
     spots = pd.concat(all_spots, ignore_index=True)
     return spots
@@ -249,4 +252,4 @@ def stitch_and_register(
     stitched_stack_target = transform_image(
         stitched_stack_target, scale=1, angle=angle, shift=shift * downsample
     )
-    return stitched_stack_target, angle, shift
+    return stitched_stack_target, stitched_stack_reference, angle, shift * downsample
