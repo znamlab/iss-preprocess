@@ -299,7 +299,7 @@ def merge_and_align_barcodes(data_path, roi):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
 
-    ref_prefix = f'genes_round_{ops["ref_round"]}_1'
+    ref_prefix = f'genes_round_{ops["ref_round"]+1}_1'
     stitched_stack_barcodes, _, angle, shift = stitch_and_register(
         data_path, ref_prefix, "barcode_round_1_1", roi=roi, downsample=5
     )
