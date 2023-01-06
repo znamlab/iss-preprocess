@@ -143,14 +143,52 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", "--tilex", default=0, help="Tile X position")
+@click.option("-y", "--tiley", default=0, help="Tile Y position.")
+@click.option(
+    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+)
+def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
+    """Estimate X-Y shifts across rounds and channels for a single tile."""
+    from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
+
+    click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
+    estimate_shifts_and_angles_by_coors(
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
 @click.option("-m", "--nrounds", default=7, help="Number of sequencing rounds")
 def estimate_shifts(path, prefix, suffix="fstack", nrounds=7):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
-    from iss_preprocess.pipeline import estimate_shifts_all_tiles
+    from iss_preprocess.pipeline import batch_process_tiles
 
-    estimate_shifts_all_tiles(path, prefix, suffix, nrounds=nrounds)
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix},NROUNDS={nrounds}"
+    batch_process_tiles(path, script="register_tile", additional_args=additional_args)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
+    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+)
+def estimate_hyb_shifts(path, prefix, suffix="fstack"):
+    """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
+    from iss_preprocess.pipeline import batch_process_tiles
+
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+    batch_process_tiles(
+        path, script="register_hyb_tile", additional_args=additional_args
+    )
 
 
 @cli.command()

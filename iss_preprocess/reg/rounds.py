@@ -135,6 +135,40 @@ def align_within_channels(
     return angles_channels, shifts_channels
 
 
+def estimate_shifts_and_angles_for_tile(
+    stack, scales, ref_ch=0, threshold_quantile=0.9
+):
+    """Estimate shifts and angles. Registration is carried out on thresholded images
+    using the provided quantile threshold.
+
+    Args:
+        stack (_type_): _description_
+        scales (_type_): _description_
+        ref_ch (int, optional): _description_. Defaults to 0.
+    """
+
+    nch = stack.shape[2]
+    angles = []
+    shifts = []
+    ref_thresh = np.quantile(stack[:, :, ref_ch], threshold_quantile)
+    for ich in range(nch):
+        if ref_ch != ich:
+            thresh = np.quantile(stack[:, :, ich], threshold_quantile)
+            angle, shift = estimate_rotation_translation(
+                stack[:, :, ref_ch] > ref_thresh,
+                transform_image(stack[:, :, ich] > thresh, scale=scales[ich]),
+                angle_range=2.0,
+                niter=3,
+                nangles=21,
+            )
+        else:
+            angle, shift = 0.0, [0.0, 0.0]
+        angles.append(angle)
+        shifts.append(shift)
+        print(f"Channel {ich} angle: {angle}, shift: {shift}", flush=True)
+    return angles, shifts
+
+
 def estimate_shifts_for_tile(
     stack,
     angles_within_channels,
@@ -143,7 +177,7 @@ def estimate_shifts_for_tile(
     ref_ch=0,
     ref_round=0,
 ):
-    """Use precompute rotations and scale factors to re-estimate shifts for every round and between channels.
+    """Use precomputed rotations and scale factors to re-estimate shifts for every round and between channels.
 
     Args:
         stack (_type_): _description_

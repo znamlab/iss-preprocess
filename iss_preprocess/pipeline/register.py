@@ -1,4 +1,4 @@
-from os import system
+import subprocess, shlex
 import numpy as np
 from sklearn.linear_model import RANSACRegressor
 from flexiznam.config import PARAMETERS
@@ -6,8 +6,10 @@ from pathlib import Path
 from ..reg import (
     register_channels_and_rounds,
     estimate_shifts_for_tile,
+    estimate_shifts_and_angles_for_tile,
 )
 from . import load_sequencing_rounds
+from ..io import load_tile_by_coors
 
 
 def register_reference_tile(data_path, prefix="genes_round", nrounds=7):
@@ -42,10 +44,60 @@ def register_reference_tile(data_path, prefix="genes_round", nrounds=7):
     )
 
 
+def estimate_shifts_and_angles_by_coors(
+    data_path,
+    tile_coors=(0, 0, 0),
+    prefix="hybridisation_1_1",
+    suffix="fstack",
+    reference_prefix="barcode_round",
+):
+    """Estimate shifts and rotations angles for hybridisation images.
+
+    Args:
+        data_path (_type_): _description_
+        tile_coors (tuple, optional): _description_. Defaults to (0, 0, 0).
+        prefix (str, optional): _description_. Defaults to "hybridisation_1_1".
+        reference_prefix (str, optional): _description_. Defaults to "barcode_round".
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops_path = processed_path / data_path / "ops.npy"
+    ops = np.load(ops_path, allow_pickle=True).item()
+    tforms_path = processed_path / data_path / f"tforms_{reference_prefix}.npz"
+    stack = load_tile_by_coors(
+        data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
+    )
+    reference_tforms = np.load(tforms_path, allow_pickle=True)
+    angles, shifts = estimate_shifts_and_angles_for_tile(
+        stack, reference_tforms["scales_between_channels"], ref_ch=ops["ref_ch"]
+    )
+    save_dir = processed_path / data_path / "reg"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    np.savez(
+        save_dir
+        / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
+        angles=angles,
+        shifts=shifts,
+        scales=reference_tforms["scales_between_channels"],
+        allow_pickle=True,
+    )
+
+
 def estimate_shifts_by_coors(
     data_path, tile_coors=(0, 0, 0), prefix="round", suffix="fstack", nrounds=7
 ):
+    """Estimate shifts across channels and sequencing rounds using provided reference
+    rotation angles and scale factors.
+
+    Args:
+        data_path (_type_): _description_
+        tile_coors (tuple, optional): _description_. Defaults to (0, 0, 0).
+        prefix (str, optional): _description_. Defaults to "round".
+        suffix (str, optional): _description_. Defaults to "fstack".
+        nrounds (int, optional): _description_. Defaults to 7.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops_path = processed_path / data_path / "ops.npy"
+    ops = np.load(ops_path, allow_pickle=True).item()
     tforms_path = processed_path / data_path / f"tforms_{prefix}.npz"
     stack = load_sequencing_rounds(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
@@ -56,7 +108,7 @@ def estimate_shifts_by_coors(
         reference_tforms["angles_within_channels"],
         reference_tforms["scales_between_channels"],
         reference_tforms["angles_between_channels"],
-        ref_ch=0,
+        ref_ch=ops["ref_ch"],
         ref_round=0,
     )
     save_dir = processed_path / data_path / "reg"
@@ -71,30 +123,6 @@ def estimate_shifts_by_coors(
         shifts_between_channels=shifts_between_channels,
         allow_pickle=True,
     )
-
-
-def estimate_shifts_all_tiles(data_path, prefix, suffix, nrounds=7):
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    script_path = str(Path(__file__).parent.parent.parent / "register_tile.sh")
-
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
-    for roi in roi_dims[use_rois, :]:
-        for tilex in range(roi[1] + 1):
-            for tiley in range(roi[2] + 1):
-                args = (
-                    f"--export=DATAPATH={data_path},"
-                    + f"ROI={roi[0]},TILEX={tilex},TILEY={tiley},"
-                    + f"PREFIX={prefix},SUFFIX={suffix},NROUNDS={nrounds}"
-                )
-                args = (
-                    args
-                    + f" --output={Path.home()}/slurm_logs/iss_register_tile_%j.out"
-                )
-                command = f"sbatch {args} {script_path}"
-                print(command)
-                system(command)
 
 
 def correct_shifts(data_path, prefix):

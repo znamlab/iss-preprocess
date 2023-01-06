@@ -1,4 +1,3 @@
-from os import system
 import subprocess, shlex
 import numpy as np
 import pandas as pd
@@ -339,7 +338,7 @@ def load_and_register_tile(
     return stack, bad_pixels
 
 
-def batch_process_tiles(data_path, script):
+def batch_process_tiles(data_path, script, additional_args=""):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     script_path = str(Path(__file__).parent.parent.parent / f"{script}.sh")
@@ -353,10 +352,11 @@ def batch_process_tiles(data_path, script):
                 args = (
                     f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
                 )
+                args = args + additional_args
                 args = args + f" --output={Path.home()}/slurm_logs/iss_{script}_%j.out"
                 command = f"sbatch {args} {script_path}"
                 print(command)
-                subprocess.Popen(shlex.split(command))
+                subprocess.Popen(shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
 
 def load_spot_sign_image(data_path, threshold):
