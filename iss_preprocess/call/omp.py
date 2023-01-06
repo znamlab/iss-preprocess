@@ -81,7 +81,7 @@ def make_background_vectors(nrounds=7, nchannels=4):
     return m
 
 
-def barcode_spots_dot_product(spots, cluster_means, norm_shift=0):
+def barcode_spots_dot_product(spots, cluster_means, norm_shift=0, sequence_column="sequence"):
     nrounds = cluster_means.shape[0]
     nchannels = cluster_means.shape[1]
     background_vectors = make_background_vectors(nrounds=nrounds, nchannels=nchannels)
@@ -89,7 +89,7 @@ def barcode_spots_dot_product(spots, cluster_means, norm_shift=0):
     for i, spot in spots.iterrows():
         if np.all(np.isfinite(spot["trace"])):
             synthetic_trace = cluster_means[
-                np.arange(nrounds), :, spot["sequence"]
+                np.arange(nrounds), :, spot[sequence_column]
             ].flatten()
             synthetic_trace /= np.linalg.norm(synthetic_trace)
             y = spot["trace"].flatten()
