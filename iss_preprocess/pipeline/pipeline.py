@@ -1,4 +1,5 @@
 from os import system
+import subprocess, shlex
 import numpy as np
 import pandas as pd
 import re
@@ -21,7 +22,9 @@ from ..call import (
 )
 
 
-def setup_barcode_calling(data_path, nrounds=10, score_thresh=0.5, spot_size=2):
+def setup_barcode_calling(
+    data_path, score_thresh=0.5, spot_size=2, correct_channels=False
+):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     rois = []
@@ -33,8 +36,8 @@ def setup_barcode_calling(data_path, nrounds=10, score_thresh=0.5, spot_size=2):
             filter_r=ops["filter_r"],
             prefix="barcode_round",
             suffix=ops["projection"],
-            nrounds=nrounds,
-            correct_channels=True,
+            nrounds=ops["barcode_rounds"],
+            correct_channels=correct_channels,
             corrected_shifts=True,
             correct_illumination=False,
         )
@@ -63,7 +66,7 @@ def basecall_tile(data_path, tile_coors):
         prefix="barcode_round",
         suffix=ops["projection"],
         nrounds=nrounds,
-        correct_channels=True,
+        correct_channels=ops["barcode_correct_channels"],
         corrected_shifts=True,
         correct_illumination=True,
     )
@@ -328,7 +331,10 @@ def load_and_register_tile(
     if correct_channels:
         correction_path = processed_path / data_path / f"correction_{prefix}.npz"
         norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
-        stack = stack / norm_factors[np.newaxis, np.newaxis, :, :]
+        if correct_channels == "round1_only":
+            stack = stack / norm_factors[np.newaxis, np.newaxis, :, 0, np.newaxis]
+        else:
+            stack = stack / norm_factors[np.newaxis, np.newaxis, :, :]
 
     return stack, bad_pixels
 
@@ -350,7 +356,7 @@ def batch_process_tiles(data_path, script):
                 args = args + f" --output={Path.home()}/slurm_logs/iss_{script}_%j.out"
                 command = f"sbatch {args} {script_path}"
                 print(command)
-                system(command)
+                subprocess.Popen(shlex.split(command))
 
 
 def load_spot_sign_image(data_path, threshold):
