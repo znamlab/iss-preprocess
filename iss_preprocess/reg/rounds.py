@@ -97,7 +97,15 @@ def align_channels_and_rounds(stack, tforms):
     return reg_stack
 
 
-def align_within_channels(stack, upsample=False, ref_round=0):
+def align_within_channels(
+    stack,
+    upsample=False,
+    ref_round=0,
+    angle_range=1.0,
+    niter=3,
+    nangles=15,
+    min_shift=2,
+):
     # align rounds to each other for each channel
     nchannels, nrounds = stack.shape[2:]
     angles_channels = []
@@ -111,10 +119,10 @@ def align_within_channels(stack, upsample=False, ref_round=0):
                 angle, shift = estimate_rotation_translation(
                     stack[:, :, ref_ch, ref_round],
                     stack[:, :, ref_ch, iround],
-                    angle_range=1.0,
-                    niter=3,
-                    nangles=15,
-                    min_shift=2,
+                    angle_range=angle_range,
+                    niter=niter,
+                    nangles=nangles,
+                    min_shift=min_shift,
                     upsample=upsample,
                 )
             else:
@@ -262,7 +270,15 @@ def apply_corrections(im, scales, angles, shifts):
     return im_reg
 
 
-def estimate_correction(im, ch_to_align=0, upsample=False):
+def estimate_correction(
+    im,
+    ch_to_align=0,
+    upsample=False,
+    scale_range=0.05,
+    nangles=3,
+    niter=5,
+    angle_range=1.0,
+):
     """
 
     Args:
@@ -273,7 +289,6 @@ def estimate_correction(im, ch_to_align=0, upsample=False):
 
     """
     nchannels = im.shape[2]
-    scale_range = 0.05
     scales, angles, shifts = [], [], []
     for channel in range(nchannels):
         print(f"optimizing rotation and scale for channel {channel}", flush=True)
@@ -281,11 +296,11 @@ def estimate_correction(im, ch_to_align=0, upsample=False):
             scale, angle, shift = estimate_scale_rotation_translation(
                 im[:, :, ch_to_align],
                 im[:, :, channel],
-                niter=5,
-                nangles=3,
+                niter=niter,
+                nangles=nangles,
                 verbose=True,
                 scale_range=scale_range,
-                angle_range=1.0,
+                angle_range=angle_range,
                 upsample=upsample,
             )
         else:
@@ -337,12 +352,7 @@ def estimate_scale_rotation_translation(
         for iscale in range(nscales):
             target_rescaled = transform_image(target, scale=scales[iscale])
             best_angles[iscale], max_cc[iscale] = estimate_rotation_angle(
-                reference_fft,
-                target_rescaled,
-                angle_range,
-                best_angle,
-                nangles,
-                min_shift=None,
+                reference_fft, target_rescaled, angle_range, best_angle, nangles
             )
         best_scale_index = np.argmax(max_cc)
         best_scale = scales[best_scale_index]
@@ -368,7 +378,13 @@ def estimate_scale_rotation_translation(
 
 @jit(parallel=True, forceobj=True)
 def estimate_rotation_angle(
-    reference_fft, target, angle_range, best_angle, nangles, min_shift=None
+    reference_fft,
+    target,
+    angle_range,
+    best_angle,
+    nangles,
+    min_shift=None,
+    max_shift=None,
 ):
     angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
     max_cc = np.empty(angles.shape)
@@ -379,6 +395,7 @@ def estimate_rotation_angle(
             transform_image(target, angle=angles[iangle]),
             fft_ref=False,
             min_shift=min_shift,
+            max_shift=max_shift,
         )
         max_cc[iangle] = np.max(cc)
     best_angle_index = np.argmax(max_cc)
@@ -395,6 +412,7 @@ def estimate_rotation_translation(
     nangles=20,
     min_shift=None,
     upsample=None,
+    max_shift=None,
 ):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
@@ -424,11 +442,15 @@ def estimate_rotation_translation(
             best_angle,
             nangles,
             min_shift=min_shift,
+            max_shift=max_shift,
         )
         angle_range = angle_range / 5
     if not upsample:
         shift, _ = phase_corr(
-            reference, transform_image(target, angle=best_angle), min_shift=min_shift
+            reference,
+            transform_image(target, angle=best_angle),
+            min_shift=min_shift,
+            max_shift=max_shift,
         )
     else:
         shift = phase_cross_correlation(
