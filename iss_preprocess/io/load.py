@@ -6,6 +6,15 @@ from tifffile import TiffFile
 import json
 from flexiznam.config import PARAMETERS
 from pathlib import Path
+import yaml
+
+
+def load_metadata(data_path):
+    raw_path = Path(PARAMETERS["data_root"]["raw"])
+    metadata_fname = raw_path / data_path / (Path(data_path).name + "_metadata.yml")
+    with open(metadata_fname, "r") as f:
+        metadata = yaml.safe_load(f)
+    return metadata
 
 
 def load_tile_by_coors(
