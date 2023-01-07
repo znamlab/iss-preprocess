@@ -5,7 +5,11 @@ import re
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from ..image import filter_stack
-from ..reg import align_channels_and_rounds, generate_channel_round_transforms
+from ..reg import (
+    align_channels_and_rounds,
+    generate_channel_round_transforms,
+    apply_corrections,
+)
 from ..io import load_stack, write_stack, load_tile_by_coors
 from ..segment import detect_isolated_spots, detect_spots
 from ..call import (
@@ -273,6 +277,59 @@ def estimate_channel_correction(data_path, prefix="round", nrounds=7):
     return pixel_dist, norm_factors
 
 
+def load_and_register_hyb_tile(
+    data_path,
+    tile_coors=(0, 0, 0),
+    prefix="genes_round",
+    suffix="fstack",
+    filter_r=(2, 4),
+    correct_illumination=False,
+):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    tforms_fname = (
+        f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+    )
+    tforms = np.load(
+        processed_path / data_path / "reg" / tforms_fname, allow_pickle=True
+    )
+    stack = load_tile_by_coors(
+        data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
+    )
+    stack = apply_corrections(
+        stack, tforms["scales"], tforms["angles"], tforms["shifts"], cval=np.nan
+    )
+    bad_pixels = np.any(np.isnan(stack), axis=(2))
+
+    if correct_illumination:
+        stack = correct_illumination(data_path, stack, prefix)
+    if filter_r:
+        stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
+    return stack, bad_pixels
+
+
+def correct_illumination(data_path, stack, prefix):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    average_image_fname = (
+        processed_path
+        / data_path
+        / "register_to_ara"
+        / "averages"
+        / f"{prefix}_average_image.tif"
+    )
+    average_image = load_stack(average_image_fname).astype(float)
+    average_image = (
+        average_image / np.max(average_image, axis=(0, 1))[np.newaxis, np.newaxis, :]
+    )
+    if stack.ndim == 4:
+        stack = (
+            stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
+        ) / average_image[:, :, :, np.newaxis]
+    else:
+        stack = (stack - ops["black_level"][np.newaxis, np.newaxis, :]) / average_image
+    return stack
+
+
 def load_and_register_tile(
     data_path,
     tile_coors=(0, 0, 0),
@@ -307,22 +364,7 @@ def load_and_register_tile(
     )
     stack = align_channels_and_rounds(stack, tforms)
     if correct_illumination:
-        ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-        average_image_fname = (
-            processed_path
-            / data_path
-            / "register_to_ara"
-            / "averages"
-            / f"{prefix}_average_image.tif"
-        )
-        average_image = load_stack(average_image_fname).astype(float)
-        average_image = (
-            average_image
-            / np.max(average_image, axis=(0, 1))[np.newaxis, np.newaxis, :]
-        )
-        stack = (
-            stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
-        ) / average_image[:, :, :, np.newaxis]
+        stack = correct_illumination(data_path, stack, prefix)
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[np.isnan(stack)] = 0
     if filter_r:
@@ -356,7 +398,11 @@ def batch_process_tiles(data_path, script, additional_args=""):
                 args = args + f" --output={Path.home()}/slurm_logs/iss_{script}_%j.out"
                 command = f"sbatch {args} {script_path}"
                 print(command)
-                subprocess.Popen(shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+                subprocess.Popen(
+                    shlex.split(command),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
+                )
 
 
 def load_spot_sign_image(data_path, threshold):

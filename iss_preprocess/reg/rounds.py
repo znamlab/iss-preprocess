@@ -266,9 +266,9 @@ def get_channel_reference_images(stack, angles_channels, shifts_channels):
     return std_stack, mean_stack
 
 
-def transform_image(im, scale=1, angle=0, shift=(0, 0)):
+def transform_image(im, scale=1, angle=0, shift=(0, 0), cval=0.0):
     tform = SimilarityTransform(matrix=make_transform(scale, angle, shift, im.shape))
-    return warp(im, tform.inverse, preserve_range=True)
+    return warp(im, tform.inverse, preserve_range=True, cval=cval)
 
 
 def make_transform(s, angle, shift, shape):
@@ -293,12 +293,12 @@ def make_transform(s, angle, shift, shape):
     return np.array(tform)
 
 
-def apply_corrections(im, scales, angles, shifts):
+def apply_corrections(im, scales, angles, shifts, cval=0.0):
     nchannels = im.shape[2]
     im_reg = np.zeros(im.shape)
     for channel, scale, angle, shift in zip(range(nchannels), scales, angles, shifts):
         im_reg[:, :, channel] = transform_image(
-            im[:, :, channel], scale=scale, angle=angle, shift=shift
+            im[:, :, channel], scale=scale, angle=angle, shift=shift, cval=cval
         )
 
     return im_reg
