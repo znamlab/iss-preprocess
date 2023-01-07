@@ -154,7 +154,7 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
 
-    click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
+    click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}/{prefix}")
     estimate_shifts_and_angles_by_coors(
         path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
     )
@@ -199,6 +199,18 @@ def correct_shifts(path, prefix):
     from iss_preprocess.pipeline import correct_shifts
 
     correct_shifts(path, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def correct_hyb_shifts(path):
+    """
+    Correct X-Y shifts for hybridisation rounds using robust regression
+    across tiles.
+    """
+    from iss_preprocess.pipeline import correct_hyb_shifts
+
+    correct_hyb_shifts(path)
 
 
 @cli.command()

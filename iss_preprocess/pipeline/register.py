@@ -1,4 +1,3 @@
-import subprocess, shlex
 import numpy as np
 from sklearn.linear_model import RANSACRegressor
 from flexiznam.config import PARAMETERS
@@ -9,7 +8,7 @@ from ..reg import (
     estimate_shifts_and_angles_for_tile,
 )
 from . import load_sequencing_rounds
-from ..io import load_tile_by_coors
+from ..io import load_tile_by_coors, load_metadata
 
 
 def register_reference_tile(data_path, prefix="genes_round", nrounds=7):
@@ -199,6 +198,84 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
                 scales_between_channels=tforms["scales_between_channels"],
                 angles_between_channels=tforms["angles_between_channels"],
                 shifts_between_channels=shifts_between_channels_corrected[:, :, itile],
+                allow_pickle=True,
+            )
+            itile += 1
+
+
+def correct_hyb_shifts(data_path):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    metadata = load_metadata(data_path)
+    for hyb_round in metadata["hybridisation"].keys():
+        for roi in roi_dims[use_rois, :]:
+            print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
+            correct_hyb_shifts_roi(data_path, roi, prefix=hyb_round)
+
+
+def correct_hyb_shifts_roi(
+    data_path, roi_dims, prefix="hybridisation_1_1", max_shift=500
+):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+
+    roi = roi_dims[0]
+    nx = roi_dims[1] + 1
+    ny = roi_dims[2] + 1
+    shifts = []
+    angles = []
+    for iy in range(ny):
+        for ix in range(nx):
+            try:
+                tforms = np.load(
+                    processed_path
+                    / data_path
+                    / "reg"
+                    / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+                )
+            except:
+                print(f"couldn't load tile {roi} {ix} {iy}")
+            shifts.append(tforms["shifts"])
+            angles.append(tforms["angles"])
+    shifts = np.stack(shifts, axis=2)
+    angles = np.stack(angles, axis=1)
+
+    xs, ys = np.meshgrid(range(nx), range(ny))
+    shifts_corrected = np.zeros(shifts.shape)
+    angles_corrected = np.zeros(angles.shape)
+
+    X = np.stack(
+        [
+            ys.flatten(),
+            xs.flatten(),
+            np.ones(
+                nx * ny,
+            ),
+        ],
+        axis=1,
+    )
+
+    for ich in range(shifts.shape[0]):
+        for idim in range(2):
+            inliers = np.all(np.abs(shifts[ich, :, :]) < max_shift, axis=0)
+            reg = RANSACRegressor(random_state=0).fit(
+                X[inliers, :], shifts[ich, idim, inliers]
+            )
+            shifts_corrected[ich, idim, :] = reg.predict(X)
+        reg = RANSACRegressor(random_state=0).fit(X, angles[ich, :])
+        angles_corrected[ich, :] = reg.predict(X)
+
+    save_dir = processed_path / data_path / "reg"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    itile = 0
+    for iy in range(ny):
+        for ix in range(nx):
+            np.savez(
+                save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
+                angles=angles_corrected[:, itile],
+                shifts=shifts_corrected[:, :, itile],
+                scales=tforms["scales"],
                 allow_pickle=True,
             )
             itile += 1
