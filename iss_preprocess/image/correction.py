@@ -12,15 +12,23 @@ from ..coppafish import hanning_diff
 
 
 def filter_stack(stack, r1=2, r2=4):
-    nchannels, nrounds = stack.shape[2:]
-
+    nchannels = stack.shape[2]
     h = hanning_diff(r1, r2)
     stack_filt = np.zeros(stack.shape)
 
     for ich in range(nchannels):
-        for iround in range(nrounds):
-            stack_filt[:, :, ich, iround] = cv2.filter2D(
-                stack[:, :, ich, iround].astype(float),
+        if stack.ndim == 4:
+            nrounds = stack.shape[3]
+            for iround in range(nrounds):
+                stack_filt[:, :, ich, iround] = cv2.filter2D(
+                    stack[:, :, ich, iround].astype(float),
+                    -1,
+                    np.flip(h),
+                    borderType=cv2.BORDER_REPLICATE,
+                )
+        else:
+            stack_filt[:, :, ich] = cv2.filter2D(
+                stack[:, :, ich].astype(float),
                 -1,
                 np.flip(h),
                 borderType=cv2.BORDER_REPLICATE,
@@ -42,7 +50,7 @@ def analyze_dark_frames(fname):
     """
     dark_frames = load_stack(fname)
     # reshape to get max/std accross all pixels for each channel
-    return dark_frames.mean(axis=(0,1)), dark_frames.std(axis=(0,1))
+    return dark_frames.mean(axis=(0, 1)), dark_frames.std(axis=(0, 1))
 
 
 def compute_mean_image(
