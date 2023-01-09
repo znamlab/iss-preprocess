@@ -1,5 +1,6 @@
 import numpy as np
 import glob
+from pathlib import Path
 import os
 import cv2
 from tifffile import TiffFile
@@ -47,8 +48,8 @@ def analyze_dark_frames(fname):
 
 
 def compute_mean_image(
-    dir,
-    suffix=None,
+    data_folder,
+    prefix=None,
     black_level=0,
     max_value=1000,
     verbose=False,
@@ -59,8 +60,8 @@ def compute_mean_image(
     Compute mean image to use for illumination correction.
 
     Args:
-        dir (str): directory containing images
-        suffix (str): subdirectory inside each of `dirs` containing images
+        data_folder (str): directory containing images
+        prefix (str): prefix to filter images to average
         black_level (float): image black level to subtract before calculating
             each mean image. Default to 0
         max_value (float): image values are clipped to this value. This reduces
@@ -76,19 +77,15 @@ def compute_mean_image(
         numpy.ndarray correction image
 
     """
-
-    if suffix:
-        subdir = os.path.join(dir, suffix)
-    else:
-        subdir = str(dir)
-    im_name = os.path.split(dir)[1]
-    tiffs = glob.glob(subdir + "/*.tif")
+    data_folder = Path(data_folder)
+    im_name = data_folder.name
+    tiffs = list(data_folder.glob(f"{prefix if prefix else ''}*.tif"))
     if not len(tiffs):
-        print("NO tifs in folder %s" % subdir)
+        print("NO tifs in folder %s" % data_folder, flush=True)
         return
 
     if verbose:
-        print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name))
+        print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name), flush=True)
 
     data = load_stack(tiffs[0])
     assert data.ndim == 3
@@ -100,7 +97,7 @@ def compute_mean_image(
     mean_image /= len(tiffs)
     for itile, tile in enumerate(tiffs[1:]):  # processing the rest of the tiffs
         if verbose and not (itile % 10):
-            print("   ...{0}/{1}.".format(itile + 1, len(tiffs)))
+            print("   ...{0}/{1}.".format(itile + 1, len(tiffs)), flush=True)
         data = np.array(load_stack(tile), dtype=float)
         data = np.clip(data, None, max_value) - black_level.reshape(1, 1, -1)
         mean_image += data / len(tiffs)
