@@ -195,3 +195,97 @@ def segment_all(path, prefix, use_gpu=False):
     from iss_preprocess.pipeline import segment_all_rois
 
     segment_all_rois(path, prefix, use_gpu=use_gpu)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-m",
+    "--maxval",
+    help="Maximum value to clip before images before averaging.",
+    default=1000,
+)
+@click.option(
+    "-f",
+    "--median_filter",
+    help="Size of median filter in pixels.",
+    default=5,
+)
+@click.option(
+    "-b",
+    "--black",
+    help="Black level.",
+    default=0,
+)
+@click.option(
+    "--normalise",
+    help="Normalise output.",
+    is_flag=True,
+    default=True,
+)
+def create_grand_averages(path, maxval, median_filter, black, normalise):
+    """Create grand average for illumination correction"""
+    from iss_preprocess import pipeline
+
+    pipeline.create_grand_averages(
+        path,
+        prefix_todo=("genes_round", "barcode_round"),
+        max_value=maxval,
+        median_filter=median_filter,
+        black_level=black,
+        normalise=normalise,
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-m",
+    "--maxval",
+    help="Maximum value to clip before images before averaging.",
+    default=1000,
+)
+def create_all_single_average(path, maxval):
+    """Average all tiffs in all acquisition folders"""
+    from iss_preprocess import pipeline
+
+    pipeline.create_all_single_averages(path, max_value=maxval)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-m",
+    "--maxval",
+    help="Maximum value to clip before images before averaging.",
+    default=1000,
+)
+@click.option(
+    "-f",
+    "--median_filter",
+    help="Size of median filter in pixels. Leave empty for no filter",
+    default=None,
+)
+@click.option(
+    "-b",
+    "--black",
+    help="Black level.",
+    default=0,
+)
+@click.option(
+    "--normalise",
+    help="Normalise output.",
+    is_flag=True,
+    default=False,
+)
+def create_single_average(path, maxval, median_filter, black, normalise):
+    """Average all tiffs in an acquisition folder"""
+    from iss_preprocess import pipeline
+
+    pipeline.create_single_average(
+        path,
+        max_value=maxval,
+        median_filter=median_filter,
+        black_level=black,
+        normalise=normalise,
+    )

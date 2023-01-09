@@ -1,12 +1,14 @@
 from os import system
+import warnings
 import numpy as np
 import pandas as pd
 import glob
+import yaml
 import re
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from os.path import isfile
-from ..image import filter_stack
+from ..image import filter_stack, correction
 from ..reg import align_channels_and_rounds, generate_channel_round_transforms
 from ..io import load_stack, write_stack
 from ..segment import detect_isolated_spots
@@ -105,7 +107,7 @@ def get_roi_dimensions(data_path, prefix):
     raw_path = Path(PARAMETERS["data_root"]["raw"])
     data_dir = raw_path / data_path / prefix
     fnames = [p.name for p in data_dir.glob("*.tif")]
-    pattern = f"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
+    pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
     matcher = re.compile(pattern=pattern)
     tile_coors = np.stack(
         [np.array(matcher.match(fname).groups(), dtype=int) for fname in fnames]
@@ -324,3 +326,165 @@ def run_omp_on_tile(
     pd.concat(gene_spots).to_pickle(
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
+
+
+def create_single_average(
+    folder_path,
+    max_value=1000,
+    black_level=0,
+    median_filter=None,
+    prefix=None,
+    normalise=False,
+):
+    """Average all tifs in a single folder
+
+    Args:
+        folder_path (str): Path to the folder, relative to `projects` folder
+        max_value (int, optional): Value to clip images before averaging.
+            Defaults to 1000.
+        black_level (int, optional): Black level for all channels. If the black level
+            is different across channels, a len(channels) list can be provided.
+            Defaults to 0.
+        median_filter (int, optional): Size of median filter in pixel.
+            None for no filtering. Defaults to None.
+        prefix (str, optional): prefix name to filter tifs. Only file starting with
+            `prefix` will be averaged. Defaults to None.
+        normalise (bool, optional): Normalise output to one. Defaults to False.
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    folder_path = processed_path / Path(folder_path)
+    target_file = "_".join(filter(None, [folder_path.name, prefix, "average.tif"]))
+    target_file = folder_path.parent / "averages" / target_file
+
+    # ensure the directory exists for first average.
+    target_file.parent.mkdir(exist_ok=True)
+
+    av_image = correction.compute_mean_image(
+        processed_path / folder_path,
+        prefix=prefix,
+        black_level=black_level,
+        max_value=max_value,
+        verbose=True,
+        median_filter=median_filter,
+        normalise=normalise,
+    )
+    write_stack(av_image, target_file, bigtiff=False)
+    print(f"Average saved to {target_file}", flush=True)
+
+
+def create_all_single_averages(
+    data_path,
+    todo=("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"),
+    max_value=1000,
+    use_slurm=True,
+):
+    """Average all tiffs in each folder and then all folders by acquisition type
+
+    Args:
+        data_path (str): Path to data, relative to project.
+        todo (tuple): type of acquisition to process. Default to `("genes_rounds",
+            "barcode_rounds", "fluorescence", "hybridisation")`
+        max_value (int): value to crop outliers before averaging. Default to 1000
+    """
+
+    data_path = Path(data_path)
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    raw_path = Path(PARAMETERS["data_root"]["raw"])
+
+    # get metadata
+    metadata = raw_path / data_path / "{0}_metadata.yml".format(data_path.name)
+    if not metadata.exists():
+        raise IOError("Metadata not found.\n{0} does not exist".format(metadata))
+    with open(metadata, "r") as fhandle:
+        metadata = yaml.safe_load(fhandle)
+
+    # Collect all folder names
+    to_average = []
+    for kind in todo:
+        if kind.endswith("rounds"):
+            folders = ["{0}_{1}_1".format(kind[:-1], acq) for acq in metadata[kind]]
+            to_average.extend(folders)
+        elif kind in ("fluorescence", "hybridisation"):
+            to_average.extend(list(metadata[kind].keys()))
+        else:
+            raise IOError(
+                f"Unknown type of acquisition: {kind}.\n"
+                + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
+            )
+
+    script_path = str(Path(__file__).parent.parent.parent / "create_single_average.sh")
+    for folder in to_average:
+        data_folder = processed_path / data_path / folder
+        if not data_folder.is_dir():
+            warnings.warn("{0} does not exists. Skipping".format(data_folder))
+            continue
+        if not use_slurm:
+            create_single_average(data_path / folder)
+        else:
+            args = f"--export=DATAPATH={data_path / folder},MAXVAL={max_value}"
+            args = (
+                args
+                + f" --output={Path.home()}/slurm_logs/iss_create_single_average_%j.out"
+                + f" --error={Path.home()}/slurm_logs/iss_create_single_average_%j.err"
+            )
+            command = f"sbatch {args} {script_path}"
+            print(command)
+            system(command)
+
+
+def create_grand_averages(
+    data_path,
+    prefix_todo=("genes_round", "barcode_round"),
+    max_value=1000,
+    median_filter=5,
+    black_level=0,
+    normalise=True,
+    use_slurm=True,
+):
+    """Average single acquisition averages into grand average
+
+    Args:
+        data_path (str): Path to the folder, relative to `projects` folder
+        prefix_todo (tuple, optional): List of str, names of the tifs to average.
+            Defaults to ("genes_round", "barcode_round").
+        max_value (int, optional): Value to clip images before averaging.
+            Defaults to 1000.
+        black_level (int, optional): Black level for all channels. If the black level
+            is different across channels, a len(channels) list can be provided.
+            Defaults to 0.
+        median_filter (int, optional): Size of median filter in pixel.
+            None for no filtering. Defaults to None.
+        normalise (bool, optional): Normalise output to one. Defaults to False.
+    """
+
+    data_path = Path(data_path) / "averages"
+    script_path = str(Path(__file__).parent.parent.parent / "create_grand_average.sh")
+    for kind in prefix_todo:
+        if not use_slurm:
+            create_single_average(
+                data_path,
+                max_value=max_value,
+                black_level=black_level,
+                median_filter=median_filter,
+                prefix=kind,
+                normalise=normalise,
+            )
+        else:
+            export_args = dict(
+                DATAPATH=data_path,
+                MAXVAL=max_value,
+                BLACK=black_level,
+                PREFIX=kind,
+                NORMALISE=normalise,
+            )
+            if median_filter is not None:
+                export_args["MEDIAN"] = median_filter
+            args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+            args = (
+                args
+                + f" --output={Path.home()}/slurm_logs/iss_create_grand_average_%j.out"
+                + f" --error={Path.home()}/slurm_logs/iss_create_grand_average_%j.err"
+            )
+            command = f"sbatch {args} {script_path}"
+            print(command)
+            system(command)
