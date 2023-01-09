@@ -333,10 +333,13 @@ def create_single_average(
     max_value=1000,
     black_level=0,
     median_filter=None,
-    prefix=None,
+    prefix_filter=None,
     normalise=False,
 ):
     """Average all tifs in a single folder
+
+    If prefix_filter is not None, the output will be "{prefix_filter}_average.tif",
+    otherwise it will be "{folder_path.name}_average.tif"
 
     Args:
         folder_path (str): Path to the folder, relative to `projects` folder
@@ -347,13 +350,16 @@ def create_single_average(
             Defaults to 0.
         median_filter (int, optional): Size of median filter in pixel.
             None for no filtering. Defaults to None.
-        prefix (str, optional): prefix name to filter tifs. Only file starting with
-            `prefix` will be averaged. Defaults to None.
+        prefix_filter (str, optional): prefix name to filter tifs. Only file starting
+            with `prefix` will be averaged. Defaults to None.
         normalise (bool, optional): Normalise output to one. Defaults to False.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     folder_path = processed_path / Path(folder_path)
-    target_file = "_".join(filter(None, [folder_path.name, prefix, "average.tif"]))
+    if prefix_filter is None:
+        target_file = f"{folder_path.name}_average.tif"
+    else:
+        target_file = f"{prefix_filter}_average.tif"
     target_file = folder_path.parent / "averages" / target_file
 
     # ensure the directory exists for first average.
@@ -361,14 +367,14 @@ def create_single_average(
 
     av_image = correction.compute_mean_image(
         processed_path / folder_path,
-        prefix=prefix,
+        prefix=prefix_filter,
         black_level=black_level,
         max_value=max_value,
         verbose=True,
         median_filter=median_filter,
         normalise=normalise,
     )
-    write_stack(av_image, target_file, bigtiff=False)
+    write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
     print(f"Average saved to {target_file}", flush=True)
 
 
@@ -402,7 +408,9 @@ def create_all_single_averages(
     to_average = []
     for kind in todo:
         if kind.endswith("rounds"):
-            folders = ["{0}_{1}_1".format(kind[:-1], acq) for acq in metadata[kind]]
+            folders = [
+                "{0}_{1}_1".format(kind[:-1], acq + 1) for acq in range(metadata[kind])
+            ]
             to_average.extend(folders)
         elif kind in ("fluorescence", "hybridisation"):
             to_average.extend(list(metadata[kind].keys()))
@@ -419,7 +427,7 @@ def create_all_single_averages(
             warnings.warn("{0} does not exists. Skipping".format(data_folder))
             continue
         if not use_slurm:
-            create_single_average(data_path / folder)
+            create_single_average(data_path / folder, max_value=max_value)
         else:
             args = f"--export=DATAPATH={data_path / folder},MAXVAL={max_value}"
             args = (
@@ -466,7 +474,7 @@ def create_grand_averages(
                 max_value=max_value,
                 black_level=black_level,
                 median_filter=median_filter,
-                prefix=kind,
+                prefix_filter=kind,
                 normalise=normalise,
             )
         else:
