@@ -142,11 +142,7 @@ def stitch_tiles(
     if correct_illumination:
         ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
         average_image_fname = (
-            processed_path
-            / data_path
-            / "register_to_ara"
-            / "averages"
-            / f"{prefix}_average_image.tif"
+            processed_path / data_path / "averages" / f"{prefix}_average.tif"
         )
         average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
         average_image = average_image / np.max(average_image, axis=(0, 1))
@@ -295,49 +291,59 @@ def stitch_and_register(
     return stitched_stack_target, stitched_stack_reference, angle, shift * downsample
 
 
-def merge_and_align_barcodes(data_path, roi):
+def merge_and_align_spots(
+    data_path,
+    roi,
+    spots_prefix="barcode_round",
+    reg_prefix="barcode_round_1_1",
+):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
 
     ref_prefix = f'genes_round_{ops["ref_round"]+1}_1'
     stitched_stack_barcodes, _, angle, shift = stitch_and_register(
-        data_path, ref_prefix, "barcode_round_1_1", roi=roi, downsample=5
+        data_path, ref_prefix, reg_prefix, roi=roi, downsample=5
     )
-    barcodes_tform = make_transform(1, angle, shift, stitched_stack_barcodes.shape)
+    spots_tform = make_transform(1, angle, shift, stitched_stack_barcodes.shape)
     shift_right, shift_down, tile_shape = register_adjacent_tiles(
         data_path, ref_coors=ops["ref_tile"], prefix=ref_prefix
     )
-    barcode_spots = merge_roi_spots(
+    spots = merge_roi_spots(
         data_path,
         shift_right,
         shift_down,
         tile_shape,
         iroi=roi,
-        prefix="barcode_round",
+        prefix=spots_prefix,
     )
-    transformed_coors = barcodes_tform @ np.stack(
-        [barcode_spots["x"], barcode_spots["y"], np.ones(len(barcode_spots))]
+    transformed_coors = spots_tform @ np.stack(
+        [spots["x"], spots["y"], np.ones(len(spots))]
     )
-    barcode_spots["x"] = [x for x in transformed_coors[0, :]]
-    barcode_spots["y"] = [y for y in transformed_coors[1, :]]
-    barcode_spots.to_pickle(processed_path / data_path / f"barcode_spots_{roi}.pkl")
+    spots["x"] = [x for x in transformed_coors[0, :]]
+    spots["y"] = [y for y in transformed_coors[1, :]]
+    spots.to_pickle(processed_path / data_path / f"{spots_prefix}_spots_{roi}.pkl")
     np.savez(
-        processed_path / data_path / f"barcode_spots_tform_{roi}.npz",
+        processed_path / data_path / f"{spots_prefix}_spots_tform_{roi}.npz",
         angle=angle,
         shift=shift,
-        tform=barcodes_tform,
+        tform=spots_tform,
     )
 
 
-def merge_and_align_barcodes_all_rois(data_path):
+def merge_and_align_spots_all_rois(
+    data_path,
+    spots_prefix="barcode_round",
+    reg_prefix="barcode_round_1_1",
+):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    script_path = str(Path(__file__).parent.parent.parent / f"align_barcodes.sh")
+    script_path = str(Path(__file__).parent.parent.parent / f"align_spots.sh")
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
-        args = f"--export=DATAPATH={data_path},ROI={roi}"
-        args = args + f" --output={Path.home()}/slurm_logs/iss_align_barcodes_%j.out"
+        args = f"--export=DATAPATH={data_path},ROI={roi},"
+        args += f"SPOTS_PREFIX={spots_prefix},REG_PREFIX={reg_prefix}"
+        args += f" --output={Path.home()}/slurm_logs/iss_align_spots_%j.out"
         command = f"sbatch {args} {script_path}"
         print(command)
         system(command)

@@ -69,6 +69,36 @@ def hyb_spot_cluster_means(
     return cluster_means, rois
 
 
+def extract_hyb_spots_all(data_path):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    metadata = load_metadata(data_path)
+    script_path = str(Path(__file__).parent.parent.parent / f"extract_hyb_spots.sh")
+
+    for hyb_round in metadata["hybridisation"].keys():
+        for roi in roi_dims[use_rois, :]:
+            args = f"--export=DATAPATH={data_path},ROI={roi[0]},PREFIX={hyb_round}"
+            args = args + f" --output={Path.home()}/slurm_logs/iss_hyb_spots_%j.out"
+            command = f"sbatch {args} {script_path}"
+            print(command)
+            subprocess.Popen(
+                shlex.split(command),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
+
+
+def extract_hyb_spots_roi(data_path, prefix, roi):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
+    for ix in range(ntiles[0]):
+        for iy in range(ntiles[1]):
+            extract_hyb_spots_tile(data_path, (roi, ix, iy), prefix)
+
+
 def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
@@ -90,6 +120,8 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     cluster_ind = np.argmax(score, axis=1)
     spots["cluster"] = cluster_ind
     spots["score"] = np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind])
+    spots["mean_intensity"] = [np.max(trace) for trace in spots["trace"]]
+
     save_dir = processed_path / data_path / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     spots.to_pickle(
