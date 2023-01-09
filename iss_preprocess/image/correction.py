@@ -2,13 +2,33 @@ import numpy as np
 import glob
 import os
 import cv2
-from tifffile import TiffFile
 from sklearn.mixture import GaussianMixture
 from skimage.exposure import match_histograms
 from skimage.morphology import disk
 from skimage.filters import median
 from ..io.load import load_stack
 from ..coppafish import hanning_diff
+from flexiznam.config import PARAMETERS
+from pathlib import Path
+
+
+def apply_illumination_correction(data_path, stack, prefix):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    average_image_fname = (
+        processed_path / data_path / "averages" / f"{prefix}_average.tif"
+    )
+    average_image = load_stack(average_image_fname).astype(float)
+    average_image = (
+        average_image / np.max(average_image, axis=(0, 1))[np.newaxis, np.newaxis, :]
+    )
+    if stack.ndim == 4:
+        stack = (
+            stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
+        ) / average_image[:, :, :, np.newaxis]
+    else:
+        stack = (stack - ops["black_level"][np.newaxis, np.newaxis, :]) / average_image
+    return stack
 
 
 def filter_stack(stack, r1=2, r2=4):

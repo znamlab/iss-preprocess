@@ -11,6 +11,13 @@ from . import get_roi_dimensions
 
 
 def project_round(data_path, prefix, overwrite=False):
+    """TODO: update to use `batch_process_tiles`
+
+    Args:
+        data_path (_type_): _description_
+        prefix (_type_): _description_
+        overwrite (bool, optional): _description_. Defaults to False.
+    """
     rois_list = get_roi_dimensions(data_path, prefix)
     script_path = str(Path(__file__).parent.parent.parent / "project_tile.sh")
     for roi in rois_list:
