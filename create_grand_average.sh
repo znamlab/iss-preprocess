@@ -12,9 +12,9 @@ source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 conda activate iss-preprocess
 if [[ -z "$MEDIAN" ]]; then
     echo "No median filter"
-    iss create-single-average -p $DATAPATH -m $MAXVAL --normalise -b $BLACK
+    iss create-single-average -p $DATAPATH -m $MAXVAL --normalise -b $BLACK --prefix_filter $PREFIX
 else
-    echo "Wtih median filter"
-    iss create-single-average -p $DATAPATH -m $MAXVAL --normalise -b $BLACK -f $MEDIAN
+    echo "With median filter"
+    iss create-single-average -p $DATAPATH -m $MAXVAL --normalise -b $BLACK -f $MEDIAN --prefix_filter $PREFIX
 fi
 

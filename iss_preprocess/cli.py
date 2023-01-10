@@ -264,6 +264,7 @@ def create_all_single_average(path, maxval):
     "-f",
     "--median_filter",
     help="Size of median filter in pixels. Leave empty for no filter",
+    type=float,
     default=None,
 )
 @click.option(
@@ -278,7 +279,13 @@ def create_all_single_average(path, maxval):
     is_flag=True,
     default=False,
 )
-def create_single_average(path, maxval, median_filter, black, normalise):
+@click.option(
+    "--prefix_filter",
+    help="Filter to average only subset of tifs of the folder",
+    type=str,
+    default=None,
+)
+def create_single_average(path, maxval, median_filter, black, normalise, prefix_filter):
     """Average all tiffs in an acquisition folder"""
     from iss_preprocess import pipeline
 
@@ -288,4 +295,5 @@ def create_single_average(path, maxval, median_filter, black, normalise):
         median_filter=median_filter,
         black_level=black,
         normalise=normalise,
+        prefix_filter=prefix_filter,
     )
