@@ -2,15 +2,16 @@ import subprocess, shlex
 import numpy as np
 import pandas as pd
 import re
+import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from ..image import filter_stack
+from ..image import filter_stack, apply_illumination_correction
 from ..reg import (
     align_channels_and_rounds,
     generate_channel_round_transforms,
     apply_corrections,
 )
-from ..io import load_stack, write_stack, load_tile_by_coors
+from ..io import write_stack, load_tile_by_coors, load_metadata
 from ..segment import detect_isolated_spots, detect_spots
 from ..call import (
     extract_spots,
@@ -23,6 +24,109 @@ from ..call import (
     barcode_spots_dot_product,
     BASES,
 )
+from ..coppafish import scaled_k_means
+
+
+def setup_hyb_spot_calling(data_path, score_thresh=0, vis=True):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    metadata = load_metadata(data_path)
+    for hyb_round in metadata["hybridisation"].keys():
+        cluster_means, _ = hyb_spot_cluster_means(
+            data_path, hyb_round, score_thresh=score_thresh
+        )
+        if vis:
+            plt.figure()
+            plt.imshow(cluster_means)
+            plt.title(hyb_round)
+        save_path = processed_path / data_path / f"{hyb_round}_cluster_means.npy"
+        np.save(save_path, cluster_means)
+
+
+def hyb_spot_cluster_means(
+    data_path,
+    prefix,
+    score_thresh=0,
+    init_spot_colors=np.array([[0, 1, 0, 0], [0, 0, 0, 1]]),
+):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    rois = []
+    for ref_tile in ops["barcode_ref_tiles"]:
+        print(f"detecting spots in tile {ref_tile}")
+        stack, _ = load_and_register_hyb_tile(
+            data_path, tile_coors=ref_tile, prefix=prefix
+        )
+        spots = detect_spots(
+            np.max(stack, axis=2), threshold=ops["hyb_spot_detection_threshold"]
+        )
+        stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
+        spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
+        rois.extend(extract_spots(spots, np.moveaxis(stack, 2, 3)))
+    x = rois_to_array(rois, normalize=False)
+    cluster_means, _, _, _, _, _ = scaled_k_means(
+        x[0, :, :].T, init_spot_colors, score_thresh=score_thresh
+    )
+    return cluster_means, rois
+
+
+def extract_hyb_spots_all(data_path):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    metadata = load_metadata(data_path)
+    script_path = str(Path(__file__).parent.parent.parent / f"extract_hyb_spots.sh")
+
+    for hyb_round in metadata["hybridisation"].keys():
+        for roi in roi_dims[use_rois, :]:
+            args = f"--export=DATAPATH={data_path},ROI={roi[0]},PREFIX={hyb_round}"
+            args = args + f" --output={Path.home()}/slurm_logs/iss_hyb_spots_%j.out"
+            command = f"sbatch {args} {script_path}"
+            print(command)
+            subprocess.Popen(
+                shlex.split(command),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
+
+
+def extract_hyb_spots_roi(data_path, prefix, roi):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
+    for ix in range(ntiles[0]):
+        for iy in range(ntiles[1]):
+            extract_hyb_spots_tile(data_path, (roi, ix, iy), prefix)
+
+
+def extract_hyb_spots_tile(data_path, tile_coors, prefix):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    cluster_means = np.load(processed_path / data_path / f"{prefix}_cluster_means.npy")
+    print(f"detecting spots in tile {tile_coors}")
+    stack, _ = load_and_register_hyb_tile(
+        data_path, tile_coors=tile_coors, prefix=prefix, correct_illumination=True
+    )
+    spots = detect_spots(
+        np.max(stack, axis=2), threshold=ops["hyb_spot_detection_threshold"]
+    )
+    stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
+    spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
+    spot_rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
+    x = rois_to_array(spot_rois, normalize=False)
+    spots["trace"] = [roi.trace for roi in spot_rois]
+    x_norm = x[0, :, :].T / np.linalg.norm(x[0, :, :].T, axis=1)[:, np.newaxis]
+    score = x_norm @ cluster_means.T
+    cluster_ind = np.argmax(score, axis=1)
+    spots["cluster"] = cluster_ind
+    spots["score"] = np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind])
+    spots["mean_intensity"] = [np.max(trace) for trace in spots["trace"]]
+
+    save_dir = processed_path / data_path / "spots"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    spots.to_pickle(
+        save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+    )
 
 
 def setup_barcode_calling(
@@ -96,7 +200,7 @@ def basecall_tile(data_path, tile_coors):
         x_norm = (
             x[iround, :, :].T / np.linalg.norm(x[iround, :, :].T, axis=1)[:, np.newaxis]
         )
-        score = x_norm @ this_round_means
+        score = x_norm @ this_round_means.T
         cluster_ind = np.argmax(score, axis=1)
         cluster_inds.append(cluster_ind)
         top_score.append(np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind]))
@@ -280,7 +384,7 @@ def estimate_channel_correction(data_path, prefix="round", nrounds=7):
 def load_and_register_hyb_tile(
     data_path,
     tile_coors=(0, 0, 0),
-    prefix="genes_round",
+    prefix="hybridisation_1_1",
     suffix="fstack",
     filter_r=(2, 4),
     correct_illumination=False,
@@ -301,33 +405,10 @@ def load_and_register_hyb_tile(
     bad_pixels = np.any(np.isnan(stack), axis=(2))
 
     if correct_illumination:
-        stack = correct_illumination(data_path, stack, prefix)
+        stack = apply_illumination_correction(data_path, stack, prefix)
     if filter_r:
         stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
     return stack, bad_pixels
-
-
-def correct_illumination(data_path, stack, prefix):
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    average_image_fname = (
-        processed_path
-        / data_path
-        / "register_to_ara"
-        / "averages"
-        / f"{prefix}_average_image.tif"
-    )
-    average_image = load_stack(average_image_fname).astype(float)
-    average_image = (
-        average_image / np.max(average_image, axis=(0, 1))[np.newaxis, np.newaxis, :]
-    )
-    if stack.ndim == 4:
-        stack = (
-            stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
-        ) / average_image[:, :, :, np.newaxis]
-    else:
-        stack = (stack - ops["black_level"][np.newaxis, np.newaxis, :]) / average_image
-    return stack
 
 
 def load_and_register_tile(
@@ -364,7 +445,7 @@ def load_and_register_tile(
     )
     stack = align_channels_and_rounds(stack, tforms)
     if correct_illumination:
-        stack = correct_illumination(data_path, stack, prefix)
+        stack = apply_illumination_correction(data_path, stack, prefix)
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[np.isnan(stack)] = 0
     if filter_r:

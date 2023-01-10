@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=iss_align_barcodes
+#SBATCH --job-name=iss_align_spots
 #SBATCH --ntasks=1
 #SBATCH --time=1:00:00
 #SBATCH --mem=96G
@@ -11,4 +11,4 @@ source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 
 conda activate iss-preprocess
 
-iss align-barcodes-roi -p $DATAPATH -r $ROI
+iss align-spots-roi -p $DATAPATH -r $ROI -g $REG_PREFIX -s $SPOTS_PREFIX

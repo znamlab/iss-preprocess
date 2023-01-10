@@ -281,16 +281,66 @@ def segment_all(path, prefix, use_gpu=False):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def align_barcodes(path):
-    from iss_preprocess.pipeline import merge_and_align_barcodes_all_rois
+@click.option(
+    "-s",
+    "--spots-prefix",
+    default="barcode_round",
+    help="File name prefix for spot files.",
+)
+@click.option(
+    "-g",
+    "--reg_prefix",
+    default="barcode_round_1_1",
+    help="Directory prefix to registration.",
+)
+def align_spots(path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1"):
+    from iss_preprocess.pipeline import merge_and_align_spots_all_rois
 
-    merge_and_align_barcodes_all_rois(path)
+    merge_and_align_spots_all_rois(
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-s",
+    "--spots-prefix",
+    default="barcode_round",
+    help="File name prefix for spot files.",
+)
+@click.option(
+    "-g",
+    "--reg_prefix",
+    default="barcode_round_1_1",
+    help="Directory prefix to registration.",
+)
+@click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
+def align_spots_roi(
+    path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1", roi=1
+):
+    from iss_preprocess.pipeline import merge_and_align_spots
+
+    merge_and_align_spots(
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def hyb_spots(path):
+    """Detect hybridisation in all ROIs / hybridisation rounds"""
+    from iss_preprocess.pipeline import extract_hyb_spots_all
+
+    extract_hyb_spots_all(path)
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
-def align_barcodes_roi(path, roi=1):
-    from iss_preprocess.pipeline import merge_and_align_barcodes
+@click.option("-n", "--prefix", help="Path prefix for spot detection")
+def hyb_spots_roi(path, prefix, roi=1):
+    """Detect hybridisation spots in a single ROI / hybridisation round"""
+    from iss_preprocess.pipeline import extract_hyb_spots_roi
 
-    merge_and_align_barcodes(path, roi)
+    extract_hyb_spots_roi(path, prefix, roi)
