@@ -36,6 +36,7 @@ def filter_stack(stack, r1=2, r2=4):
     return stack_filt
 
 
+# AB: Reviewed 10/01/23
 def analyze_dark_frames(fname):
     """
     Get statistics of dark frames to use for black level correction
