@@ -177,18 +177,27 @@ def estimate_shifts(path, prefix, suffix="fstack", nrounds=7):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-def estimate_hyb_shifts(path, prefix, suffix="fstack"):
+def estimate_hyb_shifts(path, prefix=None, suffix="fstack"):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.io import load_metadata
 
-    additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
-    batch_process_tiles(
-        path, script="register_hyb_tile", additional_args=additional_args
-    )
+    if prefix:
+        additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+        batch_process_tiles(
+            path, script="register_hyb_tile", additional_args=additional_args
+        )
+    else:
+        metadata = load_metadata(path)
+        for hyb_round in metadata["hybridisation"].keys():
+            additional_args = f",PREFIX={hyb_round},SUFFIX={suffix}"
+            batch_process_tiles(
+                path, script="register_hyb_tile", additional_args=additional_args
+            )
 
 
 @cli.command()
@@ -203,14 +212,15 @@ def correct_shifts(path, prefix):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def correct_hyb_shifts(path):
+@click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
+def correct_hyb_shifts(path, prefix=None):
     """
     Correct X-Y shifts for hybridisation rounds using robust regression
     across tiles.
     """
     from iss_preprocess.pipeline import correct_hyb_shifts
 
-    correct_hyb_shifts(path)
+    correct_hyb_shifts(path, prefix)
 
 
 @cli.command()

@@ -203,16 +203,21 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
             itile += 1
 
 
-def correct_hyb_shifts(data_path):
+def correct_hyb_shifts(data_path, prefix=None):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
-    for hyb_round in metadata["hybridisation"].keys():
+    if prefix:
         for roi in roi_dims[use_rois, :]:
-            print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
-            correct_hyb_shifts_roi(data_path, roi, prefix=hyb_round)
+            print(f"correcting shifts for ROI {roi}, {prefix} from {data_path}")
+            correct_hyb_shifts_roi(data_path, roi, prefix=prefix)
+    else:
+        for hyb_round in metadata["hybridisation"].keys():
+            for roi in roi_dims[use_rois, :]:
+                print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
+                correct_hyb_shifts_roi(data_path, roi, prefix=hyb_round)
 
 
 def correct_hyb_shifts_roi(
