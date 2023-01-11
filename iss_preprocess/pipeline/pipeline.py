@@ -335,17 +335,11 @@ def load_sequencing_rounds(
     return np.stack(ims, axis=3)
 
 
-def estimate_channel_correction(data_path, prefix="round", nrounds=7):
+def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    stack = load_sequencing_rounds(
-        data_path,
-        ops["ref_tile"],
-        suffix=ops["projection"],
-        prefix=prefix,
-        nrounds=nrounds,
-    )
-    nch, nrounds = stack.shape[2:]
+    nch = len(ops["black_level"])
+
     max_val = 65535
     pixel_dist = np.zeros((max_val + 1, nch, nrounds))
 
