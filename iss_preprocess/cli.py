@@ -124,7 +124,6 @@ def project_round(path, prefix, overwrite=False):
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-@click.option("-m", "--nrounds", default=7, help="Number of sequencing rounds")
 def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_by_coors
@@ -135,7 +134,6 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
         tile_coors=(roi, tilex, tiley),
         prefix=prefix,
         suffix=suffix,
-        nrounds=nrounds,
     )
 
 
@@ -166,12 +164,11 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-@click.option("-m", "--nrounds", default=7, help="Number of sequencing rounds")
-def estimate_shifts(path, prefix, suffix="fstack", nrounds=7):
+def estimate_shifts(path, prefix, suffix="fstack"):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
-    additional_args = f",PREFIX={prefix},SUFFIX={suffix},NROUNDS={nrounds}"
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
     batch_process_tiles(path, script="register_tile", additional_args=additional_args)
 
 
@@ -244,12 +241,11 @@ def extract(path):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
-@click.option("-r", "--rounds", default=7, help="Number of sequencing rounds")
-def register_ref_tile(path, prefix, rounds=7):
+def register_ref_tile(path, prefix):
     """Run registration across channels and rounds for the reference tile."""
     from iss_preprocess.pipeline import register_reference_tile
 
-    register_reference_tile(path, prefix=prefix, nrounds=rounds)
+    register_reference_tile(path, prefix=prefix)
 
 
 @cli.command()

@@ -11,10 +11,11 @@ from . import load_sequencing_rounds
 from ..io import load_tile_by_coors, load_metadata
 
 
-def register_reference_tile(data_path, prefix="genes_round", nrounds=7):
+def register_reference_tile(data_path, prefix="genes_round"):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
+    nrounds = ops[prefix + "s"]
     stack = load_sequencing_rounds(
         data_path,
         ops["ref_tile"],
@@ -82,7 +83,7 @@ def estimate_shifts_and_angles_by_coors(
 
 
 def estimate_shifts_by_coors(
-    data_path, tile_coors=(0, 0, 0), prefix="round", suffix="fstack", nrounds=7
+    data_path, tile_coors=(0, 0, 0), prefix="round", suffix="fstack"
 ):
     """Estimate shifts across channels and sequencing rounds using provided reference
     rotation angles and scale factors.
@@ -92,11 +93,11 @@ def estimate_shifts_by_coors(
         tile_coors (tuple, optional): _description_. Defaults to (0, 0, 0).
         prefix (str, optional): _description_. Defaults to "round".
         suffix (str, optional): _description_. Defaults to "fstack".
-        nrounds (int, optional): _description_. Defaults to 7.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
+    nrounds = ops[prefix + "s"]
     tforms_path = processed_path / data_path / f"tforms_{prefix}.npz"
     stack = load_sequencing_rounds(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
