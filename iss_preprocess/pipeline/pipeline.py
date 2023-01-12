@@ -5,6 +5,7 @@ import re
 import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
 from pathlib import Path
+from skimage.morphology import binary_dilation
 from ..image import filter_stack, apply_illumination_correction
 from ..reg import (
     align_channels_and_rounds,
@@ -129,12 +130,12 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     )
     print(f"detecting spots in tile {tile_coors}")
     stack, _ = load_and_register_hyb_tile(
-        data_path, 
-        tile_coors=tile_coors, 
-        prefix=prefix, 
+        data_path,
+        tile_coors=tile_coors,
+        prefix=prefix,
         suffix=ops["hybridisation_projection"],
-        correct_illumination=True, 
-        correct_channels=ops["hybridisation_correct_channels"]
+        correct_illumination=True,
+        correct_channels=ops["hybridisation_correct_channels"],
     )
     spots = detect_spots(
         np.max(stack, axis=2), threshold=ops["hyb_spot_detection_threshold"]
@@ -349,11 +350,11 @@ def load_sequencing_rounds(
             Defaults to (1,0,0).
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'fstack'.
-        prefix (str, optional): the folder name prefix, before round number. Defaults 
+        prefix (str, optional): the folder name prefix, before round number. Defaults
             to "round"
 
     Returns:
-        numpy.ndarray: X x Y x channels x rounds stack. 
+        numpy.ndarray: X x Y x channels x rounds stack.
 
     """
     ims = []
@@ -413,19 +414,19 @@ def estimate_channel_correction_hybridisation(data_path):
 def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
     """Compute grayscale value distribution and normalisation factors
 
-    Each `correction_tiles` of `ops` is filtered before being used to compute the 
+    Each `correction_tiles` of `ops` is filtered before being used to compute the
     distribution of pixel values.
     Normalisation factor to equalise these distribution across channels and rounds are
     defined as `ops["correction_quantile"]` of the distribution.
 
     Args:
         data_path (str or Path): Relative path to the data folder
-        prefix (str, optional): Folder name prefix, before round number. Defaults 
+        prefix (str, optional): Folder name prefix, before round number. Defaults
             to "round".
         nrounds (int, optional): Number of rounds. Defaults to 7.
 
     Returns:
-        pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values 
+        pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values
             for filtered stacks
         norm_factors (np.array) A Nch x Nround array of normalising factors
     """
@@ -491,11 +492,13 @@ def load_and_register_hyb_tile(
         stack, tforms["scales"], tforms["angles"], tforms["shifts"], cval=np.nan
     )
     bad_pixels = np.any(np.isnan(stack), axis=(2))
-
+    stack[np.isnan(stack)] = 0
     if correct_illumination:
         stack = apply_illumination_correction(data_path, stack, prefix)
     if filter_r:
         stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
+        mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
+        bad_pixels = binary_dilation(bad_pixels, mask)
     if correct_channels:
         correction_path = processed_path / data_path / f"correction_{prefix}.npz"
         norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
@@ -542,6 +545,8 @@ def load_and_register_tile(
     stack[np.isnan(stack)] = 0
     if filter_r:
         stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
+        mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
+        bad_pixels = binary_dilation(bad_pixels, mask)
     if correct_channels:
         correction_path = processed_path / data_path / f"correction_{prefix}.npz"
         norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
