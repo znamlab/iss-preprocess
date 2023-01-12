@@ -9,6 +9,13 @@ from pathlib import Path
 import yaml
 
 
+def load_hyb_probes_metadata():
+    fname = Path(__file__).parent.parent / "call" / "hybridisation_probes.yml"
+    with open(fname, "r") as f:
+        hyb_probes = yaml.safe_load(f)
+    return hyb_probes
+
+
 # AB: LGTM 10/03/23
 def load_metadata(data_path):
     raw_path = Path(PARAMETERS["data_root"]["raw"])

@@ -11,7 +11,12 @@ from ..reg import (
     generate_channel_round_transforms,
     apply_corrections,
 )
-from ..io import write_stack, load_tile_by_coors, load_metadata
+from ..io import (
+    write_stack,
+    load_tile_by_coors,
+    load_metadata,
+    load_hyb_probes_metadata,
+)
 from ..segment import detect_isolated_spots, detect_spots
 from ..call import (
     extract_spots,
@@ -31,15 +36,16 @@ def setup_hyb_spot_calling(data_path, score_thresh=0, vis=True):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     metadata = load_metadata(data_path)
     for hyb_round in metadata["hybridisation"].keys():
-        cluster_means, _ = hyb_spot_cluster_means(
+        cluster_means, _, genes = hyb_spot_cluster_means(
             data_path, hyb_round, score_thresh=score_thresh
         )
         if vis:
             plt.figure()
             plt.imshow(cluster_means)
             plt.title(hyb_round)
-        save_path = processed_path / data_path / f"{hyb_round}_cluster_means.npy"
-        np.save(save_path, cluster_means)
+            plt.yticks(ticks=range(cluster_means.shape[0]), labels=genes)
+        save_path = processed_path / data_path / f"{hyb_round}_cluster_means.npz"
+        np.savez(save_path, cluster_means=cluster_means, genes=genes)
 
 
 def hyb_spot_cluster_means(
@@ -50,6 +56,19 @@ def hyb_spot_cluster_means(
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+
+    nch = len(ops["black_level"])
+    metadata = load_metadata(data_path=data_path)
+    hyb_probes = load_hyb_probes_metadata()
+    init_spot_colors = []
+    genes = []
+    for probe in metadata["hybridisation"][prefix]["probes"]:
+        this_probe = np.zeros(nch)
+        this_probe[hyb_probes[probe]["channel"] - 1] = 1
+        init_spot_colors.append(this_probe)
+        genes.append(hyb_probes[probe]["target"])
+    init_spot_colors = np.array(init_spot_colors)
+
     rois = []
     for ref_tile in ops["barcode_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
@@ -66,7 +85,7 @@ def hyb_spot_cluster_means(
     cluster_means, _, _, _, _, _ = scaled_k_means(
         x[0, :, :].T, init_spot_colors, score_thresh=score_thresh
     )
-    return cluster_means, rois
+    return cluster_means, rois, genes
 
 
 def extract_hyb_spots_all(data_path):
@@ -102,7 +121,9 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
 def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    cluster_means = np.load(processed_path / data_path / f"{prefix}_cluster_means.npy")
+    clusters = np.load(
+        processed_path / data_path / f"{prefix}_cluster_means.npz", allow_pickle=True
+    )
     print(f"detecting spots in tile {tile_coors}")
     stack, _ = load_and_register_hyb_tile(
         data_path, tile_coors=tile_coors, prefix=prefix, correct_illumination=True
@@ -116,9 +137,10 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     x = rois_to_array(spot_rois, normalize=False)
     spots["trace"] = [roi.trace for roi in spot_rois]
     x_norm = x[0, :, :].T / np.linalg.norm(x[0, :, :].T, axis=1)[:, np.newaxis]
-    score = x_norm @ cluster_means.T
+    score = x_norm @ clusters["cluster_means"].T
     cluster_ind = np.argmax(score, axis=1)
     spots["cluster"] = cluster_ind
+    spots["gene"] = clusters["genes"][cluster_ind]
     spots["score"] = np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind])
     spots["mean_intensity"] = [np.max(trace) for trace in spots["trace"]]
 
@@ -338,7 +360,7 @@ def load_sequencing_rounds(
 
 
 # AB: LGTM
-def estimate_channel_correction(data_path, prefix="round", nrounds=7):
+def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
     """Compute grayscale value distribution and normalisation factors
 
     Each `correction_tiles` of `ops` is filtered before being used to compute the 
@@ -359,14 +381,8 @@ def estimate_channel_correction(data_path, prefix="round", nrounds=7):
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    stack = load_sequencing_rounds(
-        data_path,
-        ops["ref_tile"],
-        suffix=ops["projection"],
-        prefix=prefix,
-        nrounds=nrounds,
-    )
-    nch, nrounds = stack.shape[2:]
+    nch = len(ops["black_level"])
+
     max_val = 65535
     pixel_dist = np.zeros((max_val + 1, nch, nrounds))
 

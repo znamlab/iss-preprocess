@@ -11,10 +11,11 @@ from . import load_sequencing_rounds
 from ..io import load_tile_by_coors, load_metadata
 
 
-def register_reference_tile(data_path, prefix="genes_round", nrounds=7):
+def register_reference_tile(data_path, prefix="genes_round"):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
+    nrounds = ops[prefix + "s"]
     stack = load_sequencing_rounds(
         data_path,
         ops["ref_tile"],
@@ -82,7 +83,7 @@ def estimate_shifts_and_angles_by_coors(
 
 
 def estimate_shifts_by_coors(
-    data_path, tile_coors=(0, 0, 0), prefix="round", suffix="fstack", nrounds=7
+    data_path, tile_coors=(0, 0, 0), prefix="round", suffix="fstack"
 ):
     """Estimate shifts across channels and sequencing rounds using provided reference
     rotation angles and scale factors.
@@ -92,11 +93,11 @@ def estimate_shifts_by_coors(
         tile_coors (tuple, optional): _description_. Defaults to (0, 0, 0).
         prefix (str, optional): _description_. Defaults to "round".
         suffix (str, optional): _description_. Defaults to "fstack".
-        nrounds (int, optional): _description_. Defaults to 7.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
+    nrounds = ops[prefix + "s"]
     tforms_path = processed_path / data_path / f"tforms_{prefix}.npz"
     stack = load_sequencing_rounds(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
@@ -203,16 +204,21 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
             itile += 1
 
 
-def correct_hyb_shifts(data_path):
+def correct_hyb_shifts(data_path, prefix=None):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
-    for hyb_round in metadata["hybridisation"].keys():
+    if prefix:
         for roi in roi_dims[use_rois, :]:
-            print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
-            correct_hyb_shifts_roi(data_path, roi, prefix=hyb_round)
+            print(f"correcting shifts for ROI {roi}, {prefix} from {data_path}")
+            correct_hyb_shifts_roi(data_path, roi, prefix=prefix)
+    else:
+        for hyb_round in metadata["hybridisation"].keys():
+            for roi in roi_dims[use_rois, :]:
+                print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
+                correct_hyb_shifts_roi(data_path, roi, prefix=hyb_round)
 
 
 def correct_hyb_shifts_roi(
