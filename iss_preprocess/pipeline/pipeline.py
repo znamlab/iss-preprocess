@@ -73,7 +73,10 @@ def hyb_spot_cluster_means(
     for ref_tile in ops["barcode_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
         stack, _ = load_and_register_hyb_tile(
-            data_path, tile_coors=ref_tile, prefix=prefix
+            data_path,
+            tile_coors=ref_tile,
+            prefix=prefix,
+            correct_channels=ops["hybridisation_correct_channels"],
         )
         spots = detect_spots(
             np.max(stack, axis=2), threshold=ops["hyb_spot_detection_threshold"]
@@ -126,7 +129,12 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     )
     print(f"detecting spots in tile {tile_coors}")
     stack, _ = load_and_register_hyb_tile(
-        data_path, tile_coors=tile_coors, prefix=prefix, correct_illumination=True
+        data_path, 
+        tile_coors=tile_coors, 
+        prefix=prefix, 
+        suffix=ops["hybridisation_projection"],
+        correct_illumination=True, 
+        correct_channels=ops["hybridisation_correct_channels"]
     )
     spots = detect_spots(
         np.max(stack, axis=2), threshold=ops["hyb_spot_detection_threshold"]
@@ -359,6 +367,48 @@ def load_sequencing_rounds(
     return np.stack(ims, axis=3)
 
 
+def estimate_channel_correction_hybridisation(data_path):
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    nch = len(ops["black_level"])
+
+    max_val = 65535
+    pixel_dist = np.zeros((max_val + 1, nch))
+    metadata = load_metadata(data_path)
+    for hyb_round in metadata["hybridisation"].keys():
+        for tile in ops["correction_tiles"]:
+            print(
+                f"counting pixel values for {hyb_round}, roi {tile[0]}, tile {tile[1]}, {tile[2]}"
+            )
+            stack = filter_stack(
+                load_tile_by_coors(
+                    data_path,
+                    tile_coors=tile,
+                    suffix=ops["projection"],
+                    prefix=hyb_round,
+                ),
+                r1=ops["filter_r"][0],
+                r2=ops["filter_r"][1],
+            )
+            for ich in range(nch):
+                stack[stack < 0] = 0
+                pixel_dist[:, ich] += np.bincount(
+                    stack[:, :, ich].flatten().astype(np.uint16),
+                    minlength=max_val + 1,
+                )
+
+        cumulative_pixel_dist = np.cumsum(pixel_dist, axis=0)
+        cumulative_pixel_dist = cumulative_pixel_dist / cumulative_pixel_dist[-1, :]
+        norm_factors = np.zeros(nch)
+        for ich in range(nch):
+            norm_factors[ich] = np.argmax(
+                cumulative_pixel_dist[:, ich] > ops["correction_quantile"]
+            )
+
+        save_path = processed_path / data_path / f"correction_{hyb_round}.npz"
+        np.savez(save_path, pixel_dist=pixel_dist, norm_factors=norm_factors)
+
+
 # AB: LGTM
 def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
     """Compute grayscale value distribution and normalisation factors
@@ -425,6 +475,7 @@ def load_and_register_hyb_tile(
     suffix="fstack",
     filter_r=(2, 4),
     correct_illumination=False,
+    correct_channels=False,
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     tforms_fname = (
@@ -445,6 +496,10 @@ def load_and_register_hyb_tile(
         stack = apply_illumination_correction(data_path, stack, prefix)
     if filter_r:
         stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
+    if correct_channels:
+        correction_path = processed_path / data_path / f"correction_{prefix}.npz"
+        norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
+        stack = stack / norm_factors[np.newaxis, np.newaxis, :]
     return stack, bad_pixels
 
 
