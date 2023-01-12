@@ -14,8 +14,8 @@ def project_round(data_path, prefix, overwrite=False):
     """TODO: update to use `batch_process_tiles`
 
     Args:
-        data_path (_type_): _description_
-        prefix (_type_): _description_
+        data_path (str): Relative path to dataset.
+        prefix (str):  Full folder name prefix, including round number.
         overwrite (bool, optional): _description_. Defaults to False.
     """
     rois_list = get_roi_dimensions(data_path, prefix)

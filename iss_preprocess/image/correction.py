@@ -32,6 +32,21 @@ def apply_illumination_correction(data_path, stack, prefix):
 
 
 def filter_stack(stack, r1=2, r2=4):
+    """Filter stack with hanning window
+
+    Convolve each image from the stack with a hanning kernel a la coppafish. The kernel
+    is the sum of a negative outer circle and a positive inner circle.
+
+    Args:
+        stack (np.array): Stack to filter, either X x Y x Ch or X x Y x Ch x Round
+        r1 (int, optional): Radius in pixels of central positive hanning convolve 
+            kernel. Defaults to 2.
+        r2 (int, optional): Radius in pixels of outer negative hanning convolve kernel.
+            Defaults to 4.
+
+    Returns:
+        np.array: Filtered stack.
+    """
     nchannels = stack.shape[2]
     h = hanning_diff(r1, r2)
     stack_filt = np.zeros(stack.shape)
@@ -56,6 +71,7 @@ def filter_stack(stack, r1=2, r2=4):
     return stack_filt
 
 
+# AB: Reviewed 10/01/23
 def analyze_dark_frames(fname):
     """
     Get statistics of dark frames to use for black level correction

@@ -16,6 +16,7 @@ def load_hyb_probes_metadata():
     return hyb_probes
 
 
+# AB: LGTM 10/01/23
 def load_metadata(data_path):
     raw_path = Path(PARAMETERS["data_root"]["raw"])
     metadata_fname = raw_path / data_path / (Path(data_path).name + "_metadata.yml")
@@ -24,6 +25,7 @@ def load_metadata(data_path):
     return metadata
 
 
+# AB: LGTM 10/01/23
 def load_tile_by_coors(
     data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
 ):
@@ -34,7 +36,8 @@ def load_tile_by_coors(
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
             Defaults to (1,0,0).
         suffix (str, optional): File name suffix. Defaults to "fstack".
-        prefix (str, optional): the folder name prefix, before round number. Defaults to "genes_round_1_1"
+        prefix (str, optional): Full folder name prefix, including round number. 
+            Defaults to "genes_round_1_1"
 
     Returns:
         numpy.ndarray: X x Y x channels stack.
@@ -49,6 +52,7 @@ def load_tile_by_coors(
     return load_stack(processed_path / data_path / prefix / fname)
 
 
+# TODO: add shape check? What if pages are not 2D (rgb, weird tiffs)
 def load_stack(fname):
     with TiffFile(fname) as stack:
         ims = []
