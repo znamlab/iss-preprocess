@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 
+# AB: LGTM 10/03/23
 def load_metadata(data_path):
     raw_path = Path(PARAMETERS["data_root"]["raw"])
     metadata_fname = raw_path / data_path / (Path(data_path).name + "_metadata.yml")
@@ -17,6 +18,7 @@ def load_metadata(data_path):
     return metadata
 
 
+# AB: LGTM 10/03/23
 def load_tile_by_coors(
     data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
 ):

@@ -307,6 +307,7 @@ def get_roi_dimensions(data_path, prefix):
     return roi_list
 
 
+# AB: LGTM 10/03/23
 def load_sequencing_rounds(
     data_path, tile_coors=(1, 0, 0), nrounds=7, suffix="fstack", prefix="round"
 ):
@@ -318,10 +319,11 @@ def load_sequencing_rounds(
             Defaults to (1,0,0).
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'fstack'.
-        prefix (str, optional): the folder name prefix, before round number. Defaults to "round"
+        prefix (str, optional): the folder name prefix, before round number. Defaults 
+            to "round"
 
     Returns:
-        numpy.ndarray: X x Y x channels x rounds stack.
+        numpy.ndarray: X x Y x channels x rounds stack. 
 
     """
     ims = []
@@ -335,7 +337,26 @@ def load_sequencing_rounds(
     return np.stack(ims, axis=3)
 
 
+# AB: LGTM
 def estimate_channel_correction(data_path, prefix="round", nrounds=7):
+    """Compute grayscale value distribution and normalisation factors
+
+    Each `correction_tiles` of `ops` is filtered before being used to compute the 
+    distribution of pixel values.
+    Normalisation factor to equalise these distribution across channels and rounds are
+    defined as `ops["correction_quantile"]` of the distribution.
+
+    Args:
+        data_path (str or Path): Relative path to the data folder
+        prefix (str, optional): Folder name prefix, before round number. Defaults 
+            to "round".
+        nrounds (int, optional): Number of rounds. Defaults to 7.
+
+    Returns:
+        pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values 
+            for filtered stacks
+        norm_factors (np.array) A Nch x Nround array of normalising factors
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     stack = load_sequencing_rounds(
