@@ -273,6 +273,7 @@ def transform_image(im, scale=1, angle=0, shift=(0, 0), cval=0.0):
 
 def make_transform(s, angle, shift, shape):
     angle = -radians(angle)
+    # TODO: confirm this is correct whether shape is even or odd
     center_x = float(shape[1]) / 2 - 0.5
     center_y = float(shape[0]) / 2 - 0.5
     shift_x = shift[1]
@@ -410,6 +411,7 @@ def estimate_scale_rotation_translation(
     return best_scale, best_angle, shift
 
 
+# TODO: check if this numba is useful here.
 @jit(parallel=True, forceobj=True)
 def estimate_rotation_angle(
     reference_fft,
@@ -437,6 +439,7 @@ def estimate_rotation_angle(
     return best_angle, max_cc[best_angle_index]
 
 
+# TODO: check if this numba is useful here.
 @jit(parallel=True, forceobj=True)
 def estimate_rotation_translation(
     reference,
@@ -447,6 +450,7 @@ def estimate_rotation_translation(
     min_shift=None,
     upsample=None,
     max_shift=None,
+    iter_range_factor=5.0,
 ):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
@@ -460,6 +464,8 @@ def estimate_rotation_translation(
         niter (int): number of iterations to refine rotation angle
         nangles (int): number of angles to try on each iteration
         verbose (bool): whether to print progress of registration
+        iter_range_factor (float): how much to shrink the angle range for each
+            iteration. Default: 5.
 
     Returns:
         best_angle (float) in degrees
@@ -478,7 +484,7 @@ def estimate_rotation_translation(
             min_shift=min_shift,
             max_shift=max_shift,
         )
-        angle_range = angle_range / 5
+        angle_range = angle_range / iter_range_factor
     if not upsample:
         shift, _ = phase_corr(
             reference,

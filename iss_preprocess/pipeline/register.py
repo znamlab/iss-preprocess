@@ -158,7 +158,7 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
     xs, ys = np.meshgrid(range(nx), range(ny))
     shifts_within_channels_corrected = np.zeros(shifts_within_channels.shape)
     shifts_between_channels_corrected = np.zeros(shifts_between_channels.shape)
-
+    # TODO: maybe make X in the loop above?
     X = np.stack(
         [
             ys.flatten(),
@@ -201,6 +201,7 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
                 shifts_between_channels=shifts_between_channels_corrected[:, :, itile],
                 allow_pickle=True,
             )
+            # TODO: perhaps save in a cleaner way
             itile += 1
 
 

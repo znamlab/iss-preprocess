@@ -238,6 +238,8 @@ def stitch_and_register(
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    # TODO: should we use the same `shift_right` and `shift_down` for target
+    # and reference images?
     shift_right, shift_down, tile_shape = register_adjacent_tiles(
         data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
     )
@@ -250,8 +252,7 @@ def stitch_and_register(
         roi=roi,
         ich=target_ch,
         correct_illumination=True,
-    )
-    stitched_stack_target = stitched_stack_target.astype(np.single)  # to save memory
+    ).astype(np.single)  # to save memory
     stitched_stack_reference = stitch_tiles(
         data_path,
         reference_prefix,
@@ -261,8 +262,7 @@ def stitch_and_register(
         roi=roi,
         ich=ref_ch,
         correct_illumination=True,
-    )
-    stitched_stack_reference = stitched_stack_reference.astype(np.single)
+    ).astype(np.single)
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
             stitched_stack_reference[::downsample, ::downsample],
