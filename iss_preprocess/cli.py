@@ -254,30 +254,9 @@ def create_all_single_average(path, maxval):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-b", "--subtract-black/--no-subtract-black", help="Subtract black level")
 @click.option(
-    "-m",
-    "--maxval",
-    help="Maximum value to clip before images before averaging.",
-    default=1000,
-)
-@click.option(
-    "-f",
-    "--median_filter",
-    help="Size of median filter in pixels. Leave empty for no filter",
-    type=float,
-    default=None,
-)
-@click.option(
-    "-b",
-    "--black",
-    help="Black level.",
-    default=0,
-)
-@click.option(
-    "--normalise",
-    help="Normalise output.",
-    is_flag=True,
-    default=False,
+    "-s", "--subfolder", help="Subfolder containing tifs to average", default=""
 )
 @click.option(
     "--prefix_filter",
@@ -285,15 +264,13 @@ def create_all_single_average(path, maxval):
     type=str,
     default=None,
 )
-def create_single_average(path, maxval, median_filter, black, normalise, prefix_filter):
+def create_single_average(path, subtract_black, subfolder, prefix_filter):
     """Average all tiffs in an acquisition folder"""
     from iss_preprocess import pipeline
 
     pipeline.create_single_average(
         path,
-        max_value=maxval,
-        median_filter=median_filter,
-        black_level=black,
-        normalise=normalise,
+        subfolder=subfolder,
+        subtract_black=subtract_black,
         prefix_filter=prefix_filter,
     )

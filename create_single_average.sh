@@ -10,4 +10,5 @@ ml Anaconda3/2022.05
 source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 
 conda activate iss-preprocess
-iss create-single-average -p $DATAPATH -m $MAXVAL
+
+iss create-single-average -p $DATAPATH -s $SUBFOLDER --subtract-black
