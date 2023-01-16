@@ -49,7 +49,8 @@ def analyze_dark_frames(fname):
 
 def compute_mean_image(
     data_folder,
-    prefix=None,
+    prefix="",
+    suffix="",
     black_level=0,
     max_value=1000,
     verbose=False,
@@ -62,6 +63,7 @@ def compute_mean_image(
     Args:
         data_folder (str): directory containing images
         prefix (str): prefix to filter images to average
+        suffix (str): suffix to filter images to average
         black_level (float): image black level to subtract before calculating
             each mean image. Default to 0
         max_value (float): image values are clipped to this value. This reduces
@@ -77,9 +79,14 @@ def compute_mean_image(
         numpy.ndarray correction image
 
     """
+    if prefix is None:
+        prefix = ""
+    if suffix is None:
+        suffix = ""
     data_folder = Path(data_folder)
     im_name = data_folder.name
-    tiffs = list(data_folder.glob(f"{prefix if prefix else ''}*.tif"))
+    filt = f"{prefix}*{suffix}.tif"
+    tiffs = list(data_folder.glob(filt))
     if not len(tiffs):
         print("NO tifs in folder %s" % data_folder, flush=True)
         return
