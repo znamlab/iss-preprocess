@@ -13,6 +13,21 @@ from pathlib import Path
 
 
 def apply_illumination_correction(data_path, stack, prefix):
+    """Apply illumination correction
+
+    Use precomputed normalised and filtered averages to correct for inhomogeneous 
+    illumination
+
+    Args:
+        data_path (str): Relative path to the data to read ops and find averages
+        stack (np.array): A 3 or 4D array with X x Y x Nchannels as first 3 dimensions
+        prefix (str): Prefix name of the average, e.g. "barcode_round" for grand average
+            or "barcode_round_1" for single round average.
+
+
+    Returns:
+        stack (np.array): Normalised stack. Same shape as input.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     average_image_fname = (
