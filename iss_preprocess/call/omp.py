@@ -81,7 +81,9 @@ def make_background_vectors(nrounds=7, nchannels=4):
     return m
 
 
-def barcode_spots_dot_product(spots, cluster_means, norm_shift=0, sequence_column="sequence"):
+def barcode_spots_dot_product(
+    spots, cluster_means, norm_shift=0, sequence_column="sequence"
+):
     nrounds = cluster_means.shape[0]
     nchannels = cluster_means.shape[1]
     background_vectors = make_background_vectors(nrounds=nrounds, nchannels=nchannels)
@@ -232,7 +234,12 @@ def omp_weighted(
         coefs_background, _, _, _ = np.linalg.lstsq(Xfull[:, ichosen], y)
         if not refit_background:
             y = y - np.dot(Xfull[:, ichosen], coefs_background)
-    r = y
+            r = y
+        else:
+            # TODO: double check if this is correct
+            r = y - np.dot(Xfull[:, ichosen], coefs_background)
+    else:
+        r = y
     if not max_comp:
         max_comp = X.shape[1]
     coefs = coefs_background
