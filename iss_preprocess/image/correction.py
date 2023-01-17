@@ -88,8 +88,7 @@ def compute_mean_image(
     filt = f"{prefix}*{suffix}.tif"
     tiffs = list(data_folder.glob(filt))
     if not len(tiffs):
-        print("NO tifs in folder %s" % data_folder, flush=True)
-        return
+        raise IOError("NO valid tifs in folder %s" % data_folder, flush=True)
 
     if verbose:
         print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name), flush=True)
