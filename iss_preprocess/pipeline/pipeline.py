@@ -328,7 +328,9 @@ def run_omp_on_tile(
     )
 
 
-def create_single_average(folder_path, subfolder, subtract_black, prefix_filter=None):
+def create_single_average(
+    data_path, subfolder, subtract_black, prefix_filter=None, suffix=None
+):
     """Create normalised average of all tifs in a single folder.
 
     If prefix_filter is not None, the output will be "{prefix_filter}_average.tif",
@@ -337,32 +339,32 @@ def create_single_average(folder_path, subfolder, subtract_black, prefix_filter=
     Other arguments are read from `ops`:
         average_clip_value: Value to clip images before averaging.
         normalise: Normalise output maximum to one.
-        projection: Which projection to keep
 
     Args:
-        folder_path (str): Path to the acquisition folder, relative to `projects` folder
+        data_path (str): Path to the acquisition folder, relative to `projects` folder
         subfolder (str): subfolder in folder_path containing the tifs to average.
         subtract_black (bool): Subtract black level (read from `ops`)
         prefix_filter (str, optional): prefix name to filter tifs. Only file starting
             with `prefix` will be averaged. Defaults to None.
-
-
+        suffix (str, optional): suffix to filter tifs. Defaults to None
     """
+
     print("Creating single average")
     print("  Args:")
-    print(f"    folder_path={folder_path}")
+    print(f"    data_path={data_path}")
     print(f"    subfolder={subfolder}")
     print(f"    subtract_black={subtract_black}")
-    print(f"    prefix_filter={prefix_filter}", flush=True)
+    print(f"    prefix_filter={prefix_filter}")
+    print(f"    suffix={suffix}", flush=True)
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    folder_path = Path(folder_path)
-    ops = np.load(processed_path / folder_path / "ops.npy", allow_pickle=True).item()
+    data_path = Path(data_path)
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     if prefix_filter is None:
         target_file = f"{subfolder}_average.tif"
     else:
         target_file = f"{prefix_filter}_average.tif"
-    target_file = processed_path / folder_path / "averages" / target_file
+    target_file = processed_path / data_path / "averages" / target_file
 
     # ensure the directory exists for first average.
     target_file.parent.mkdir(exist_ok=True)
@@ -370,14 +372,14 @@ def create_single_average(folder_path, subfolder, subtract_black, prefix_filter=
     black_level = ops["black_level"] if subtract_black else 0
 
     av_image = correction.compute_mean_image(
-        processed_path / folder_path / subfolder,
+        processed_path / data_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
         max_value=ops["average_clip_value"],
         verbose=True,
         median_filter=ops["average_median_filter"],
         normalise=True,
-        suffix=ops["projection"],
+        suffix=suffix,
     )
     write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
     print(f"Average saved to {target_file}", flush=True)
@@ -398,7 +400,7 @@ def create_all_single_averages(
     data_path = Path(data_path)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     raw_path = Path(PARAMETERS["data_root"]["raw"])
-
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     # get metadata
     metadata = raw_path / data_path / "{0}_metadata.yml".format(data_path.name)
     if not metadata.exists():
@@ -428,7 +430,12 @@ def create_all_single_averages(
         if not data_folder.is_dir():
             warnings.warn("{0} does not exists. Skipping".format(data_folder / folder))
             continue
-        args = f"--export=DATAPATH={data_path},SUBFOLDER={folder}"
+        export_args = dict(
+            DATAPATH=data_path,
+            SUBFOLDER=folder,
+            SUFFIX=ops["projection"],
+        )
+        args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (
             args
             + f" --output={Path.home()}/slurm_logs/iss_create_single_average_%j.out"
@@ -451,11 +458,13 @@ def create_grand_averages(
             Defaults to ("genes_round", "barcode_round").
     """
 
-    data_path = Path(data_path) / "averages"
+    data_path = Path(data_path)
+    subfolder = "averages"
     script_path = str(Path(__file__).parent.parent.parent / "create_grand_average.sh")
     for kind in prefix_todo:
         export_args = dict(
             DATAPATH=data_path,
+            SUBFOLDER=subfolder,
             PREFIX=kind,
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
