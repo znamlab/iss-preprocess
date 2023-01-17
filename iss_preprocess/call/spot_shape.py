@@ -101,6 +101,7 @@ def find_gene_spots(g, spot_sign_image, rho=2, omp_score_threshold=0.05):
     ngenes = g.shape[2]
     all_genes = []
     for igene in range(ngenes):
+        # TODO: this should use `detect_spots_by_shape`
         print(f"findings spots for gene {igene} of {ngenes}...")
         gene_spots = detect_spots(g[:, :, igene], threshold=0)
         pos_filter = (np.sign(spot_sign_image) == 1).astype(float)

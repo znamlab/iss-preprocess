@@ -51,10 +51,9 @@ def detect_gene_spots(im, median_filter=False, min_size=1.0, max_sigma=4.0):
     return gene_spots
 
 
-def detect_spots(im, threshold=100):
+def detect_spots(im, threshold=100, spot_size=2):
     """
-    Detect spots in a multichannel image based on standard deviation across channels
-    using the selected detection method.
+    Detect peaks in an image.
 
     Args:
         stack (numpy.ndarray): X x Y x C image stack
@@ -69,7 +68,7 @@ def detect_spots(im, threshold=100):
     spots = np.logical_and(im + small > dilate, im > threshold)
     coors = np.where(spots)
     spots = pd.DataFrame(
-        {"y": coors[0], "x": coors[1], "size": np.ones(len(coors[0])) * 2}
+        {"y": coors[0], "x": coors[1], "size": np.ones(len(coors[0])) * spot_size}
     )
 
     return spots

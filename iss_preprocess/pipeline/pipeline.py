@@ -217,6 +217,7 @@ def basecall_tile(data_path, tile_coors):
         threshold=ops["barcode_detection_threshold_basecalling"],
         rho=ops["barcode_spot_rho"],
     )
+    # TODO: size should probably be set inside detect spots?
     spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
     spot_rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
     x = rois_to_array(spot_rois, normalize=False)
@@ -225,12 +226,14 @@ def basecall_tile(data_path, tile_coors):
     top_score = []
 
     nrounds = x.shape[0]
+    # TODO: perhaps we should apply background correction before basecalling?
     for iround in range(nrounds):
         this_round_means = cluster_means[iround]
         this_round_means = this_round_means / np.linalg.norm(this_round_means, axis=1)
         x_norm = (
             x[iround, :, :].T / np.linalg.norm(x[iround, :, :].T, axis=1)[:, np.newaxis]
         )
+        # should be Spots x Channels matrix @ Channels x Clusters matrix
         score = x_norm @ this_round_means.T
         cluster_ind = np.argmax(score, axis=1)
         cluster_inds.append(cluster_ind)

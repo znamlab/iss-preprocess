@@ -29,6 +29,7 @@ def get_cluster_means(rois, vis=False, score_thresh=0):
         )
         cluster_means.append(norm_cluster_mean)
         for ich in range(nch):
+            # TODO: should this be a norm instead of a mean?
             cluster_intensity[iround, ich] = np.mean(x[iround, ich, cluster_ind == ich])
         if vis:
             plt.sca(ax2.flatten()[iround])
@@ -50,9 +51,10 @@ def get_cluster_means(rois, vis=False, score_thresh=0):
         for ich in range(nch):
             plt.sca(ax1[ich])
             plt.imshow(np.stack(cluster_means, axis=2)[ich,:,:])
-            plt.xlabel("channels")
-            plt.ylabel("rounds")
+            plt.xlabel("rounds")
+            plt.ylabel("channels")
             plt.title(f"channel {ich+1}")
+        plt.tight_layout()
     return cluster_means
 
 
