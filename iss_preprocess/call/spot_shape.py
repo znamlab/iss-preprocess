@@ -22,7 +22,7 @@ def get_spot_shape(g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15):
     nspots = 0
     for igene in range(g.shape[2]):
         print(f"processing {igene} of {g.shape[2]}...")
-        gene_spots = detect_spots(g[:, :, igene], method="dilation", threshold=0)
+        gene_spots = detect_spots(g[:, :, igene], threshold=0)
         neighborhood = np.ones((neighbor_filter_size, neighbor_filter_size))
         g_filt = cv2.filter2D(
             (g[:, :, igene] > 0).astype(float),
@@ -101,8 +101,9 @@ def find_gene_spots(g, spot_sign_image, rho=2, omp_score_threshold=0.05):
     ngenes = g.shape[2]
     all_genes = []
     for igene in range(ngenes):
+        # TODO: this should use `detect_spots_by_shape`
         print(f"findings spots for gene {igene} of {ngenes}...")
-        gene_spots = detect_spots(g[:, :, igene], method="dilation", threshold=0)
+        gene_spots = detect_spots(g[:, :, igene], threshold=0)
         pos_filter = (np.sign(spot_sign_image) == 1).astype(float)
         neg_filter = (np.sign(spot_sign_image) == -1).astype(float)
         gene_filt_pos = cv2.filter2D(
@@ -126,3 +127,30 @@ def find_gene_spots(g, spot_sign_image, rho=2, omp_score_threshold=0.05):
         gene_spots = gene_spots.iloc[omp_score > omp_score_threshold]
         all_genes.append(gene_spots)
     return all_genes
+
+
+def detect_spots_by_shape(im, spot_sign_image, threshold=0, rho=2):
+    neg_max = np.sum(np.sign(spot_sign_image) == -1)
+    pos_max = np.sum(np.sign(spot_sign_image) == 1)
+    spots = detect_spots(im, threshold=threshold)
+    pos_filter = (np.sign(spot_sign_image) == 1).astype(float)
+    neg_filter = (np.sign(spot_sign_image) == -1).astype(float)
+    filt_pos = cv2.filter2D(
+        (im > 0).astype(float),
+        -1,
+        pos_filter,
+        borderType=cv2.BORDER_REPLICATE,
+    )
+    filt_neg = cv2.filter2D(
+        (im < 0).astype(float),
+        -1,
+        neg_filter,
+        borderType=cv2.BORDER_REPLICATE,
+    )
+    pos_pixels = filt_pos[spots["y"], spots["x"]]
+    neg_pixels = filt_neg[spots["y"], spots["x"]]
+    spot_score = (neg_pixels + pos_pixels * rho) / (neg_max + pos_max * rho)
+    spots["spot_score"] = spot_score
+    spots["pos_pixels"] = pos_pixels
+    spots["neg_pixels"] = neg_pixels
+    return spots

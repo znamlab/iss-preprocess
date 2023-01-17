@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name=iss_register_ref_tile
+#SBATCH --job-name=iss_basecall_tile
 #SBATCH --ntasks=1
-#SBATCH --time=2:00:00
-#SBATCH --mem=8G
+#SBATCH --time=1:00:00
+#SBATCH --mem=32G
 #SBATCH --partition=cpu
 ml purge
 
@@ -11,4 +11,4 @@ source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 
 conda activate iss-preprocess
 
-iss register-ref-tile -p $DATAPATH -n $PREFIX -r $ROUNDS
+iss basecall-tile -p $DATAPATH -r $ROI -x $TILEX -y $TILEY

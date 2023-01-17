@@ -1,11 +1,10 @@
 import numba
 import numpy as np
 from . import rois_to_array, BASES
-from .call import get_cluster_means
 from ..vis import plot_gene_templates
 
 
-def make_gene_templates(rois, codebook, vis=False):
+def make_gene_templates(cluster_means, codebook, vis=False):
     """
     Make dictionary of fluorescence values for each gene by finding well-matching
     spots.
@@ -21,8 +20,6 @@ def make_gene_templates(rois, codebook, vis=False):
         List of detected gene names.
 
     """
-    cluster_means = get_cluster_means(rois, vis=vis)
-
     gene_dict = []
     for seq in codebook["seq"]:
         base_ids = [np.where(b == BASES)[0][0] for b in seq]
@@ -82,6 +79,30 @@ def make_background_vectors(nrounds=7, nchannels=4):
     m = np.stack(b).T
     m /= np.linalg.norm(m, axis=0)
     return m
+
+
+def barcode_spots_dot_product(
+    spots, cluster_means, norm_shift=0, sequence_column="sequence"
+):
+    nrounds = cluster_means.shape[0]
+    nchannels = cluster_means.shape[1]
+    background_vectors = make_background_vectors(nrounds=nrounds, nchannels=nchannels)
+    dot_product_scores = []
+    for i, spot in spots.iterrows():
+        if np.all(np.isfinite(spot["trace"])):
+            synthetic_trace = cluster_means[
+                np.arange(nrounds), :, spot[sequence_column]
+            ].flatten()
+            synthetic_trace /= np.linalg.norm(synthetic_trace)
+            y = spot["trace"].flatten()
+            norm_y = np.linalg.norm(y)
+            y /= norm_y + norm_shift
+            coefs_background, _, _, _ = np.linalg.lstsq(background_vectors, y)
+            r = y - np.dot(background_vectors, coefs_background)
+            dot_product_scores.append(np.dot(r, synthetic_trace))
+        else:
+            dot_product_scores.append(np.nan)
+    return dot_product_scores
 
 
 @numba.jit(nopython=True)
@@ -213,7 +234,12 @@ def omp_weighted(
         coefs_background, _, _, _ = np.linalg.lstsq(Xfull[:, ichosen], y)
         if not refit_background:
             y = y - np.dot(Xfull[:, ichosen], coefs_background)
-    r = y
+            r = y
+        else:
+            # TODO: double check if this is correct
+            r = y - np.dot(Xfull[:, ichosen], coefs_background)
+    else:
+        r = y
     if not max_comp:
         max_comp = X.shape[1]
     coefs = coefs_background
@@ -285,7 +311,7 @@ def run_omp(
     beta_squared=1.0,
     norm_shift=0.0,
     max_comp=None,
-    min_intensity=0
+    min_intensity=0,
 ):
     """
     Apply the OMP algorithm to every pixel of the provided image stack.

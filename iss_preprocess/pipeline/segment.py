@@ -31,7 +31,7 @@ def segment_roi(
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
     print(f"stitching {prefix} and aligning to {reference}", flush=True)
-    stitched_stack = stitch_and_register(data_path, reference, prefix, roi=iroi)
+    stitched_stack, _, _, _ = stitch_and_register(data_path, reference, prefix, roi=iroi)
     print("starting segmentation", flush=True)
     masks = cellpose_segmentation(
         stitched_stack,

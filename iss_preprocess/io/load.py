@@ -4,15 +4,61 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from tifffile import TiffFile
 import json
+from flexiznam.config import PARAMETERS
+from pathlib import Path
+import yaml
 
 
+def load_hyb_probes_metadata():
+    fname = Path(__file__).parent.parent / "call" / "hybridisation_probes.yml"
+    with open(fname, "r") as f:
+        hyb_probes = yaml.safe_load(f)
+    return hyb_probes
+
+
+# AB: LGTM 10/01/23
+def load_metadata(data_path):
+    raw_path = Path(PARAMETERS["data_root"]["raw"])
+    metadata_fname = raw_path / data_path / (Path(data_path).name + "_metadata.yml")
+    with open(metadata_fname, "r") as f:
+        metadata = yaml.safe_load(f)
+    return metadata
+
+
+# AB: LGTM 10/01/23
+def load_tile_by_coors(
+    data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
+):
+    """Load processed tile images
+
+    Args:
+        data_path (str): relative path to dataset.
+        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
+            Defaults to (1,0,0).
+        suffix (str, optional): File name suffix. Defaults to "fstack".
+        prefix (str, optional): Full folder name prefix, including round number. 
+            Defaults to "genes_round_1_1"
+
+    Returns:
+        numpy.ndarray: X x Y x channels stack.
+
+    """
+    tile_roi, tile_x, tile_y = tile_coors
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    fname = (
+        f"{prefix}_MMStack_{tile_roi}-"
+        + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
+    )
+    return load_stack(processed_path / data_path / prefix / fname)
+
+
+# TODO: add shape check? What if pages are not 2D (rgb, weird tiffs)
 def load_stack(fname):
-    stack = TiffFile(fname)
-    ims = []
-    for page in stack.pages:
-        ims.append(page.asarray())
-    im_calibration = np.stack(ims, axis=2)
-    return im_calibration
+    with TiffFile(fname) as stack:
+        ims = []
+        for page in stack.pages:
+            ims.append(page.asarray())
+    return np.stack(ims, axis=2)
 
 
 def get_tile_ome(fname, fmetadata):
