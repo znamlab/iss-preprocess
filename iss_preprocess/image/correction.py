@@ -16,7 +16,7 @@ from pathlib import Path
 def apply_illumination_correction(data_path, stack, prefix):
     """Apply illumination correction
 
-    Use precomputed normalised and filtered averages to correct for inhomogeneous 
+    Use precomputed normalised and filtered averages to correct for inhomogeneous
     illumination
 
     Args:
@@ -55,7 +55,7 @@ def filter_stack(stack, r1=2, r2=4):
 
     Args:
         stack (np.array): Stack to filter, either X x Y x Ch or X x Y x Ch x Round
-        r1 (int, optional): Radius in pixels of central positive hanning convolve 
+        r1 (int, optional): Radius in pixels of central positive hanning convolve
             kernel. Defaults to 2.
         r2 (int, optional): Radius in pixels of outer negative hanning convolve kernel.
             Defaults to 4.
@@ -101,7 +101,6 @@ def analyze_dark_frames(fname):
 
     """
     dark_frames = load_stack(fname)
-    # reshape to get max/std accross all pixels for each channel
     return dark_frames.mean(axis=(0, 1)), dark_frames.std(axis=(0, 1))
 
 
