@@ -22,7 +22,7 @@ def get_spot_shape(g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15):
     nspots = 0
     for igene in range(g.shape[2]):
         print(f"processing {igene} of {g.shape[2]}...")
-        gene_spots = detect_spots(g[:, :, igene], method="dilation", threshold=0)
+        gene_spots = detect_spots(g[:, :, igene], threshold=0)
         neighborhood = np.ones((neighbor_filter_size, neighbor_filter_size))
         g_filt = cv2.filter2D(
             (g[:, :, igene] > 0).astype(float),
