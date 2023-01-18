@@ -31,6 +31,21 @@ def extract_tile(path, roi=1, x=0, y=0, save=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", default=0, help="Tile X position")
+@click.option("-y", default=0, help="Tile Y position.")
+def basecall_tile(path, roi=1, x=0, y=0):
+    """Run basecalling for barcodes on a single tile."""
+    from iss_preprocess.pipeline import basecall_tile
+
+    click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
+    basecall_tile(path, (roi, x, y))
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
     "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
 )
 @click.option(
@@ -109,12 +124,36 @@ def project_round(path, prefix, overwrite=False):
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
+def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_by_coors
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
+        path,
+        tile_coors=(roi, tilex, tiley),
+        prefix=prefix,
+        suffix=suffix,
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", "--tilex", default=0, help="Tile X position")
+@click.option("-y", "--tiley", default=0, help="Tile Y position.")
+@click.option(
+    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+)
+def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
+    """Estimate X-Y shifts across rounds and channels for a single tile."""
+    from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
+
+    click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}/{prefix}")
+    estimate_shifts_and_angles_by_coors(
         path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
     )
 
@@ -127,34 +166,83 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
 )
 def estimate_shifts(path, prefix, suffix="fstack"):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
-    from iss_preprocess.pipeline import estimate_shifts_all_tiles
+    from iss_preprocess.pipeline import batch_process_tiles
 
-    estimate_shifts_all_tiles(path, prefix, suffix)
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+    batch_process_tiles(path, script="register_tile", additional_args=additional_args)
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def correct_shifts(path):
+@click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
+@click.option(
+    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+)
+def estimate_hyb_shifts(path, prefix=None, suffix="fstack"):
+    """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
+    from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.io import load_metadata
+
+    if prefix:
+        additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+        batch_process_tiles(
+            path, script="register_hyb_tile", additional_args=additional_args
+        )
+    else:
+        metadata = load_metadata(path)
+        for hyb_round in metadata["hybridisation"].keys():
+            additional_args = f",PREFIX={hyb_round},SUFFIX={suffix}"
+            batch_process_tiles(
+                path, script="register_hyb_tile", additional_args=additional_args
+            )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+def correct_shifts(path, prefix):
     """Correct X-Y shifts using robust regression across tiles."""
     from iss_preprocess.pipeline import correct_shifts
 
-    correct_shifts(path)
+    correct_shifts(path, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
+def correct_hyb_shifts(path, prefix=None):
+    """
+    Correct X-Y shifts for hybridisation rounds using robust regression
+    across tiles.
+    """
+    from iss_preprocess.pipeline import correct_hyb_shifts
+
+    correct_hyb_shifts(path, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def basecall(path):
+    """Start batch jobs to run OMP on all tiles in a dataset."""
+    from iss_preprocess.pipeline import batch_process_tiles
+
+    batch_process_tiles(path, "basecall_tile")
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def extract(path):
-    """Correct X-Y shifts using robust regression across tiles."""
-    from iss_preprocess.pipeline import run_omp_all_rois
+    """Start batch jobs to run OMP on all tiles in a dataset."""
+    from iss_preprocess.pipeline import batch_process_tiles
 
-    run_omp_all_rois(path)
+    batch_process_tiles(path, "extract_tile")
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 def register_ref_tile(path, prefix):
-    """Correct X-Y shifts using robust regression across tiles."""
+    """Run registration across channels and rounds for the reference tile."""
     from iss_preprocess.pipeline import register_reference_tile
 
     register_reference_tile(path, prefix=prefix)
@@ -195,3 +283,70 @@ def segment_all(path, prefix, use_gpu=False):
     from iss_preprocess.pipeline import segment_all_rois
 
     segment_all_rois(path, prefix, use_gpu=use_gpu)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-s",
+    "--spots-prefix",
+    default="barcode_round",
+    help="File name prefix for spot files.",
+)
+@click.option(
+    "-g",
+    "--reg_prefix",
+    default="barcode_round_1_1",
+    help="Directory prefix to registration.",
+)
+def align_spots(path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1"):
+    from iss_preprocess.pipeline import merge_and_align_spots_all_rois
+
+    merge_and_align_spots_all_rois(
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-s",
+    "--spots-prefix",
+    default="barcode_round",
+    help="File name prefix for spot files.",
+)
+@click.option(
+    "-g",
+    "--reg_prefix",
+    default="barcode_round_1_1",
+    help="Directory prefix to registration.",
+)
+@click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
+def align_spots_roi(
+    path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1", roi=1
+):
+    from iss_preprocess.pipeline import merge_and_align_spots
+
+    merge_and_align_spots(
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def hyb_spots(path):
+    """Detect hybridisation in all ROIs / hybridisation rounds"""
+    from iss_preprocess.pipeline import extract_hyb_spots_all
+
+    extract_hyb_spots_all(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
+@click.option("-n", "--prefix", help="Path prefix for spot detection")
+def hyb_spots_roi(path, prefix, roi=1):
+    """Detect hybridisation spots in a single ROI / hybridisation round"""
+    from iss_preprocess.pipeline import extract_hyb_spots_roi
+
+    extract_hyb_spots_roi(path, prefix, roi)

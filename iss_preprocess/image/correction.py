@@ -2,25 +2,83 @@ import numpy as np
 import glob
 import os
 import cv2
-from tifffile import TiffFile
 from sklearn.mixture import GaussianMixture
 from skimage.exposure import match_histograms
 from skimage.morphology import disk
 from skimage.filters import median
 from ..io.load import load_stack
 from ..coppafish import hanning_diff
+from flexiznam.config import PARAMETERS
+from pathlib import Path
+
+
+def apply_illumination_correction(data_path, stack, prefix):
+    """Apply illumination correction
+
+    Use precomputed normalised and filtered averages to correct for inhomogeneous 
+    illumination
+
+    Args:
+        data_path (str): Relative path to the data to read ops and find averages
+        stack (np.array): A 3 or 4D array with X x Y x Nchannels as first 3 dimensions
+        prefix (str): Prefix name of the average, e.g. "barcode_round" for grand average
+            or "barcode_round_1" for single round average.
+
+
+    Returns:
+        stack (np.array): Normalised stack. Same shape as input.
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    average_image_fname = (
+        processed_path / data_path / "averages" / f"{prefix}_average.tif"
+    )
+    average_image = load_stack(average_image_fname).astype(float)
+    average_image = (
+        average_image / np.max(average_image, axis=(0, 1))[np.newaxis, np.newaxis, :]
+    )
+    if stack.ndim == 4:
+        stack = (
+            stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
+        ) / average_image[:, :, :, np.newaxis]
+    else:
+        stack = (stack - ops["black_level"][np.newaxis, np.newaxis, :]) / average_image
+    return stack
 
 
 def filter_stack(stack, r1=2, r2=4):
-    nchannels, nrounds = stack.shape[2:]
+    """Filter stack with hanning window
 
+    Convolve each image from the stack with a hanning kernel a la coppafish. The kernel
+    is the sum of a negative outer circle and a positive inner circle.
+
+    Args:
+        stack (np.array): Stack to filter, either X x Y x Ch or X x Y x Ch x Round
+        r1 (int, optional): Radius in pixels of central positive hanning convolve 
+            kernel. Defaults to 2.
+        r2 (int, optional): Radius in pixels of outer negative hanning convolve kernel.
+            Defaults to 4.
+
+    Returns:
+        np.array: Filtered stack.
+    """
+    nchannels = stack.shape[2]
     h = hanning_diff(r1, r2)
     stack_filt = np.zeros(stack.shape)
 
     for ich in range(nchannels):
-        for iround in range(nrounds):
-            stack_filt[:, :, ich, iround] = cv2.filter2D(
-                stack[:, :, ich, iround].astype(float),
+        if stack.ndim == 4:
+            nrounds = stack.shape[3]
+            for iround in range(nrounds):
+                stack_filt[:, :, ich, iround] = cv2.filter2D(
+                    stack[:, :, ich, iround].astype(float),
+                    -1,
+                    np.flip(h),
+                    borderType=cv2.BORDER_REPLICATE,
+                )
+        else:
+            stack_filt[:, :, ich] = cv2.filter2D(
+                stack[:, :, ich].astype(float),
                 -1,
                 np.flip(h),
                 borderType=cv2.BORDER_REPLICATE,
@@ -28,6 +86,7 @@ def filter_stack(stack, r1=2, r2=4):
     return stack_filt
 
 
+# AB: Reviewed 10/01/23
 def analyze_dark_frames(fname):
     """
     Get statistics of dark frames to use for black level correction
@@ -42,8 +101,7 @@ def analyze_dark_frames(fname):
     """
     dark_frames = load_stack(fname)
     # reshape to get max/std accross all pixels for each channel
-    dark_frames = dark_frames.reshape((-1, dark_frames.shape[0]))
-    return dark_frames.mean(axis=0), dark_frames.std(axis=0)
+    return dark_frames.mean(axis=(0, 1)), dark_frames.std(axis=(0, 1))
 
 
 def compute_mean_image(
