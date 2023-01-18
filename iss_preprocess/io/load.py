@@ -41,7 +41,7 @@ def load_single_acq_metdata(data_path, prefix):
     acq_folder = Path(PARAMETERS["data_root"]["processed"]) / data_path / prefix
     # the metadata for the first ROI is always copied. Just in case the first ROI is not
     # ROI 1, we find whichever is available
-    fmetadata = list(acq_folder.glob("*_MMStack_1-Pos000_000_metadata.txt"))
+    fmetadata = list(acq_folder.glob("*_metadata.txt"))
     assert len(fmetadata) == 1
     fmetadata = fmetadata[0]
     with open(fmetadata) as json_file:
