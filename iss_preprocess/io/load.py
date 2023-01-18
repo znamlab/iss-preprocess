@@ -25,6 +25,30 @@ def load_metadata(data_path):
     return metadata
 
 
+def load_single_acq_metdata(data_path, prefix):
+    """Load the metadata.txt of a single acquisition round
+
+    This is the detailled metadata from the microscope.
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Acquisition prefix, including round number if applicable
+
+    Returns:
+        metadata (dict): Content of the metadata file
+    """
+
+    acq_folder = Path(PARAMETERS["data_root"]["processed"]) / data_path / prefix
+    # the metadata for the first ROI is always copied. Just in case the first ROI is not
+    # ROI 1, we find whichever is available
+    fmetadata = list(acq_folder.glob("*_metadata.txt"))
+    assert len(fmetadata) == 1
+    fmetadata = fmetadata[0]
+    with open(fmetadata) as json_file:
+        metadata = json.load(json_file)
+    return metadata
+
+
 # AB: LGTM 10/01/23
 def load_tile_by_coors(
     data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
@@ -36,7 +60,7 @@ def load_tile_by_coors(
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
             Defaults to (1,0,0).
         suffix (str, optional): File name suffix. Defaults to "fstack".
-        prefix (str, optional): Full folder name prefix, including round number. 
+        prefix (str, optional): Full folder name prefix, including round number.
             Defaults to "genes_round_1_1"
 
     Returns:
