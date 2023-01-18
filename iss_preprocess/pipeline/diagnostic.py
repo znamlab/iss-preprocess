@@ -21,8 +21,8 @@ def check_illumination_correction(
     """
     processed = Path(flz.PARAMETERS["data_root"]["processed"])
     average_dir = processed / data_path / "averages"
-    diagnostic_folder = processed / data_path / "diagnostics"
-    diagnostic_folder.mkdir(exist_ok=True)
+    figure_folder = processed / data_path / "figures"
+    figure_folder.mkdir(exist_ok=True)
     correction_images = dict()
 
     for fname in average_dir.glob("*average.tif"):
@@ -74,7 +74,7 @@ def check_illumination_correction(
         print("    Single rounds, compare to grand average")
         _plot_channels_intensity(axes, all_ch0, subtract_chan=0)
         plt.subplots_adjust(wspace=0.5)
-        fig.savefig(diagnostic_folder / f"average_for_correction_{prefix}.png", dpi=600)
+        fig.savefig(figure_folder / f"average_for_correction_{prefix}.png", dpi=600)
 
     other_prefix = []
     for prefix in correction_images:
@@ -84,19 +84,30 @@ def check_illumination_correction(
     fig.clear()
     fig.set_size_inches(10, 2 * len(other_prefix) + 0.5)
     for ip, prefix in enumerate(other_prefix):
-        axes = [fig.add_subplot(len(other_prefix), 4, ip * 4 + i + 1) for i in range(4)]
+        axes = [
+            fig.add_subplot(len(other_prefix) * 2, 4, ip * 8 + i + 1) for i in range(4)
+        ]
         _plot_channels_intensity(
             axes, correction_images[prefix], chan_names=[prefix, "", "", ""]
         )
+        axes = [
+            fig.add_subplot(len(other_prefix) * 2, 4, ip * 8 + i + 5) for i in range(4)
+        ]
+        sub_images = correction_images[prefix] - correction_images["genes_round"]
+        sub_images = np.dstack([sub_images, np.zeros_like(sub_images[:, :, 0])])
+        _plot_channels_intensity(
+            axes, sub_images, chan_names=[f"- genes", "", "", ""], subtract_chan=4
+        )
     plt.subplots_adjust(wspace=0.2)
-    fig.savefig(diagnostic_folder / f"average_for_correction_other_prefix.png", dpi=600)
+    fig.savefig(figure_folder / f"average_for_correction_other_prefix.png", dpi=600)
 
 
 def _plot_channels_intensity(
     axes, correction_image, subtract_chan=None, chan_names=None
 ):
-    """Simple subfunction to plot the 4 channels of an image
+    """Simple subfunction to plot image with or without subtracting a reference
 
+    This will plot the first len(axes) channels of correction image
     Args:
         axes (list): List of plt.Axes to plot. Must be same lenght as number of channel
         correction_image (np.array): A X x Y x Nch image to plot
@@ -104,14 +115,14 @@ def _plot_channels_intensity(
             to None, no subtraction
         chan_names (list, optional): list of channel names to label axes
     """
-    assert len(axes) == correction_image.shape[-1]
+    assert len(axes) <= correction_image.shape[-1]
     for i, ax in enumerate(axes):
         if subtract_chan is None:
             img = ax.imshow(correction_image[:, :, i], vmin=0, vmax=1)
         else:
             subtract_chan = int(subtract_chan)
             img = ax.imshow(
-                correction_image[:, :, i] - correction_image[:, :, 0],
+                correction_image[:, :, i] - correction_image[:, :, subtract_chan],
                 cmap="RdBu_r",
                 vmin=-0.1,
                 vmax=0.1,
