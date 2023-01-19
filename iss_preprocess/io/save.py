@@ -55,13 +55,12 @@ def save_ome_tiff_pyramid(
     nbits = int(dtype[4:])
     max_val = 2**nbits - 1
     if verbose:
-        print("... Copying array")
-    image = np.clip(image, 0, max_val)  # clip to avoid overflow
-    image = np.array(image, dtype=dtype)
+        print("... Clipping array")
+    image = np.clip(image, 0, max_val).astype(dtype)  # clip to avoid overflow
 
     if max_size is not None:
-        ori_size = pixel_size
-        ratio = int(max_size / ori_size)
+        ratio = int(max_size / pixel_size)
+        print("... Resize")
         image = cv2.resize(
             image,
             (image.shape[1] // ratio, image.shape[0] // ratio),
