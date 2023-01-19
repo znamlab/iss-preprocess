@@ -781,7 +781,11 @@ def create_all_single_averages(
         )
         command = f"sbatch {args} {script_path}"
         print(command)
-        system(command)
+        subprocess.Popen(
+                shlex.split(command),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
 
 
 def create_grand_averages(
@@ -813,4 +817,8 @@ def create_grand_averages(
         )
         command = f"sbatch {args} {script_path}"
         print(command)
-        system(command)
+        subprocess.Popen(
+                shlex.split(command),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
