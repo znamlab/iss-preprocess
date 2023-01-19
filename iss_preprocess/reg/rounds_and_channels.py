@@ -4,8 +4,7 @@ import scipy.ndimage
 from numba import jit, prange
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
-from . import phase_corr
-from math import cos, sin, radians
+from . import phase_corr, make_transform, transform_image
 
 
 def register_channels_and_rounds(stack, ref_ch=0, ref_round=0):
@@ -266,34 +265,6 @@ def get_channel_reference_images(stack, angles_channels, shifts_channels):
     return std_stack, mean_stack
 
 
-def transform_image(im, scale=1, angle=0, shift=(0, 0), cval=0.0):
-    tform = SimilarityTransform(matrix=make_transform(scale, angle, shift, im.shape))
-    return warp(im, tform.inverse, preserve_range=True, cval=cval)
-
-
-def make_transform(s, angle, shift, shape):
-    angle = -radians(angle)
-    # TODO: confirm this is correct whether shape is even or odd
-    center_x = float(shape[1]) / 2 - 0.5
-    center_y = float(shape[0]) / 2 - 0.5
-    shift_x = shift[1]
-    shift_y = shift[0]
-    tform = [
-        [
-            cos(angle) * s,
-            -sin(angle) * s,
-            shift_x + (center_x - s * (center_x * cos(angle) - center_y * sin(angle))),
-        ],
-        [
-            sin(angle) * s,
-            cos(angle) * s,
-            shift_y + (center_y - s * (center_x * sin(angle) + center_y * cos(angle))),
-        ],
-        [0, 0, 1],
-    ]
-    return np.array(tform)
-
-
 def apply_corrections(im, scales, angles, shifts, cval=0.0):
     nchannels = im.shape[2]
     im_reg = np.zeros(im.shape)
@@ -475,7 +446,7 @@ def estimate_rotation_translation(
     best_angle = 0
     reference_fft = scipy.fft.fft2(reference)
     for i in range(niter):
-        best_angle, max_cc = estimate_rotation_angle(
+        best_angle, _ = estimate_rotation_angle(
             reference_fft,
             target,
             angle_range,
