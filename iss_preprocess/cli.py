@@ -354,6 +354,7 @@ def hyb_spots_roi(path, prefix, roi=1):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+# TODO: expose prefix_to_do
 def create_grand_averages(path):
     """Create grand average for illumination correction"""
     from iss_preprocess import pipeline
@@ -406,5 +407,5 @@ def create_single_average(path, subtract_black, subfolder, prefix_filter, suffix
         subfolder=subfolder,
         subtract_black=subtract_black,
         prefix_filter=prefix_filter,
-        suffix=suffix
+        suffix=suffix,
     )
