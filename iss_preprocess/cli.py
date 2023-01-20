@@ -367,17 +367,11 @@ def create_grand_averages(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option(
-    "-m",
-    "--maxval",
-    help="Maximum value to clip before images before averaging.",
-    default=1000,
-)
-def create_all_single_average(path, maxval):
+def create_all_single_averages(path):
     """Average all tiffs in all acquisition folders"""
     from iss_preprocess import pipeline
 
-    pipeline.create_all_single_averages(path, max_value=maxval)
+    pipeline.create_all_single_averages(path)
 
 
 @cli.command()
