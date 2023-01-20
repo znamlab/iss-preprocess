@@ -2,13 +2,13 @@ import subprocess, shlex
 import warnings
 import numpy as np
 import pandas as pd
-import glob
 import yaml
 import re
 import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
+from . import stitch
 from ..image import filter_stack, apply_illumination_correction, correction
 from ..reg import (
     align_channels_and_rounds,
@@ -20,6 +20,8 @@ from ..io import (
     load_tile_by_coors,
     load_metadata,
     load_hyb_probes_metadata,
+    save_ome_tiff_pyramid,
+    load_single_acq_metdata,
 )
 from ..segment import detect_isolated_spots, detect_spots
 from ..call import (
@@ -737,14 +739,8 @@ def create_all_single_averages(
 
     data_path = Path(data_path)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    # get metadata
-    metadata = raw_path / data_path / "{0}_metadata.yml".format(data_path.name)
-    if not metadata.exists():
-        raise IOError("Metadata not found.\n{0} does not exist".format(metadata))
-    with open(metadata, "r") as fhandle:
-        metadata = yaml.safe_load(fhandle)
+    metadata = load_metadata(data_path)
 
     # Collect all folder names
     to_average = []
@@ -782,10 +778,10 @@ def create_all_single_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
 
 
 def create_grand_averages(
@@ -818,7 +814,67 @@ def create_grand_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+
+
+def overview_for_ara_registration(
+    data_path, reference_prefix, rois_to_do=None, subresolutions=5, max_pixel_size=1
+):
+    """Generate a stitched overview for registering to the ARA
+
+    ABBA requires pyramidal OME-TIFF with resolution information. We will generate such
+    stitched files and save them with a log yaml file indicating info about downsampling
+
+    Args:
+        data_path (str): Relative path to the data folder
+        reference_prefix (str): prefix, including round number, to use for reference
+        rois_to_do (list, optional): ROIs to process. If None (default), process all
+            ROIs
+        subresolution (int, optional): Number of levels of the pyramid. Defaults to 5
+        max_pixel_size (float, optional): Pixel size in um for the highest level of the
+            pyramid. Defaults to 1
+    """
+    data_path = Path(data_path)
+    processed = Path(PARAMETERS["data_root"]["processed"])
+    registration_folder = processed / data_path / "register_to_ara"
+    registration_folder.mkdir(exist_ok=True)
+    # also make sure that the relevant subfolders are created
+    (registration_folder / 'qupath_project').mkdir(exist_ok=True)
+    (registration_folder / 'deepslice').mkdir(exist_ok=True)
+
+
+    ops = np.load(processed / data_path / "ops.npy", allow_pickle=True).item()
+    if rois_to_do is None:
+        metadata = load_metadata(data_path)
+        rois_to_do = metadata["ROI"].keys()
+    suffix = ops["projection"]
+    shift_right, shift_down, tile_shape = stitch.register_adjacent_tiles(
+        data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
+    )
+    acq_metadata = load_single_acq_metdata(data_path, reference_prefix)
+    pixel_size = acq_metadata["FrameKey-0-0-0"]["PixelSizeUm"]
+    for roi in rois_to_do:
+        stitched_stack = stitch.stitch_tiles(
+            data_path,
+            prefix=reference_prefix,
+            shift_right=shift_right,
+            shift_down=shift_down,
+            roi=roi,
+            suffix=suffix,
+            ich=ops["ref_ch"],
+            correct_illumination=True,
+        )
+        target = (
+            registration_folder
+            / f"stitched_{reference_prefix}_roi_{roi}_ch{ops['ref_ch']}.ome.tif"
+        )
+        smallest = save_ome_tiff_pyramid(
+            target,
+            stitched_stack,
+            pixel_size=pixel_size,
+            subresolutions=subresolutions,
+            max_size=max_pixel_size,
+        )
