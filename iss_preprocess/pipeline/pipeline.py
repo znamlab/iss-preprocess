@@ -22,6 +22,7 @@ from ..io import (
     load_hyb_probes_metadata,
     save_ome_tiff_pyramid,
     load_single_acq_metdata,
+    load_section_position,
 )
 from ..segment import detect_isolated_spots, detect_spots
 from ..call import (
@@ -821,7 +822,13 @@ def create_grand_averages(
 
 
 def overview_for_ara_registration(
-    data_path, reference_prefix, rois_to_do=None, subresolutions=5, max_pixel_size=1
+    data_path,
+    reference_prefix,
+    rois_to_do=None,
+    subresolutions=5,
+    max_pixel_size=1,
+    slicing_order=1,
+    chan2use=None
 ):
     """Generate a stitched overview for registering to the ARA
 
@@ -836,19 +843,22 @@ def overview_for_ara_registration(
         subresolution (int, optional): Number of levels of the pyramid. Defaults to 5
         max_pixel_size (float, optional): Pixel size in um for the highest level of the
             pyramid. Defaults to 1
+        slicing_order (int, optional): Direction of slicing, 1 for bulb to cerebellum,
+            -1 for cerebellum to bulb. Defaults to 1.
+        chan2use (list, optional): Channel to use. If None (Default), will use 
+            ops['ref_ch'], if more than one channel is specified, average them.
     """
     data_path = Path(data_path)
     processed = Path(PARAMETERS["data_root"]["processed"])
     registration_folder = processed / data_path / "register_to_ara"
     registration_folder.mkdir(exist_ok=True)
     # also make sure that the relevant subfolders are created
-    (registration_folder / 'qupath_project').mkdir(exist_ok=True)
-    (registration_folder / 'deepslice').mkdir(exist_ok=True)
-
+    (registration_folder / "qupath_project").mkdir(exist_ok=True)
+    (registration_folder / "deepslice").mkdir(exist_ok=True)
 
     ops = np.load(processed / data_path / "ops.npy", allow_pickle=True).item()
+    metadata = load_metadata(data_path)
     if rois_to_do is None:
-        metadata = load_metadata(data_path)
         rois_to_do = metadata["ROI"].keys()
     suffix = ops["projection"]
     shift_right, shift_down, tile_shape = stitch.register_adjacent_tiles(
@@ -856,7 +866,37 @@ def overview_for_ara_registration(
     )
     acq_metadata = load_single_acq_metdata(data_path, reference_prefix)
     pixel_size = acq_metadata["FrameKey-0-0-0"]["PixelSizeUm"]
+
+    # find where the slices are
+    # the chamber folder should be called chamber_XX
+    chamber = int((processed / data_path).name.split("_")[1])
+    section_info = load_section_position(data_path)
+    section_info.sort_values(by="absolute_section", inplace=True)
+    if any(np.diff(section_info.absolute_section) > 1):
+        raise IOError(
+            "I need to know the thickness of all the slices.\n"
+            + "Please add missing sections to `section_position.csv`"
+        )
+    # This assumes that all slices are in the csv file but allows for irregular
+    # thickness
+    increase = section_info.section_thickness_um * np.sign(slicing_order)
+    section_info["section_position"] = increase.cumsum()
+    minstep = section_info.section_thickness_um.min()
+    section_info["section_ordered_id"] = np.array(
+        section_info.section_position / minstep, dtype=int
+    )
+    # find where is each slice of the chamber in the section order of the whole brain
+    chamber_pos2section_order = {
+        s.chamber_position: s.section_ordered_id
+        for _, s in section_info[section_info.chamber == chamber].iterrows()
+    }
+    # find where is each roi in the chamber
+    roi_id2chamber_pos = {
+        roi: metadata["ROI"][roi]["chamber_position"] for roi in rois_to_do
+    }
     for roi in rois_to_do:
+        # get chamber position, and then section position
+        slice_id = chamber_pos2section_order[roi_id2chamber_pos[roi]]
         stitched_stack = stitch.stitch_tiles(
             data_path,
             prefix=reference_prefix,
@@ -869,7 +909,7 @@ def overview_for_ara_registration(
         )
         target = (
             registration_folder
-            / f"stitched_{reference_prefix}_roi_{roi}_ch{ops['ref_ch']}.ome.tif"
+            / f"{reference_prefix}_r{roi}_ch{ops['ref_ch']}_sl{slice_id:03d}.ome.tif"
         )
         smallest = save_ome_tiff_pyramid(
             target,
