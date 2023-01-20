@@ -119,9 +119,8 @@ def stitch_tiles(
         roi (int, optional): id of ROI to load. Defaults to 1.
         suffix (str, optional): filename suffix. Defaults to 'proj'.
         ich (int, optional): index of the channel to stitch. Defaults to 0.
-        black_level (int, optional): the black level for thischannel. Defaults to 0.
-        correction_image (np.array, optional): Image for illumination correction for 
-            channel `ich`. Defaults to None (no correction)
+        correct_illumination (bool, optional): Remove black levels and correct
+            illumination if True, return raw data otherwise. Default to False
 
     Returns:
         numpy.ndarray: stitched image.
@@ -255,7 +254,9 @@ def stitch_and_register(
         roi=roi,
         ich=target_ch,
         correct_illumination=True,
-    ).astype(np.single)  # to save memory
+    ).astype(
+        np.single
+    )  # to save memory
     stitched_stack_reference = stitch_tiles(
         data_path,
         reference_prefix,
@@ -341,7 +342,9 @@ def merge_and_align_spots_all_rois(
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    script_path = str(Path(__file__).parent.parent.parent / f"align_spots.sh")
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
+    )
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
         args = f"--export=DATAPATH={data_path},ROI={roi},"
