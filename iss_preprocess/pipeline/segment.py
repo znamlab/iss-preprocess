@@ -9,7 +9,7 @@ from .stitch import stitch_and_register
 def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    script_path = str(Path(__file__).parent.parent.parent / "segment_roi.sh")
+    script_path = str(Path(__file__).parent.parent.parent / "scripts" / "segment_roi.sh")
     for roi in roi_dims:
         args = f"--export=DATAPATH={data_path},ROI={roi[0]},PREFIX={prefix}"
         if use_gpu:
