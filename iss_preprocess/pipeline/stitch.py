@@ -119,7 +119,7 @@ def stitch_tiles(
         roi (int, optional): id of ROI to load. Defaults to 1.
         suffix (str, optional): filename suffix. Defaults to 'proj'.
         ich (int, optional): index of the channel to stitch. Defaults to 0.
-        correct_illumination (bool, optional): Remove black levels and correct
+        correct_illumination (bool, optional): Remove black levels and correct 
             illumination if True, return raw data otherwise. Default to False
 
     Returns:

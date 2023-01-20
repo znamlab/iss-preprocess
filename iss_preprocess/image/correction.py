@@ -1,7 +1,5 @@
 import numpy as np
-import glob
 from pathlib import Path
-import os
 import cv2
 from sklearn.mixture import GaussianMixture
 from skimage.exposure import match_histograms

@@ -2,14 +2,13 @@ import subprocess, shlex
 import warnings
 import numpy as np
 import pandas as pd
-import glob
 import yaml
 import re
 import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
-from ..image import filter_stack, apply_illumination_correction, correction
+from ..image import filter_stack, apply_illumination_correction, compute_mean_image
 from ..reg import (
     align_channels_and_rounds,
     generate_channel_round_transforms,
@@ -711,7 +710,7 @@ def create_single_average(
 
     black_level = ops["black_level"] if subtract_black else 0
 
-    av_image = correction.compute_mean_image(
+    av_image = compute_mean_image(
         processed_path / data_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
@@ -739,22 +738,14 @@ def create_all_single_averages(
 
     data_path = Path(data_path)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    # get metadata
-    metadata = raw_path / data_path / "{0}_metadata.yml".format(data_path.name)
-    if not metadata.exists():
-        raise IOError("Metadata not found.\n{0} does not exist".format(metadata))
-    with open(metadata, "r") as fhandle:
-        metadata = yaml.safe_load(fhandle)
+    metadata = load_metadata(data_path)
 
     # Collect all folder names
     to_average = []
     for kind in todo:
         if kind.endswith("rounds"):
-            folders = [
-                "{0}_{1}_1".format(kind[:-1], acq + 1) for acq in range(metadata[kind])
-            ]
+            folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
             to_average.extend(folders)
         elif kind in ("fluorescence", "hybridisation"):
             to_average.extend(list(metadata[kind].keys()))
