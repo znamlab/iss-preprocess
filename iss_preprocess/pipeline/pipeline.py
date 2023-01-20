@@ -764,7 +764,9 @@ def create_all_single_averages(
                 + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
             )
 
-    script_path = str(Path(__file__).parent.parent.parent / "create_single_average.sh")
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "create_single_average.sh"
+    )
     for folder in to_average:
         data_folder = processed_path / data_path
         if not data_folder.is_dir():
@@ -784,10 +786,10 @@ def create_all_single_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
 
 
 def create_grand_averages(
@@ -804,7 +806,9 @@ def create_grand_averages(
 
     data_path = Path(data_path)
     subfolder = "averages"
-    script_path = str(Path(__file__).parent.parent.parent / "create_grand_average.sh")
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "create_grand_average.sh"
+    )
     for kind in prefix_todo:
         export_args = dict(
             DATAPATH=data_path,
@@ -820,7 +824,7 @@ def create_grand_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
