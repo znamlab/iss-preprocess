@@ -1,9 +1,7 @@
 import numpy as np
 from math import ceil
 from skimage.draw import disk
-from ..segment import ROI
 from sklearn.mixture import GaussianMixture
-from sklearn.decomposition import FastICA
 from scipy.spatial.distance import hamming
 import matplotlib.pyplot as plt
 from ..coppafish import scaled_k_means
@@ -13,8 +11,8 @@ from ..coppafish import scaled_k_means
 BASES = np.array(["G", "T", "A", "C"])
 
 
-def get_cluster_means(rois, vis=False, score_thresh=0):
-    x = rois_to_array(rois, normalize=False)  # round x channels x spots
+def get_cluster_means(spots, vis=False, score_thresh=0):
+    x = np.stack(spots["trace"], axis=2)  # round x channels x spots
     nrounds = x.shape[0]
     nch = x.shape[1]
     if vis:
@@ -50,7 +48,7 @@ def get_cluster_means(rois, vis=False, score_thresh=0):
     if vis:
         for ich in range(nch):
             plt.sca(ax1[ich])
-            plt.imshow(np.stack(cluster_means, axis=2)[ich,:,:])
+            plt.imshow(np.stack(cluster_means, axis=2)[ich, :, :])
             plt.xlabel("rounds")
             plt.ylabel("channels")
             plt.title(f"channel {ich+1}")
@@ -58,81 +56,20 @@ def get_cluster_means(rois, vis=False, score_thresh=0):
     return cluster_means
 
 
-def call_hyb_spots(spots, stack, nprobes=3, vis=False):
-    """
-    Assign spots to hybridization probes, adjusting for cross-talk. Fluorescence
-    values are extracted and first processed using ICA. The ICA output is used
-    to fit a GMM and assign components for each spot. Finally, since the order of
-    GMM components is arbitrary, we assign a channel number for each component
-    based on the channel where it has the highest mean fluorescence.
-
-    Args:
-        spots (DataFrame): table of spot locations
-        stack (numpy.ndarray): X x Y x C stack.
-        nprobes (int): number probes used. Determines the number of ICA and GMM components.
-        vis (bool): whether to make diagnostic plots.
-
-    Returns:
-        numpy.array of channel IDs for each spot. IDs are selected for each component
-            based on the channel with the highest mean fluorescence for spots
-            assigned to this component.
-
-    """
-    hyb_rois = extract_spots(spots, stack[:, :, np.newaxis, :])
-    f = rois_to_array(hyb_rois)
-    # first perform ICA to separate fluorophores
-    ica = FastICA(n_components=nprobes, random_state=1, max_iter=1000).fit_transform(
-        f[0, :, :].T
-    )
-    # then cluster the ICA output with a GMM
-    gmm = GaussianMixture(n_components=nprobes, random_state=0).fit(ica)
-    labels = gmm.predict(ica)
-    # assign each GMM component to a component based on the highest fluorescence channel
-    channel_id = np.array(
-        [
-            np.argmax(np.mean(f[0, :, labels == label], axis=0))
-            for label in np.unique(labels)
-        ]
-    )
-
-    if vis:
-        # visualise ICA components
-        plt.figure(figsize=(10, 10))
-        for xch in range(f.shape[1]):
-            for ych in range(f.shape[1]):
-                plt.subplot(f.shape[1], f.shape[1], xch * f.shape[1] + ych + 1)
-                plt.scatter(ica[:, xch], ica[:, ych], c=labels, s=5)
-        # plot component assignments for the original fluorescence values
-        plt.figure(figsize=(10, 10))
-        f = rois_to_array(hyb_rois, normalize=False)
-        for xch in range(f.shape[1]):
-            for ych in range(f.shape[1]):
-                plt.subplot(f.shape[1], f.shape[1], xch * f.shape[1] + ych + 1)
-                plt.scatter(f[:, xch], f[:, ych], c=labels, s=5)
-
-    return channel_id[labels]
-
-
 def extract_spots(spots, stack):
     """
-    Create ROIs based on spot locations and extract their fluorescence traces.
+    Extract fluorescence traces of spots and assign them to a column of the DataFrame.
 
     Args:
         spots (pandas.DataFrame):
         stack (numpy.ndarray): X x Y x R x C stack.
 
-    Returns:
-        List of ROI objects.
-
     """
-    rois = []
+    traces = []
     for _, spot in spots.iterrows():
         rr, cc = disk((spot["y"], spot["x"]), spot["size"], shape=stack.shape[0:2])
-        roi = ROI(xpix=rr, ypix=cc, shape=stack.shape[0:2])
-        roi.trace = stack[roi.xpix, roi.ypix, :, :].mean(axis=0)
-        rois.append(roi)
-
-    return rois
+        traces.append(stack[rr, cc, :, :].mean(axis=0).T)
+    spots["trace"] = traces
 
 
 def rois_to_array(rois, normalize=True):
