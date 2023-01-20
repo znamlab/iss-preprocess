@@ -20,6 +20,8 @@ def load_hyb_probes_metadata():
 def load_metadata(data_path):
     raw_path = Path(PARAMETERS["data_root"]["raw"])
     metadata_fname = raw_path / data_path / (Path(data_path).name + "_metadata.yml")
+    if not metadata_fname.exists():
+        raise IOError(f"Metadata not found.\n{metadata_fname} does not exist")
     with open(metadata_fname, "r") as f:
         metadata = yaml.safe_load(f)
     return metadata

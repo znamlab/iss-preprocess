@@ -736,22 +736,14 @@ def create_all_single_averages(
 
     data_path = Path(data_path)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    # get metadata
-    metadata = raw_path / data_path / "{0}_metadata.yml".format(data_path.name)
-    if not metadata.exists():
-        raise IOError("Metadata not found.\n{0} does not exist".format(metadata))
-    with open(metadata, "r") as fhandle:
-        metadata = yaml.safe_load(fhandle)
+    metadata = load_metadata(data_path)
 
     # Collect all folder names
     to_average = []
     for kind in todo:
         if kind.endswith("rounds"):
-            folders = [
-                "{0}_{1}_1".format(kind[:-1], acq + 1) for acq in range(metadata[kind])
-            ]
+            folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
             to_average.extend(folders)
         elif kind in ("fluorescence", "hybridisation"):
             to_average.extend(list(metadata[kind].keys()))
