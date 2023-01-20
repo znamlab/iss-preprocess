@@ -1,37 +1,20 @@
-"""
-Module containing diagnostic plots to make sure steps of the pipeline run smoothly
-
-The functions in here do not compute anything useful, but create figures
-"""
-from pathlib import Path
 from natsort import natsorted
 import numpy as np
 import matplotlib.pyplot as plt
-import flexiznam as flz
-from iss_preprocess.io.load import load_stack
 
 
-def check_illumination_correction(
-    data_path, grand_averages=("barcode_round", "genes_round"), verbose=True
+def plot_correction_images(
+    correction_images, grand_averages, figure_folder, verbose=True
 ):
-    """Check if illumination correction average look reasonable
+    """Plot average illumination correction images.
 
     Args:
-        data_path (str): Relative path to data folder
+        correction_images (dict): Dictionary containing image stacks.
+        grand_averages (list): List of grand averages to plot.
+        figure_folder (pathlib.Path): Path where to save the figures.
         verbose (bool): Print info about progress. Defaults to True
+
     """
-    processed = Path(flz.PARAMETERS["data_root"]["processed"])
-    average_dir = processed / data_path / "averages"
-    figure_folder = processed / data_path / "figures"
-    figure_folder.mkdir(exist_ok=True)
-    correction_images = dict()
-
-    for fname in average_dir.glob("*average.tif"):
-        correction_images[fname.name.replace("_average.tif", "")] = load_stack(fname)
-    if verbose:
-        print(f"Found {len(correction_images)} averages")
-    correction_images.keys()
-
     fig = plt.figure(figsize=(10, 10))
     for prefix in grand_averages:
         if verbose:

@@ -8,8 +8,7 @@ import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
-from . import stitch
-from ..image import filter_stack, apply_illumination_correction, correction
+from ..image import filter_stack, apply_illumination_correction, compute_mean_image
 from ..reg import (
     align_channels_and_rounds,
     generate_channel_round_transforms,
@@ -714,7 +713,7 @@ def create_single_average(
 
     black_level = ops["black_level"] if subtract_black else 0
 
-    av_image = correction.compute_mean_image(
+    av_image = compute_mean_image(
         processed_path / data_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
@@ -749,9 +748,7 @@ def create_all_single_averages(
     to_average = []
     for kind in todo:
         if kind.endswith("rounds"):
-            folders = [
-                "{0}_{1}_1".format(kind[:-1], acq + 1) for acq in range(metadata[kind])
-            ]
+            folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
             to_average.extend(folders)
         elif kind in ("fluorescence", "hybridisation"):
             to_average.extend(list(metadata[kind].keys()))
@@ -761,7 +758,9 @@ def create_all_single_averages(
                 + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
             )
 
-    script_path = str(Path(__file__).parent.parent.parent / "create_single_average.sh")
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "create_single_average.sh"
+    )
     for folder in to_average:
         data_folder = processed_path / data_path
         if not data_folder.is_dir():
@@ -801,7 +800,9 @@ def create_grand_averages(
 
     data_path = Path(data_path)
     subfolder = "averages"
-    script_path = str(Path(__file__).parent.parent.parent / "create_grand_average.sh")
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "create_grand_average.sh"
+    )
     for kind in prefix_todo:
         export_args = dict(
             DATAPATH=data_path,
