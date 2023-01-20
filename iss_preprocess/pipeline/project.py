@@ -19,7 +19,7 @@ def project_round(data_path, prefix, overwrite=False):
         overwrite (bool, optional): _description_. Defaults to False.
     """
     rois_list = get_roi_dimensions(data_path, prefix)
-    script_path = str(Path(__file__).parent.parent.parent / "project_tile.sh")
+    script_path = str(Path(__file__).parent.parent.parent / "scripts" / "project_tile.sh")
     for roi in rois_list:
         for tilex in range(roi[1] + 1):
             for tiley in range(roi[2] + 1):

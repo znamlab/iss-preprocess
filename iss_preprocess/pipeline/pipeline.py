@@ -98,7 +98,9 @@ def extract_hyb_spots_all(data_path):
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
-    script_path = str(Path(__file__).parent.parent.parent / f"extract_hyb_spots.sh")
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "extract_hyb_spots.sh"
+    )
 
     for hyb_round in metadata["hybridisation"].keys():
         for roi in roi_dims[use_rois, :]:
@@ -564,7 +566,7 @@ def load_and_register_tile(
 def batch_process_tiles(data_path, script, additional_args=""):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    script_path = str(Path(__file__).parent.parent.parent / f"{script}.sh")
+    script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
