@@ -2,14 +2,13 @@ import subprocess, shlex
 import warnings
 import numpy as np
 import pandas as pd
-import glob
 import yaml
 import re
 import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
-from ..image import filter_stack, apply_illumination_correction, correction
+from ..image import filter_stack, apply_illumination_correction, compute_mean_image
 from ..reg import (
     align_channels_and_rounds,
     generate_channel_round_transforms,
@@ -709,7 +708,7 @@ def create_single_average(
 
     black_level = ops["black_level"] if subtract_black else 0
 
-    av_image = correction.compute_mean_image(
+    av_image = compute_mean_image(
         processed_path / data_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
@@ -782,10 +781,10 @@ def create_all_single_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
 
 
 def create_grand_averages(
@@ -818,7 +817,7 @@ def create_grand_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
