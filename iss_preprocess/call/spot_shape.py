@@ -78,53 +78,34 @@ def apply_symmetry(spot_sign_image):
     return symmetric_spot_sign_image
 
 
-def find_gene_spots(g, spot_sign_image, rho=2, omp_score_threshold=0.05):
+def find_gene_spots(g, spot_sign_image, rho=2, spot_score_threshold=0.05):
     """
     Finds gene spots based on similarity to the spot sign image.
 
     We first detect spots by finding peaks in the OMP out put images. For each
     spot we compute a score based on its similarity with average spot sign image.
     This score is defined as
-        n_neg + rho *
+        (n_neg + rho * n_pos) / (max_neg + rho * max_pos)
 
     Args:
         g (numpy.ndarray): X x Y x Ngenes OMP output
         spot_sign_image (numpy.ndarray): average spot sign image to use as a template in filtering spots
-        rho (float): multiplier that defines the relative weight assigned to positive spot pixels
-        omp_score_threshold (float): minimum score threshold for including spots
+        rho (float): multiplier that defines the relative weight assigned to positive spot pixels.
+            Default: 2.
+        spot_score_threshold (float): minimum score threshold for including spots.
+            Default: 0.05
 
     Returns:
 
     """
-    neg_max = np.sum(np.sign(spot_sign_image) == -1)
-    pos_max = np.sum(np.sign(spot_sign_image) == 1)
     ngenes = g.shape[2]
     all_genes = []
     for igene in range(ngenes):
-        # TODO: this should use `detect_spots_by_shape`
         print(f"findings spots for gene {igene} of {ngenes}...")
-        gene_spots = detect_spots(g[:, :, igene], threshold=0)
-        pos_filter = (np.sign(spot_sign_image) == 1).astype(float)
-        neg_filter = (np.sign(spot_sign_image) == -1).astype(float)
-        gene_filt_pos = cv2.filter2D(
-            (g[:, :, igene] > 0).astype(float),
-            -1,
-            pos_filter,
-            borderType=cv2.BORDER_REPLICATE,
+        gene_spots = detect_spots_by_shape(
+            g[:, :, igene], spot_sign_image, threshold=0, rho=rho
         )
-        gene_filt_neg = cv2.filter2D(
-            (g[:, :, igene] < 0).astype(float),
-            -1,
-            neg_filter,
-            borderType=cv2.BORDER_REPLICATE,
-        )
-        pos_pixels = gene_filt_pos[gene_spots["y"], gene_spots["x"]]
-        neg_pixels = gene_filt_neg[gene_spots["y"], gene_spots["x"]]
-        omp_score = (neg_pixels + pos_pixels * rho) / (neg_max + pos_max * rho)
-        gene_spots["omp_score"] = omp_score
-        gene_spots["pos_pixels"] = pos_pixels
-        gene_spots["neg_pixels"] = neg_pixels
-        gene_spots = gene_spots.iloc[omp_score > omp_score_threshold]
+        gene_spots = gene_spots.iloc[gene_spots["spot_score"] > spot_score_threshold]
         all_genes.append(gene_spots)
     return all_genes
 

@@ -651,7 +651,7 @@ def run_omp_on_tile(
         g,
         spot_sign_image,
         rho=ops["spot_rho"],
-        omp_score_threshold=ops["spot_threshold"],
+        spot_score_threshold=ops["spot_threshold"],
     )
 
     for df, gene in zip(gene_spots, omp_stat["gene_names"]):
