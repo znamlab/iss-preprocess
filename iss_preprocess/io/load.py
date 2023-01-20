@@ -49,6 +49,25 @@ def load_single_acq_metdata(data_path, prefix):
     return metadata
 
 
+def load_section_position(data_path):
+    """Load the section position information
+
+    This is the same for all chambers and is contained in the parent folder of
+    `data_path`
+
+    Args:
+        data_path (str): Relative path to dataset
+
+    Returns:
+        pd.DataFrame: Slice position info
+    """
+    raw_path = Path(PARAMETERS["data_root"]["raw"])
+    mouse_path = (raw_path / data_path).parent
+    csv_path = mouse_path / "section_position.csv"
+    slice_info = pd.read_csv(csv_path, index_col=None)
+    return slice_info
+
+
 # AB: LGTM 10/01/23
 def load_tile_by_coors(
     data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
