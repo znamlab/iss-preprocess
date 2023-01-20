@@ -12,12 +12,13 @@ from iss_preprocess.io.load import load_stack
 
 
 def check_illumination_correction(
-    data_path, grand_averages=("barcode_round", "genes_round")
+    data_path, grand_averages=("barcode_round", "genes_round"), verbose=True
 ):
     """Check if illumination correction average look reasonable
 
     Args:
         data_path (str): Relative path to data folder
+        verbose (bool): Print info about progress. Defaults to True
     """
     processed = Path(flz.PARAMETERS["data_root"]["processed"])
     average_dir = processed / data_path / "averages"
@@ -27,15 +28,18 @@ def check_illumination_correction(
 
     for fname in average_dir.glob("*average.tif"):
         correction_images[fname.name.replace("_average.tif", "")] = load_stack(fname)
-    print(f"Found {len(correction_images)} averages")
+    if verbose:
+        print(f"Found {len(correction_images)} averages")
     correction_images.keys()
 
     fig = plt.figure(figsize=(10, 10))
     for prefix in grand_averages:
-        print(f"Doing {prefix}")
+        if verbose:
+            print(f"Doing {prefix}")
         # first plot
         fig.clear()
-        print("    Grand average, all channels")
+        if verbose:
+            print("    Grand average, all channels")
         fig.suptitle(prefix)
         grand_av = correction_images[prefix]
         ax_ids = np.unravel_index(range(4), (2, 2))
@@ -44,14 +48,16 @@ def check_illumination_correction(
         ]
         titles = [f"Channel {i}" for i in range(4)]
         _plot_channels_intensity(axes, grand_av, chan_names=titles)
-        print("    Grand average, inter channel comparison")
+        if verbose:
+            print("    Grand average, inter channel comparison")
         axes = [
             plt.subplot2grid(shape=(4, 3), loc=(i + 2, j), fig=fig)
             for i, j in zip(*ax_ids)
         ]
         titles = [f"Ch{i} - Ch0" for i in range(4)]
         _plot_channels_intensity(axes, grand_av, subtract_chan=0, chan_names=titles)
-        print("    Collecting single rounds")
+        if verbose:
+            print("    Collecting single rounds")
         all_ch0 = {}
         for k in correction_images:
             if (k.startswith(prefix)) and (len(k) > len(prefix)):
@@ -61,7 +67,8 @@ def check_illumination_correction(
         av_names = ["Grand average"] + [
             name.replace(prefix + "_", "") for name in av_names
         ]
-        print("    Single rounds, channel 0")
+        if verbose:
+            print("    Single rounds, channel 0")
         axes = [
             plt.subplot2grid(shape=(len(av_names) + 1, 6), loc=(i, 4), fig=fig)
             for i in range(len(av_names))
@@ -71,11 +78,14 @@ def check_illumination_correction(
             plt.subplot2grid(shape=(len(av_names) + 1, 6), loc=(i, 5), fig=fig)
             for i in range(len(av_names))
         ]
-        print("    Single rounds, compare to grand average")
+        if verbose:
+            print("    Single rounds, compare to grand average")
         _plot_channels_intensity(axes, all_ch0, subtract_chan=0)
         plt.subplots_adjust(wspace=0.5)
         fig.savefig(figure_folder / f"average_for_correction_{prefix}.png", dpi=600)
 
+    if verbose:
+        print("Doing remaining prefix")
     other_prefix = []
     for prefix in correction_images:
         if any([prefix.startswith(grandav) for grandav in grand_averages]):
@@ -95,9 +105,7 @@ def check_illumination_correction(
         ]
         sub_images = correction_images[prefix] - correction_images["genes_round"]
         sub_images = np.dstack([sub_images, np.zeros_like(sub_images[:, :, 0])])
-        _plot_channels_intensity(
-            axes, sub_images, chan_names=[f"- genes", "", "", ""], subtract_chan=4
-        )
+        _plot_channels_intensity(axes, sub_images, subtract_chan=4)
     plt.subplots_adjust(wspace=0.2)
     fig.savefig(figure_folder / f"average_for_correction_other_prefix.png", dpi=600)
 
