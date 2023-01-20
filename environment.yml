@@ -8,8 +8,6 @@ dependencies:
   - matplotlib
   - scikit-image
   - scikit-learn
-  - pystackreg
   - czifile
   - jupyter
-  - trackpy
   - numba

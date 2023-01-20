@@ -1,4 +1,3 @@
-import trackpy
 import pandas as pd
 import numpy as np
 from skimage.feature import blob_log

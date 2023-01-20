@@ -16,9 +16,7 @@ setup(
         'scikit-image',
         'czifile',
         'scikit-learn',
-        'pystackreg',
         'flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git',
-        'trackpy',
         'numba',
         'cellpose',
         'Click'
