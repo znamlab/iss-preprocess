@@ -105,7 +105,7 @@ def find_gene_spots(g, spot_sign_image, rho=2, spot_score_threshold=0.05):
         gene_spots = detect_spots_by_shape(
             g[:, :, igene], spot_sign_image, threshold=0, rho=rho
         )
-        gene_spots = gene_spots.iloc[gene_spots["spot_score"] > spot_score_threshold]
+        gene_spots = gene_spots.iloc[(gene_spots["spot_score"] > spot_score_threshold).to_numpy().astype(bool)]
         all_genes.append(gene_spots)
     return all_genes
 
