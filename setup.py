@@ -19,7 +19,8 @@ setup(
         'flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git',
         'numba',
         'cellpose',
-        'Click'
+        'Click',
+        'bg_atlasapi'
     ],
     entry_points='''
         [console_scripts]
