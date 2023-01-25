@@ -2,12 +2,14 @@ import subprocess, shlex
 import warnings
 import numpy as np
 import pandas as pd
-import yaml
+from scipy.ndimage import gaussian_filter
 import re
 import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
+from . import stitch
+from . import ara_registration as ara_reg
 from ..image import filter_stack, apply_illumination_correction, compute_mean_image
 from ..reg import (
     align_channels_and_rounds,
@@ -830,8 +832,10 @@ def overview_for_ara_registration(
     rois_to_do=None,
     subresolutions=5,
     max_pixel_size=1,
-    slicing_order=1,
-    chan2use=None
+    bulb_first=True,
+    chan2use=None,
+    agg_func=np.nanmin,
+    sigma_blur=10,
 ):
     """Generate a stitched overview for registering to the ARA
 
@@ -845,13 +849,20 @@ def overview_for_ara_registration(
             ROIs
         subresolution (int, optional): Number of levels of the pyramid. Defaults to 5
         max_pixel_size (float, optional): Pixel size in um for the highest level of the
-            pyramid. Defaults to 1
-        slicing_order (int, optional): Direction of slicing, 1 for bulb to cerebellum,
-            -1 for cerebellum to bulb. Defaults to 1.
-        chan2use (list, optional): Channel to use. If None (Default), will use 
+            pyramid. None to keep original size. Defaults to 1
+        bulb_first (bool, optional): Was the first slice closer to the olfactory
+            bulb than the last? Defaults to True.
+        chan2use (list, optional): Channel to use. If None (Default), will use
             ops['ref_ch'], if more than one channel is specified, average them.
+        agg_func (func, optional): If len(chan2use) > 1, how do I aggregate channels?
+            Defaults to np.nanmin to reduce rolonies and have background.
+        sigma_blur (float, optional): sigma of the gaussian filter, in original
+            pixel size. Defaults to 10
+
+    Returns:
+        thumbnails (dict): a dictionary with one small image per ROI.
     """
-    data_path = Path(data_path)
+
     processed = Path(PARAMETERS["data_root"]["processed"])
     registration_folder = processed / data_path / "register_to_ara"
     registration_folder.mkdir(exist_ok=True)
@@ -863,56 +874,49 @@ def overview_for_ara_registration(
     metadata = load_metadata(data_path)
     if rois_to_do is None:
         rois_to_do = metadata["ROI"].keys()
-    suffix = ops["projection"]
+
     shift_right, shift_down, tile_shape = stitch.register_adjacent_tiles(
         data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
     )
     acq_metadata = load_single_acq_metdata(data_path, reference_prefix)
     pixel_size = acq_metadata["FrameKey-0-0-0"]["PixelSizeUm"]
 
-    # find where the slices are
-    # the chamber folder should be called chamber_XX
-    chamber = int((processed / data_path).name.split("_")[1])
-    section_info = load_section_position(data_path)
-    section_info.sort_values(by="absolute_section", inplace=True)
-    if any(np.diff(section_info.absolute_section) > 1):
-        raise IOError(
-            "I need to know the thickness of all the slices.\n"
-            + "Please add missing sections to `section_position.csv`"
-        )
-    # This assumes that all slices are in the csv file but allows for irregular
-    # thickness
-    increase = section_info.section_thickness_um * np.sign(slicing_order)
-    section_info["section_position"] = increase.cumsum()
-    minstep = section_info.section_thickness_um.min()
-    section_info["section_ordered_id"] = np.array(
-        section_info.section_position / minstep, dtype=int
+    roi_slice_pos_um, min_step = ara_reg.find_roi_position_on_cryostat(
+        data_path=data_path, bulb_first=bulb_first
     )
-    # find where is each slice of the chamber in the section order of the whole brain
-    chamber_pos2section_order = {
-        s.chamber_position: s.section_ordered_id
-        for _, s in section_info[section_info.chamber == chamber].iterrows()
+    roi2section_order = {
+        roi: int(pos / min_step) for roi, pos in roi_slice_pos_um.items()
     }
-    # find where is each roi in the chamber
-    roi_id2chamber_pos = {
-        roi: metadata["ROI"][roi]["chamber_position"] for roi in rois_to_do
-    }
+
+    if chan2use is None:
+        chan2use = [ops["ref_ch"]]
+    if isinstance(chan2use, int):
+        chan2use = [chan2use]
+    thumbnails = dict()
     for roi in rois_to_do:
         # get chamber position, and then section position
-        slice_id = chamber_pos2section_order[roi_id2chamber_pos[roi]]
-        stitched_stack = stitch.stitch_tiles(
-            data_path,
-            prefix=reference_prefix,
-            shift_right=shift_right,
-            shift_down=shift_down,
-            roi=roi,
-            suffix=suffix,
-            ich=ops["ref_ch"],
-            correct_illumination=True,
-        )
+        slice_id = roi2section_order[roi]
+        stitched = None
+        for ich, ch in enumerate(chan2use):
+            stitched_stack = stitch.stitch_tiles(
+                data_path,
+                prefix=reference_prefix,
+                shift_right=shift_right,
+                shift_down=shift_down,
+                roi=roi,
+                suffix=ops["projection"],
+                ich=ch,
+                correct_illumination=True,
+            )
+            if stitched is None:
+                stitched = np.zeros(list(stitched_stack.shape) + [len(chan2use)])
+            stitched_stack = gaussian_filter(stitched_stack, sigma_blur)
+            stitched[:, :, ich] = stitched_stack
+        stitched = agg_func(stitched, axis=2)
+        
         target = (
             registration_folder
-            / f"{reference_prefix}_r{roi}_ch{ops['ref_ch']}_sl{slice_id:03d}.ome.tif"
+            / f"registration_reference_r{roi}_sl{slice_id:03d}.ome.tif"
         )
         smallest = save_ome_tiff_pyramid(
             target,
@@ -921,3 +925,5 @@ def overview_for_ara_registration(
             subresolutions=subresolutions,
             max_size=max_pixel_size,
         )
+        thumbnails[roi] = smallest
+    return thumbnails
