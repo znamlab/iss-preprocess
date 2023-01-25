@@ -55,3 +55,99 @@ def find_roi_position_on_cryostat(data_path, bulb_first=True):
     return roi_slice_pos_um, section_info.section_thickness_um.min()
 
 
+def load_registration_reference_metadata(data_path, roi):
+    """Load metadata file associated with registration reference of one ROI
+
+    This is the "registration_reference_r{roi}_sl{slice_number}.yml" file that contains
+    shape and downsampling info.
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): Number of the roi
+
+    Returns:
+        metadata (dict): Content of the metadata yml file
+    """
+    processed = Path(PARAMETERS["data_root"]["processed"])
+    reg_folder = processed / data_path / "register_to_ara"
+
+    if not reg_folder.is_dir():
+        raise IOError("Registration folder does not exists. Perform registration first")
+    metadata_file = list(reg_folder.glob(f"registration_reference_r{roi}_sl*.yml"))
+    if not len(metadata_file):
+        raise IOError(f"No file found for ROI {roi}")
+    elif len(metadata_file) > 1:
+        raise IOError(f"Found multiple files for ROI {roi}")
+    with open(metadata_file[0], "r") as fhandle:
+        metadata = yaml.safe_load(fhandle)
+    return metadata
+
+
+def load_coordinate_image(data_path, roi, full_scale=True):
+    """Load the 3 channel image of ARA coordinates for `roi`
+
+    TODO: should it go in io?
+    TODO: load raw registered image or upsample registered to ref image
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): Number of the ROI
+    """
+    processed = Path(PARAMETERS["data_root"]["processed"])
+    reg_folder = processed / data_path / "register_to_ara"
+
+    if not reg_folder.is_dir():
+        raise IOError("Registration folder does not exists. Perform registration first")
+    coord_folder = reg_folder / "ara_coordinates"
+    if not coord_folder.is_dir():
+        raise IOError(
+            "ARA coordinates folder does not exists." + " Perform registration first"
+        )
+    coord_file = list(coord_folder.glob(f"*_r{roi}_*Coords.tif"))
+    if not len(coord_file):
+        raise IOError(f"Cannot find coordinates files for roi {roi}")
+    elif len(coord_file) > 1:
+        raise IOError(f"Found multiple coordinates files for roi {roi}")
+    coord_file = coord_file[0]
+
+    coords = load_stack(str(coord_file))
+    if full_scale:
+        metadata = load_registration_reference_metadata(data_path, roi)
+        scale_factor = metadata["pixel_size"] / metadata["original_pixel_size"]
+        coords = rescale(coords, scale_factor)
+
+    return coords
+
+
+def make_area_image(data_path, roi, atlas_size=10):
+    """Generate an image with area ID in each pixel
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): Roi number to generate
+        atlas_size (int, optional): Pixel size of the atlas used to find area if.
+            Defaults to 10.
+
+    Returns:
+        area_id (np.array): Image with area id of each pixel
+    """
+    coord = np.clip(load_coordinate_image(data_path, roi), 0, None)
+    coord = np.round(coord * 1000 / atlas_size, 0).astype("uint16")
+
+    atlas_name = "allen_mouse_%dum" % atlas_size
+    bg_atlas = bga.bg_atlas.BrainGlobeAtlas(atlas_name)
+    for channel, max_val in enumerate(bg_atlas.shape):
+        coord[:, :, channel] = np.clip(coord[:, :, channel], 0, max_val - 1)
+    area_id = bg_atlas.annotation[coord[:, :, 0], coord[:, :, 1], coord[:, :, 2]]
+    return area_id
+
+
+def spots_ara_infos(data_path, spots, atlas_size):
+    """Add ARA coordinates and area ID to spots dataframe
+
+    Args:
+        data_path (str): Relative path to data
+        spots (pd.DataFrame): Spots dataframe
+        atlas_size (int): Atlas size (10, 25 or 50) for find areas borders
+    """
+    raise NotImplementedError
