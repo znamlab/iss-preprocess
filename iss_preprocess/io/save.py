@@ -33,6 +33,7 @@ def save_ome_tiff_pyramid(
     max_size=None,
     dtype="uint16",
     verbose=True,
+    save_thumbnail=False
 ):
     """Write single image plane as pyramidal ome-tiff
 
@@ -47,43 +48,20 @@ def save_ome_tiff_pyramid(
         dtype (str, optional): Image datatype, can be "uint16" or "uint8".
             Defaults to "uint16".
         verbose (bool, optional): Print progress. Defaults to True.
+        save_thumbnail (bool, optional): Add a thumbnail image. Defaults to False.
 
     Returns:
         np.array: Last level of the pyramid, most downsampled image
     """
-    logfile = Path(target).with_suffix(".yml")
+
     if dtype not in ["uint8", "uint16"]:
         raise NotImplementedError("`dtype` must be uint8 or uint16")
     nbits = int(dtype[4:])
     max_val = 2**nbits - 1
     if verbose:
         print("... Clipping array")
-    log = dict(
-        original_dtype=str(image.dtype),
-        original_max=float(image.max()),
-        original_min=float(image.min()),
-        original_shape=list(image.shape),
-        original_pixel_size=pixel_size,
-    )
     image = np.clip(image, 0, max_val).astype(dtype)  # clip to avoid overflow
 
-    if max_size is not None:
-        ratio = int(max_size / pixel_size)
-        print("... Resize")
-        new_shape = (image.shape[1] // ratio, image.shape[0] // ratio)
-        image = cv2.resize(
-            image,
-            new_shape,
-            interpolation=cv2.INTER_CUBIC,
-        )
-        log["new_shape"] = list(new_shape)
-    else:
-        ratio = 1
-        log["new_shape"] = list(image.shape)
-
-    log["downsample_ratio"] = ratio
-    pixel_size *= ratio
-    log["pixel_size"] = pixel_size
     metadata = {
         "axes": "YX",
         "SignificantBits": nbits,
@@ -125,13 +103,12 @@ def save_ome_tiff_pyramid(
             skip = 1
         else:
             skip = int(max(image.shape) / 100)
-        if dtype == "uint16":
-            # thumbnail are always uint8
-            thumbnail = (image[::skip, ::skip] >> 2).astype("uint8")
-        else:
-            thumbnail = image[::skip, ::skip]
-        # >> 2 if to shift bits before conversion to int8
-        tif.write(thumbnail, metadata={"Name": "thumbnail"})
-    with open(logfile, "w") as fhandle:
-        yaml.dump(log, fhandle)
+        if save_thumbnail:
+            if dtype == "uint16":
+                # thumbnail are always uint8
+                thumbnail = (image[::skip, ::skip] >> 2).astype("uint8")
+            else:
+                thumbnail = image[::skip, ::skip]
+            # >> 2 if to shift bits before conversion to int8
+            tif.write(thumbnail, metadata={"Name": "thumbnail"})
     return image
