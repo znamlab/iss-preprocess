@@ -193,7 +193,7 @@ def setup_barcode_calling(
         extract_spots(spots, stack)
         all_spots.append(spots)
     all_spots = pd.concat(all_spots, ignore_index=True)
-    cluster_means = get_cluster_means(rois, vis=True, score_thresh=score_thresh)
+    cluster_means = get_cluster_means(all_spots, vis=True, score_thresh=score_thresh)
     return cluster_means, all_spots
 
 
