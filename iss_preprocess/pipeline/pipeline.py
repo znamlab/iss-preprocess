@@ -1,12 +1,14 @@
 import subprocess, shlex
+import warnings
 import numpy as np
 import pandas as pd
+import yaml
 import re
 import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
-from ..image import filter_stack, apply_illumination_correction
+from ..image import filter_stack, apply_illumination_correction, compute_mean_image
 from ..reg import (
     align_channels_and_rounds,
     generate_channel_round_transforms,
@@ -323,7 +325,7 @@ def get_roi_dimensions(data_path, prefix):
     raw_path = Path(PARAMETERS["data_root"]["raw"])
     data_dir = raw_path / data_path / prefix
     fnames = [p.name for p in data_dir.glob("*.tif")]
-    pattern = f"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
+    pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
     matcher = re.compile(pattern=pattern)
     tile_coors = np.stack(
         [np.array(matcher.match(fname).groups(), dtype=int) for fname in fnames]
@@ -663,3 +665,157 @@ def run_omp_on_tile(
     pd.concat(gene_spots).to_pickle(
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
+
+
+def create_single_average(
+    data_path, subfolder, subtract_black, prefix_filter=None, suffix=None
+):
+    """Create normalised average of all tifs in a single folder.
+
+    If prefix_filter is not None, the output will be "{prefix_filter}_average.tif",
+    otherwise it will be "{folder_path.name}_average.tif"
+
+    Other arguments are read from `ops`:
+        average_clip_value: Value to clip images before averaging.
+        normalise: Normalise output maximum to one.
+
+    Args:
+        data_path (str): Path to the acquisition folder, relative to `projects` folder
+        subfolder (str): subfolder in folder_path containing the tifs to average.
+        subtract_black (bool): Subtract black level (read from `ops`)
+        prefix_filter (str, optional): prefix name to filter tifs. Only file starting
+            with `prefix` will be averaged. Defaults to None.
+        suffix (str, optional): suffix to filter tifs. Defaults to None
+    """
+
+    print("Creating single average")
+    print("  Args:")
+    print(f"    data_path={data_path}")
+    print(f"    subfolder={subfolder}")
+    print(f"    subtract_black={subtract_black}")
+    print(f"    prefix_filter={prefix_filter}")
+    print(f"    suffix={suffix}", flush=True)
+
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    data_path = Path(data_path)
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    if prefix_filter is None:
+        target_file = f"{subfolder}_average.tif"
+    else:
+        target_file = f"{prefix_filter}_average.tif"
+    target_file = processed_path / data_path / "averages" / target_file
+
+    # ensure the directory exists for first average.
+    target_file.parent.mkdir(exist_ok=True)
+
+    black_level = ops["black_level"] if subtract_black else 0
+
+    av_image = compute_mean_image(
+        processed_path / data_path / subfolder,
+        prefix=prefix_filter,
+        black_level=black_level,
+        max_value=ops["average_clip_value"],
+        verbose=True,
+        median_filter=ops["average_median_filter"],
+        normalise=True,
+        suffix=suffix,
+    )
+    write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
+    print(f"Average saved to {target_file}", flush=True)
+
+
+def create_all_single_averages(
+    data_path,
+    todo=("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"),
+):
+    """Average all tiffs in each folder and then all folders by acquisition type
+
+    Args:
+        data_path (str): Path to data, relative to project.
+        todo (tuple): type of acquisition to process. Default to `("genes_rounds",
+            "barcode_rounds", "fluorescence", "hybridisation")`
+    """
+
+    data_path = Path(data_path)
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    metadata = load_metadata(data_path)
+
+    # Collect all folder names
+    to_average = []
+    for kind in todo:
+        if kind.endswith("rounds"):
+            folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
+            to_average.extend(folders)
+        elif kind in ("fluorescence", "hybridisation"):
+            to_average.extend(list(metadata[kind].keys()))
+        else:
+            raise IOError(
+                f"Unknown type of acquisition: {kind}.\n"
+                + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
+            )
+
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "create_single_average.sh"
+    )
+    for folder in to_average:
+        data_folder = processed_path / data_path
+        if not data_folder.is_dir():
+            warnings.warn("{0} does not exists. Skipping".format(data_folder / folder))
+            continue
+        export_args = dict(
+            DATAPATH=data_path,
+            SUBFOLDER=folder,
+            SUFFIX=ops["projection"],
+        )
+        args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+        args = (
+            args
+            + f" --output={Path.home()}/slurm_logs/iss_create_single_average_%j.out"
+            + f" --error={Path.home()}/slurm_logs/iss_create_single_average_%j.err"
+        )
+        command = f"sbatch {args} {script_path}"
+        print(command)
+        subprocess.Popen(
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+
+
+def create_grand_averages(
+    data_path,
+    prefix_todo=("genes_round", "barcode_round"),
+):
+    """Average single acquisition averages into grand average
+
+    Args:
+        data_path (str): Path to the folder, relative to `projects` folder
+        prefix_todo (tuple, optional): List of str, names of the tifs to average.
+            Defaults to ("genes_round", "barcode_round").
+    """
+
+    data_path = Path(data_path)
+    subfolder = "averages"
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "create_grand_average.sh"
+    )
+    for kind in prefix_todo:
+        export_args = dict(
+            DATAPATH=data_path,
+            SUBFOLDER=subfolder,
+            PREFIX=kind,
+        )
+        args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+        args = (
+            args
+            + f" --output={Path.home()}/slurm_logs/iss_create_grand_average_%j.out"
+            + f" --error={Path.home()}/slurm_logs/iss_create_grand_average_%j.err"
+        )
+        command = f"sbatch {args} {script_path}"
+        print(command)
+        subprocess.Popen(
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
