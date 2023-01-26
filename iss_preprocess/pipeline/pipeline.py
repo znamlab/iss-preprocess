@@ -848,8 +848,8 @@ def overview_for_ara_registration(
             pixel size. Defaults to 10
     """
 
-    processed = Path(PARAMETERS["data_root"]["processed"])
-    registration_folder = processed / data_path / "register_to_ara"
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    registration_folder = processed_path / data_path / "register_to_ara"
     registration_folder.mkdir(exist_ok=True)
     # also make sure that the relevant subfolders are created
     (registration_folder / "qupath_project").mkdir(exist_ok=True)

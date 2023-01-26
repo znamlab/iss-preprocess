@@ -30,7 +30,6 @@ def save_ome_tiff_pyramid(
     image,
     pixel_size,
     subresolutions=3,
-    max_size=None,
     dtype="uint16",
     verbose=True,
     save_thumbnail=False
@@ -42,9 +41,6 @@ def save_ome_tiff_pyramid(
         image (np.array): 2D array with 8-bit image data
         pixel_size (float): Pixel size in microns
         subresolutions (int, optional): Number of pyramid levels. Defaults to 3.
-        max_size (float, optional): Pixel size for the biggest layer. Data will be
-            downsampled to that size first and then by a factor 2 every level. Defaults
-            to None.
         dtype (str, optional): Image datatype, can be "uint16" or "uint8".
             Defaults to "uint16".
         verbose (bool, optional): Print progress. Defaults to True.
