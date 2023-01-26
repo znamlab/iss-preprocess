@@ -4,7 +4,7 @@ Module containing diagnostic plots to make sure steps of the pipeline run smooth
 The functions in here do not compute anything useful, but create figures
 """
 from pathlib import Path
-import flexiznam as flz
+from flexiznam.config import PARAMETERS
 from ..io import load_stack
 from ..vis import plot_correction_images
 
@@ -20,9 +20,9 @@ def check_illumination_correction(
             Defaults to ("barcode_round", "genes_round")
         verbose (bool): Print info about progress. Defaults to True
     """
-    processed = Path(flz.PARAMETERS["data_root"]["processed"])
-    average_dir = processed / data_path / "averages"
-    figure_folder = processed / data_path / "figures"
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    average_dir = processed_path / data_path / "averages"
+    figure_folder = processed_path / data_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     correction_images = dict()
 
