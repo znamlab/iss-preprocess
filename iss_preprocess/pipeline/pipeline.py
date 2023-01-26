@@ -2,7 +2,6 @@ import subprocess, shlex
 import warnings
 import numpy as np
 import pandas as pd
-from scipy.ndimage import gaussian_filter
 import re
 import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
@@ -828,13 +827,8 @@ def create_grand_averages(
 
 def overview_for_ara_registration(
     data_path,
-    reference_prefix,
     rois_to_do=None,
-    subresolutions=5,
-    max_pixel_size=1,
     bulb_first=True,
-    chan2use=None,
-    agg_func=np.nanmin,
     sigma_blur=10,
 ):
     """Generate a stitched overview for registering to the ARA
@@ -844,23 +838,14 @@ def overview_for_ara_registration(
 
     Args:
         data_path (str): Relative path to the data folder
-        reference_prefix (str): prefix, including round number, to use for reference
         rois_to_do (list, optional): ROIs to process. If None (default), process all
             ROIs
-        subresolution (int, optional): Number of levels of the pyramid. Defaults to 5
         max_pixel_size (float, optional): Pixel size in um for the highest level of the
             pyramid. None to keep original size. Defaults to 1
         bulb_first (bool, optional): Was the first slice closer to the olfactory
             bulb than the last? Defaults to True.
-        chan2use (list, optional): Channel to use. If None (Default), will use
-            ops['ref_ch'], if more than one channel is specified, average them.
-        agg_func (func, optional): If len(chan2use) > 1, how do I aggregate channels?
-            Defaults to np.nanmin to reduce rolonies and have background.
-        sigma_blur (float, optional): sigma of the gaussian filter, in original
+        sigma_blur (float, optional): sigma of the gaussian filter, in downsampled
             pixel size. Defaults to 10
-
-    Returns:
-        thumbnails (dict): a dictionary with one small image per ROI.
     """
 
     processed = Path(PARAMETERS["data_root"]["processed"])
@@ -870,60 +855,37 @@ def overview_for_ara_registration(
     (registration_folder / "qupath_project").mkdir(exist_ok=True)
     (registration_folder / "deepslice").mkdir(exist_ok=True)
 
-    ops = np.load(processed / data_path / "ops.npy", allow_pickle=True).item()
     metadata = load_metadata(data_path)
     if rois_to_do is None:
         rois_to_do = metadata["ROI"].keys()
-
-    shift_right, shift_down, tile_shape = stitch.register_adjacent_tiles(
-        data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
-    )
-    acq_metadata = load_single_acq_metdata(data_path, reference_prefix)
-    pixel_size = acq_metadata["FrameKey-0-0-0"]["PixelSizeUm"]
-
     roi_slice_pos_um, min_step = ara_reg.find_roi_position_on_cryostat(
         data_path=data_path, bulb_first=bulb_first
     )
     roi2section_order = {
         roi: int(pos / min_step) for roi, pos in roi_slice_pos_um.items()
     }
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "overview_single_roi.sh"
+    )
 
-    if chan2use is None:
-        chan2use = [ops["ref_ch"]]
-    if isinstance(chan2use, int):
-        chan2use = [chan2use]
-    thumbnails = dict()
     for roi in rois_to_do:
-        # get chamber position, and then section position
-        slice_id = roi2section_order[roi]
-        stitched = None
-        for ich, ch in enumerate(chan2use):
-            stitched_stack = stitch.stitch_tiles(
-                data_path,
-                prefix=reference_prefix,
-                shift_right=shift_right,
-                shift_down=shift_down,
-                roi=roi,
-                suffix=ops["projection"],
-                ich=ch,
-                correct_illumination=True,
-            )
-            if stitched is None:
-                stitched = np.zeros(list(stitched_stack.shape) + [len(chan2use)])
-            stitched_stack = gaussian_filter(stitched_stack, sigma_blur)
-            stitched[:, :, ich] = stitched_stack
-        stitched = agg_func(stitched, axis=2)
-        
-        target = (
-            registration_folder
-            / f"registration_reference_r{roi}_sl{slice_id:03d}.ome.tif"
+
+        export_args = dict(
+            DATAPATH=data_path,
+            ROI=roi,
+            SIGMA=sigma_blur,
+            SLICE_ID=roi2section_order[roi],
         )
-        smallest = save_ome_tiff_pyramid(
-            target,
-            stitched_stack,
-            pixel_size=pixel_size,
-            subresolutions=subresolutions,
-            max_size=max_pixel_size,
+        args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+        args = (
+            args
+            + f" --output={Path.home()}/slurm_logs/iss_overview_roi_%j.out"
+            + f" --error={Path.home()}/slurm_logs/iss_overview_roi_%j.err"
         )
-        thumbnails[roi] = smallest
-    return thumbnails
+        command = f"sbatch {args} {script_path}"
+        print(command)
+        subprocess.Popen(
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
