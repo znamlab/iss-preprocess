@@ -2,10 +2,18 @@ from pathlib import Path
 import numpy as np
 import yaml
 from skimage.transform import rescale
+from scipy.ndimage import gaussian_filter
 import bg_atlasapi as bga
 from flexiznam import PARAMETERS
 from .pipeline import stitch
-from ..io import load_section_position, load_metadata, load_stack
+import cv2
+from ..io import (
+    load_section_position,
+    load_metadata,
+    load_stack,
+    load_single_acq_metdata,
+    save_ome_tiff_pyramid,
+)
 
 
 def find_roi_position_on_cryostat(data_path, bulb_first=True):
@@ -151,3 +159,100 @@ def spots_ara_infos(data_path, spots, atlas_size):
         atlas_size (int): Atlas size (10, 25 or 50) for find areas borders
     """
     raise NotImplementedError
+
+
+def overview_single_roi(
+    data_path,
+    roi,
+    slice_id,
+    chan2use=(0, 1, 2, 3),
+    sigma_blur=10,
+    agg_func=np.nanmin,
+    reference_prefix="genes_round_1_1",
+    subresolutions=5,
+    max_pixel_size=2,
+):
+    print(f"Data path: {data_path}")
+    print(f"Roi: {roi}", flush=True)
+    print(f"Slice id: {slice_id}", flush=True)
+    print(f"Sigma blur: {sigma_blur}", flush=True)
+    sigma_blur = float(sigma_blur)
+
+    processed = Path(PARAMETERS["data_root"]["processed"])
+    registration_folder = processed / data_path / "register_to_ara"
+    print("Finding shifts")
+    ops = np.load(processed / data_path / "ops.npy", allow_pickle=True).item()
+    shift_right, shift_down, tile_shape = stitch.register_adjacent_tiles(
+        data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
+    )
+    print("Finding pixel size")
+    acq_metadata = load_single_acq_metdata(data_path, reference_prefix)
+    pixel_size = acq_metadata["FrameKey-0-0-0"]["PixelSizeUm"]
+
+    if chan2use is None:
+        chan2use = [ops["ref_ch"]]
+    if isinstance(chan2use, int):
+        chan2use = [chan2use]
+    chan2use = [int(c) for c in chan2use]
+
+    # get chamber position, and then section position
+    stitched = None
+    print("Stitching ROI")
+    for ich, ch in enumerate(chan2use):
+        print(f"   ... channel {ch}", flush=True)
+        stitched_stack = stitch.stitch_tiles(
+            data_path,
+            prefix=reference_prefix,
+            shift_right=shift_right,
+            shift_down=shift_down,
+            roi=roi,
+            suffix=ops["projection"],
+            ich=ch,
+            correct_illumination=True,
+        )
+        if stitched is None:
+            print('   ..... creating output', flush=True)
+            log = dict(
+                original_dtype=str(stitched_stack.dtype),
+                original_shape=list(stitched_stack.shape),
+                original_pixel_size=pixel_size,
+            )
+            ratio = int(max_pixel_size / pixel_size)
+            print("... Resize")
+            new_shape = (stitched_stack.shape[0] // ratio, stitched_stack.shape[1] // ratio)
+            log["new_shape"] = list(new_shape)
+            stitched = np.zeros(list(new_shape) + [len(chan2use)])
+            log["downsample_ratio"] = ratio
+            pixel_size *= ratio
+            log["pixel_size"] = pixel_size
+
+        print(f'   ..... resizing', flush=True)
+        stitched_stack = cv2.resize(
+                stitched_stack,
+                new_shape[::-1],  # cv2 has (width, height), not (x, y)
+                interpolation=cv2.INTER_CUBIC,
+            )
+
+        print(f'   ..... filtering', flush=True)
+        stitched_stack = gaussian_filter(stitched_stack, sigma_blur)
+        stitched[:, :, ich] = stitched_stack
+    print('Aggregating', flush=True)
+    stitched = agg_func(stitched, axis=2)
+
+    target = (
+        registration_folder / f"registration_reference_r{roi}_sl{slice_id:03d}.ome.tif"
+    )
+    logfile = Path(target).with_suffix(".yml")
+    print('Saving stitched image', flush=True)
+    
+    smallest = save_ome_tiff_pyramid(
+        target,
+        stitched_stack,
+        pixel_size=pixel_size,
+        subresolutions=subresolutions,
+        max_size=max_pixel_size,
+        save_thumbnail=False,
+    )
+    with open(logfile, "w") as fhandle:
+        yaml.dump(log, fhandle)
+
