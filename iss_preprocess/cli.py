@@ -350,3 +350,56 @@ def hyb_spots_roi(path, prefix, roi=1):
     from iss_preprocess.pipeline import extract_hyb_spots_roi
 
     extract_hyb_spots_roi(path, prefix, roi)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+# TODO: expose prefix_to_do
+def create_grand_averages(path):
+    """Create grand average for illumination correction"""
+    from iss_preprocess import pipeline
+
+    pipeline.create_grand_averages(
+        path,
+        prefix_todo=("genes_round", "barcode_round"),
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def create_all_single_averages(path):
+    """Average all tiffs in all acquisition folders"""
+    from iss_preprocess import pipeline
+
+    pipeline.create_all_single_averages(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-b", "--subtract-black/--no-subtract-black", help="Subtract black level")
+@click.option(
+    "-s", "--subfolder", help="Subfolder containing tifs to average", default=""
+)
+@click.option(
+    "--prefix_filter",
+    help="Filter to average only subset of tifs of the folder",
+    type=str,
+    default=None,
+)
+@click.option(
+    "--suffix",
+    help="Filter to average only subset of tifs of the folder",
+    type=str,
+    default=None,
+)
+def create_single_average(path, subtract_black, subfolder, prefix_filter, suffix):
+    """Average all tiffs in an acquisition folder"""
+    from iss_preprocess import pipeline
+
+    pipeline.create_single_average(
+        path,
+        subfolder=subfolder,
+        subtract_black=subtract_black,
+        prefix_filter=prefix_filter,
+        suffix=suffix,
+    )

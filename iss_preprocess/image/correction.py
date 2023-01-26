@@ -1,6 +1,5 @@
 import numpy as np
-import glob
-import os
+from pathlib import Path
 import cv2
 from sklearn.mixture import GaussianMixture
 from skimage.exposure import match_histograms
@@ -100,13 +99,13 @@ def analyze_dark_frames(fname):
 
     """
     dark_frames = load_stack(fname)
-    # reshape to get max/std accross all pixels for each channel
     return dark_frames.mean(axis=(0, 1)), dark_frames.std(axis=(0, 1))
 
 
 def compute_mean_image(
-    dir,
-    suffix=None,
+    data_folder,
+    prefix="",
+    suffix="",
     black_level=0,
     max_value=1000,
     verbose=False,
@@ -117,8 +116,9 @@ def compute_mean_image(
     Compute mean image to use for illumination correction.
 
     Args:
-        dir (str): directory containing images
-        suffix (str): subdirectory inside each of `dirs` containing images
+        data_folder (str): directory containing images
+        prefix (str): prefix to filter images to average
+        suffix (str): suffix to filter images to average
         black_level (float): image black level to subtract before calculating
             each mean image. Default to 0
         max_value (float): image values are clipped to this value. This reduces
@@ -134,31 +134,38 @@ def compute_mean_image(
         numpy.ndarray correction image
 
     """
+    if prefix is None:
+        prefix = ""
+    if suffix is None:
+        suffix = ""
+    data_folder = Path(data_folder)
+    im_name = data_folder.name
+    filt = f"{prefix}*{suffix}.tif"
+    tiffs = list(data_folder.glob(filt))
+    if not len(tiffs):
+        raise IOError("NO valid tifs in folder %s" % data_folder, flush=True)
 
-    if suffix:
-        subdir = os.path.join(dir, suffix)
-    else:
-        subdir = dir
-    im_name = os.path.split(dir)[1]
-    tiffs = glob.glob(subdir + "/*.tif")
     if verbose:
-        print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name))
+        print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name), flush=True)
 
     data = load_stack(tiffs[0])
+    assert data.ndim == 3
+    black_level = np.asarray(black_level)  # in case we have just a float
 
     # initialise folder mean with first frame
     mean_image = np.array(data, dtype=float)
-    mean_image = np.clip(mean_image, None, max_value) - black_level
+    mean_image = np.clip(mean_image, None, max_value) - black_level.reshape(1, 1, -1)
     mean_image /= len(tiffs)
     for itile, tile in enumerate(tiffs[1:]):  # processing the rest of the tiffs
         if verbose and not (itile % 10):
-            print("   ...{0}/{1}.".format(itile + 1, len(tiffs)))
+            print("   ...{0}/{1}.".format(itile + 1, len(tiffs)), flush=True)
         data = np.array(load_stack(tile), dtype=float)
-        data = np.clip(data, None, max_value) - black_level
+        data = np.clip(data, None, max_value) - black_level.reshape(1, 1, -1)
         mean_image += data / len(tiffs)
 
     if median_filter is not None:
-        mean_image = median(mean_image, disk(median_filter))
+        for ic in range(mean_image.shape[2]):
+            mean_image[:, :, ic] = median(mean_image[:, :, ic], disk(median_filter))
 
     if normalise:
         max_by_chan = np.nanmax(mean_image.reshape((-1, mean_image.shape[-1])), axis=0)
