@@ -167,6 +167,23 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
 def setup_barcode_calling(
     data_path, score_thresh=0.5, spot_size=2, correct_channels=False
 ):
+    """Detect spot and compute cluster means
+
+    Args:
+        data_path (str): Relative path to data
+        score_thresh (float, optional): score_thresh argument for get_cluster_mean.
+            Defaults to 0.5.
+        spot_size (int, optional): Size of the spots in pixels. Defaults to 2.
+        correct_channels (bool, optional): Correct intensity difference across channel.
+            True to normalise all rounds individually. `round1_only` to normalise all 
+            rounds to round1 correction. False to remove correction. Defaults to False.
+
+    Returns:
+        cluster_means (list): A list with Nrounds elements. Each a Nch x Ncl (square
+            because N channels is equal to N clusters) array of cluster means,
+            normalised by round 0 intensity
+        all_spots (pandas.DataFrame): All detected spots.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     all_spots = []

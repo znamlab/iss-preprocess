@@ -11,14 +11,29 @@ from ..coppafish import scaled_k_means
 BASES = np.array(["G", "T", "A", "C"])
 
 
-def get_cluster_means(spots, vis=False, score_thresh=0):
+def get_cluster_means(spots, vis=False, score_thresh=0.0):
+    """Find the mean of the 4 clusters (one per channel)
+
+    Args:
+        spots (pandas.DataFrame): Dataframe of extracted spot.
+        vis (bool, optional): Plot clusters and means. Defaults to False.
+        score_thresh (float, optional): score_thresh arguments for scaled_k_means. 
+            Scalar between 0 and 1. To give a different score for each cluster, give
+            a list of Nc floats. Only points with dot product to a cluster mean vector 
+            greater than this contribute to new estimate of mean vector. Defaults to 0.
+
+    Returns:
+        cluster_means (list): A list with Nrounds elements. Each a Nch x Ncl (square
+            because N channels is equal to N clusters) array of cluster means,
+            normalised by round 0 intensity
+    """
     x = np.stack(spots["trace"], axis=2)  # round x channels x spots
     nrounds = x.shape[0]
     nch = x.shape[1]
     if vis:
         _, ax1 = plt.subplots(nrows=1, ncols=nch)
         _, ax2 = plt.subplots(nrows=2, ncols=ceil(nrounds / 2))
-    cluster_means = []
+
     cluster_means = []
     cluster_intensity = np.zeros((nrounds, nch))
     for iround in range(nrounds):
@@ -38,6 +53,7 @@ def get_cluster_means(spots, vis=False, score_thresh=0):
                     ".",
                     markersize=1,
                 )
+            plt.title(f"Round {iround}")
     # normalize intensity to first round
     cluster_intensity = cluster_intensity / cluster_intensity[0, :]
     for iround in range(nrounds):
@@ -62,8 +78,11 @@ def extract_spots(spots, stack):
 
     Args:
         spots (pandas.DataFrame):
-        stack (numpy.ndarray): X x Y x R x C stack.
-
+        stack (numpy.ndarray): X x Y x C x R stack.
+    
+    Returns:
+        spots (pandas.DataFrame): same as input with a new "traces" column containing
+            a R x C array of fluorescence value
     """
     traces = []
     for _, spot in spots.iterrows():
