@@ -311,14 +311,7 @@ def setup_omp(
     )
     gene_dict, unique_genes = make_gene_templates(cluster_means, codebook, vis=True)
 
-    norm_shift = np.sqrt(
-        np.median(
-            np.sum(
-                np.reshape(stack, (stack.shape[0], stack.shape[1], -1)) ** 2,
-                axis=2,
-            )
-        )
-    )
+    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
     return gene_dict, unique_genes, norm_shift
 
 
