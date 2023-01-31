@@ -18,7 +18,7 @@ def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True):
     """
     stack = stack.reshape((stack.shape[0], stack.shape[1], -1))
     if clip:
-        stack = np.clip(stack, 0, a_max=None)
+        stack = np.clip(stack, 0, None)
 
     with TiffWriter(fname, bigtiff=bigtiff) as tif:
         for frame in range(stack.shape[2]):
