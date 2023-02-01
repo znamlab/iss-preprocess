@@ -91,15 +91,16 @@ def load_registration_reference_metadata(data_path, roi):
     return metadata
 
 
-def load_coordinate_image(data_path, roi, full_scale=True):
+def load_coordinate_image(data_path, roi, full_scale=False):
     """Load the 3 channel image of ARA coordinates for `roi`
 
     TODO: should it go in io?
-    TODO: load raw registered image or upsample registered to ref image
 
     Args:
         data_path (str): Relative path to data
         roi (int): Number of the ROI
+        full_scale (bool, optional): If true, returns the full scale image, otherwise
+            the downsample version used for registration. Defaults to False.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     reg_folder = processed_path / data_path / "register_to_ara"
@@ -127,7 +128,7 @@ def load_coordinate_image(data_path, roi, full_scale=True):
     return coords
 
 
-def make_area_image(data_path, roi, atlas_size=10):
+def make_area_image(data_path, roi, atlas_size=10, full_scale=False):
     """Generate an image with area ID in each pixel
 
     Args:
@@ -135,11 +136,16 @@ def make_area_image(data_path, roi, atlas_size=10):
         roi (int): Roi number to generate
         atlas_size (int, optional): Pixel size of the atlas used to find area if.
             Defaults to 10.
+        full_scale (bool, optional): If true, returns the full scale image, otherwise
+            the downsample version used for registration. Defaults to False.
+
 
     Returns:
         area_id (np.array): Image with area id of each pixel
     """
-    coord = np.clip(load_coordinate_image(data_path, roi), 0, None)
+    coord = np.clip(
+        load_coordinate_image(data_path, roi, full_scale=full_scale), 0, None
+    )
     coord = np.round(coord * 1000 / atlas_size, 0).astype("uint16")
 
     atlas_name = "allen_mouse_%dum" % atlas_size
@@ -255,4 +261,3 @@ def overview_single_roi(
     )
     with open(logfile, "w") as fhandle:
         yaml.dump(log, fhandle)
-
