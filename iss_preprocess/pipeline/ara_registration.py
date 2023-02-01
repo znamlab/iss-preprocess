@@ -78,10 +78,10 @@ def load_registration_reference_metadata(data_path, roi):
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     reg_folder = processed_path / data_path / "register_to_ara"
-
+    chamber = reg_folder.parent.name
     if not reg_folder.is_dir():
         raise IOError("Registration folder does not exists. Perform registration first")
-    metadata_file = list(reg_folder.glob(f"registration_reference_r{roi}_sl*.yml"))
+    metadata_file = list(reg_folder.glob(f"{chamber}_r{roi}_sl*.yml"))
     if not len(metadata_file):
         raise IOError(f"No file found for ROI {roi}")
     elif len(metadata_file) > 1:
@@ -167,7 +167,7 @@ def overview_single_roi(
     slice_id,
     chan2use=(0, 1, 2, 3),
     sigma_blur=10,
-    agg_func=np.nanmin,
+    agg_func=np.nanmean,
     reference_prefix="genes_round_1_1",
     subresolutions=5,
     max_pixel_size=2,
@@ -177,7 +177,7 @@ def overview_single_roi(
     print(f"Slice id: {slice_id}", flush=True)
     print(f"Sigma blur: {sigma_blur}", flush=True)
     sigma_blur = float(sigma_blur)
-
+    chamber = Path(data_path).name
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     registration_folder = processed_path / data_path / "register_to_ara"
     print("Finding shifts")
@@ -211,7 +211,7 @@ def overview_single_roi(
             correct_illumination=True,
         )
         if stitched is None:
-            print('   ..... creating output', flush=True)
+            print("   ..... creating output", flush=True)
             log = dict(
                 original_dtype=str(stitched_stack.dtype),
                 original_shape=list(stitched_stack.shape),
@@ -219,38 +219,38 @@ def overview_single_roi(
             )
             ratio = int(max_pixel_size / pixel_size)
             print("... Resize")
-            new_shape = (stitched_stack.shape[0] // ratio, stitched_stack.shape[1] // ratio)
+            new_shape = (
+                stitched_stack.shape[0] // ratio,
+                stitched_stack.shape[1] // ratio,
+            )
             log["new_shape"] = list(new_shape)
             stitched = np.zeros(list(new_shape) + [len(chan2use)])
             log["downsample_ratio"] = ratio
             pixel_size *= ratio
             log["pixel_size"] = pixel_size
 
-        print(f'   ..... resizing', flush=True)
+        print(f"   ..... resizing", flush=True)
         stitched_stack = cv2.resize(
-                stitched_stack,
-                new_shape[::-1],  # cv2 has (width, height), not (x, y)
-                interpolation=cv2.INTER_CUBIC,
-            )
+            stitched_stack,
+            new_shape[::-1],  # cv2 has (width, height), not (x, y)
+            interpolation=cv2.INTER_CUBIC,
+        )
 
-        print(f'   ..... filtering', flush=True)
+        print(f"   ..... filtering", flush=True)
         stitched_stack = gaussian_filter(stitched_stack, sigma_blur)
         stitched[:, :, ich] = stitched_stack
-    print('Aggregating', flush=True)
+    print("Aggregating", flush=True)
     stitched = agg_func(stitched, axis=2)
 
-    target = (
-        registration_folder / f"registration_reference_r{roi}_sl{slice_id:03d}.ome.tif"
-    )
+    target = registration_folder / f"{chamber}_r{roi}_sl{slice_id:03d}.ome.tif"
     logfile = Path(target).with_suffix(".yml")
-    print('Saving stitched image', flush=True)
-    
-    smallest = save_ome_tiff_pyramid(
+    print("Saving stitched image", flush=True)
+
+    save_ome_tiff_pyramid(
         target,
         stitched_stack,
         pixel_size=pixel_size,
         subresolutions=subresolutions,
-        max_size=max_pixel_size,
         save_thumbnail=False,
     )
     with open(logfile, "w") as fhandle:
