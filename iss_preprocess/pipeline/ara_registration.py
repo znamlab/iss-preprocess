@@ -159,15 +159,34 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False):
     return area_id
 
 
-def spots_ara_infos(data_path, spots, atlas_size):
+def spots_ara_infos(data_path, spots, roi, atlas_size, inplace=True):
     """Add ARA coordinates and area ID to spots dataframe
 
     Args:
         data_path (str): Relative path to data
         spots (pd.DataFrame): Spots dataframe
         atlas_size (int): Atlas size (10, 25 or 50) for find areas borders
+        inplace (bool, optional): add the column to spots inplace or return a copy. 
+            Defaults to True
+    
+    Returns:
+        spots (pd.DataFrame): reference or copy of spots dataframe with four more 
+            columns: `ara_x`, `ara_y`, `ara_z`, and `area_id`
     """
-    raise NotImplementedError
+    if not inplace:
+        spots = spots.copy()
+    metadata = load_registration_reference_metadata(data_path, roi)
+    coords = load_coordinate_image(data_path, roi)
+    spot_xy = spots.loc[:, ['x', 'y']].values / metadata['downsample_ratio']
+    spot_xy = np.round(spot_xy).astype(int)
+    spot_coords = coords[spot_xy[:, 1], spot_xy[:, 0], :]
+    for i, w in enumerate('xyz'):
+        spots[f'ara_{w}'] = spot_coords[:, i]
+    area_map = make_area_image(data_path, roi, atlas_size=atlas_size)
+    spot_area = area_map[spot_xy[:, 1], spot_xy[:, 0]]
+    spots['area_id'] = spot_area
+    return spots
+    
 
 
 def overview_single_roi(
