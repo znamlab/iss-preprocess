@@ -32,7 +32,6 @@ from ..call import (
     find_gene_spots,
     detect_spots_by_shape,
     get_cluster_means,
-    rois_to_array,
     barcode_spots_dot_product,
     BASES,
 )
@@ -76,7 +75,7 @@ def hyb_spot_cluster_means(
         genes.append(hyb_probes[probe]["target"])
     init_spot_colors = np.array(init_spot_colors)
 
-    rois = []
+    all_spots = []
     for ref_tile in ops["barcode_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
         stack, _ = load_and_register_hyb_tile(
@@ -90,12 +89,16 @@ def hyb_spot_cluster_means(
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
         spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
-        rois.extend(extract_spots(spots, np.moveaxis(stack, 2, 3)))
-    x = rois_to_array(rois, normalize=False)
+        extract_spots(spots, stack)
+        all_spots.append(spots)
+
+    all_spots = pd.concat(all_spots, ignore_index=True)
+    x = np.stack(all_spots["trace"], axis=2)
+
     cluster_means, _, _, _, _, _ = scaled_k_means(
         x[0, :, :].T, init_spot_colors, score_thresh=score_thresh
     )
-    return cluster_means, rois, genes
+    return cluster_means, all_spots, genes
 
 
 def extract_hyb_spots_all(data_path):
@@ -150,9 +153,8 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
     spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
-    spot_rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
-    x = rois_to_array(spot_rois, normalize=False)
-    spots["trace"] = [roi.trace for roi in spot_rois]
+    extract_spots(spots, stack)
+    x = np.stack(spots["trace"], axis=2)
     x_norm = x[0, :, :].T / np.linalg.norm(x[0, :, :].T, axis=1)[:, np.newaxis]
     score = x_norm @ clusters["cluster_means"].T
     cluster_ind = np.argmax(score, axis=1)
@@ -171,9 +173,26 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
 def setup_barcode_calling(
     data_path, score_thresh=0.5, spot_size=2, correct_channels=False
 ):
+    """Detect spot and compute cluster means
+
+    Args:
+        data_path (str): Relative path to data
+        score_thresh (float, optional): score_thresh argument for get_cluster_mean.
+            Defaults to 0.5.
+        spot_size (int, optional): Size of the spots in pixels. Defaults to 2.
+        correct_channels (bool, optional): Correct intensity difference across channel.
+            True to normalise all rounds individually. `round1_only` to normalise all 
+            rounds to round1 correction. False to remove correction. Defaults to False.
+
+    Returns:
+        cluster_means (list): A list with Nrounds elements. Each a Nch x Ncl (square
+            because N channels is equal to N clusters) array of cluster means,
+            normalised by round 0 intensity
+        all_spots (pandas.DataFrame): All detected spots.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    rois = []
+    all_spots = []
     for ref_tile in ops["barcode_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
         stack, bad_pixels = load_and_register_tile(
@@ -194,9 +213,11 @@ def setup_barcode_calling(
             isolation_threshold=ops["barcode_isolation_threshold"],
         )
         spots["size"] = np.ones(len(spots)) * spot_size
-        rois.extend(extract_spots(spots, np.moveaxis(stack, 2, 3)))
-    cluster_means = get_cluster_means(rois, vis=True, score_thresh=score_thresh)
-    return cluster_means, rois
+        extract_spots(spots, stack)
+        all_spots.append(spots)
+    all_spots = pd.concat(all_spots, ignore_index=True)
+    cluster_means = get_cluster_means(all_spots, vis=True, score_thresh=score_thresh)
+    return cluster_means, all_spots
 
 
 def basecall_tile(data_path, tile_coors):
@@ -227,9 +248,8 @@ def basecall_tile(data_path, tile_coors):
     )
     # TODO: size should probably be set inside detect spots?
     spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
-    spot_rois = extract_spots(spots, np.moveaxis(stack, 2, 3))
-    x = rois_to_array(spot_rois, normalize=False)
-    spots["trace"] = [roi.trace for roi in spot_rois]
+    extract_spots(spots, stack)
+    x = np.stack(spots["trace"], axis=2)
     cluster_inds = []
     top_score = []
 
@@ -282,15 +302,14 @@ def setup_omp(
         float: norm shift for the OMP algorithm, estimated as median norm of all pixels.
 
     """
-    stack = np.moveaxis(stack, 2, 3)
     spots = detect_isolated_spots(
         np.std(stack, axis=(2, 3)),
         detection_threshold=detection_threshold,
         isolation_threshold=isolation_threshold,
     )
 
-    rois = extract_spots(spots, stack)
-    cluster_means = get_cluster_means(rois, vis=True)
+    extract_spots(spots, stack)
+    cluster_means = get_cluster_means(spots, vis=True)
     codebook = pd.read_csv(
         Path(__file__).parent.parent / "call" / codebook_name,
         header=None,
@@ -298,14 +317,7 @@ def setup_omp(
     )
     gene_dict, unique_genes = make_gene_templates(cluster_means, codebook, vis=True)
 
-    norm_shift = np.sqrt(
-        np.median(
-            np.sum(
-                np.reshape(stack, (stack.shape[0], stack.shape[1], -1)) ** 2,
-                axis=2,
-            )
-        )
-    )
+    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
     return gene_dict, unique_genes, norm_shift
 
 
@@ -635,8 +647,6 @@ def run_omp_on_tile(
             save_dir / f"tile_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.tif"
         )
         write_stack(stack.copy(), stack_path, bigtiff=True)
-
-    stack = np.moveaxis(stack, 2, 3)
 
     omp_stat = np.load(processed_path / data_path / "gene_dict.npz", allow_pickle=True)
     g, _, _ = run_omp(
