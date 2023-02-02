@@ -16,13 +16,14 @@ from ..io import (
 )
 
 
-def find_roi_position_on_cryostat(data_path, bulb_first=True):
+def find_roi_position_on_cryostat(data_path):
     """Find the A/P position of each ROI relative to the first collected slice
+
+    The section order is guess from the sign of `section_thickness_um`, positive for
+    antero-posterior slicing (starting from the olfactory bulb), negative for opposite.
 
     Args:
         data_path (str): Relative path to the data
-        bulb_first (bool, optional): Was the first slice closer to the olfactory
-            bulb than the last? Defaults to True.
 
     Returns:
         roi_slice_pos_um (dict): For each ROI, the slice depth in um relative to the
@@ -35,16 +36,18 @@ def find_roi_position_on_cryostat(data_path, bulb_first=True):
 
     section_info = load_section_position(data_path)
     section_info.sort_values(by="absolute_section", inplace=True)
+    constant_thickness = np.sum(np.diff(section_info.section_thickness_um)) == 0
     if any(np.diff(section_info.absolute_section) > 1):
-        raise IOError(
-            "I need to know the thickness of all the slices.\n"
-            + "Please add missing sections to `section_position.csv`"
-        )
-    # This assumes that all slices are in the csv file but allows for irregular
-    # thickness
-    slicing_order = 1 if bulb_first else -1
-    increase = section_info.section_thickness_um.values * slicing_order
-    section_info["section_position"] = increase.cumsum()
+        if not constant_thickness:
+            raise IOError(
+                "I need to know the thickness of all the slices.\n"
+                + "Please add missing sections to `section_position.csv`"
+            )
+        pos_um = section_info.absolute_section * section_info.section_thickness_um
+    else:
+        # we have all the slices in the csv, we can deal with variable thickness
+        increase = section_info.section_thickness_um.values
+        section_info["section_position"] = increase.cumsum()
 
     # find where is each slice of the chamber in the section order of the whole brain
     # the chamber folder should be called chamber_XX
