@@ -182,14 +182,17 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         vmax=np.quantile(downsampled, 0.99),
         vmin=0,
         origin="lower",
+        cmap='gray'
     )
-
+    
     atlas_utils.plot_borders_and_areas(
         ax,
         area_ids,
-        areas_to_plot=[],
-        border_kwargs=dict(colors="w", alpha=0.6, linewidths=0.1),
+        border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
     )
 
     ax.set_ylim(ax.get_ylim()[::-1])
+    ax.set_xticks([])
+    ax.set_yticks([])
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     return fig
