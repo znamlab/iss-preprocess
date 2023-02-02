@@ -317,7 +317,7 @@ def run_omp(
     Apply the OMP algorithm to every pixel of the provided image stack.
 
     Args:
-        stack (numpy.ndarray): X x Y x R x C image stack.
+        stack (numpy.ndarray): X x Y x C x R image stack.
         gene_dict (numpy.ndarray): N x M dictionary, where N = R * C and M is the
             number of genes.
         tol (float): tolerance threshold for OMP algorithm.
@@ -328,6 +328,8 @@ def run_omp(
         Residual stack, shape X x Y x (R * C)
 
     """
+    stack = np.moveaxis(stack, 2, 3)
+
     background_vectors = make_background_vectors(
         nrounds=stack.shape[2], nchannels=stack.shape[3]
     )
