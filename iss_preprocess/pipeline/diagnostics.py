@@ -6,8 +6,8 @@ The functions in here do not compute anything useful, but create figures
 from pathlib import Path
 import numpy as np
 from flexiznam.config import PARAMETERS
-from ..io import load_stack
-from ..vis import plot_correction_images
+from ..io import load_stack, load_ops
+from ..vis import plot_correction_images, plot_tilestats_distributions
 
 
 def check_illumination_correction(
@@ -21,6 +21,7 @@ def check_illumination_correction(
             Defaults to ("barcode_round", "genes_round")
         verbose (bool): Print info about progress. Defaults to True
     """
+    ops = load_ops(data_path)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     average_dir = processed_path / data_path / "averages"
     figure_folder = processed_path / data_path / "figures"
@@ -40,5 +41,5 @@ def check_illumination_correction(
         correction_images, grand_averages, figure_folder, verbose=True
     )
     plot_tilestats_distributions(
-        distributions, grand_averages, figure_folder, verbose=True
+        distributions, grand_averages, figure_folder, camera_order=ops['camera_order']
     )
