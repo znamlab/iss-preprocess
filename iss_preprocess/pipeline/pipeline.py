@@ -8,7 +8,11 @@ import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
-from ..image import filter_stack, apply_illumination_correction, compute_mean_image
+from ..image import (
+    filter_stack,
+    apply_illumination_correction,
+    tilestats_and_mean_image,
+)
 from ..reg import (
     align_channels_and_rounds,
     generate_channel_round_transforms,
@@ -101,7 +105,7 @@ def hyb_spot_cluster_means(
 def extract_hyb_spots_all(data_path):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     script_path = str(
@@ -679,7 +683,12 @@ def run_omp_on_tile(
 
 
 def create_single_average(
-    data_path, subfolder, subtract_black, prefix_filter=None, suffix=None
+    data_path,
+    subfolder,
+    subtract_black,
+    prefix_filter=None,
+    suffix=None,
+    combine_tilestats=False,
 ):
     """Create normalised average of all tifs in a single folder.
 
@@ -697,6 +706,13 @@ def create_single_average(
         prefix_filter (str, optional): prefix name to filter tifs. Only file starting
             with `prefix` will be averaged. Defaults to None.
         suffix (str, optional): suffix to filter tifs. Defaults to None
+        combine_tilestats (bool, optional): Compute new tilestats distribution of
+            averaged images if True, combine pre-existing tilestats into one otherwise.
+            Defaults to False
+
+    Returns:
+        np.array: Average image
+        np.array: Distribution of pixel values
     """
 
     print("Creating single average")
@@ -705,7 +721,8 @@ def create_single_average(
     print(f"    subfolder={subfolder}")
     print(f"    subtract_black={subtract_black}")
     print(f"    prefix_filter={prefix_filter}")
-    print(f"    suffix={suffix}", flush=True)
+    print(f"    suffix={suffix}")
+    print(f"    combine_tilestats={combine_tilestats}", flush=True)
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     data_path = Path(data_path)
@@ -714,14 +731,15 @@ def create_single_average(
         target_file = f"{subfolder}_average.tif"
     else:
         target_file = f"{prefix_filter}_average.tif"
+    target_stats = target_file.replace("_average.tif", "_tilestats.npy")
     target_file = processed_path / data_path / "averages" / target_file
-
+    target_stats = processed_path / data_path / "averages" / target_stats
     # ensure the directory exists for first average.
     target_file.parent.mkdir(exist_ok=True)
 
     black_level = ops["black_level"] if subtract_black else 0
 
-    av_image = compute_mean_image(
+    av_image, tilestats = tilestats_and_mean_image(
         processed_path / data_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
@@ -730,9 +748,12 @@ def create_single_average(
         median_filter=ops["average_median_filter"],
         normalise=True,
         suffix=suffix,
+        combine_tilestats=combine_tilestats,
     )
     write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
-    print(f"Average saved to {target_file}", flush=True)
+    np.save(target_stats, tilestats)
+    print(f"Average saved to {target_file}, tilestats to {target_stats}", flush=True)
+    return av_image, tilestats
 
 
 def create_all_single_averages(

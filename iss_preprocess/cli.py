@@ -392,7 +392,15 @@ def create_all_single_averages(path):
     type=str,
     default=None,
 )
-def create_single_average(path, subtract_black, subfolder, prefix_filter, suffix):
+@click.option(
+    "--combine-stats",
+    help="Combine pre-existing statistics into one instead of computing from images",
+    type=bool,
+    default=False,
+)
+def create_single_average(
+    path, subtract_black, subfolder, prefix_filter, suffix, combine_stats
+):
     """Average all tiffs in an acquisition folder"""
     from iss_preprocess import pipeline
 
@@ -402,4 +410,5 @@ def create_single_average(path, subtract_black, subfolder, prefix_filter, suffix
         subtract_black=subtract_black,
         prefix_filter=prefix_filter,
         suffix=suffix,
+        combine_tilestats=combine_stats,
     )
