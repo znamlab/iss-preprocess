@@ -5,7 +5,7 @@ from sklearn.mixture import GaussianMixture
 from skimage.exposure import match_histograms
 from skimage.morphology import disk
 from skimage.filters import median
-from ..io.load import load_stack
+from ..io.load import load_stack, load_ops
 from ..coppafish import hanning_diff
 from flexiznam.config import PARAMETERS
 from pathlib import Path
@@ -28,7 +28,7 @@ def apply_illumination_correction(data_path, stack, prefix):
         stack (np.array): Normalised stack. Same shape as input.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     average_image_fname = (
         processed_path / data_path / "averages" / f"{prefix}_average.tif"
     )

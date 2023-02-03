@@ -4,7 +4,7 @@ import pandas as pd
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from ..io import load_tile_by_coors, load_stack
+from ..io import load_tile_by_coors, load_stack, load_ops
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
@@ -142,7 +142,7 @@ def stitch_tiles(
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros(max_origin + tile_shape)
     if correct_illumination:
-        ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+        ops = load_ops(data_path)
         average_image_fname = (
             processed_path / data_path / "averages" / f"{prefix}_average.tif"
         )
@@ -239,7 +239,7 @@ def stitch_and_register(
         _type_: _description_
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     # TODO: should we use the same `shift_right` and `shift_down` for target
     # and reference images?
     shift_right, shift_down, tile_shape = register_adjacent_tiles(
@@ -302,7 +302,7 @@ def merge_and_align_spots(
     reg_prefix="barcode_round_1_1",
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
 
     ref_prefix = f'genes_round_{ops["ref_round"]+1}_1'
     stitched_stack_barcodes, _, angle, shift = stitch_and_register(
@@ -340,7 +340,7 @@ def merge_and_align_spots_all_rois(
     reg_prefix="barcode_round_1_1",
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
