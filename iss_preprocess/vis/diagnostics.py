@@ -123,3 +123,18 @@ def _plot_channels_intensity(
         plt.colorbar(img)
         ax.set_xticks([])
         ax.set_yticks([])
+
+def plot_tilestats_distributions(
+        distributions, grand_averages, figure_folder, verbose=True
+    ):
+    """Plot histogram of pixel values.
+
+    Args:
+        distributions (dict): Dictionary containing tilestats distributions of pixel 
+            values per image.
+        grand_averages (list): List of grand averages to plot.
+        figure_folder (pathlib.Path): Path where to save the figures.
+        verbose (bool): Print info about progress. Defaults to True
+
+    """
+    raise NotImplementedError
