@@ -393,9 +393,8 @@ def create_all_single_averages(path):
     default=None,
 )
 @click.option(
-    "--combine-stats",
+    "--combine-stats/--no-combine-stats",
     help="Combine pre-existing statistics into one instead of computing from images",
-    type=bool,
     default=False,
 )
 def create_single_average(

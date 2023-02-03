@@ -162,7 +162,9 @@ def tilestats_and_mean_image(
     mean_image = np.array(data, dtype=float)
     mean_image = np.clip(mean_image - black_level.reshape(1, 1, -1), 0, max_value)
     if combine_tilestats:
-        stats = tiffs[0].with_name(tiffs[0].replace("_average.tif", "_tilestats.npy"))
+        stats = tiffs[0].with_name(
+            tiffs[0].name.replace("_average.tif", "_tilestats.npy")
+        )
         if not stats.exists():
             raise IOError(
                 "Tilestats files must exist to use `combine_tilestats`."
@@ -180,7 +182,7 @@ def tilestats_and_mean_image(
         data = np.clip(data - black_level.reshape(1, 1, -1), 0, max_value)
         if combine_tilestats:
             stats = tiffs[0].with_name(
-                tiffs[0].replace("_average.tif", "_tilestats.npy")
+                tiffs[0].name.replace("_average.tif", "_tilestats.npy")
             )
             tilestats += np.load(stats)
         else:

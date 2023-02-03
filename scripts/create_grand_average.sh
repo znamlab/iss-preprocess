@@ -10,4 +10,4 @@ ml Anaconda3/2022.05
 source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 
 conda activate iss-preprocess
-iss create-single-average -p $DATAPATH -s $SUBFOLDER --prefix_filter $PREFIX --no-subtract-black --combine-stats
+iss create-single-average -p $DATAPATH -s $SUBFOLDER --prefix_filter $PREFIX --no-subtract-black --combine-stats --suffix "_1_average"
