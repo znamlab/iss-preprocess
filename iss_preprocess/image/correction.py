@@ -181,9 +181,7 @@ def tilestats_and_mean_image(
         data = np.array(load_stack(tile), dtype=float)
         data = np.clip(data - black_level.reshape(1, 1, -1), 0, max_value)
         if combine_tilestats:
-            stats = tiffs[0].with_name(
-                tiffs[0].name.replace("_average.tif", "_tilestats.npy")
-            )
+            stats = tile.with_name(tile.name.replace("_average.tif", "_tilestats.npy"))
             tilestats += np.load(stats)
         else:
             tilestats += compute_distribution(data, max_value)
