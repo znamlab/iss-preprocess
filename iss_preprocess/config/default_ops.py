@@ -5,7 +5,7 @@ from ..image import analyze_dark_frames
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 
-
+# TODO: Add description of what each option does somewhere. Maybe here
 DEFAULT_OPS = {
     "average_clip_value": 10000,
     "average_median_filter": 5,
