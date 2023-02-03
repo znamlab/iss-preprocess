@@ -7,6 +7,8 @@ from pathlib import Path
 
 
 DEFAULT_OPS = {
+    "average_clip_value": 10000,
+    "average_median_filter": 5,
     "correction_tiles": [(1, 0, 0)],
     "correction_quantile": 0.9999,
     "ref_tile": (1, 0, 0),
