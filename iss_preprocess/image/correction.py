@@ -156,11 +156,6 @@ def tilestats_and_mean_image(
 
     data = load_stack(tiffs[0])
     assert data.ndim == 3
-    black_level = np.asarray(black_level)  # in case we have just a float
-
-    # initialise folder mean with first frame
-    mean_image = np.array(data, dtype=float)
-    mean_image = np.clip(mean_image - black_level.reshape(1, 1, -1), 0, max_value)
     if combine_tilestats:
         stats = tiffs[0].with_name(
             tiffs[0].name.replace("_average.tif", "_tilestats.npy")
@@ -173,18 +168,26 @@ def tilestats_and_mean_image(
         tilestats = np.load(stats)
     else:
         tilestats = compute_distribution(mean_image, max_value)
+
+    black_level = np.asarray(black_level)  # in case we have just a float
+
+    # initialise folder mean with first frame
+    mean_image = np.array(data, dtype=float)
+    mean_image = np.clip(mean_image - black_level.reshape(1, 1, -1), 0, max_value)
     mean_image /= len(tiffs)
 
     for itile, tile in enumerate(tiffs[1:]):  # processing the rest of the tiffs
         if verbose and not (itile % 10):
             print("   ...{0}/{1}.".format(itile + 1, len(tiffs)), flush=True)
-        data = np.array(load_stack(tile), dtype=float)
-        data = np.clip(data - black_level.reshape(1, 1, -1), 0, max_value)
+
+        data = load_stack(tile)
         if combine_tilestats:
             stats = tile.with_name(tile.name.replace("_average.tif", "_tilestats.npy"))
             tilestats += np.load(stats)
         else:
             tilestats += compute_distribution(data, max_value)
+
+        data = np.clip(data.astype(float) - black_level.reshape(1, 1, -1), 0, max_value)
         mean_image += data / len(tiffs)
 
     if median_filter is not None:
