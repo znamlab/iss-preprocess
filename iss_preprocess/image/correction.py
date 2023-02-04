@@ -167,7 +167,7 @@ def tilestats_and_mean_image(
             )
         tilestats = np.load(stats)
     else:
-        tilestats = compute_distribution(mean_image, max_value)
+        tilestats = compute_distribution(data, max_value)
 
     black_level = np.asarray(black_level)  # in case we have just a float
 
