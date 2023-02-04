@@ -167,7 +167,7 @@ def tilestats_and_mean_image(
             )
         tilestats = np.load(stats)
     else:
-        tilestats = compute_distribution(data, max_value)
+        tilestats = compute_distribution(data)
 
     black_level = np.asarray(black_level)  # in case we have just a float
 
@@ -185,7 +185,7 @@ def tilestats_and_mean_image(
             stats = tile.with_name(tile.name.replace("_average.tif", "_tilestats.npy"))
             tilestats += np.load(stats)
         else:
-            tilestats += compute_distribution(data, max_value)
+            tilestats += compute_distribution(data)
 
         data = np.clip(data.astype(float) - black_level.reshape(1, 1, -1), 0, max_value)
         mean_image += data / len(tiffs)
@@ -201,7 +201,7 @@ def tilestats_and_mean_image(
     return mean_image, tilestats
 
 
-def compute_distribution(stack, max_value):
+def compute_distribution(stack, max_value=int(2**12 + 1)):
     """Compute simple tile statistics for one multichannel image
 
     Args:
