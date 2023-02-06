@@ -144,7 +144,7 @@ def plot_tilestats_distributions(
     distri = distributions.copy()
     fig = plt.figure(figsize=(10, 20))
     colors = ["blue", "green", "red", "purple"]
-    #TODO: adapt to varying number of rounds
+    # TODO: adapt to varying number of rounds
     for ip, prefix in enumerate(grand_averages):
         grand_data = distri.pop(prefix)
         ax = fig.add_subplot(11, 2, 1 + ip)
@@ -177,8 +177,8 @@ def plot_tilestats_distributions(
     for ax in fig.axes:
         ax.axvline(2**12, color="k", zorder=-10)
         for c, i in enumerate(np.argsort(camera_order)):
-                ax.axvline(ops["black_level"][i], color=colors[c], zorder=-10)
-        ax.set_xlim(np.min(ops['black_level']) - 2, 2**12)
+            ax.axvline(ops["black_level"][i], color=colors[c], zorder=-10)
+        ax.set_xlim(np.min(ops["black_level"]) - 2, 2**12)
         ax.semilogx()
     ax.legend()
     fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)
