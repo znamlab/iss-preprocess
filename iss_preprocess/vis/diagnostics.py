@@ -1,6 +1,7 @@
 from natsort import natsorted
 import numpy as np
 import matplotlib.pyplot as plt
+from iss_preprocess.io.load import load_ops
 
 
 def plot_correction_images(
@@ -126,46 +127,56 @@ def _plot_channels_intensity(
 
 
 def plot_tilestats_distributions(
-    distributions, grand_averages, figure_folder, camera_order
+    data_path, distributions, grand_averages, figure_folder
 ):
     """Plot histogram of pixel values.
 
     Args:
+        data_path (str): Relative path to data
         distributions (dict): Dictionary containing tilestats distributions of pixel
             values per image.
         grand_averages (list): List of grand averages to plot.
         figure_folder (pathlib.Path): Path where to save the figures.
         camera_order (list): Order list of camera as in ops['camera_order']
     """
-
+    ops = load_ops(data_path)
+    camera_order = ops["camera_order"]
     distri = distributions.copy()
     fig = plt.figure(figsize=(10, 20))
+    colors = ["blue", "green", "red", "purple"]
     for ip, prefix in enumerate(grand_averages):
         grand_data = distri.pop(prefix)
         ax = fig.add_subplot(11, 2, 1 + ip)
         ax.axvline(2**12, color="k")
         ax.set_title(prefix)
+        ax.axvline(ops["average_clip_value"], color="black")
         for c, i in enumerate(np.argsort(camera_order)):
+            ax.axvline(ops["black_level"][i], color=colors[c])
             ax.plot(
                 grand_data[:, i].cumsum() / np.sum(grand_data[:, i]),
                 label=f"Channel {c}",
+                color=colors[c],
             )
+
         ax.set_ylabel("All rounds")
         ax.semilogx()
         ax.set_xlim(1, 2**12)
         single_rounds = natsorted([k for k in distri if k.startswith(prefix)])
         for ir, round_name in enumerate(single_rounds):
+            ax.axvline(ops["average_clip_value"], color="black")
             ax = fig.add_subplot(11, 2, ir * 2 + ip + 3)
             ax.axvline(2**12, color="k")
             ax.set_ylabel(f"{round_name.split('_')[-2]} - all")
             data = distri.pop(round_name)
             for c, i in enumerate(np.argsort(camera_order)):
+                ax.axvline(ops["black_level"][i], color=colors[c])
                 ax.plot(
                     (
-                        data[:, i] / np.sum(data[:, i])
-                        - grand_data[:, i] / np.sum(grand_data[:, i])
+                        (data[:, i] / np.sum(data[:, i]))
+                        - (grand_data[:, i] / np.sum(grand_data[:, i]))
                     ).cumsum(),
                     label=f"Channel {c}",
+                    color=colors[c],
                 )
             ax.semilogx()
             ax.set_xlim(1, 2**12)
