@@ -19,6 +19,7 @@ from ..io import (
     load_tile_by_coors,
     load_metadata,
     load_hyb_probes_metadata,
+    load_ops
 )
 from ..segment import detect_isolated_spots, detect_spots
 from ..call import (
@@ -57,7 +58,7 @@ def hyb_spot_cluster_means(
     init_spot_colors=np.array([[0, 1, 0, 0], [0, 0, 0, 1]]),
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
 
     nch = len(ops["black_level"])
     metadata = load_metadata(data_path=data_path)
@@ -131,7 +132,7 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
 
 def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     clusters = np.load(
         processed_path / data_path / f"{prefix}_cluster_means.npz", allow_pickle=True
     )
@@ -177,7 +178,7 @@ def setup_barcode_calling(
             Defaults to 0.5.
         spot_size (int, optional): Size of the spots in pixels. Defaults to 2.
         correct_channels (bool, optional): Correct intensity difference across channel.
-            True to normalise all rounds individually. `round1_only` to normalise all 
+            True to normalise all rounds individually. `round1_only` to normalise all
             rounds to round1 correction. False to remove correction. Defaults to False.
 
     Returns:
@@ -187,7 +188,7 @@ def setup_barcode_calling(
         all_spots (pandas.DataFrame): All detected spots.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     all_spots = []
     for ref_tile in ops["barcode_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
@@ -218,7 +219,7 @@ def setup_barcode_calling(
 
 def basecall_tile(data_path, tile_coors):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     cluster_means = np.load(processed_path / data_path / "barcode_cluster_means.npy")
     nrounds = cluster_means.shape[0]
 
@@ -389,7 +390,7 @@ def load_sequencing_rounds(
 
 def estimate_channel_correction_hybridisation(data_path):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     nch = len(ops["black_level"])
 
     max_val = 65535
@@ -450,7 +451,7 @@ def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
         norm_factors (np.array) A Nch x Nround array of normalising factors
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     nch = len(ops["black_level"])
 
     max_val = 65535
@@ -581,7 +582,7 @@ def batch_process_tiles(data_path, script, additional_args=""):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
@@ -708,7 +709,7 @@ def create_single_average(
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     data_path = Path(data_path)
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     if prefix_filter is None:
         target_file = f"{subfolder}_average.tif"
     else:
@@ -746,9 +747,7 @@ def create_all_single_averages(
             "barcode_rounds", "fluorescence", "hybridisation")`
     """
 
-    data_path = Path(data_path)
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     metadata = load_metadata(data_path)
 
     # Collect all folder names

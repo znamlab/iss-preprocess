@@ -16,6 +16,22 @@ def load_hyb_probes_metadata():
     return hyb_probes
 
 
+def load_ops(data_path):
+    """Load the ops.npy file.
+
+    This must be manually generated first (see pipeline.ipynb example)
+
+    Args:
+        data_path (str): Relative path to data
+
+    Returns:
+        dict: Options, see config.defaults_ops.py for description
+    """
+    
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    return ops
+
 # AB: LGTM 10/01/23
 def load_metadata(data_path):
     """Load the metadata.yml file
