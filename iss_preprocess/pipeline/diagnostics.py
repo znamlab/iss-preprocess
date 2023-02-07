@@ -40,6 +40,6 @@ def check_illumination_correction(
     plot_correction_images(
         correction_images, grand_averages, figure_folder, verbose=True
     )
-    plot_tilestats_distributions(
-        distributions, grand_averages, figure_folder, camera_order=ops['camera_order']
+    plot_tilestats_distributions(data_path,
+        distributions, grand_averages, figure_folder
     )
