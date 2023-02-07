@@ -206,7 +206,7 @@ def compute_distribution(stack, max_value=int(2**12 + 1)):
 
     Args:
         stack (np.array): An X x Y x Nch stack
-        max_value (int): Maximum value to compute histogram
+        max_value (int): Maximum value to compute histogram, must be >= stack.max()
 
     Returns:
         np.array: Distribution of pixel values by channel. Shape (max_value + 1 , Nch)
