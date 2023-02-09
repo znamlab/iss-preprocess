@@ -28,7 +28,6 @@ from ..call import (
     barcode_spots_dot_product,
     BASES,
 )
-from .pipeline import load_spot_sign_image
 
 
 # AB: LGTM 10/03/23
@@ -357,6 +356,32 @@ def load_and_register_tile(
             stack = stack / norm_factors[np.newaxis, np.newaxis, :, :nrounds]
 
     return stack, bad_pixels
+
+
+def load_spot_sign_image(data_path, threshold):
+    """Load the reference spot sign image to use in spot calling. First, check
+    if the spot sign image has been computed for the current dataset and use it
+    if available. Otherwise, use the spot sign image saved in the repo.
+
+    Args:
+        data_path (str): Relative path to data.
+        threshold (float): Absolute value threshold used to binarize the spot
+            sign image.
+
+    Returns:
+        numpy.ndarray: Spot sign image after thresholding, containing -1, 0, or 1s.
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    spot_image_path = processed_path / data_path / "spot_sign_image.npy"
+    if spot_image_path.exists():
+        spot_sign_image = np.load(spot_image_path)
+    else:
+        print("No spot sign image for this dataset - using default.")
+        spot_sign_image = np.load(
+            Path(__file__).parent.parent / "call/spot_signimage.npy"
+        )
+    spot_sign_image[np.abs(spot_sign_image) < threshold] = 0
+    return spot_sign_image
 
 
 def run_omp_on_tile(
