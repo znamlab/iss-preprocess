@@ -40,6 +40,15 @@ from ..coppafish import scaled_k_means
 
 
 def setup_hyb_spot_calling(data_path, score_thresh=0, vis=True):
+    """Prepare and save bleedthrough matrices for hybridisation rounds.
+
+    Args:
+        data_path (str): Relative path to data
+        score_thresh (int, optional): Threshold to apply during scaled k-means clustering.
+            Spots, whose dot product is below this threshold, will be not contribute
+            to the estimate of the mean. Defaults to 0.
+        vis (bool, optional): Whether to generate diagnostic plots. Defaults to True.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     metadata = load_metadata(data_path)
     for hyb_round in metadata["hybridisation"].keys():
@@ -59,8 +68,25 @@ def hyb_spot_cluster_means(
     data_path,
     prefix,
     score_thresh=0,
-    init_spot_colors=np.array([[0, 1, 0, 0], [0, 0, 0, 1]]),
 ):
+    """Estimate bleedthrough matrices for hybridisation spots. Spot
+    colors for each dye are initialized based on the metadata in the
+    hybridisation probe list.
+
+    Uses tiles specified in `ops["barcode_ref_tiles"]`.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Prefix of hybridisation round, e.g. "hybridisation_1_1".
+        score_thresh (int, optional): Threshold to apply during scaled k-means clustering.
+            Spots, whose dot product is below this threshold, will not contribute
+            to the estimate of the mean. Defaults to 0.
+
+    Returns:
+        numpy.ndarray: Nprobes x Nch bleedthrough matrix.
+        pandas.DataFrame: DataFrame of all detected spots across all tiles.
+        list: list of gene names based on probe metadata.
+    """
     ops = load_ops(data_path)
 
     nch = len(ops["black_level"])
@@ -102,6 +128,12 @@ def hyb_spot_cluster_means(
 
 
 def extract_hyb_spots_all(data_path):
+    """Start `sbatch` jobs to detect hybridisation spots for each hybridisation
+    round and ROI.
+
+    Args:
+        data_path (str): Relative path to data.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     ops = load_ops(data_path)
@@ -125,6 +157,14 @@ def extract_hyb_spots_all(data_path):
 
 
 def extract_hyb_spots_roi(data_path, prefix, roi):
+    """Detect hybridisation spots for a given hybridisation round and ROI.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Prefix of the hybridisation round, e.g. "hybridisation_1_1".
+        roi (int): ID of the ROI to process, as specified in MicroManager
+            (i.e. 1-based)
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
@@ -134,6 +174,13 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
 
 
 def extract_hyb_spots_tile(data_path, tile_coors, prefix):
+    """Detect hybridisation spots for a given tile.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple): Coordinates of tile to load: ROI, Xpos, Ypos.
+        prefix (str): Prefix of the hybridisation round, e.g. "hybridisation_1_1".
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     clusters = np.load(
@@ -194,7 +241,7 @@ def setup_barcode_calling(
     all_spots = []
     for ref_tile in ops["barcode_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
-        stack, bad_pixels = load_and_register_tile(
+        stack, _ = load_and_register_tile(
             data_path,
             ref_tile,
             filter_r=ops["filter_r"],
@@ -220,6 +267,12 @@ def setup_barcode_calling(
 
 
 def basecall_tile(data_path, tile_coors):
+    """Detect and basecall barcodes for a given tile.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     cluster_means = np.load(processed_path / data_path / "barcode_cluster_means.npy")
@@ -289,10 +342,17 @@ def setup_omp(
     detection_threshold=40,
     isolation_threshold=30,
 ):
-    """Prepare variables required to run the OMP algorithm.
+    """Prepare variables required to run the OMP algorithm. Finds isolated spots using
+    STD across rounds and channels. Detected spots are then used to determine the
+    bleedthrough matrix using scaled k-means.
 
     Args:
         stack (numpy.ndarray): X x Y x C x R image stack.
+        codebook_name (str): filename of the codebook to use.
+        detection_threshold (float): spot detection threshold to find spots for
+            training the bleedthrough matrix.
+        isolation_threshold (float): threshold used to selected isolated spots
+            based on average values in the annulus around each spot.
 
     Returns:
         numpy.ndarray: N x M dictionary, where N = R * C and M is the
@@ -321,6 +381,12 @@ def setup_omp(
 
 
 def save_roi_dimensions(data_path, prefix):
+    """Determine the number of tiles in each ROI and save them.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Directory name to use, e.g. "genes_round_1_1".
+    """
     rois_list = get_roi_dimensions(data_path, prefix)
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -391,6 +457,22 @@ def load_sequencing_rounds(
 
 
 def estimate_channel_correction_hybridisation(data_path):
+    """Compute grayscale value distribution and normalisation factors for
+    all hybridisation rounds.
+
+    Each `correction_tiles` of `ops` is filtered before being used to compute the
+    distribution of pixel values.
+    Normalisation factor to equalise these distribution across channels and rounds are
+    defined as `ops["correction_quantile"]` of the distribution.
+
+    Args:
+        data_path (str or Path): Relative path to the data folder
+
+    Returns:
+        pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values
+            for filtered stacks
+        norm_factors (np.array) A Nch x Nround array of normalisation factors
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
@@ -446,7 +528,7 @@ def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
     Returns:
         pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values
             for filtered stacks
-        norm_factors (np.array) A Nch x Nround array of normalising factors
+        norm_factors (np.array) A Nch x Nround array of normalisation factors
     """
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
@@ -486,13 +568,37 @@ def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
 
 def load_and_register_hyb_tile(
     data_path,
-    tile_coors=(0, 0, 0),
+    tile_coors=(1, 0, 0),
     prefix="hybridisation_1_1",
     suffix="fstack",
     filter_r=(2, 4),
     correct_illumination=False,
     correct_channels=False,
 ):
+    """Load hybridisation tile and align channels. Optionally, filter, correct
+    illumination and channel brightness.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple, options): Coordinates of tile to load: ROI, Xpos, Ypos.
+            Defaults to (1, 0, 0).
+        prefix (str, optional): Prefix of the hybridisation round.
+            Defaults to "hybridisation_1_1".
+        suffix (str, optional): Filename suffix corresponding to the z-projection
+            to use. Defaults to "fstack".
+        filter_r (tuple, optional): Inner and out radius for the hanning filter.
+            If `False`, stack is not filtered. Defaults to (2, 4).
+        correct_illumination (bool, optional): Whether to correct vignetting.
+            Defaults to False.
+        correct_channels (bool, optional): Whether to normalize channel brightness.
+            Defaults to False.
+
+    Returns:
+        numpy.ndarray: X x Y x Nch image stack.
+        numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged
+            for all channels (due to registration offsets) and should be discarded
+            during analysis.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     tforms_fname = (
         f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
@@ -523,7 +629,7 @@ def load_and_register_hyb_tile(
 
 def load_and_register_tile(
     data_path,
-    tile_coors=(0, 0, 0),
+    tile_coors=(1, 0, 0),
     prefix="genes_round",
     suffix="fstack",
     filter_r=(2, 4),
@@ -532,6 +638,33 @@ def load_and_register_tile(
     correct_illumination=False,
     nrounds=7,
 ):
+    """Load sequencing tile and align channels. Optionally, filter, correct
+    illumination and channel brightness.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple, options): Coordinates of tile to load: ROI, Xpos, Ypos.
+            Defaults to (1, 0, 0).
+        prefix (str, optional): Prefix of the hybridisation round.
+            Defaults to "hybridisation_1_1".
+        suffix (str, optional): Filename suffix corresponding to the z-projection
+            to use. Defaults to "fstack".
+        filter_r (tuple, optional): Inner and out radius for the hanning filter.
+            If `False`, stack is not filtered. Defaults to (2, 4).
+        correct_channels (bool, optional): Whether to normalize channel brightness.
+            Defaults to False.
+        corrected_shifts (bool, optional): Whether to use corrected shifts estimated
+            by robust regression across tiles. Defaults to True.
+        correct_illumination (bool, optional): Whether to correct vignetting.
+            Defaults to False.
+        nrounds (int, optional): Number of sequencing rounds to load. Defaults to 7.
+
+    Returns:
+        numpy.ndarray: X x Y x Nch x Nrounds image stack.
+        numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged
+            for all channels and rounds (due to registration offsets) and should be discarded
+            during analysis.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     stack = load_sequencing_rounds(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
@@ -574,6 +707,15 @@ def load_and_register_tile(
 
 
 def batch_process_tiles(data_path, script, additional_args=""):
+    """Start sbatch scripts for all tiles across all rois.
+
+    Args:
+        data_path (str): Relative path to data.
+        script (str): Filename stem of the sbatch script, e.g. `extract_tile`.
+        additional_args (str, optional): Additional environment variable to export
+            to pass to the sbatch job. Should start with a leading comma.
+            Defaults to "".
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
@@ -599,6 +741,18 @@ def batch_process_tiles(data_path, script, additional_args=""):
 
 
 def load_spot_sign_image(data_path, threshold):
+    """Load the reference spot sign image to use in spot calling. First, check
+    if the spot sign image has been computed for the current dataset and use it
+    if available. Otherwise, use the spot sign image saved in the repo.
+
+    Args:
+        data_path (str): Relative path to data.
+        threshold (float): Absolute value threshold used to binarize the spot
+            sign image.
+
+    Returns:
+        numpy.ndarray: Spot sign image after thresholding, containing -1, 0, or 1s.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     spot_image_path = processed_path / data_path / "spot_sign_image.npy"
     if spot_image_path.exists():
@@ -619,6 +773,20 @@ def run_omp_on_tile(
     correct_channels=False,
     prefix="genes_round",
 ):
+    """Apply the OMP algorithm to unmix spots in a given tile using the saved
+    gene dictionary and settings saved in `ops.npy`. Then detect gene spots in
+    the resulting gene maps.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple): Coordinates of tile to load: ROI, Xpos, Ypos.
+        save_stack (bool, optional): Whether to save registered and preprocessed images.
+            Defaults to False.
+        correct_channels (bool or str, optional): Whether to apply channel normalization.
+            If not False, can specify normalization method, e.g. "round1_only". Defaults to False.
+        prefix (str, optional): Prefix of the sequencing read to analyse.
+            Defaults to "genes_round".
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
 
