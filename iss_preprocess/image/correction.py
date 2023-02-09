@@ -45,7 +45,7 @@ def apply_illumination_correction(data_path, stack, prefix):
     return stack
 
 
-def filter_stack(stack, r1=2, r2=4):
+def filter_stack(stack, r1=2, r2=4, dtype=float):
     """Filter stack with hanning window
 
     Convolve each image from the stack with a hanning kernel a la coppafish. The kernel
@@ -57,27 +57,28 @@ def filter_stack(stack, r1=2, r2=4):
             kernel. Defaults to 2.
         r2 (int, optional): Radius in pixels of outer negative hanning convolve kernel.
             Defaults to 4.
+        dtype (str, optional): Datatype for performing the computation
 
     Returns:
         np.array: Filtered stack.
     """
     nchannels = stack.shape[2]
-    h = hanning_diff(r1, r2)
-    stack_filt = np.zeros(stack.shape)
+    h = hanning_diff(r1, r2).astype(dtype)
+    stack_filt = np.zeros(stack.shape, dtype=dtype)
 
     for ich in range(nchannels):
         if stack.ndim == 4:
             nrounds = stack.shape[3]
             for iround in range(nrounds):
                 stack_filt[:, :, ich, iround] = cv2.filter2D(
-                    stack[:, :, ich, iround].astype(float),
+                    stack[:, :, ich, iround].astype(dtype),
                     -1,
                     np.flip(h),
                     borderType=cv2.BORDER_REPLICATE,
                 )
         else:
             stack_filt[:, :, ich] = cv2.filter2D(
-                stack[:, :, ich].astype(float),
+                stack[:, :, ich].astype(dtype),
                 -1,
                 np.flip(h),
                 borderType=cv2.BORDER_REPLICATE,
