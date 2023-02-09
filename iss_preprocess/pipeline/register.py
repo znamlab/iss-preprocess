@@ -7,7 +7,7 @@ from ..reg import (
     estimate_shifts_for_tile,
     estimate_shifts_and_angles_for_tile,
 )
-from . import load_sequencing_rounds
+from .sequencing import load_sequencing_rounds
 from ..io import load_tile_by_coors, load_metadata, load_ops
 
 
