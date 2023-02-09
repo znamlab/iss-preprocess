@@ -573,7 +573,7 @@ def load_and_register_tile(
         if correct_channels == "round1_only":
             stack = stack / norm_factors[np.newaxis, np.newaxis, :, 0, np.newaxis]
         else:
-            stack = stack / norm_factors[np.newaxis, np.newaxis, :, :]
+            stack = stack / norm_factors[np.newaxis, np.newaxis, :, :nrounds]
 
     return stack, bad_pixels
 
