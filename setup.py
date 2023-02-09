@@ -14,13 +14,15 @@ setup(
         "numpy",
         "matplotlib",
         "scikit-image",
-        "opencv-python",
+        "czifile",
         "scikit-learn",
         "flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git",
+        "opencv-python",
         "numba",
         "cellpose",
         "Click",
-        "natsort",
+        "bg_atlasapi",
+        "natsort",        
     ],
     entry_points="""
         [console_scripts]

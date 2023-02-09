@@ -18,6 +18,17 @@ conda activate iss-preprocess
 pip install -e .
 ```
 
+### Atlas cache
+
+The registration to the allen reference atlas uses `bg_atlasapi` from brainglobe. This
+keeps a cached version of the atlas in `~/.brainglobe` by default. This can be quite 
+big for high resolution atlases (10um per pixel). If using `nemo`, you might consider
+linking that folder to save space in your home directory:
+```
+mkdir /camp/lab/znamenskiyp/home/users/<your user name>/brainglobe
+ln -s /camp/lab/znamenskiyp/home/users/<your user name>/brainglobe .brainglobe
+```
+
 ## Organisation of this repository
 
 The purpose of this repo is to house scripts that will be used to preprocess image-based ISS data sets of multiple flavours (BARseq, INSTAseq etc.)

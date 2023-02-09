@@ -4,6 +4,8 @@ import numpy as np
 import re
 from flexiznam.config import PARAMETERS
 from pathlib import Path
+from . import ara_registration as ara_reg
+from ..io import write_stack, load_metadata
 from ..image import tilestats_and_mean_image
 from ..io import write_stack, load_metadata, load_ops
 
@@ -244,6 +246,72 @@ def create_grand_averages(
             args
             + f" --output={Path.home()}/slurm_logs/iss_create_grand_average_%j.out"
             + f" --error={Path.home()}/slurm_logs/iss_create_grand_average_%j.err"
+        )
+        command = f"sbatch {args} {script_path}"
+        print(command)
+        subprocess.Popen(
+            shlex.split(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+
+
+def overview_for_ara_registration(
+    data_path,
+    rois_to_do=None,
+    bulb_first=True,
+    sigma_blur=10,
+):
+    """Generate a stitched overview for registering to the ARA
+
+    ABBA requires pyramidal OME-TIFF with resolution information. We will generate such
+    stitched files and save them with a log yaml file indicating info about downsampling
+
+    Args:
+        data_path (str): Relative path to the data folder
+        rois_to_do (list, optional): ROIs to process. If None (default), process all
+            ROIs
+        max_pixel_size (float, optional): Pixel size in um for the highest level of the
+            pyramid. None to keep original size. Defaults to 1
+        bulb_first (bool, optional): Was the first slice closer to the olfactory
+            bulb than the last? Defaults to True.
+        sigma_blur (float, optional): sigma of the gaussian filter, in downsampled
+            pixel size. Defaults to 10
+    """
+
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    registration_folder = processed_path / data_path / "register_to_ara"
+    registration_folder.mkdir(exist_ok=True)
+    # also make sure that the relevant subfolders are created
+    (registration_folder / "qupath_project").mkdir(exist_ok=True)
+    (registration_folder / "deepslice").mkdir(exist_ok=True)
+
+    metadata = load_metadata(data_path)
+    if rois_to_do is None:
+        rois_to_do = metadata["ROI"].keys()
+    roi_slice_pos_um, min_step = ara_reg.find_roi_position_on_cryostat(
+        data_path=data_path, bulb_first=bulb_first
+    )
+    roi2section_order = {
+        roi: int(pos / min_step) for roi, pos in roi_slice_pos_um.items()
+    }
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "overview_single_roi.sh"
+    )
+
+    for roi in rois_to_do:
+
+        export_args = dict(
+            DATAPATH=data_path,
+            ROI=roi,
+            SIGMA=sigma_blur,
+            SLICE_ID=roi2section_order[roi],
+        )
+        args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+        args = (
+            args
+            + f" --output={Path.home()}/slurm_logs/iss_overview_roi_%j.out"
+            + f" --error={Path.home()}/slurm_logs/iss_overview_roi_%j.err"
         )
         command = f"sbatch {args} {script_path}"
         print(command)

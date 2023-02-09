@@ -411,3 +411,27 @@ def create_single_average(
         suffix=suffix,
         combine_tilestats=combine_stats,
     )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-r", "--roi", help="Roi id", type=int)
+@click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
+@click.option("--sigma", help="Sigma for gaussian blur")
+def overview_for_ara_registration(
+    path,
+    roi,
+    slice_id,
+    sigma=10.0,
+):
+    """Generate the overview of one ROI used for registration
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): ROI ID
+        slice_id (int): Ordered slice id. Must increase across all chambers
+        sigma_blur (float, optional): Sigma for gaussian blur. Defaults to 10.
+    """
+    from iss_preprocess.pipeline.ara_registration import overview_single_roi
+    print('Calling')
+    overview_single_roi(data_path=path, roi=roi, slice_id=slice_id, sigma_blur=sigma)
