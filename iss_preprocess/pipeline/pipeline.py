@@ -503,13 +503,13 @@ def load_and_register_hyb_tile(
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
     )
+    if correct_illumination:
+        stack = apply_illumination_correction(data_path, stack, prefix)
     stack = apply_corrections(
         stack, tforms["scales"], tforms["angles"], tforms["shifts"], cval=np.nan
     )
     bad_pixels = np.any(np.isnan(stack), axis=(2))
     stack[np.isnan(stack)] = 0
-    if correct_illumination:
-        stack = apply_illumination_correction(data_path, stack, prefix)
     if filter_r:
         stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
         mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
@@ -533,6 +533,12 @@ def load_and_register_tile(
     nrounds=7,
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
+    stack = load_sequencing_rounds(
+        data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+    )
+    if correct_illumination:
+        stack = apply_illumination_correction(data_path, stack, prefix)
+
     if corrected_shifts:
         tforms_fname = f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
         tforms_path = processed_path / data_path / "reg" / tforms_fname
@@ -540,11 +546,6 @@ def load_and_register_tile(
         tforms_fname = f"tforms_{prefix}.npz"
         tforms_path = processed_path / data_path / tforms_fname
     tforms = np.load(tforms_path, allow_pickle=True)
-
-    stack = load_sequencing_rounds(
-        data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
-    )
-
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],
@@ -554,8 +555,7 @@ def load_and_register_tile(
         stack.shape[:2],
     )
     stack = align_channels_and_rounds(stack, tforms)
-    if correct_illumination:
-        stack = apply_illumination_correction(data_path, stack, prefix)
+
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[np.isnan(stack)] = 0
     if filter_r:
