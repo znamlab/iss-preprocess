@@ -1,8 +1,6 @@
 import numpy as np
 from pathlib import Path
 import cv2
-from sklearn.mixture import GaussianMixture
-from skimage.exposure import match_histograms
 from skimage.morphology import disk
 from skimage.filters import median
 from ..io.load import load_stack, load_ops
@@ -64,7 +62,7 @@ def filter_stack(stack, r1=2, r2=4):
     nchannels = stack.shape[2]
     h = hanning_diff(r1, r2)
     stack_filt = np.zeros(stack.shape)
-
+    # TODO: check if we can get rid of the np.flip
     for ich in range(nchannels):
         if stack.ndim == 4:
             nrounds = stack.shape[3]
@@ -149,10 +147,10 @@ def tilestats_and_mean_image(
     filt = f"{prefix}*{suffix}.tif"
     tiffs = list(data_folder.glob(filt))
     if not len(tiffs):
-        raise IOError("NO valid tifs in folder %s" % data_folder, flush=True)
+        raise IOError(f"NO valid tifs in folder {data_folder}", flush=True)
 
     if verbose:
-        print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name), flush=True)
+        print(f"Averaging {len(tiffs)} tifs in {im_name}.", flush=True)
 
     data = load_stack(tiffs[0])
     assert data.ndim == 3
@@ -178,7 +176,7 @@ def tilestats_and_mean_image(
 
     for itile, tile in enumerate(tiffs[1:]):  # processing the rest of the tiffs
         if verbose and not (itile % 10):
-            print("   ...{0}/{1}.".format(itile + 1, len(tiffs)), flush=True)
+            print(f"   ...{itile + 1}/{len(tiffs)}.", flush=True)
 
         data = load_stack(tile)
         if combine_tilestats:

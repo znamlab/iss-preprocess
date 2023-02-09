@@ -2,7 +2,6 @@ import subprocess, shlex
 import warnings
 import numpy as np
 import pandas as pd
-import yaml
 import re
 import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
@@ -12,6 +11,7 @@ from ..image import (
     filter_stack,
     apply_illumination_correction,
     tilestats_and_mean_image,
+    compute_distribution,
 )
 from ..reg import (
     align_channels_and_rounds,
@@ -61,7 +61,6 @@ def hyb_spot_cluster_means(
     score_thresh=0,
     init_spot_colors=np.array([[0, 1, 0, 0], [0, 0, 0, 1]]),
 ):
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
 
     nch = len(ops["black_level"])
@@ -191,7 +190,6 @@ def setup_barcode_calling(
             normalised by round 0 intensity
         all_spots (pandas.DataFrame): All detected spots.
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     all_spots = []
     for ref_tile in ops["barcode_ref_tiles"]:
@@ -415,12 +413,8 @@ def estimate_channel_correction_hybridisation(data_path):
                 r1=ops["filter_r"][0],
                 r2=ops["filter_r"][1],
             )
-            for ich in range(nch):
-                stack[stack < 0] = 0
-                pixel_dist[:, ich] += np.bincount(
-                    stack[:, :, ich].flatten().astype(np.uint16),
-                    minlength=max_val + 1,
-                )
+            stack[stack < 0] = 0
+            pixel_dist += compute_distribution(stack, max_value=max_val)
 
         cumulative_pixel_dist = np.cumsum(pixel_dist, axis=0)
         cumulative_pixel_dist = cumulative_pixel_dist / cumulative_pixel_dist[-1, :]
@@ -454,7 +448,6 @@ def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
             for filtered stacks
         norm_factors (np.array) A Nch x Nround array of normalising factors
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
 
@@ -474,13 +467,11 @@ def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
             r1=ops["filter_r"][0],
             r2=ops["filter_r"][1],
         )
+        stack[stack < 0] = 0
         for iround in range(nrounds):
-            for ich in range(nch):
-                stack[stack < 0] = 0
-                pixel_dist[:, ich, iround] += np.bincount(
-                    stack[:, :, ich, iround].flatten().astype(np.uint16),
-                    minlength=max_val + 1,
-                )
+            pixel_dist[:, :, iround] += compute_distribution(
+                stack[:, :, :, iround], max_value=max_val
+            )
 
     cumulative_pixel_dist = np.cumsum(pixel_dist, axis=0)
     cumulative_pixel_dist = cumulative_pixel_dist / cumulative_pixel_dist[-1, :, :]
@@ -629,8 +620,7 @@ def run_omp_on_tile(
     prefix="genes_round",
 ):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops_path = processed_path / data_path / "ops.npy"
-    ops = np.load(ops_path, allow_pickle=True).item()
+    ops = load_ops(data_path)
 
     stack, bad_pixels = load_and_register_tile(
         data_path,
@@ -725,7 +715,6 @@ def create_single_average(
     print(f"    combine_tilestats={combine_tilestats}", flush=True)
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    data_path = Path(data_path)
     ops = load_ops(data_path)
     if prefix_filter is None:
         target_file = f"{subfolder}_average.tif"
@@ -824,8 +813,6 @@ def create_grand_averages(
         prefix_todo (tuple, optional): List of str, names of the tifs to average.
             Defaults to ("genes_round", "barcode_round").
     """
-
-    data_path = Path(data_path)
     subfolder = "averages"
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "create_grand_average.sh"
