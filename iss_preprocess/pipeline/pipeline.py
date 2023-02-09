@@ -756,6 +756,7 @@ def create_all_single_averages(
         todo (tuple): type of acquisition to process. Default to `("genes_rounds",
             "barcode_rounds", "fluorescence", "hybridisation")`
     """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
 
