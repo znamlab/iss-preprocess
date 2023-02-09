@@ -7,8 +7,8 @@ from ..reg import (
     estimate_shifts_for_tile,
     estimate_shifts_and_angles_for_tile,
 )
-from . import load_sequencing_rounds
-from ..io import load_tile_by_coors, load_metadata
+from .sequencing import load_sequencing_rounds
+from ..io import load_tile_by_coors, load_metadata, load_ops
 
 
 def register_reference_tile(data_path, prefix="genes_round"):
@@ -128,7 +128,7 @@ def estimate_shifts_by_coors(
 def correct_shifts(data_path, prefix):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
         correct_shifts_roi(data_path, roi, prefix=prefix)
@@ -208,7 +208,7 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
 def correct_hyb_shifts(data_path, prefix=None):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     if prefix:

@@ -6,6 +6,7 @@ from pathlib import Path
 from flexiznam import PARAMETERS
 from iss_preprocess.pipeline import stitch_tiles, register_adjacent_tiles
 from iss_preprocess.pipeline import ara_registration as ara_reg
+from iss_preprocess.io.load import load_ops
 
 
 def plot_correction_images(
@@ -136,7 +137,7 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     Args:
         data_path (str): Relative path to data
         roi (int): ROI number to plot
-        reference_prefix (str, optional): Image to use as reference. Defaults to 
+        reference_prefix (str, optional): Image to use as reference. Defaults to
             "genes_round_1_1".
 
     Raises:
@@ -148,8 +149,8 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     try:
         from cricksaw_analysis import atlas_utils
     except ImportError:
-        raise ImportError('`plot_registration requires `cricksaw_analysis')
-    
+        raise ImportError("`plot_registration requires `cricksaw_analysis")
+
     area_ids = ara_reg.make_area_image(
         data_path=data_path, roi=roi, atlas_size=10, full_scale=False
     )
@@ -182,9 +183,9 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         vmax=np.quantile(downsampled, 0.99),
         vmin=0,
         origin="lower",
-        cmap='gray'
+        cmap="gray",
     )
-    
+
     atlas_utils.plot_borders_and_areas(
         ax,
         area_ids,
@@ -196,3 +197,61 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     ax.set_yticks([])
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     return fig
+
+
+def plot_tilestats_distributions(
+    data_path, distributions, grand_averages, figure_folder
+):
+    """Plot histogram of pixel values.
+
+    Args:
+        data_path (str): Relative path to data
+        distributions (dict): Dictionary containing tilestats distributions of pixel
+            values per image.
+        grand_averages (list): List of grand averages to plot.
+        figure_folder (pathlib.Path): Path where to save the figures.
+        camera_order (list): Order list of camera as in ops['camera_order']
+    """
+    ops = load_ops(data_path)
+    camera_order = ops["camera_order"]
+    distri = distributions.copy()
+    fig = plt.figure(figsize=(10, 20))
+    colors = ["blue", "green", "red", "purple"]
+    # TODO: adapt to varying number of rounds
+    for ip, prefix in enumerate(grand_averages):
+        grand_data = distri.pop(prefix)
+        ax = fig.add_subplot(11, 2, 1 + ip)
+        ax.set_title(prefix)
+        for c, i in enumerate(np.argsort(camera_order)):
+            ax.plot(
+                grand_data[:, i].cumsum() / np.sum(grand_data[:, i]),
+                label=f"Channel {c}",
+                color=colors[c],
+            )
+        ax.set_ylabel("All rounds")
+
+        single_rounds = natsorted([k for k in distri if k.startswith(prefix)])
+        for ir, round_name in enumerate(single_rounds):
+            ax.axvline(ops["average_clip_value"], color="black")
+            ax = fig.add_subplot(11, 2, ir * 2 + ip + 3, sharex=fig.axes[0])
+            ax.set_ylabel(f"{round_name.split('_')[-2]} - all")
+            data = distri.pop(round_name)
+            for c, i in enumerate(np.argsort(camera_order)):
+                ax.plot(
+                    (
+                        (data[:, i] / np.sum(data[:, i]))
+                        - (grand_data[:, i] / np.sum(grand_data[:, i]))
+                    ).cumsum(),
+                    label=f"Channel {c}",
+                    color=colors[c],
+                )
+            ax.set_ylim(-0.3, 0.3)
+
+    for ax in fig.axes:
+        ax.axvline(2**12, color="k", zorder=-10)
+        for c, i in enumerate(np.argsort(camera_order)):
+            ax.axvline(ops["black_level"][i], color=colors[c], zorder=-10)
+        ax.set_xlim(np.min(ops["black_level"]) - 2, 2**12)
+        ax.semilogx()
+    ax.legend()
+    fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)

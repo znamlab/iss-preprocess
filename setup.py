@@ -22,6 +22,7 @@ setup(
         "cellpose",
         "Click",
         "bg_atlasapi",
+        "natsort",        
     ],
     entry_points="""
         [console_scripts]

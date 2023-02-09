@@ -1,11 +1,9 @@
 import numpy as np
 from pathlib import Path
 import cv2
-from sklearn.mixture import GaussianMixture
-from skimage.exposure import match_histograms
 from skimage.morphology import disk
 from skimage.filters import median
-from ..io.load import load_stack
+from ..io.load import load_stack, load_ops
 from ..coppafish import hanning_diff
 from flexiznam.config import PARAMETERS
 from pathlib import Path
@@ -28,7 +26,7 @@ def apply_illumination_correction(data_path, stack, prefix):
         stack (np.array): Normalised stack. Same shape as input.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
     average_image_fname = (
         processed_path / data_path / "averages" / f"{prefix}_average.tif"
     )
@@ -64,7 +62,7 @@ def filter_stack(stack, r1=2, r2=4):
     nchannels = stack.shape[2]
     h = hanning_diff(r1, r2)
     stack_filt = np.zeros(stack.shape)
-
+    # TODO: check if we can get rid of the np.flip
     for ich in range(nchannels):
         if stack.ndim == 4:
             nrounds = stack.shape[3]
@@ -102,36 +100,42 @@ def analyze_dark_frames(fname):
     return dark_frames.mean(axis=(0, 1)), dark_frames.std(axis=(0, 1))
 
 
-def compute_mean_image(
+def tilestats_and_mean_image(
     data_folder,
     prefix="",
     suffix="",
     black_level=0,
-    max_value=1000,
+    max_value=10000,
     verbose=False,
     median_filter=None,
     normalise=False,
+    combine_tilestats=False,
 ):
     """
-    Compute mean image to use for illumination correction.
+    Compute tile statistics and mean image to use for illumination correction.
 
     Args:
         data_folder (str): directory containing images
-        prefix (str): prefix to filter images to average
-        suffix (str): suffix to filter images to average
-        black_level (float): image black level to subtract before calculating
-            each mean image. Default to 0
-        max_value (float): image values are clipped to this value. This reduces
-            the effect of extremely bright features skewing the average image. Default
-            to 1000.
-        verbose (bool): whether to report on progress
-        median_filter (int): size of median filter to apply to the correction image.
-            If None, no median filtering is applied.
-        normalise (bool): Divide each channel by its maximum value. Default to False
-
+        prefix (str, optional): prefix to filter images to average. Defaults to "", no
+            filter
+        suffix (str, optional): suffix to filter images to average. Defaults to "", no
+            filter
+        black_level (float, optional): image black level to subtract before calculating
+            each mean image. Defaults to 0
+        max_value (float, optional): image values are clipped to this value *after*
+            black level subtraction. This reduces the effect of extremely bright
+            features skewing the average image. Defaults to 10000.
+        verbose (bool, optional): whether to report on progress. Defaults to False
+        median_filter (int, optional): size of median filter to apply to the correction
+            image. If None, no median filtering is applied. Defaults to None.
+        normalise (bool, optional): Divide each channel by its maximum value. Default to
+            False
+        combine_tilestats (bool, optional): If False, compute tilestats, if True, load
+            already created tilestats for each tif and sum them.
 
     Returns:
-        numpy.ndarray correction image
+        numpy.ndarray: correction image
+        dict: tile statistics of clipped and black subtracted images
 
     """
     if prefix is None:
@@ -143,24 +147,45 @@ def compute_mean_image(
     filt = f"{prefix}*{suffix}.tif"
     tiffs = list(data_folder.glob(filt))
     if not len(tiffs):
-        raise IOError("NO valid tifs in folder %s" % data_folder, flush=True)
+        raise IOError(f"NO valid tifs in folder {data_folder}", flush=True)
 
     if verbose:
-        print("Averaging {0} tifs in {1}.".format(len(tiffs), im_name), flush=True)
+        print(f"Averaging {len(tiffs)} tifs in {im_name}.", flush=True)
 
     data = load_stack(tiffs[0])
     assert data.ndim == 3
+    if combine_tilestats:
+        stats = tiffs[0].with_name(
+            tiffs[0].name.replace("_average.tif", "_tilestats.npy")
+        )
+        if not stats.exists():
+            raise IOError(
+                "Tilestats files must exist to use `combine_tilestats`."
+                + f"\n{stats} does not exists"
+            )
+        tilestats = np.load(stats)
+    else:
+        tilestats = compute_distribution(data)
+
     black_level = np.asarray(black_level)  # in case we have just a float
 
     # initialise folder mean with first frame
     mean_image = np.array(data, dtype=float)
-    mean_image = np.clip(mean_image, None, max_value) - black_level.reshape(1, 1, -1)
+    mean_image = np.clip(mean_image - black_level.reshape(1, 1, -1), 0, max_value)
     mean_image /= len(tiffs)
+
     for itile, tile in enumerate(tiffs[1:]):  # processing the rest of the tiffs
         if verbose and not (itile % 10):
-            print("   ...{0}/{1}.".format(itile + 1, len(tiffs)), flush=True)
-        data = np.array(load_stack(tile), dtype=float)
-        data = np.clip(data, None, max_value) - black_level.reshape(1, 1, -1)
+            print(f"   ...{itile + 1}/{len(tiffs)}.", flush=True)
+
+        data = load_stack(tile)
+        if combine_tilestats:
+            stats = tile.with_name(tile.name.replace("_average.tif", "_tilestats.npy"))
+            tilestats += np.load(stats)
+        else:
+            tilestats += compute_distribution(data)
+
+        data = np.clip(data.astype(float) - black_level.reshape(1, 1, -1), 0, max_value)
         mean_image += data / len(tiffs)
 
     if median_filter is not None:
@@ -171,4 +196,23 @@ def compute_mean_image(
         max_by_chan = np.nanmax(mean_image.reshape((-1, mean_image.shape[-1])), axis=0)
         mean_image /= max_by_chan.reshape((1, 1, -1))
 
-    return mean_image
+    return mean_image, tilestats
+
+
+def compute_distribution(stack, max_value=int(2**12 + 1)):
+    """Compute simple tile statistics for one multichannel image
+
+    Args:
+        stack (np.array): An X x Y x Nch stack
+        max_value (int): Maximum value to compute histogram, must be >= stack.max()
+
+    Returns:
+        np.array: Distribution of pixel values by channel. Shape (max_value + 1 , Nch)
+    """
+    distribution = np.zeros((max_value + 1, stack.shape[2]))
+    for ich in range(stack.shape[2]):
+        distribution[:, ich] = np.bincount(
+            stack[:, :, ich].flatten().astype(np.uint16),
+            minlength=max_value + 1,
+        )
+    return distribution
