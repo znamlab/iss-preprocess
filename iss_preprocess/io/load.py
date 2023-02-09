@@ -27,7 +27,6 @@ def load_ops(data_path):
     Returns:
         dict: Options, see config.defaults_ops.py for description
     """
-
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
     return ops
