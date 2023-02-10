@@ -12,6 +12,7 @@ def cellpose_segmentation(
     rescale=0.55,
     model_type="cyto",
     use_gpu=False,
+    **kwargs
 ):
     """Segment cells using Cellpose.
 
@@ -26,6 +27,7 @@ def cellpose_segmentation(
         rescale (float, optional): rescale factor for cellpose model. Defaults to 0.55.
         model_type (str, optional): Cellpose mode to use. Defaults to "cyto".
         use_gpu (bool, optional): Defaults to False.
+        **kwargs (optional): Other kwargs are forwarded to CellposeModel.eval
 
     Returns:
         numpy.ndarray of masks
@@ -40,6 +42,7 @@ def cellpose_segmentation(
         channels=channels,
         flow_threshold=flow_threshold,
         tile=True,
+        **kwargs
     )
     if min_pix > 0:
         nmasks = np.max(masks)
