@@ -3,6 +3,7 @@ import numpy as np
 from skimage.feature import blob_log
 from scipy.signal import medfilt2d
 from scipy.ndimage import grey_dilation
+import cv2
 import scipy
 from ..coppafish import annulus
 
@@ -92,3 +93,33 @@ def filter_spots(spots, min_dist):
             # set x to nan to skip this spot
             clean_spots.iloc[ispot].x = np.nan
     return clean_spots[clean_spots.x.notna()]
+
+
+def make_spot_image(spots, kernel_size=50, dtype="single", output_shape=None):
+    """Make an image by convolving spots with a gaussian
+
+    A single isolated rolony results in a gaussian with sd about `kernel_size / 3` and 
+    an amplitude of 1
+
+    Args:
+        spots (pd.DataFrame): Spots dataframe. Must have a `x` and a `y` column
+        kernel_size (int, optional): Size of the kernel in pixels. Defaults to 50.
+        dtype (str, optional): Datatype for computation. Defaults to "single".
+        output_shape (tuple, optional): Shape of the output image. If None, the smallest
+            shape fitting all spots + kernel will be used. Defaults to None.
+
+    Returns:
+        np.array: Convolution results
+    """
+    kernel_size += 1 - kernel_size % 2  # kernel shape must be odd
+    kernel = cv2.getGaussianKernel(kernel_size, sigma=np.mean(kernel_size) / 3)
+    # set the initial value so that single pixels after convolution have a peak of 1
+    kernel /= kernel.max()
+    kernel = kernel.astype(dtype)
+    if output_shape is None:
+        output_shape = np.array(
+            (spots.y.max() + kernel_size + 1, spots.x.max() + kernel_size + 1)
+        ).astype(int)
+    spot_image = np.zeros(output_shape, dtype=dtype)
+    spot_image[spots.y.values.astype(int), spots.x.values.astype(int)] = 1
+    return cv2.sepFilter2D(src=spot_image, kernelX=kernel, kernelY=kernel, ddepth=-1)
