@@ -12,6 +12,18 @@ from ..io import load_tile_by_coors, load_metadata, load_ops
 
 
 def register_reference_tile(data_path, prefix="genes_round"):
+    """Estimate round and channel registration parameters for
+    the specified tile, include shifts and rotations between rounds
+    and shifts, rotations, and scaling between channels.
+
+    Shifts are estimated using phase correlation. Rotation and
+    scaling are estimated using iterative grid search.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): Directory prefix to register.
+            Defaults to "genes_round".
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
@@ -54,10 +66,12 @@ def estimate_shifts_and_angles_by_coors(
     """Estimate shifts and rotations angles for hybridisation images.
 
     Args:
-        data_path (_type_): _description_
-        tile_coors (tuple, optional): _description_. Defaults to (0, 0, 0).
-        prefix (str, optional): _description_. Defaults to "hybridisation_1_1".
-        reference_prefix (str, optional): _description_. Defaults to "barcode_round".
+        data_path (str): Relative path to data.
+        tile_coors (tuple, optional): Coordinates of tile to register, in (ROI, X, Y)
+            format. Defaults to (0, 0, 0).
+        prefix (str, optional): Prefix of the hybridisation round. Defaults to "hybridisation_1_1".
+        reference_prefix (str, optional): Prefix to use for loading precomputed
+            scale factors between channels. Defaults to "barcode_round".
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
@@ -83,16 +97,18 @@ def estimate_shifts_and_angles_by_coors(
 
 
 def estimate_shifts_by_coors(
-    data_path, tile_coors=(0, 0, 0), prefix="round", suffix="fstack"
+    data_path, tile_coors=(0, 0, 0), prefix="genes_round", suffix="fstack"
 ):
     """Estimate shifts across channels and sequencing rounds using provided reference
     rotation angles and scale factors.
 
     Args:
-        data_path (_type_): _description_
-        tile_coors (tuple, optional): _description_. Defaults to (0, 0, 0).
-        prefix (str, optional): _description_. Defaults to "round".
-        suffix (str, optional): _description_. Defaults to "fstack".
+        data_path (str): Relative path to data.
+        tile_coors (tuple, optional): Coordinates of tile to register, in (ROI, X, Y)
+            format. Defaults to (0, 0, 0).
+        prefix (str, optional): Directory prefix to register. Defaults to "genes_round".
+        suffix (str, optional): Filename suffix specifying which z-projection to use.
+            Defaults to "fstack".
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
@@ -126,6 +142,13 @@ def estimate_shifts_by_coors(
 
 
 def correct_shifts(data_path, prefix):
+    """Use robust regression to correct shifts across tiles within an ROI
+    for all ROIs.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Directory prefix to use, e.g. "genes_round".
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     ops = load_ops(data_path)
@@ -135,6 +158,20 @@ def correct_shifts(data_path, prefix):
 
 
 def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500):
+    """Use robust regression to correct shifts across tiles for a single ROI.
+
+    RANSAC regression is applied to shifts within and across channels using
+    tile X and Y position as predictors.
+
+    Args:
+        data_path (str): Relative path to data.
+        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles, Ytiles)
+            format.
+        prefix (str, optional): Directory prefix to use. Defaults to "genes_round".
+        max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
+            Tiles with larger absolute shifts will not be included in the fit but will
+            still have their corrected shifts estimated. Defaults to 500.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi = roi_dims[0]
     nx = roi_dims[1] + 1
@@ -206,6 +243,15 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
 
 
 def correct_hyb_shifts(data_path, prefix=None):
+    """Use robust regression across tiles to correct shifts and angles
+    for hybridisation rounds. Either processes a specific hybridisation
+    round or all rounds.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Directory prefix to use, e.g. "genes_round". If None,
+            processes all rounds.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     ops = load_ops(data_path)
@@ -225,6 +271,19 @@ def correct_hyb_shifts(data_path, prefix=None):
 def correct_hyb_shifts_roi(
     data_path, roi_dims, prefix="hybridisation_1_1", max_shift=500
 ):
+    """Use robust regression across tiles to correct shifts and angles
+    for a single hybridisation round and ROI.
+
+    Args:
+        data_path (str): Relative path to data.
+        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles, Ytiles)
+            format.
+        prefix (str, optional): Prefix of the round to be processed.
+            Defaults to "hybridisation_1_1".
+        max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
+            Tiles with larger absolute shifts will not be included in the fit but will
+            still have their corrected shifts estimated. Defaults to 500.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
 
     roi = roi_dims[0]
