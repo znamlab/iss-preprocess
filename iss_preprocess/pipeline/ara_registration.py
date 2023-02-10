@@ -5,7 +5,7 @@ from skimage.transform import rescale
 from scipy.ndimage import gaussian_filter
 import bg_atlasapi as bga
 from flexiznam import PARAMETERS
-from .pipeline import stitch
+from . import stitch
 import cv2
 from ..io import (
     load_section_position,
