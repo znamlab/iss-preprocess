@@ -13,18 +13,19 @@ def cellpose_segmentation(
     model_type="cyto",
     use_gpu=False,
 ):
-    """
-    Segment cells using Cellpose.
+    """Segment cells using Cellpose.
 
     Args:
-        fname (str): path to file containing reference image
-        channels (tuple): channels to use for segmentation
-        flow_threshold (float): flow threshold for cellpose cell detection
-        min_pix (int): minimum number of pixels to keep mask
-        vis (bool): whether to plot masks
-        dilate_pix (int): number of rounds of binary dilation to grow masks
-        rescale (float): rescale factor for cellpose model
-        model_type (str): Cellpose mode to use, default 'cyto'
+        img (np.array): reference image
+        channels (tuple, optional): channels to use for segmentation. Defaults to (0,0)
+        flow_threshold (float, optional): flow threshold for cellpose cell detection.
+            Defaults to 0.4.
+        min_pix (int, optional): minimum number of pixels to keep mask. Defaults to 0.
+        dilate_pix (int, optional): number of rounds of binary dilation to grow masks.
+            Defaults to 0.
+        rescale (float, optional): rescale factor for cellpose model. Defaults to 0.55.
+        model_type (str, optional): Cellpose mode to use. Defaults to "cyto".
+        use_gpu (bool, optional): Defaults to False.
 
     Returns:
         numpy.ndarray of masks
