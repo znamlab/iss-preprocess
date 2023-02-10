@@ -23,6 +23,9 @@ def register_adjacent_tiles(
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
+    Shifts are typically very similar between different tiles, using shifts 
+    estimated using a reference tile for the whole acquisition works well.
+
     Args:
         data_path (str): path to image stacks.
         ref_coors (tuple, optional): coordinates of the reference tile to use for
@@ -167,6 +170,10 @@ def merge_roi_spots(
 ):
     """Load and combine spot locations across all tiles for an ROI.
 
+    To avoid duplicate spots from tile overlap, we determine which tile center 
+    each spot is closest to. We then only keep the spots that are closest to
+    the center of the tile they were detected on.
+
     Args:
         data_path (str): path to pickle files containing spot locations for each tile.
         shift_right (numpy.array): X and Y shifts between different columns
@@ -228,15 +235,30 @@ def stitch_and_register(
 ):
     """Stitch target and reference stacks and align target to reference
 
+    To speed up registration, images are downsampled before estimating registration
+    parameters. These parameters are then applied to the full scale image. 
+
     Args:
-        data_path (_type_): _description_
-        reference_prefix (_type_): _description_
-        target_prefix (_type_): _description_
-        roi (int, optional): _description_. Defaults to 1.
-        downsample (int, optional): _description_. Defaults to 5.
+        data_path (str): Relative path to data.
+        reference_prefix (str): Acquisition prefix to register the stitched image to.
+            Typically, "genes_round_1_1".
+        target_prefix (str): Acquisition prefix to register.
+        roi (int, optional): ROI ID to register (as specified in MicroManager). 
+            Defaults to 1.
+        downsample (int, optional): Downsample factor for estimating registration
+            parameter. Defaults to 5.
+        ref_ch (int, optional): Channel of the reference image used for registration.
+            Defaults to 0.
+        target_ch (int, optional): Channel of the target image used for registration.
+            Defaults to 0.
+        estimate_scale (bool, optional): Whether to estimate scaling between target
+            and reference images. Defaults to False.  
 
     Returns:
-        _type_: _description_
+        numpy.ndarray: Stitched target image after registration.
+        numpy.ndarray: Stitched reference image.
+        float: Estimate rotation angle.
+        tuple: Estimated X and Y shifts.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
@@ -301,6 +323,21 @@ def merge_and_align_spots(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
 ):
+    """Combine spots across tiles and align to reference coordinates for a single ROI.
+
+    We first generate a DataFrame containing all spots in global coordinates
+    of the acquisition they were detected in using `merge_roi_spots`. We then
+    transform their coordinates into coordinates of the reference genes round
+    using the transformation estimated by `stitch_and_register`.
+
+    Args:
+        data_path (str): Relative path to data.
+        roi (int): ROI ID to process (as specified in MicroManager). 
+        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+            Defaults to "barcode_round".
+        reg_prefix (str, optional): Acquisition prefix of the image files to use to
+            estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
 
@@ -339,6 +376,16 @@ def merge_and_align_spots_all_rois(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
 ):
+    """Start batch jobs to combine spots across tiles and align to reference coordinates 
+    for all ROIs. 
+
+     Args:
+        data_path (str): Relative path to data.
+        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+            Defaults to "barcode_round".
+        reg_prefix (str, optional): Acquisition prefix of the image files to use to
+            estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")

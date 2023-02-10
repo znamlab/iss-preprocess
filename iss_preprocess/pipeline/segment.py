@@ -7,6 +7,14 @@ from .stitch import stitch_and_register
 
 
 def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
+    """Start batch jobs for segmentation for each ROI.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): cquisition prefix to use for segmentation. 
+            Defaults to "DAPI_1".
+        use_gpu (bool, optional): Whether to use GPU. Defaults to False.
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / "segment_roi.sh")
@@ -26,6 +34,18 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
 def segment_roi(
     data_path, iroi, prefix="DAPI_1", reference="genes_round_1_1", use_gpu=False
 ):
+    """Detect cells in a single ROI using Cellpose.
+
+    Much faster with GPU but requires very amount of VRAM for large ROIs.
+
+    Args:
+        data_path (str): Relative path to data.
+        iroi (int): ROI ID to segment as specificied in MicroManager (i.e. 1-based).
+        prefix (str, optional): Acquisition prefix to use for segmentation. Defaults to "DAPI_1".
+        reference (str, optional): Acquisition prefix to align the stitched image to. 
+            Defaults to "genes_round_1_1".
+        use_gpu (bool, optional): Whether to use GPU. Defaults to False.
+    """
     print(f"running segmentation on roi {iroi} from {data_path} using {prefix}")
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
