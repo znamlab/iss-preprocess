@@ -260,7 +260,6 @@ def stitch_and_register(
         float: Estimate rotation angle.
         tuple: Estimated X and Y shifts.
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     # TODO: should we use the same `shift_right` and `shift_down` for target
     # and reference images?
