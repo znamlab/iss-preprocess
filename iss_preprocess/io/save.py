@@ -38,7 +38,7 @@ def save_ome_tiff_pyramid(
 
     Args:
         target (str): Path to tif file
-        image (np.array): 2D array with 8-bit image data
+        image (np.array): 2D array with 8-bit or 16-bit image data
         pixel_size (float): Pixel size in microns
         subresolutions (int, optional): Number of pyramid levels. Defaults to 3.
         dtype (str, optional): Image datatype, can be "uint16" or "uint8".
