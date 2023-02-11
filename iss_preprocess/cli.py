@@ -116,6 +116,16 @@ def project_round(path, prefix, overwrite=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+def register_ref_tile(path, prefix):
+    """Run registration across channels and rounds for the reference tile."""
+    from iss_preprocess.pipeline import register_reference_tile
+
+    register_reference_tile(path, prefix=prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
 )
@@ -236,16 +246,6 @@ def extract(path):
     from iss_preprocess.pipeline import batch_process_tiles
 
     batch_process_tiles(path, "extract_tile")
-
-
-@cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
-def register_ref_tile(path, prefix):
-    """Run registration across channels and rounds for the reference tile."""
-    from iss_preprocess.pipeline import register_reference_tile
-
-    register_reference_tile(path, prefix=prefix)
 
 
 @cli.command()
@@ -433,5 +433,6 @@ def overview_for_ara_registration(
         sigma_blur (float, optional): Sigma for gaussian blur. Defaults to 10.
     """
     from iss_preprocess.pipeline.ara_registration import overview_single_roi
-    print('Calling')
+
+    print("Calling")
     overview_single_roi(data_path=path, roi=roi, slice_id=slice_id, sigma_blur=sigma)
