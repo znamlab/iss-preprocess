@@ -28,16 +28,17 @@ def register_within_acquisition(data_path, prefix):
     shift_right, shift_down, tile_shape = register_adjacent_tiles(
         data_path, prefix=prefix
     )
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     np.savez(
         processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
-        dict(shift_right=shift_right, shift_down=shift_down, tile_shape=tile_shape),
+        shift_right=shift_right,
+        shift_down=shift_down,
+        tile_shape=tile_shape,
     )
 
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     for line in roi_dims:
         roi = line[0]
-        ntiles = roi_dims[roi_dims[:, 0] == 1, 1:][0] + 1
+        ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
         tile_corners = calculate_tile_positions(
             shift_right, shift_down, tile_shape, ntiles
         )
@@ -45,7 +46,7 @@ def register_within_acquisition(data_path, prefix):
             processed_path
             / data_path
             / "reg"
-            / f"{prefix}_roi{roi}_acquisition_tile_corners.npz",
+            / f"{prefix}_roi{roi}_acquisition_tile_corners.npy",
             tile_corners,
         )
 

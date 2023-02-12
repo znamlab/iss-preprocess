@@ -90,7 +90,7 @@ This returns the corner of each tile in this order [(0, 0), (0 ,1), (1, 1), (1, 
 The origin is therefore `tile_corners[..., 0]` and the center 
 `np.mean(tile_corners, axis=3)`.
 
-The output is saved in `"reg" / f"{prefix}_roi{roi}_acquisition_tile_corners.npz}"`.
+The output is saved in `"reg" / f"{prefix}_roi{roi}_acquisition_tile_corners.npy}"`.
 
 # Registering acquisition together
 
