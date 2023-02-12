@@ -4,7 +4,7 @@ import pandas as pd
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from ..io import load_tile_by_coors, load_stack, load_ops
+from ..io import load_tile_by_coors, load_stack, load_ops, get_roi_dimensions
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
@@ -15,7 +15,7 @@ from ..reg import (
 
 def register_adjacent_tiles(
     data_path,
-    ref_coors=(1, 0, 0),
+    ref_coors=None,
     reg_fraction=0.1,
     ref_ch=0,
     suffix="fstack",
@@ -23,13 +23,14 @@ def register_adjacent_tiles(
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
-    Shifts are typically very similar between different tiles, using shifts 
+    Shifts are typically very similar between different tiles, using shifts
     estimated using a reference tile for the whole acquisition works well.
 
     Args:
         data_path (str): path to image stacks.
         ref_coors (tuple, optional): coordinates of the reference tile to use for
-            registration. Must not be along the bottom or right edge of image. Defaults to (1,0,0).
+            registration. Must not be along the bottom or right edge of image. If None,
+            will use ops['ref_tile']. Defaults to None.
         reg_fraction (float, optional): overlap fraction used for registration. Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
@@ -43,6 +44,9 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
+    if ref_coors is None:
+        ops = load_ops(data_path)
+        ref_coors = ops["ref_tile"]
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
@@ -70,6 +74,11 @@ def register_adjacent_tiles(
         tile_down[-reg_pix_y:, :, ref_ch],
         upsample_factor=5,
     )[0] - [ypix - reg_pix_y, 0]
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    np.savez(
+        processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
+        dict(shift_right=shift_right, shift_down=shift_down, tile_shape=(ypix, xpix)),
+    )
 
     return shift_right, shift_down, (ypix, xpix)
 
@@ -122,7 +131,7 @@ def stitch_tiles(
         roi (int, optional): id of ROI to load. Defaults to 1.
         suffix (str, optional): filename suffix. Defaults to 'proj'.
         ich (int, optional): index of the channel to stitch. Defaults to 0.
-        correct_illumination (bool, optional): Remove black levels and correct 
+        correct_illumination (bool, optional): Remove black levels and correct
             illumination if True, return raw data otherwise. Default to False
 
     Returns:
@@ -130,7 +139,7 @@ def stitch_tiles(
 
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     # load first tile to get shape
     stack = load_tile_by_coors(
@@ -150,7 +159,6 @@ def stitch_tiles(
             processed_path / data_path / "averages" / f"{prefix}_average.tif"
         )
         average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
-        average_image = average_image / np.max(average_image, axis=(0, 1))
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_tile_by_coors(
@@ -170,7 +178,7 @@ def merge_roi_spots(
 ):
     """Load and combine spot locations across all tiles for an ROI.
 
-    To avoid duplicate spots from tile overlap, we determine which tile center 
+    To avoid duplicate spots from tile overlap, we determine which tile center
     each spot is closest to. We then only keep the spots that are closest to
     the center of the tile they were detected on.
 
@@ -185,7 +193,7 @@ def merge_roi_spots(
         pandas.DataFrame: table containing spot locations across all tiles.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     all_spots = []
     ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
     tile_origins, tile_centers = calculate_tile_positions(
@@ -236,14 +244,14 @@ def stitch_and_register(
     """Stitch target and reference stacks and align target to reference
 
     To speed up registration, images are downsampled before estimating registration
-    parameters. These parameters are then applied to the full scale image. 
+    parameters. These parameters are then applied to the full scale image.
 
     Args:
         data_path (str): Relative path to data.
         reference_prefix (str): Acquisition prefix to register the stitched image to.
             Typically, "genes_round_1_1".
         target_prefix (str): Acquisition prefix to register.
-        roi (int, optional): ROI ID to register (as specified in MicroManager). 
+        roi (int, optional): ROI ID to register (as specified in MicroManager).
             Defaults to 1.
         downsample (int, optional): Downsample factor for estimating registration
             parameter. Defaults to 5.
@@ -252,7 +260,7 @@ def stitch_and_register(
         target_ch (int, optional): Channel of the target image used for registration.
             Defaults to 0.
         estimate_scale (bool, optional): Whether to estimate scaling between target
-            and reference images. Defaults to False.  
+            and reference images. Defaults to False.
 
     Returns:
         numpy.ndarray: Stitched target image after registration.
@@ -331,8 +339,8 @@ def merge_and_align_spots(
 
     Args:
         data_path (str): Relative path to data.
-        roi (int): ROI ID to process (as specified in MicroManager). 
-        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+        roi (int): ROI ID to process (as specified in MicroManager).
+        spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
@@ -375,19 +383,18 @@ def merge_and_align_spots_all_rois(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
 ):
-    """Start batch jobs to combine spots across tiles and align to reference coordinates 
-    for all ROIs. 
+    """Start batch jobs to combine spots across tiles and align to reference coordinates
+    for all ROIs.
 
      Args:
         data_path (str): Relative path to data.
-        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+        spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
     )

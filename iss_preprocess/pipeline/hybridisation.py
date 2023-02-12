@@ -11,8 +11,7 @@ from ..io import (
     load_tile_by_coors,
     load_metadata,
     load_hyb_probes_metadata,
-    load_ops,
-)
+    load_ops, get_roi_dimensions)
 from ..segment import detect_spots
 from ..call import extract_spots
 from ..coppafish import scaled_k_means
@@ -228,8 +227,8 @@ def extract_hyb_spots_all(data_path):
     Args:
         data_path (str): Relative path to data.
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
+
     ops = load_ops(data_path)
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
@@ -259,8 +258,7 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
         roi (int): ID of the ROI to process, as specified in MicroManager
             (i.e. 1-based)
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
