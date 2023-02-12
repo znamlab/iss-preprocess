@@ -83,11 +83,13 @@ This can be done with:
 ```python    
 roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
 ntiles = roi_dims[roi_dims[:, 0] == 1, 1:][0] + 1
-tile_origins, tile_centers = iss.pipeline.calculate_tile_positions(
-        shift_right, shift_down, tile_shape, ntiles)
+tile_corners = iss.pipeline.calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
 ```
+This returns the corner of each tile in this order [(0, 0), (0 ,1), (1, 1), (1, 0)].
+The origin is therefore `tile_corners[..., 0]` and the center 
+`np.mean(tile_corners, axis=3)`.
 
-The output is currently not saved.
+The output is save in `"reg" / f"{prefix}_acquisition_tile_corners.npz}"`.
 
 # Registering acquisition together
 
