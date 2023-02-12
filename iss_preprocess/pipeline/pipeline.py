@@ -1,59 +1,17 @@
 import subprocess, shlex
 import warnings
 import numpy as np
-import re
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from . import ara_registration as ara_reg
-from ..io import write_stack, load_metadata
+from ..io import (
+    write_stack,
+    load_metadata,
+    get_roi_dimensions,
+    load_ops,
+    get_roi_dimensions,
+)
 from ..image import tilestats_and_mean_image
-from ..io import write_stack, load_metadata, load_ops
-
-
-def save_roi_dimensions(data_path, prefix):
-    """Determine the number of tiles in each ROI and save them.
-
-    Args:
-        data_path (str): Relative path to data.
-        prefix (str): Directory name to use, e.g. "genes_round_1_1".
-    """
-    rois_list = get_roi_dimensions(data_path, prefix)
-
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    (processed_path / data_path).mkdir(parents=True, exist_ok=True)
-
-    np.save(processed_path / data_path / "roi_dims.npy", rois_list)
-
-
-def get_roi_dimensions(data_path, prefix):
-    """Find imaging ROIs and determine their dimensions.
-
-    Args:
-        data_path (str): path to data in the raw data directory.
-        prefix (str): directory and file name prefix, e.g. 'round_01_1'
-
-    """
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
-    data_dir = raw_path / data_path / prefix
-    fnames = [p.name for p in data_dir.glob("*.tif")]
-    pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
-    matcher = re.compile(pattern=pattern)
-    tile_coors = np.stack(
-        [np.array(matcher.match(fname).groups(), dtype=int) for fname in fnames]
-    )
-
-    rois = np.unique(tile_coors[:, 0])
-    roi_list = []
-    for roi in rois:
-        roi_list.append(
-            [
-                roi,
-                np.max(tile_coors[tile_coors[:, 0] == roi, 1]),
-                np.max(tile_coors[tile_coors[:, 0] == roi, 2]),
-            ]
-        )
-
-    return roi_list
 
 
 def batch_process_tiles(data_path, script, additional_args=""):
@@ -66,8 +24,7 @@ def batch_process_tiles(data_path, script, additional_args=""):
             to pass to the sbatch job. Should start with a leading comma.
             Defaults to "".
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
     ops = load_ops(data_path)
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])

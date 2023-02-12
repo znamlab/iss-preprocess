@@ -7,6 +7,7 @@ import json
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 import yaml
+import iss_preprocess as iss
 
 
 def load_hyb_probes_metadata():
@@ -168,6 +169,28 @@ def get_tile_ome(fname, fmetadata):
         im[:, :, ch, z] = page.asarray()
 
     return im
+
+
+def get_rois_dimension(data_path, prefix="genes_round_1_1"):
+    """Get the dimension of all ROIs
+
+    Create and/or load f"{prefix}_roi_dims.npy". The default ('genes_round_1_1') should
+    be use for all acquisition that have the same ROI dimension (everything but the
+    overviews)
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str, optional): Prefix of acquisition to load. Defaults to
+        'genes_round_1_1'
+
+    Returns:
+        np.array: Nroi x 3 array of containing (roi_id, NtilesX, NtilesY) for each roi
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims_file = processed_path / data_path / f"{prefix}_roi_dims.npy"
+    if not roi_dims_file.exists():
+        iss.pipeline.save_roi_dimensions(data_path, prefix)
+    return np.load(roi_dims_file)
 
 
 def get_tiles_micromanager(fnames, ch=0):
