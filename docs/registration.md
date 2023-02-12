@@ -63,7 +63,8 @@ coordinates (same for all tiles of one prefix, but different across prefixes).
 ### Find tile shifts
 
 We estimate how much overlap there is between tiles (and therefore how much we need
-to shift them to merge) by phase correlation. 
+to shift them to merge) by phase correlation. This is done for each acquisition for one
+reference tile and is used for everything. No need to re-run for each ROI.
 
 This is done by calling:
 ```python
@@ -71,12 +72,12 @@ shift_right, shift_down, tile_shape = iss.pipeline.register_adjacent_tiles(
     data_path, ref_coors=ops['ref_tile'], prefix='genes_round_1_1')
 ```
 
-These shifts are save in `"reg" / f"{prefix}_shifts.npz"`
+These shifts are saved in `"reg" / f"{prefix}_shifts.npz"`
 
 ### Merge coordinates
 
 With these tile shift we can find the position of each tile, simply by multiplying the
-tile number by the shift.
+tile number by the shift. We do that for each ROI.
 
 This can be done with:
 
@@ -89,7 +90,7 @@ This returns the corner of each tile in this order [(0, 0), (0 ,1), (1, 1), (1, 
 The origin is therefore `tile_corners[..., 0]` and the center 
 `np.mean(tile_corners, axis=3)`.
 
-The output is save in `"reg" / f"{prefix}_acquisition_tile_corners.npz}"`.
+The output is saved in `"reg" / f"{prefix}_roi{roi}_acquisition_tile_corners.npz}"`.
 
 # Registering acquisition together
 

@@ -13,19 +13,21 @@ from ..reg import (
 )
 
 
-def save_acquisition_registration(data_path, prefix):
+def register_within_acquisition(data_path, prefix):
     """Save registration of a single acquisition
 
     This saves "{prefix}_shifts.npz" and "{prefix}_acquisition_tile_corners.npy" which
-    contains the information need to stitch tiles together in the acquisition 
+    contains the information need to stitch tiles together in the acquisition
     coordinates
 
     Args:
         data_path (str): Relative path to data
         prefix (str): Acquisiton prefix
     """
-    processed_path = Path(PARAMETERS['data_root']['processed'])
-    shift_right, shift_down, tile_shape = register_adjacent_tiles(data_path, prefix=prefix)
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    shift_right, shift_down, tile_shape = register_adjacent_tiles(
+        data_path, prefix=prefix
+    )
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     np.savez(
         processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
@@ -33,9 +35,19 @@ def save_acquisition_registration(data_path, prefix):
     )
 
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    ntiles = roi_dims[roi_dims[:, 0] == 1, 1:][0] + 1
-    tile_corners = calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
-    np.save("reg" / f"{prefix}_acquisition_tile_corners.npz", tile_corners)
+    for line in roi_dims:
+        roi = line[0]
+        ntiles = roi_dims[roi_dims[:, 0] == 1, 1:][0] + 1
+        tile_corners = calculate_tile_positions(
+            shift_right, shift_down, tile_shape, ntiles
+        )
+        np.save(
+            processed_path
+            / data_path
+            / "reg"
+            / f"{prefix}_roi{roi}_acquisition_tile_corners.npz",
+            tile_corners,
+        )
 
 
 def register_adjacent_tiles(
