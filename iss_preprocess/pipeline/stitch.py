@@ -76,6 +76,11 @@ def register_adjacent_tiles(
         upsample_factor=5,
     )[0] - [ypix - reg_pix_y, 0]
 
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    np.savez(
+        processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
+        dict(shift_right=shift_right, shift_down=shift_down, tile_shape=(ypix, xpix)),
+    )
     return shift_right, shift_down, (ypix, xpix)
 
 

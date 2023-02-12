@@ -71,7 +71,7 @@ shift_right, shift_down, tile_shape = iss.pipeline.register_adjacent_tiles(
     data_path, ref_coors=ops['ref_tile'], prefix='genes_round_1_1')
 ```
 
-The output is currently not saved.
+These shifts are save in `"reg" / f"{prefix}_shifts.npz"`
 
 ### Merge coordinates
 
