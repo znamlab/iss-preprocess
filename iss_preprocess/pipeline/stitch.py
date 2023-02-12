@@ -15,7 +15,7 @@ from ..reg import (
 
 def register_adjacent_tiles(
     data_path,
-    ref_coors=(1,0,0),
+    ref_coors=(1, 0, 0),
     reg_fraction=0.1,
     ref_ch=0,
     suffix="fstack",
