@@ -287,6 +287,15 @@ def segment_all(path, prefix, use_gpu=False):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-r", "--roi", default=1, help="Number of the ROI to register.")
+def register_acquisition(path, prefix):
+    """Save the information required to stitch one acquisition"""
+    from iss_preprocess.pipeline import save_acquisition_registration
+    save_acquisition_registration(path, prefix)    
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-s",
     "--spots-prefix",
