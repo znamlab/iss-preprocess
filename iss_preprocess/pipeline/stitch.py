@@ -13,6 +13,31 @@ from ..reg import (
 )
 
 
+def save_acquisition_registration(data_path, prefix):
+    """Save registration of a single acquisition
+
+    This saves "{prefix}_shifts.npz" and "{prefix}_acquisition_tile_corners.npy" which
+    contains the information need to stitch tiles together in the acquisition 
+    coordinates
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Acquisiton prefix
+    """
+    processed_path = Path(PARAMETERS['data_root']['processed'])
+    shift_right, shift_down, tile_shape = register_adjacent_tiles(data_path, prefix=prefix)
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    np.savez(
+        processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
+        dict(shift_right=shift_right, shift_down=shift_down, tile_shape=tile_shape),
+    )
+
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    ntiles = roi_dims[roi_dims[:, 0] == 1, 1:][0] + 1
+    tile_corners = calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
+    np.save("reg" / f"{prefix}_acquisition_tile_corners.npz", tile_corners)
+
+
 def register_adjacent_tiles(
     data_path,
     ref_coors=None,
@@ -23,7 +48,7 @@ def register_adjacent_tiles(
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
-    Shifts are typically very similar between different tiles, using shifts 
+    Shifts are typically very similar between different tiles, using shifts
     estimated using a reference tile for the whole acquisition works well.
 
     Args:
@@ -76,11 +101,6 @@ def register_adjacent_tiles(
         upsample_factor=5,
     )[0] - [ypix - reg_pix_y, 0]
 
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    np.savez(
-        processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
-        dict(shift_right=shift_right, shift_down=shift_down, tile_shape=(ypix, xpix)),
-    )
     return shift_right, shift_down, (ypix, xpix)
 
 
@@ -94,22 +114,25 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
         ntiles (numpy.array): number of tile rows and columns
 
     Returns:
-        numpy.ndarray: `tile_origins`, ntiles[0] x ntiles[1] x 2 matrix of tile origin coordinates
-        numpy.ndarray: `tile_centers`, ntiles[0] x ntiles[1] x 2 matrix of tile center coordinates
-
+        numpy.ndarray: `tile_corners`, ntiles[0] x ntiles[1] x 2 x 4 matrix of tile
+            corners coordinates. Corners are:
+            [bottom left (origin), bottom right (0, 1), top right (1, 1), top left (1, 0)]
     """
-    tile_centers = np.empty((ntiles[0], ntiles[1], 2))
-    tile_origins = np.empty((ntiles[0], ntiles[1], 2))
 
-    center_offset = np.array([tile_shape[0] / 2, tile_shape[1] / 2])
-    for ix in range(ntiles[0]):
-        for iy in range(ntiles[1]):
-            tile_origins[ix, iy, :] = iy * shift_down + ix * shift_right
-    tile_origins = (
-        tile_origins - np.min(tile_origins, axis=(0, 1))[np.newaxis, np.newaxis, :]
+    yy, xx = np.meshgrid(np.arange(ntiles[1]), np.arange(ntiles[0]))
+
+    origin = xx[:, :, np.newaxis] * shift_right + yy[:, :, np.newaxis] * shift_down
+    origin -= np.min(origin, axis=(0, 1))[np.newaxis, np.newaxis, :]
+
+    corners = np.stack(
+        [
+            origin + np.array(c_pos) * tile_shape
+            for c_pos in ([0, 0], [0, 1], [1, 1], [1, 0])
+        ],
+        axis=3,
     )
-    tile_centers = tile_origins + center_offset[np.newaxis, np.newaxis, :]
-    return tile_origins, tile_centers
+
+    return corners
 
 
 def stitch_tiles(
@@ -132,7 +155,7 @@ def stitch_tiles(
         roi (int, optional): id of ROI to load. Defaults to 1.
         suffix (str, optional): filename suffix. Defaults to 'proj'.
         ich (int, optional): index of the channel to stitch. Defaults to 0.
-        correct_illumination (bool, optional): Remove black levels and correct 
+        correct_illumination (bool, optional): Remove black levels and correct
             illumination if True, return raw data otherwise. Default to False
 
     Returns:
@@ -148,10 +171,8 @@ def stitch_tiles(
     )
     tile_shape = stack.shape[:2]
 
-    tile_origins, tile_centers = calculate_tile_positions(
-        shift_right, shift_down, tile_shape, ntiles
-    )
-    tile_origins = tile_origins.astype(int)
+    tile_corners = calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
+    tile_origins = tile_corners[..., 0].astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros(max_origin + tile_shape)
     if correct_illumination:
@@ -180,7 +201,7 @@ def merge_roi_spots(
 ):
     """Load and combine spot locations across all tiles for an ROI.
 
-    To avoid duplicate spots from tile overlap, we determine which tile center 
+    To avoid duplicate spots from tile overlap, we determine which tile center
     each spot is closest to. We then only keep the spots that are closest to
     the center of the tile they were detected on.
 
@@ -198,9 +219,9 @@ def merge_roi_spots(
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     all_spots = []
     ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
-    tile_origins, tile_centers = calculate_tile_positions(
-        shift_right, shift_down, tile_shape, ntiles
-    )
+    tile_corners = calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
+    tile_origins = tile_corners[..., 0]
+    tile_centers = np.mean(tile_corners, axis=3)
 
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
@@ -246,14 +267,14 @@ def stitch_and_register(
     """Stitch target and reference stacks and align target to reference
 
     To speed up registration, images are downsampled before estimating registration
-    parameters. These parameters are then applied to the full scale image. 
+    parameters. These parameters are then applied to the full scale image.
 
     Args:
         data_path (str): Relative path to data.
         reference_prefix (str): Acquisition prefix to register the stitched image to.
             Typically, "genes_round_1_1".
         target_prefix (str): Acquisition prefix to register.
-        roi (int, optional): ROI ID to register (as specified in MicroManager). 
+        roi (int, optional): ROI ID to register (as specified in MicroManager).
             Defaults to 1.
         downsample (int, optional): Downsample factor for estimating registration
             parameter. Defaults to 5.
@@ -262,7 +283,7 @@ def stitch_and_register(
         target_ch (int, optional): Channel of the target image used for registration.
             Defaults to 0.
         estimate_scale (bool, optional): Whether to estimate scaling between target
-            and reference images. Defaults to False.  
+            and reference images. Defaults to False.
 
     Returns:
         numpy.ndarray: Stitched target image after registration.
@@ -341,8 +362,8 @@ def merge_and_align_spots(
 
     Args:
         data_path (str): Relative path to data.
-        roi (int): ROI ID to process (as specified in MicroManager). 
-        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+        roi (int): ROI ID to process (as specified in MicroManager).
+        spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
@@ -385,12 +406,12 @@ def merge_and_align_spots_all_rois(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
 ):
-    """Start batch jobs to combine spots across tiles and align to reference coordinates 
-    for all ROIs. 
+    """Start batch jobs to combine spots across tiles and align to reference coordinates
+    for all ROIs.
 
      Args:
         data_path (str): Relative path to data.
-        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+        spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
