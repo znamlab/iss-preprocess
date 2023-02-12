@@ -356,7 +356,13 @@ def stitch_and_register(
     stitched_stack_target = transform_image(
         stitched_stack_target, scale=scale, angle=angle, shift=shift * downsample
     )
-    return stitched_stack_target, stitched_stack_reference, angle, shift * downsample
+    return (
+        stitched_stack_target,
+        stitched_stack_reference,
+        angle,
+        shift * downsample,
+        scale,
+    )
 
 
 def merge_and_align_spots(
@@ -384,10 +390,10 @@ def merge_and_align_spots(
     ops = load_ops(data_path)
 
     ref_prefix = f'genes_round_{ops["ref_round"]+1}_1'
-    stitched_stack_barcodes, _, angle, shift = stitch_and_register(
+    stitched_stack_barcodes, _, angle, shift, scale = stitch_and_register(
         data_path, ref_prefix, reg_prefix, roi=roi, downsample=5
     )
-    spots_tform = make_transform(1, angle, shift, stitched_stack_barcodes.shape)
+    spots_tform = make_transform(scale, angle, shift, stitched_stack_barcodes.shape)
     shift_right, shift_down, tile_shape = register_adjacent_tiles(
         data_path, ref_coors=ops["ref_tile"], prefix=ref_prefix
     )
