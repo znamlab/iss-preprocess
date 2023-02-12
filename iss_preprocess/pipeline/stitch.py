@@ -29,8 +29,7 @@ def register_adjacent_tiles(
     Args:
         data_path (str): path to image stacks.
         ref_coors (tuple, optional): coordinates of the reference tile to use for
-            registration. Must not be along the bottom or right edge of image. If None,
-            will use ops['ref_tile']. Defaults to None.
+            registration. Must not be along the bottom or right edge of image. Defaults to (1,0,0).
         reg_fraction (float, optional): overlap fraction used for registration. Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
