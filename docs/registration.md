@@ -103,7 +103,8 @@ This is done for raw images with `iss.pipeline.stitch_and_register`. It returns 
 two registered mosaic at full resolution as well as the transformation parameter: shift
 and angle.
 
-This output is not saved for now.
+This output is saved as `"reg" / f"{prefix}_roi{roi}_shifts_to_global.npz"`
 
+The coordinate of each tile in the global reference can be computed with `calculate_tile_postion`
 For spots, the same function is called by `iss align-spots`  
 
