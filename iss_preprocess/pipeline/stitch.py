@@ -15,7 +15,7 @@ from ..reg import (
 
 def register_adjacent_tiles(
     data_path,
-    ref_coors=(1, 0, 0),
+    ref_coors=None,
     reg_fraction=0.1,
     ref_ch=0,
     suffix="fstack",
@@ -29,7 +29,8 @@ def register_adjacent_tiles(
     Args:
         data_path (str): path to image stacks.
         ref_coors (tuple, optional): coordinates of the reference tile to use for
-            registration. Must not be along the bottom or right edge of image. Defaults to (1,0,0).
+            registration. Must not be along the bottom or right edge of image. If `None`
+            use `ops['ref_tile']`. Defaults to None.
         reg_fraction (float, optional): overlap fraction used for registration. Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
@@ -43,6 +44,10 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
+    if ref_coors is None:
+        ops = load_ops(data_path)
+        ref_coors = ops["ref_tile"]
+
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
