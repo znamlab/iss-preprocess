@@ -15,7 +15,7 @@ from ..reg import (
 
 def register_adjacent_tiles(
     data_path,
-    ref_coors=None,
+    ref_coors=(1,0,0),
     reg_fraction=0.1,
     ref_ch=0,
     suffix="fstack",
@@ -44,9 +44,6 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
-    if ref_coors is None:
-        ops = load_ops(data_path)
-        ref_coors = ops["ref_tile"]
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
@@ -74,11 +71,6 @@ def register_adjacent_tiles(
         tile_down[-reg_pix_y:, :, ref_ch],
         upsample_factor=5,
     )[0] - [ypix - reg_pix_y, 0]
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    np.savez(
-        processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
-        dict(shift_right=shift_right, shift_down=shift_down, tile_shape=(ypix, xpix)),
-    )
 
     return shift_right, shift_down, (ypix, xpix)
 
