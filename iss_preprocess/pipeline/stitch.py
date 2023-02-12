@@ -164,8 +164,6 @@ def calculate_tile_positions(
 def stitch_tiles(
     data_path,
     prefix,
-    shift_right,
-    shift_down,
     roi=1,
     suffix="fstack",
     ich=0,
@@ -173,11 +171,11 @@ def stitch_tiles(
 ):
     """Load and stitch tile images using provided tile shifts.
 
+    This will load the tile shifts saved by `register_within_acquisition`
+
     Args:
         data_path (str): path to image stacks.
         prefix (str): prefix specifying which images to load, e.g. 'round_01_1'
-        shift_right (tuple): x and y shift between tiles along a row
-        shift_down (tuple): x and y shift between tiles along a column
         roi (int, optional): id of ROI to load. Defaults to 1.
         suffix (str, optional): filename suffix. Defaults to 'proj'.
         ich (int, optional): index of the channel to stitch. Defaults to 0.
@@ -191,13 +189,15 @@ def stitch_tiles(
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-    # load first tile to get shape
-    stack = load_tile_by_coors(
-        data_path, tile_coors=(roi, 0, 0), suffix=suffix, prefix=prefix
-    )
-    tile_shape = stack.shape[:2]
 
-    tile_corners = calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
+    shifts = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
+    tile_shape = shifts["tile_shape"]
+    tile_corners = np.load(
+        processed_path
+        / data_path
+        / "reg"
+        / f"{prefix}_roi{roi}_acquisition_tile_corners.npy"
+    )
     tile_origins = tile_corners[..., 0].astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros(max_origin + tile_shape)
@@ -207,7 +207,7 @@ def stitch_tiles(
             processed_path / data_path / "averages" / f"{prefix}_average.tif"
         )
         average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
-        average_image = average_image / np.max(average_image, axis=(0, 1))
+        assert np.sum(np.max(average_image, axis=(0, 1)) - 1) == 0
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_tile_by_coors(
@@ -280,6 +280,47 @@ def merge_roi_spots(
     return spots
 
 
+def register_across_acquisitions(
+    data_path, prefix, roi, ref_ch=0, target_ch=0, reference_prefix="genes_round_1_1"
+):
+    _, _, angle, shift, scale = stitch_and_register(
+        data_path,
+        reference_prefix=reference_prefix,
+        target_prefix=prefix,
+        roi=roi,
+        downsample=5,
+        ref_ch=ref_ch,
+        target_ch=target_ch,
+        estimate_scale=False,
+    )
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    np.savez(
+        processed_path / data_path / "reg" / f"{prefix}_roi{roi}_shifts_to_global.npz",
+        angle=angle,
+        shift=shift,
+        scale=scale,
+    )
+    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
+    shifts_within = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
+    tile_corners = calculate_tile_positions(
+        shifts_within["shift_right"],
+        shifts_within["shift_down"],
+        shifts_within["tile_shape"],
+        ntiles,
+        shift=shift,
+        scale=scale,
+        angle=angle,
+    )
+    np.save(
+        processed_path
+        / data_path
+        / "reg"
+        / f"{prefix}_roi{roi}_global_tile_corners.npy",
+        tile_corners,
+    )
+
+
 def stitch_and_register(
     data_path,
     reference_prefix,
@@ -318,16 +359,10 @@ def stitch_and_register(
         tuple: Estimated X and Y shifts.
     """
     ops = load_ops(data_path)
-    # TODO: should we use the same `shift_right` and `shift_down` for target
-    # and reference images?
-    shift_right, shift_down, tile_shape = register_adjacent_tiles(
-        data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
-    )
+
     stitched_stack_target = stitch_tiles(
         data_path,
         target_prefix,
-        shift_right,
-        shift_down,
         suffix=ops["projection"],
         roi=roi,
         ich=target_ch,
@@ -338,13 +373,28 @@ def stitch_and_register(
     stitched_stack_reference = stitch_tiles(
         data_path,
         reference_prefix,
-        shift_right,
-        shift_down,
         suffix=ops["projection"],
         roi=roi,
         ich=ref_ch,
         correct_illumination=True,
     ).astype(np.single)
+
+    # If they have different shapes, 0 pad the smallest, keeping origin at (0, 0)
+    if stitched_stack_target.shape != stitched_stack_reference.shape:
+        stacks_shape = np.vstack(
+            (stitched_stack_target.shape, stitched_stack_reference.shape)
+        )
+        final_shape = np.max(stacks_shape, axis=0)
+        padding = final_shape[np.newaxis, :] - stacks_shape
+        if np.sum(padding[0, :]):
+            stitched_stack_target = np.pad(
+                stitched_stack_target, [(0, p) for p in padding[0]]
+            )
+        if np.sum(padding[1, :]):
+            stitched_stack_reference = np.pad(
+                stitched_stack_reference, [(0, p) for p in padding[1]]
+            )
+
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
             stitched_stack_reference[::downsample, ::downsample],
