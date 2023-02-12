@@ -117,7 +117,9 @@ def register_adjacent_tiles(
     return shift_right, shift_down, (ypix, xpix)
 
 
-def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
+def calculate_tile_positions(
+    shift_right, shift_down, tile_shape, ntiles, shift=None, angle=0, scale=1
+):
     """Calculate position of each tile based on the provided shifts.
 
     Args:
@@ -125,6 +127,9 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
         shift_down (numpy.array): X and Y shifts between different rows
         tile_shape (numpy.array): shape of each tile
         ntiles (numpy.array): number of tile rows and columns
+        shift (numpy.array): Extra shift to apply to all tiles
+        angle (float): Rotation angle
+        scale (float): scale to change tile size
 
     Returns:
         numpy.ndarray: `tile_corners`, ntiles[0] x ntiles[1] x 2 x 4 matrix of tile
@@ -145,6 +150,14 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
         axis=3,
     )
 
+    if shift is not None:
+        # TODO: should it be round not int?
+        tform = make_transform(
+            scale, angle, shift, shape=corners.max(axis=(0, 1, 3)).astype(int)
+        )
+        corners = np.pad(corners, [(0, 0), (0, 0), (0, 1), (0, 0)], constant_values=1)
+        corners = tform[np.newaxis, np.newaxis, :, :] @ corners
+        corners = corners[:, :, :-1, :]
     return corners
 
 
