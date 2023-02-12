@@ -153,7 +153,7 @@ def correct_shifts(data_path, prefix):
         data_path (str): Relative path to data.
         prefix (str): Directory prefix to use, e.g. "genes_round".
     """
-    roi_dims = get_roi_dimensions(data_path)
+    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ops = load_ops(data_path)
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:

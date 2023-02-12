@@ -139,7 +139,7 @@ def stitch_tiles(
 
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = get_roi_dimensions(data_path)
+    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     # load first tile to get shape
     stack = load_tile_by_coors(
@@ -159,6 +159,7 @@ def stitch_tiles(
             processed_path / data_path / "averages" / f"{prefix}_average.tif"
         )
         average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
+        # TODO: use the illumination corerction function?
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_tile_by_coors(

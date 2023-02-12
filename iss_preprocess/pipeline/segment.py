@@ -12,7 +12,7 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
 
     Args:
         data_path (str): Relative path to data.
-        prefix (str, optional): cquisition prefix to use for segmentation.
+        prefix (str, optional): acquisition prefix to use for segmentation.
             Defaults to "DAPI_1".
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
     """
