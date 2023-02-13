@@ -4,7 +4,15 @@ import pandas as pd
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from ..io import load_tile_by_coors, load_stack, load_ops, get_roi_dimensions
+from ..io import (
+    load_tile_by_coors,
+    load_stack,
+    load_ops,
+    get_roi_dimensions,
+    load_metadata,
+)
+from .sequencing import load_and_register_tile
+from .hybridisation import load_and_register_hyb_tile
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
@@ -13,9 +21,67 @@ from ..reg import (
 )
 
 
+def load_tile(data_path, tile_coordinates, prefix):
+    ops = load_ops(data_path)
+    metadata = load_metadata(data_path)
+    if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
+        acq_type = "_".join(prefix.split("_")[:2])
+        data = load_and_register_tile(
+            data_path,
+            tile_coors=tile_coordinates,
+            suffix=ops["projection"],
+            prefix=acq_type,
+            filter_r=ops["filter_r"],
+            correct_channels=True,
+            correct_illumination=True,
+            corrected_shifts=True,
+            nrounds=metadata[acq_type + "s"]
+        )
+        if prefix == acq_type:
+            # use the first round for across acq stitching below
+            prefix = acq_type + "_1_1"
+    elif prefix in metadata["hybridisation"]:
+        data = load_and_register_hyb_tile(
+            data_path,
+            tile_coors=tile_coordinates,
+            prefix="hybridisation_1_1",
+            suffix="fstack",
+            filter_r=(2, 4),
+            correct_illumination=True,
+            correct_channels=True,
+        )
+    else:
+        data = load_tile_by_coors(
+            data_path,
+            tile_coors=tile_coordinates,
+            suffix=ops["projection"],
+            prefix=prefix,
+        )
+
+    # we have data with channels/rounds registered
+    # Now find how much the acquisition stitching is shifting the data compared to 
+    # reference
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi, tilex, tiley = tile_coordinates
+    ref_corners = np.load(processed_path
+        / data_path
+        / "reg" / f"genes_round_1_1_roi{roi}_acquisition_tile_corners.npy")
+    acq_corners = np.load(processed_path
+        / data_path
+        / "reg" / f"{prefix}_roi{roi}_acquisition_tile_corners.npy")
+    shift = acq_corners[tilex, tiley] - ref_corners[tilex, tiley]
+    # shift should be the same for the 4 corners
+    assert np.allclose(shift, shift[:,0, np.newaxis])
+    shift = shift[:,0]
+
+    # now find registration to ref
+    reg2ref = np.load(processed_path / data_path / "reg" / f"{prefix}_roi{roi}_shifts_to_global.npz")
+
+
 def register_within_acquisition(data_path, prefix):
     """Save registration of a single acquisition
 
+    This is for stitching and does not register across channel.
     This saves "{prefix}_shifts.npz" and "{prefix}_acquisition_tile_corners.npy" which
     contains the information need to stitch tiles together in the acquisition
     coordinates
