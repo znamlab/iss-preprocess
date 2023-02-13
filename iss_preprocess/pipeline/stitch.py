@@ -512,25 +512,3 @@ def merge_and_align_spots_all_rois(
         command = f"sbatch {args} {script_path}"
         print(command)
         system(command)
-
-
-def find_tile_to_load(data_path, tile_wanted, prefix, reference_prefix='genes_round_1_1'):
-    roi = tile_wanted[0]
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    corners = np.load(        processed_path
-        / data_path
-        / "reg"
-        / f"{prefix}_roi{roi}_global_tile_corners.npy",
-)
-    corners_ref  =  np.load(        processed_path
-        / data_path
-        / "reg"
-        / f"{reference_prefix}_roi{roi}_acquisition_tile_corners.npy",
-)
-    corners_ref = corners_ref[tile_wanted[1], tile_wanted[2]]
-    # the corners_ref has no angle
-    assert np.all(corners_ref[:,0] == np.array([corners_ref[0, 1], corners_ref[1, 3]]))
-    assert np.all(corners_ref[:,2] == np.array([corners_ref[0, 3], corners_ref[1, 1]]))
-
-    # find intersection
-    raise NotImplementedError
