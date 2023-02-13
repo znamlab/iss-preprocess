@@ -91,6 +91,7 @@ The origin is therefore `tile_corners[..., 0]` and the center
 `np.mean(tile_corners, axis=3)`.
 
 The output is saved in `"reg" / f"{prefix}_roi{roi}_acquisition_tile_corners.npy}"`.
+TODO: do we actually need to save that?
 
 # Registering acquisition together
 
@@ -100,11 +101,29 @@ a downsampled stitched image of the reference acquisition and the acquisition we
 to register.
 
 This is done for raw images with `iss.pipeline.stitch_and_register`. It returns the 
-two registered mosaic at full resolution as well as the transformation parameter: shift
-and angle.
+two registered mosaic at full resolution as well as the transformation parameter: shift, 
+angle and scale.
 
 This output is saved as `"reg" / f"{prefix}_roi{roi}_shifts_to_global.npz"`
 
-The coordinate of each tile in the global reference can be computed with `calculate_tile_postion`
+The coordinate of each tile in the global reference can be computed with 
+`calculate_tile_postion` again. 
+
+```python
+roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
+shifts_within = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
+tile_corners = calculate_tile_positions(
+        shifts_within["shift_right"],
+        shifts_within["shift_down"],
+        shifts_within["tile_shape"],
+        ntiles,
+        shift=shift,
+        scale=scale,
+        angle=angle,
+    )
+```
+
+This output is saved as `"reg" / f"{prefix}_roi{roi}_global_tile_corners.npy"`
 For spots, the same function is called by `iss align-spots`  
 
