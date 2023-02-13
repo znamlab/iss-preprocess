@@ -82,7 +82,7 @@ tile number by the shift. We do that for each ROI.
 This can be done with:
 
 ```python    
-roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+roi_dims = np.load(processed_path / data_path / f"{prefix}_roi_dims.npy")
 ntiles = roi_dims[roi_dims[:, 0] == 1, 1:][0] + 1
 tile_corners = iss.pipeline.calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
 ```

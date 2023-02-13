@@ -4,7 +4,7 @@ import pandas as pd
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from ..io import load_tile_by_coors, load_stack, load_ops
+from ..io import load_tile_by_coors, load_stack, load_ops, get_roi_dimensions
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
@@ -187,7 +187,7 @@ def stitch_tiles(
 
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
 
     shifts = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
@@ -208,7 +208,7 @@ def stitch_tiles(
             processed_path / data_path / "averages" / f"{prefix}_average.tif"
         )
         average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
-        assert np.sum(np.max(average_image, axis=(0, 1)) - 1) == 0
+        # TODO: use the illumination corerction function?
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_tile_by_coors(
@@ -243,7 +243,7 @@ def merge_roi_spots(
         pandas.DataFrame: table containing spot locations across all tiles.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     all_spots = []
     ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
     tile_corners = calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
@@ -499,9 +499,8 @@ def merge_and_align_spots_all_rois(
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
     )
