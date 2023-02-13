@@ -1,6 +1,7 @@
 from os import system
 import numpy as np
 import pandas as pd
+import subprocess, shlex
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
@@ -19,6 +20,48 @@ from ..reg import (
     transform_image,
     make_transform,
 )
+
+
+def register_all_acquisitions(data_path, which):
+    ops = load_ops(data_path)
+    metadata = load_metadata(data_path)
+
+    prefixes = [f"barcode_round_{i + 1}_1" for i in range(metadata["barcode_rounds"])]
+    prefixes += [f"genes_round_{i + 1}_1" for i in range(metadata["genes_rounds"])]
+    prefixes += list(metadata["hybridisation"].keys())
+    prefixes += list(metadata["fluorescence"].keys())
+
+    export_args = dict(DATAPATH=data_path)
+
+    if which.lower() == "within":
+        script_name = "register_within_acquisition.sh"
+        rois_to_do = [None]
+    elif which.lower() == "across":
+        prefixes.remove("genes_round_1_1")
+        script_name = "register_across_acquisitions.sh"
+        rois_to_do = ops["use_rois"]
+    else:
+        raise IOError("`which` must be 'within' or 'across'")
+    script_path = str(Path(__file__).parent.parent.parent / "scripts" / script_name)
+
+    for prefix in prefixes:
+        export_args["PREFIX"] = prefix
+        for roi in rois_to_do:
+            if roi is not None:
+                export_args["ROI"] = roi
+            args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+            args = (
+                args
+                + f" --output={Path.home()}/slurm_logs/iss_reg_{which}_%j.out"
+                + f" --error={Path.home()}/slurm_logs/iss_reg_{which}_%j.err"
+            )
+            command = f"sbatch {args} {script_path}"
+            print(command)
+            subprocess.Popen(
+                shlex.split(command),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
 
 
 def load_tile(data_path, tile_coordinates, prefix):
@@ -94,15 +137,15 @@ def load_tile(data_path, tile_coordinates, prefix):
     reg2ref = np.load(
         processed_path / data_path / "reg" / f"{prefix}_roi{roi}_shifts_to_global.npz"
     )
-    
+
     # apply the same registration to all channels and rounds
     for ir in range(stack.shape[3]):
-        for ic in range(stack.shape[2]):                
-            stack[:,:, ic, ir] = transform_image(
-                stack[:,:, ic, ir],
+        for ic in range(stack.shape[2]):
+            stack[:, :, ic, ir] = transform_image(
+                stack[:, :, ic, ir],
                 scale=reg2ref["scale"],
                 angle=reg2ref["angle"],
-                shift=reg2ref["shift"] + shift, # add the stitching shifts
+                shift=reg2ref["shift"] + shift,  # add the stitching shifts
             )
     return stack
 

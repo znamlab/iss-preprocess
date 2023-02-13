@@ -285,14 +285,35 @@ def segment_all(path, prefix, use_gpu=False):
     segment_all_rois(path, prefix, use_gpu=use_gpu)
 
 
+
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-r", "--roi", default=1, help="Number of the ROI to register.")
+@click.option("-w", "--which", help="Either `within` or `across`")
+def register_all(path, which="within"):
+    """Process all acquisitions for registration either within or across acquisitions"""
+    from iss_preprocess.pipeline import register_all_acquisitions
+    register_all_acquisitions(path, which)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
 def register_acquisition(path, prefix):
     """Save the information required to stitch one acquisition"""
     from iss_preprocess.pipeline import register_within_acquisition
 
     register_within_acquisition(path, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
+@click.option("-r", "--roi", default=1, help="Number of the ROI to register.")
+def register_to_reference(path, prefix, roi):
+    """Register one acquisition to the reference"""
+    from iss_preprocess.pipeline import register_across_acquisitions
+
+    register_across_acquisitions(path, prefix, roi)
 
 
 @cli.command()
