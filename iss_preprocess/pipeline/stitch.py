@@ -26,8 +26,7 @@ def register_all_acquisitions(data_path, which):
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
 
-    prefixes = [f"barcode_round_{i + 1}_1" for i in range(metadata["barcode_rounds"])]
-    prefixes += [f"genes_round_{i + 1}_1" for i in range(metadata["genes_rounds"])]
+    prefixes = ["barcode_round_1_1", "genes_round_1_1"]
     prefixes += list(metadata["hybridisation"].keys())
     prefixes += list(metadata["fluorescence"].keys())
 
