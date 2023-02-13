@@ -25,8 +25,17 @@ def load_tile(data_path, tile_coordinates, prefix):
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
-        acq_type = "_".join(prefix.split("_")[:2])
-        data = load_and_register_tile(
+        parts = prefix.split("_")
+        if len(parts) > 2:
+            acq_type = "_".join(parts[:2])
+            rounds = np.array([int(parts[2])])
+        else:
+            acq_type = prefix
+            # use the first round for across acq stitching below
+            prefix = acq_type + "_1_1"
+            rounds = np.arange(ops[f"{acq_type}s"]) + 1
+
+        stack, bad_pixel = load_and_register_tile(
             data_path,
             tile_coors=tile_coordinates,
             suffix=ops["projection"],
@@ -35,13 +44,10 @@ def load_tile(data_path, tile_coordinates, prefix):
             correct_channels=True,
             correct_illumination=True,
             corrected_shifts=True,
-            nrounds=metadata[acq_type + "s"]
+            specific_rounds=rounds,
         )
-        if prefix == acq_type:
-            # use the first round for across acq stitching below
-            prefix = acq_type + "_1_1"
     elif prefix in metadata["hybridisation"]:
-        data = load_and_register_hyb_tile(
+        stack, bad_pixel = load_and_register_hyb_tile(
             data_path,
             tile_coors=tile_coordinates,
             prefix="hybridisation_1_1",
@@ -50,32 +56,55 @@ def load_tile(data_path, tile_coordinates, prefix):
             correct_illumination=True,
             correct_channels=True,
         )
+        stack = np.array(stack, ndmin=4)
     else:
-        data = load_tile_by_coors(
+        stack = load_tile_by_coors(
             data_path,
             tile_coors=tile_coordinates,
             suffix=ops["projection"],
             prefix=prefix,
         )
 
+    # ensure we have 4d to match acquisitions with rounds
+    stack = np.array(stack, ndmin=4, copy=False)
+
     # we have data with channels/rounds registered
-    # Now find how much the acquisition stitching is shifting the data compared to 
+    # Now find how much the acquisition stitching is shifting the data compared to
     # reference
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi, tilex, tiley = tile_coordinates
-    ref_corners = np.load(processed_path
+    ref_corners = np.load(
+        processed_path
         / data_path
-        / "reg" / f"genes_round_1_1_roi{roi}_acquisition_tile_corners.npy")
-    acq_corners = np.load(processed_path
+        / "reg"
+        / f"genes_round_1_1_roi{roi}_acquisition_tile_corners.npy"
+    )
+    acq_corners = np.load(
+        processed_path
         / data_path
-        / "reg" / f"{prefix}_roi{roi}_acquisition_tile_corners.npy")
+        / "reg"
+        / f"{prefix}_roi{roi}_acquisition_tile_corners.npy"
+    )
     shift = acq_corners[tilex, tiley] - ref_corners[tilex, tiley]
     # shift should be the same for the 4 corners
-    assert np.allclose(shift, shift[:,0, np.newaxis])
-    shift = shift[:,0]
+    assert np.allclose(shift, shift[:, 0, np.newaxis])
+    shift = shift[:, 0]
 
     # now find registration to ref
-    reg2ref = np.load(processed_path / data_path / "reg" / f"{prefix}_roi{roi}_shifts_to_global.npz")
+    reg2ref = np.load(
+        processed_path / data_path / "reg" / f"{prefix}_roi{roi}_shifts_to_global.npz"
+    )
+    
+    # apply the same registration to all channels and rounds
+    for ir in range(stack.shape[3]):
+        for ic in range(stack.shape[2]):                
+            stack[:,:, ic, ir] = transform_image(
+                stack[:,:, ic, ir],
+                scale=reg2ref["scale"],
+                angle=reg2ref["angle"],
+                shift=reg2ref["shift"] + shift, # add the stitching shifts
+            )
+    return stack
 
 
 def register_within_acquisition(data_path, prefix):
