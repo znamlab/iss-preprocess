@@ -107,6 +107,10 @@ def load_tile(data_path, tile_coordinates, prefix):
             prefix=prefix,
         )
 
+    if prefix == "genes_round_1_1":
+        # this is the reference
+        return stack
+
     # ensure we have 4d to match acquisitions with rounds
     stack = np.array(stack, ndmin=4, copy=False)
 
