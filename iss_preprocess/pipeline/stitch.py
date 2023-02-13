@@ -4,7 +4,7 @@ import pandas as pd
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from ..io import load_tile_by_coors, load_stack, load_ops
+from ..io import load_tile_by_coors, load_stack, load_ops, get_roi_dimensions
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
@@ -23,7 +23,7 @@ def register_adjacent_tiles(
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
-    Shifts are typically very similar between different tiles, using shifts 
+    Shifts are typically very similar between different tiles, using shifts
     estimated using a reference tile for the whole acquisition works well.
 
     Args:
@@ -122,7 +122,7 @@ def stitch_tiles(
         roi (int, optional): id of ROI to load. Defaults to 1.
         suffix (str, optional): filename suffix. Defaults to 'proj'.
         ich (int, optional): index of the channel to stitch. Defaults to 0.
-        correct_illumination (bool, optional): Remove black levels and correct 
+        correct_illumination (bool, optional): Remove black levels and correct
             illumination if True, return raw data otherwise. Default to False
 
     Returns:
@@ -130,7 +130,7 @@ def stitch_tiles(
 
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     # load first tile to get shape
     stack = load_tile_by_coors(
@@ -150,7 +150,7 @@ def stitch_tiles(
             processed_path / data_path / "averages" / f"{prefix}_average.tif"
         )
         average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
-        average_image = average_image / np.max(average_image, axis=(0, 1))
+        # TODO: use the illumination corerction function?
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_tile_by_coors(
@@ -170,7 +170,7 @@ def merge_roi_spots(
 ):
     """Load and combine spot locations across all tiles for an ROI.
 
-    To avoid duplicate spots from tile overlap, we determine which tile center 
+    To avoid duplicate spots from tile overlap, we determine which tile center
     each spot is closest to. We then only keep the spots that are closest to
     the center of the tile they were detected on.
 
@@ -185,7 +185,7 @@ def merge_roi_spots(
         pandas.DataFrame: table containing spot locations across all tiles.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     all_spots = []
     ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
     tile_origins, tile_centers = calculate_tile_positions(
@@ -236,14 +236,14 @@ def stitch_and_register(
     """Stitch target and reference stacks and align target to reference
 
     To speed up registration, images are downsampled before estimating registration
-    parameters. These parameters are then applied to the full scale image. 
+    parameters. These parameters are then applied to the full scale image.
 
     Args:
         data_path (str): Relative path to data.
         reference_prefix (str): Acquisition prefix to register the stitched image to.
             Typically, "genes_round_1_1".
         target_prefix (str): Acquisition prefix to register.
-        roi (int, optional): ROI ID to register (as specified in MicroManager). 
+        roi (int, optional): ROI ID to register (as specified in MicroManager).
             Defaults to 1.
         downsample (int, optional): Downsample factor for estimating registration
             parameter. Defaults to 5.
@@ -252,7 +252,7 @@ def stitch_and_register(
         target_ch (int, optional): Channel of the target image used for registration.
             Defaults to 0.
         estimate_scale (bool, optional): Whether to estimate scaling between target
-            and reference images. Defaults to False.  
+            and reference images. Defaults to False.
 
     Returns:
         numpy.ndarray: Stitched target image after registration.
@@ -331,8 +331,8 @@ def merge_and_align_spots(
 
     Args:
         data_path (str): Relative path to data.
-        roi (int): ROI ID to process (as specified in MicroManager). 
-        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+        roi (int): ROI ID to process (as specified in MicroManager).
+        spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
@@ -375,19 +375,18 @@ def merge_and_align_spots_all_rois(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
 ):
-    """Start batch jobs to combine spots across tiles and align to reference coordinates 
-    for all ROIs. 
+    """Start batch jobs to combine spots across tiles and align to reference coordinates
+    for all ROIs.
 
      Args:
         data_path (str): Relative path to data.
-        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+        spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
     )

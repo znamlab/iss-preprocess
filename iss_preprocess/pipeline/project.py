@@ -6,8 +6,7 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 from os import system
 from ..image import fstack_channels
-from ..io import get_tile_ome, write_stack
-from . import get_roi_dimensions
+from ..io import get_tile_ome, write_stack, get_roi_dimensions
 
 
 def project_round(data_path, prefix, overwrite=False):
@@ -19,7 +18,9 @@ def project_round(data_path, prefix, overwrite=False):
         overwrite (bool, optional): _description_. Defaults to False.
     """
     rois_list = get_roi_dimensions(data_path, prefix)
-    script_path = str(Path(__file__).parent.parent.parent / "scripts" / "project_tile.sh")
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "project_tile.sh"
+    )
     for roi in rois_list:
         for tilex in range(roi[1] + 1):
             for tiley in range(roi[2] + 1):
