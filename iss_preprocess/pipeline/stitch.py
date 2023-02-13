@@ -35,7 +35,7 @@ def register_within_acquisition(data_path, prefix):
         tile_shape=tile_shape,
     )
 
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     for line in roi_dims:
         roi = line[0]
         ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
@@ -301,7 +301,7 @@ def register_across_acquisitions(
         shift=shift,
         scale=scale,
     )
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     shifts_within = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
     tile_corners = calculate_tile_positions(
