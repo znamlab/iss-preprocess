@@ -4,7 +4,7 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 from ..segment import cellpose_segmentation
 from .stitch import stitch_and_register
-from ..io import get_roi_dimensions
+from ..io import get_roi_dimensions, load_ops
 
 
 def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
@@ -16,7 +16,7 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
             Defaults to "DAPI_1".
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
     """
-    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
+    roi_dims = get_roi_dimensions(data_path)
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "segment_roi.sh"
     )
@@ -50,8 +50,7 @@ def segment_roi(
     """
     print(f"running segmentation on roi {iroi} from {data_path} using {prefix}")
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops_path = processed_path / data_path / "ops.npy"
-    ops = np.load(ops_path, allow_pickle=True).item()
+    ops = load_ops(data_path)
     print(f"stitching {prefix} and aligning to {reference}", flush=True)
     stitched_stack, _, _, _ = stitch_and_register(
         data_path, reference, prefix, roi=iroi

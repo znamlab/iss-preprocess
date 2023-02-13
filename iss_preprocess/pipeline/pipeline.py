@@ -9,7 +9,6 @@ from ..io import (
     load_metadata,
     get_roi_dimensions,
     load_ops,
-    get_roi_dimensions,
 )
 from ..image import tilestats_and_mean_image
 

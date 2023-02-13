@@ -263,15 +263,15 @@ def reorder_channels(stack, metadata):
 def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
     """Find imaging ROIs and determine their dimensions.
 
-    Create and/or load f"{prefix}_roi_dims.npy". The default ('genes_round_1_1') should
-    be use for all acquisition that have the same ROI dimension (everything but the
-    overviews)
+    Create and/or load f"{prefix}_roi_dims.npy". The default ("genes_round_1_1") should
+    be used for all acquisitions that have the same ROI dimensions (everything except
+    overviews).
 
     Args:
         data_path (str): Relative path to data
         prefix (str, optional): Prefix of acquisition to load. Defaults to
-            'genes_round_1_1'
-        save (bool optional): If True save roi dimensions if they are not already found
+            "genes_round_1_1"
+        save (bool, optional): If True save roi dimensions if they are not already found
             on disk. Default to True
 
     Returns:
@@ -287,11 +287,15 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
     data_dir = raw_path / data_path / prefix
     fnames = [p.name for p in data_dir.glob("*.tif")]
     if not fnames:
-        warnings.warn("Raw data has already been archived. Trying to use projected data")
+        warnings.warn(
+            "Raw data has already been archived. Trying to use projected data"
+        )
         ops = load_ops(data_path)
         data_dir = processed_path / data_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
-        pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['projection']}.tif"
+        pattern = (
+            rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['projection']}.tif"
+        )
     else:
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
     matcher = re.compile(pattern=pattern)
