@@ -333,7 +333,7 @@ def load_and_register_tile(
     elif isinstance(specific_rounds, int):
         specific_rounds = [specific_rounds]
     # ensure we have an array
-    specific_rounds = np.array(specific_rounds, dtype=int)
+    specific_rounds = np.asarray(specific_rounds, dtype=int)
     assert specific_rounds.min() > 0
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -373,7 +373,7 @@ def load_and_register_tile(
         if correct_channels == "round1_only":
             stack = stack / norm_factors[np.newaxis, np.newaxis, :, 0, np.newaxis]
         else:
-            stack = stack / norm_factors[np.newaxis, np.newaxis, :, specific_rounds]
+            stack = stack / norm_factors[np.newaxis, np.newaxis, :, specific_rounds - 1]
 
     return stack, bad_pixels
 
