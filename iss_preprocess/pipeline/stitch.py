@@ -1,10 +1,19 @@
 from os import system
 import numpy as np
 import pandas as pd
+import subprocess, shlex
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from ..io import load_tile_by_coors, load_stack, load_ops
+from ..io import (
+    load_tile_by_coors,
+    load_stack,
+    load_ops,
+    get_roi_dimensions,
+    load_metadata,
+)
+from .sequencing import load_and_register_tile
+from .hybridisation import load_and_register_hyb_tile
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
@@ -13,9 +22,175 @@ from ..reg import (
 )
 
 
+def register_all_acquisitions(data_path, which):
+    ops = load_ops(data_path)
+    metadata = load_metadata(data_path)
+
+    prefixes = ["barcode_round_1_1", "genes_round_1_1"]
+    prefixes += list(metadata["hybridisation"].keys())
+    prefixes += list(metadata["fluorescence"].keys())
+
+    export_args = dict(DATAPATH=data_path)
+
+    if which.lower() == "within":
+        script_name = "register_within_acquisition.sh"
+        rois_to_do = [None]
+    elif which.lower() == "across":
+        prefixes.remove("genes_round_1_1")
+        script_name = "register_across_acquisitions.sh"
+        rois_to_do = ops["use_rois"]
+    else:
+        raise IOError("`which` must be 'within' or 'across'")
+    script_path = str(Path(__file__).parent.parent.parent / "scripts" / script_name)
+
+    for prefix in prefixes:
+        export_args["PREFIX"] = prefix
+        for roi in rois_to_do:
+            if roi is not None:
+                export_args["ROI"] = roi
+            args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+            args = (
+                args
+                + f" --output={Path.home()}/slurm_logs/iss_reg_{which}_%j.out"
+                + f" --error={Path.home()}/slurm_logs/iss_reg_{which}_%j.err"
+            )
+            command = f"sbatch {args} {script_path}"
+            print(command)
+            subprocess.Popen(
+                shlex.split(command),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
+            )
+
+
+def load_tile(data_path, tile_coordinates, prefix):
+    ops = load_ops(data_path)
+    metadata = load_metadata(data_path)
+    if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
+        parts = prefix.split("_")
+        if len(parts) > 2:
+            acq_type = "_".join(parts[:2])
+            rounds = np.array([int(parts[2])])
+        else:
+            acq_type = prefix
+            # use the first round for across acq stitching below
+            prefix = acq_type + "_1_1"
+            rounds = np.arange(ops[f"{acq_type}s"]) + 1
+
+        stack, bad_pixel = load_and_register_tile(
+            data_path,
+            tile_coors=tile_coordinates,
+            suffix=ops["projection"],
+            prefix=acq_type,
+            filter_r=ops["filter_r"],
+            correct_channels=True,
+            correct_illumination=True,
+            corrected_shifts=True,
+            specific_rounds=rounds,
+        )
+    elif prefix in metadata["hybridisation"]:
+        stack, bad_pixel = load_and_register_hyb_tile(
+            data_path,
+            tile_coors=tile_coordinates,
+            prefix="hybridisation_1_1",
+            suffix="fstack",
+            filter_r=(2, 4),
+            correct_illumination=True,
+            correct_channels=True,
+        )
+        stack = np.array(stack, ndmin=4)
+    else:
+        stack = load_tile_by_coors(
+            data_path,
+            tile_coors=tile_coordinates,
+            suffix=ops["projection"],
+            prefix=prefix,
+        )
+
+    # ensure we have 4d to match acquisitions with rounds
+    stack = np.array(stack, ndmin=4, copy=False)
+
+    # we have data with channels/rounds registered
+    # Now find how much the acquisition stitching is shifting the data compared to
+    # reference
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi, tilex, tiley = tile_coordinates
+    ref_corners = np.load(
+        processed_path
+        / data_path
+        / "reg"
+        / f"genes_round_1_1_roi{roi}_acquisition_tile_corners.npy"
+    )
+    acq_corners = np.load(
+        processed_path
+        / data_path
+        / "reg"
+        / f"{prefix}_roi{roi}_acquisition_tile_corners.npy"
+    )
+    shift = acq_corners[tilex, tiley] - ref_corners[tilex, tiley]
+    # shift should be the same for the 4 corners
+    assert np.allclose(shift, shift[:, 0, np.newaxis])
+    shift = shift[:, 0]
+
+    # now find registration to ref
+    reg2ref = np.load(
+        processed_path / data_path / "reg" / f"{prefix}_roi{roi}_shifts_to_global.npz"
+    )
+
+    # apply the same registration to all channels and rounds
+    for ir in range(stack.shape[3]):
+        for ic in range(stack.shape[2]):
+            stack[:, :, ic, ir] = transform_image(
+                stack[:, :, ic, ir],
+                scale=reg2ref["scale"],
+                angle=reg2ref["angle"],
+                shift=reg2ref["shift"] + shift,  # add the stitching shifts
+            )
+    return stack
+
+
+def register_within_acquisition(data_path, prefix):
+    """Save registration of a single acquisition
+
+    This is for stitching and does not register across channel.
+    This saves "{prefix}_shifts.npz" and "{prefix}_acquisition_tile_corners.npy" which
+    contains the information need to stitch tiles together in the acquisition
+    coordinates
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Acquisiton prefix
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    shift_right, shift_down, tile_shape = register_adjacent_tiles(
+        data_path, prefix=prefix
+    )
+    np.savez(
+        processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
+        shift_right=shift_right,
+        shift_down=shift_down,
+        tile_shape=tile_shape,
+    )
+
+    roi_dims = get_roi_dimensions(data_path)
+    for line in roi_dims:
+        roi = line[0]
+        ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
+        tile_corners = calculate_tile_positions(
+            shift_right, shift_down, tile_shape, ntiles
+        )
+        np.save(
+            processed_path
+            / data_path
+            / "reg"
+            / f"{prefix}_roi{roi}_acquisition_tile_corners.npy",
+            tile_corners,
+        )
+
+
 def register_adjacent_tiles(
     data_path,
-    ref_coors=(1, 0, 0),
+    ref_coors=None,
     reg_fraction=0.1,
     ref_ch=0,
     suffix="fstack",
@@ -23,13 +198,14 @@ def register_adjacent_tiles(
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
-    Shifts are typically very similar between different tiles, using shifts 
+    Shifts are typically very similar between different tiles, using shifts
     estimated using a reference tile for the whole acquisition works well.
 
     Args:
         data_path (str): path to image stacks.
         ref_coors (tuple, optional): coordinates of the reference tile to use for
-            registration. Must not be along the bottom or right edge of image. Defaults to (1,0,0).
+            registration. Must not be along the bottom or right edge of image. If `None`
+            use `ops['ref_tile']`. Defaults to None.
         reg_fraction (float, optional): overlap fraction used for registration. Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
@@ -43,6 +219,10 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
+    if ref_coors is None:
+        ops = load_ops(data_path)
+        ref_coors = ops["ref_tile"]
+
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
@@ -74,7 +254,9 @@ def register_adjacent_tiles(
     return shift_right, shift_down, (ypix, xpix)
 
 
-def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
+def calculate_tile_positions(
+    shift_right, shift_down, tile_shape, ntiles, shift=None, angle=0, scale=1
+):
     """Calculate position of each tile based on the provided shifts.
 
     Args:
@@ -82,31 +264,43 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
         shift_down (numpy.array): X and Y shifts between different rows
         tile_shape (numpy.array): shape of each tile
         ntiles (numpy.array): number of tile rows and columns
+        shift (numpy.array): Extra shift to apply to all tiles
+        angle (float): Rotation angle
+        scale (float): scale to change tile size
 
     Returns:
-        numpy.ndarray: `tile_origins`, ntiles[0] x ntiles[1] x 2 matrix of tile origin coordinates
-        numpy.ndarray: `tile_centers`, ntiles[0] x ntiles[1] x 2 matrix of tile center coordinates
-
+        numpy.ndarray: `tile_corners`, ntiles[0] x ntiles[1] x 2 x 4 matrix of tile
+            corners coordinates. Corners are:
+            [bottom left (origin), bottom right (0, 1), top right (1, 1), top left (1, 0)]
     """
-    tile_centers = np.empty((ntiles[0], ntiles[1], 2))
-    tile_origins = np.empty((ntiles[0], ntiles[1], 2))
 
-    center_offset = np.array([tile_shape[0] / 2, tile_shape[1] / 2])
-    for ix in range(ntiles[0]):
-        for iy in range(ntiles[1]):
-            tile_origins[ix, iy, :] = iy * shift_down + ix * shift_right
-    tile_origins = (
-        tile_origins - np.min(tile_origins, axis=(0, 1))[np.newaxis, np.newaxis, :]
+    yy, xx = np.meshgrid(np.arange(ntiles[1]), np.arange(ntiles[0]))
+
+    origin = xx[:, :, np.newaxis] * shift_right + yy[:, :, np.newaxis] * shift_down
+    origin -= np.min(origin, axis=(0, 1))[np.newaxis, np.newaxis, :]
+
+    corners = np.stack(
+        [
+            origin + np.array(c_pos) * tile_shape
+            for c_pos in ([0, 0], [0, 1], [1, 1], [1, 0])
+        ],
+        axis=3,
     )
-    tile_centers = tile_origins + center_offset[np.newaxis, np.newaxis, :]
-    return tile_origins, tile_centers
+
+    if shift is not None:
+        # TODO: should it be round not int?
+        tform = make_transform(
+            scale, angle, shift, shape=corners.max(axis=(0, 1, 3)).astype(int)
+        )
+        corners = np.pad(corners, [(0, 0), (0, 0), (0, 1), (0, 0)], constant_values=1)
+        corners = tform[np.newaxis, np.newaxis, :, :] @ corners
+        corners = corners[:, :, :-1, :]
+    return corners
 
 
 def stitch_tiles(
     data_path,
     prefix,
-    shift_right,
-    shift_down,
     roi=1,
     suffix="fstack",
     ich=0,
@@ -114,15 +308,15 @@ def stitch_tiles(
 ):
     """Load and stitch tile images using provided tile shifts.
 
+    This will load the tile shifts saved by `register_within_acquisition`
+
     Args:
         data_path (str): path to image stacks.
         prefix (str): prefix specifying which images to load, e.g. 'round_01_1'
-        shift_right (tuple): x and y shift between tiles along a row
-        shift_down (tuple): x and y shift between tiles along a column
         roi (int, optional): id of ROI to load. Defaults to 1.
         suffix (str, optional): filename suffix. Defaults to 'proj'.
         ich (int, optional): index of the channel to stitch. Defaults to 0.
-        correct_illumination (bool, optional): Remove black levels and correct 
+        correct_illumination (bool, optional): Remove black levels and correct
             illumination if True, return raw data otherwise. Default to False
 
     Returns:
@@ -130,18 +324,19 @@ def stitch_tiles(
 
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-    # load first tile to get shape
-    stack = load_tile_by_coors(
-        data_path, tile_coors=(roi, 0, 0), suffix=suffix, prefix=prefix
-    )
-    tile_shape = stack.shape[:2]
 
-    tile_origins, tile_centers = calculate_tile_positions(
-        shift_right, shift_down, tile_shape, ntiles
+    shifts = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
+    tile_shape = shifts["tile_shape"]
+    # TODO adapt to corners with angle
+    tile_corners = np.load(
+        processed_path
+        / data_path
+        / "reg"
+        / f"{prefix}_roi{roi}_acquisition_tile_corners.npy"
     )
-    tile_origins = tile_origins.astype(int)
+    tile_origins = tile_corners[..., 0].astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros(max_origin + tile_shape)
     if correct_illumination:
@@ -150,7 +345,7 @@ def stitch_tiles(
             processed_path / data_path / "averages" / f"{prefix}_average.tif"
         )
         average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
-        average_image = average_image / np.max(average_image, axis=(0, 1))
+        # TODO: use the illumination corerction function?
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_tile_by_coors(
@@ -170,7 +365,7 @@ def merge_roi_spots(
 ):
     """Load and combine spot locations across all tiles for an ROI.
 
-    To avoid duplicate spots from tile overlap, we determine which tile center 
+    To avoid duplicate spots from tile overlap, we determine which tile center
     each spot is closest to. We then only keep the spots that are closest to
     the center of the tile they were detected on.
 
@@ -185,12 +380,12 @@ def merge_roi_spots(
         pandas.DataFrame: table containing spot locations across all tiles.
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     all_spots = []
     ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
-    tile_origins, tile_centers = calculate_tile_positions(
-        shift_right, shift_down, tile_shape, ntiles
-    )
+    tile_corners = calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
+    tile_origins = tile_corners[..., 0]
+    tile_centers = np.mean(tile_corners, axis=3)
 
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
@@ -223,6 +418,47 @@ def merge_roi_spots(
     return spots
 
 
+def register_across_acquisitions(
+    data_path, prefix, roi, ref_ch=0, target_ch=0, reference_prefix="genes_round_1_1"
+):
+    _, _, angle, shift, scale = stitch_and_register(
+        data_path,
+        reference_prefix=reference_prefix,
+        target_prefix=prefix,
+        roi=roi,
+        downsample=5,
+        ref_ch=ref_ch,
+        target_ch=target_ch,
+        estimate_scale=False,
+    )
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    np.savez(
+        processed_path / data_path / "reg" / f"{prefix}_roi{roi}_shifts_to_global.npz",
+        angle=angle,
+        shift=shift,
+        scale=scale,
+    )
+    roi_dims = get_roi_dimensions(data_path)
+    ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
+    shifts_within = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
+    tile_corners = calculate_tile_positions(
+        shifts_within["shift_right"],
+        shifts_within["shift_down"],
+        shifts_within["tile_shape"],
+        ntiles,
+        shift=shift,
+        scale=scale,
+        angle=angle,
+    )
+    np.save(
+        processed_path
+        / data_path
+        / "reg"
+        / f"{prefix}_roi{roi}_global_tile_corners.npy",
+        tile_corners,
+    )
+
+
 def stitch_and_register(
     data_path,
     reference_prefix,
@@ -236,14 +472,14 @@ def stitch_and_register(
     """Stitch target and reference stacks and align target to reference
 
     To speed up registration, images are downsampled before estimating registration
-    parameters. These parameters are then applied to the full scale image. 
+    parameters. These parameters are then applied to the full scale image.
 
     Args:
         data_path (str): Relative path to data.
         reference_prefix (str): Acquisition prefix to register the stitched image to.
             Typically, "genes_round_1_1".
         target_prefix (str): Acquisition prefix to register.
-        roi (int, optional): ROI ID to register (as specified in MicroManager). 
+        roi (int, optional): ROI ID to register (as specified in MicroManager).
             Defaults to 1.
         downsample (int, optional): Downsample factor for estimating registration
             parameter. Defaults to 5.
@@ -252,7 +488,7 @@ def stitch_and_register(
         target_ch (int, optional): Channel of the target image used for registration.
             Defaults to 0.
         estimate_scale (bool, optional): Whether to estimate scaling between target
-            and reference images. Defaults to False.  
+            and reference images. Defaults to False.
 
     Returns:
         numpy.ndarray: Stitched target image after registration.
@@ -260,18 +496,11 @@ def stitch_and_register(
         float: Estimate rotation angle.
         tuple: Estimated X and Y shifts.
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
-    # TODO: should we use the same `shift_right` and `shift_down` for target
-    # and reference images?
-    shift_right, shift_down, tile_shape = register_adjacent_tiles(
-        data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
-    )
+
     stitched_stack_target = stitch_tiles(
         data_path,
         target_prefix,
-        shift_right,
-        shift_down,
         suffix=ops["projection"],
         roi=roi,
         ich=target_ch,
@@ -282,13 +511,28 @@ def stitch_and_register(
     stitched_stack_reference = stitch_tiles(
         data_path,
         reference_prefix,
-        shift_right,
-        shift_down,
         suffix=ops["projection"],
         roi=roi,
         ich=ref_ch,
         correct_illumination=True,
     ).astype(np.single)
+
+    # If they have different shapes, 0 pad the smallest, keeping origin at (0, 0)
+    if stitched_stack_target.shape != stitched_stack_reference.shape:
+        stacks_shape = np.vstack(
+            (stitched_stack_target.shape, stitched_stack_reference.shape)
+        )
+        final_shape = np.max(stacks_shape, axis=0)
+        padding = final_shape[np.newaxis, :] - stacks_shape
+        if np.sum(padding[0, :]):
+            stitched_stack_target = np.pad(
+                stitched_stack_target, [(0, p) for p in padding[0]]
+            )
+        if np.sum(padding[1, :]):
+            stitched_stack_reference = np.pad(
+                stitched_stack_reference, [(0, p) for p in padding[1]]
+            )
+
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
             stitched_stack_reference[::downsample, ::downsample],
@@ -314,7 +558,13 @@ def stitch_and_register(
     stitched_stack_target = transform_image(
         stitched_stack_target, scale=scale, angle=angle, shift=shift * downsample
     )
-    return stitched_stack_target, stitched_stack_reference, angle, shift * downsample
+    return (
+        stitched_stack_target,
+        stitched_stack_reference,
+        angle,
+        shift * downsample,
+        scale,
+    )
 
 
 def merge_and_align_spots(
@@ -332,8 +582,8 @@ def merge_and_align_spots(
 
     Args:
         data_path (str): Relative path to data.
-        roi (int): ROI ID to process (as specified in MicroManager). 
-        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+        roi (int): ROI ID to process (as specified in MicroManager).
+        spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
@@ -342,10 +592,10 @@ def merge_and_align_spots(
     ops = load_ops(data_path)
 
     ref_prefix = f'genes_round_{ops["ref_round"]+1}_1'
-    stitched_stack_barcodes, _, angle, shift = stitch_and_register(
+    stitched_stack_barcodes, _, angle, shift, scale = stitch_and_register(
         data_path, ref_prefix, reg_prefix, roi=roi, downsample=5
     )
-    spots_tform = make_transform(1, angle, shift, stitched_stack_barcodes.shape)
+    spots_tform = make_transform(scale, angle, shift, stitched_stack_barcodes.shape)
     shift_right, shift_down, tile_shape = register_adjacent_tiles(
         data_path, ref_coors=ops["ref_tile"], prefix=ref_prefix
     )
@@ -376,19 +626,18 @@ def merge_and_align_spots_all_rois(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
 ):
-    """Start batch jobs to combine spots across tiles and align to reference coordinates 
-    for all ROIs. 
+    """Start batch jobs to combine spots across tiles and align to reference coordinates
+    for all ROIs.
 
      Args:
         data_path (str): Relative path to data.
-        spots_prefix (str, optional): Filename prefix of the spot files to combine. 
+        spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
     )

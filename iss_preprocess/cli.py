@@ -116,6 +116,16 @@ def project_round(path, prefix, overwrite=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+def register_ref_tile(path, prefix):
+    """Run registration across channels and rounds for the reference tile."""
+    from iss_preprocess.pipeline import register_reference_tile
+
+    register_reference_tile(path, prefix=prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
 )
@@ -240,16 +250,6 @@ def extract(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
-def register_ref_tile(path, prefix):
-    """Run registration across channels and rounds for the reference tile."""
-    from iss_preprocess.pipeline import register_reference_tile
-
-    register_reference_tile(path, prefix=prefix)
-
-
-@cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
 )
@@ -283,6 +283,37 @@ def segment_all(path, prefix, use_gpu=False):
     from iss_preprocess.pipeline import segment_all_rois
 
     segment_all_rois(path, prefix, use_gpu=use_gpu)
+
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-w", "--which", help="Either `within` or `across`")
+def register_all(path, which="within"):
+    """Process all acquisitions for registration either within or across acquisitions"""
+    from iss_preprocess.pipeline import register_all_acquisitions
+    register_all_acquisitions(path, which)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
+def register_acquisition(path, prefix):
+    """Save the information required to stitch one acquisition"""
+    from iss_preprocess.pipeline import register_within_acquisition
+
+    register_within_acquisition(path, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
+@click.option("-r", "--roi", default=1, help="Number of the ROI to register.")
+def register_to_reference(path, prefix, roi):
+    """Register one acquisition to the reference"""
+    from iss_preprocess.pipeline import register_across_acquisitions
+
+    register_across_acquisitions(path, prefix, roi)
 
 
 @cli.command()
@@ -433,5 +464,6 @@ def overview_for_ara_registration(
         sigma_blur (float, optional): Sigma for gaussian blur. Defaults to 10.
     """
     from iss_preprocess.pipeline.ara_registration import overview_single_roi
-    print('Calling')
+
+    print("Calling")
     overview_single_roi(data_path=path, roi=roi, slice_id=slice_id, sigma_blur=sigma)

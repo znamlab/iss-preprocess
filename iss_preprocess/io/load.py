@@ -2,11 +2,13 @@ import numpy as np
 import czifile
 import pandas as pd
 import xml.etree.ElementTree as ET
+import warnings
 from tifffile import TiffFile
 import json
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 import yaml
+import re
 
 
 def load_hyb_probes_metadata():
@@ -256,3 +258,58 @@ def reorder_channels(stack, metadata):
 
     channel_order = np.argsort(np.array(wavelengths))
     return stack[:, :, channel_order, :]
+
+
+def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
+    """Find imaging ROIs and determine their dimensions.
+
+    Create and/or load f"{prefix}_roi_dims.npy". The default ("genes_round_1_1") should
+    be used for all acquisitions that have the same ROI dimensions (everything except
+    overviews).
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str, optional): Prefix of acquisition to load. Defaults to
+            "genes_round_1_1"
+        save (bool, optional): If True save roi dimensions if they are not already found
+            on disk. Default to True
+
+    Returns:
+        np.array: Nroi x 3 array of containing (roi_id, NtilesX, NtilesY) for each roi
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims_file = processed_path / data_path / f"{prefix}_roi_dims.npy"
+    if roi_dims_file.exists():
+        return np.load(roi_dims_file)
+
+    # file does not exist, let's find roi dims from filenames and create the file
+    raw_path = Path(PARAMETERS["data_root"]["raw"])
+    data_dir = raw_path / data_path / prefix
+    fnames = [p.name for p in data_dir.glob("*.tif")]
+    if not fnames:
+        warnings.warn(
+            "Raw data has already been archived. Trying to use projected data"
+        )
+        ops = load_ops(data_path)
+        data_dir = processed_path / data_path / prefix
+        fnames = [p.name for p in data_dir.glob("*.tif")]
+        pattern = (
+            rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['projection']}.tif"
+        )
+    else:
+        pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
+    matcher = re.compile(pattern=pattern)
+    matches = [matcher.match(fname) for fname in fnames]  # non match will be None
+    tile_coors = np.stack([np.array(m.groups(), dtype=int) for m in matches if m])
+
+    rois = np.unique(tile_coors[:, 0])
+    roi_list = np.empty((len(rois), 3), dtype=int)
+    for iroi, roi in enumerate(rois):
+        roi_list[iroi, :] = [
+            roi,
+            np.max(tile_coors[tile_coors[:, 0] == roi, 1]),
+            np.max(tile_coors[tile_coors[:, 0] == roi, 2]),
+        ]
+    if save:
+        np.save(roi_dims_file, roi_list)
+    return roi_list

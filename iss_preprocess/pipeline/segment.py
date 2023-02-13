@@ -4,6 +4,7 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 from ..segment import cellpose_segmentation
 from .stitch import stitch_and_register
+from ..io import get_roi_dimensions, load_ops
 
 
 def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
@@ -11,13 +12,14 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
 
     Args:
         data_path (str): Relative path to data.
-        prefix (str, optional): cquisition prefix to use for segmentation. 
+        prefix (str, optional): acquisition prefix to use for segmentation.
             Defaults to "DAPI_1".
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
-    script_path = str(Path(__file__).parent.parent.parent / "scripts" / "segment_roi.sh")
+    roi_dims = get_roi_dimensions(data_path)
+    script_path = str(
+        Path(__file__).parent.parent.parent / "scripts" / "segment_roi.sh"
+    )
     for roi in roi_dims:
         args = f"--export=DATAPATH={data_path},ROI={roi[0]},PREFIX={prefix}"
         if use_gpu:
@@ -42,16 +44,17 @@ def segment_roi(
         data_path (str): Relative path to data.
         iroi (int): ROI ID to segment as specificied in MicroManager (i.e. 1-based).
         prefix (str, optional): Acquisition prefix to use for segmentation. Defaults to "DAPI_1".
-        reference (str, optional): Acquisition prefix to align the stitched image to. 
+        reference (str, optional): Acquisition prefix to align the stitched image to.
             Defaults to "genes_round_1_1".
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
     """
     print(f"running segmentation on roi {iroi} from {data_path} using {prefix}")
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops_path = processed_path / data_path / "ops.npy"
-    ops = np.load(ops_path, allow_pickle=True).item()
+    ops = load_ops(data_path)
     print(f"stitching {prefix} and aligning to {reference}", flush=True)
-    stitched_stack, _, _, _ = stitch_and_register(data_path, reference, prefix, roi=iroi)
+    stitched_stack, _, _, _, _ = stitch_and_register(
+        data_path, reference, prefix, roi=iroi
+    )
     print("starting segmentation", flush=True)
     masks = cellpose_segmentation(
         stitched_stack,

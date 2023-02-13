@@ -9,7 +9,7 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 
 
-def apply_illumination_correction(data_path, stack, prefix):
+def apply_illumination_correction(data_path, stack, prefix, dtype=float):
     """Apply illumination correction
 
     Use precomputed normalised and filtered averages to correct for inhomogeneous
@@ -20,6 +20,8 @@ def apply_illumination_correction(data_path, stack, prefix):
         stack (np.array): A 3 or 4D array with X x Y x Nchannels as first 3 dimensions
         prefix (str): Prefix name of the average, e.g. "barcode_round" for grand average
             or "barcode_round_1" for single round average.
+        dtype (str or type, optional): data type of the ouput. Division is always 
+            performed as float
 
 
     Returns:
@@ -31,16 +33,14 @@ def apply_illumination_correction(data_path, stack, prefix):
         processed_path / data_path / "averages" / f"{prefix}_average.tif"
     )
     average_image = load_stack(average_image_fname).astype(float)
-    average_image = (
-        average_image / np.max(average_image, axis=(0, 1))[np.newaxis, np.newaxis, :]
-    )
+    
     if stack.ndim == 4:
         stack = (
             stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
         ) / average_image[:, :, :, np.newaxis]
     else:
         stack = (stack - ops["black_level"][np.newaxis, np.newaxis, :]) / average_image
-    return stack
+    return stack.astype(dtype)
 
 
 def filter_stack(stack, r1=2, r2=4, dtype=float):
