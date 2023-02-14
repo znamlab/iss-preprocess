@@ -6,6 +6,7 @@ from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from . import pipeline
+from ..image.correction import apply_illumination_correction
 from ..io import (
     load_tile_by_coors,
     load_stack,
@@ -74,7 +75,8 @@ def register_acquisitions(data_path, which, prefix, by_tiles=False):
             )
 
 
-def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
+def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global",
+              filter_r=True):
     """Load one single tile
 
     This load a tile of `prefix` with channels/rounds registered if `coordinate_frame`
@@ -87,6 +89,8 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
             all the rounds.
         coordinate_frame (str, optional): Either "local" or "global". Defaults to
             "global".
+        filter_r (bool, optional): Apply filter on rounds data? Parameters will be read 
+            from `ops`. Default to True
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
@@ -95,6 +99,9 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
 
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
+
+    if filter_r:
+        filter_r = ops['filter_r']
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
         parts = prefix.split("_")
         if len(parts) > 2:
@@ -109,7 +116,7 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
             tile_coors=tile_coordinates,
             suffix=ops["projection"],
             prefix=acq_type,
-            filter_r=ops["filter_r"],
+            filter_r=filter_r,
             correct_channels=True,
             correct_illumination=True,
             corrected_shifts=True,
@@ -124,7 +131,7 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
             tile_coors=tile_coordinates,
             prefix=prefix,
             suffix=ops["hybridisation_projection"],
-            filter_r=ops["filter_r"],
+            filter_r=filter_r,
             correct_illumination=True,
             correct_channels=True,
         )
@@ -137,6 +144,8 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
             prefix=prefix,
         )
         bad_pixel = np.zeros(stack.shape, dtype=bool)
+
+    stack = apply_illumination_correction(data_path, stack, prefix)
 
     stack[bad_pixel] = 0
 
