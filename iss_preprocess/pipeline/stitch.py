@@ -5,6 +5,7 @@ import subprocess, shlex
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
+from . import pipeline
 from ..io import (
     load_tile_by_coors,
     load_stack,
@@ -22,7 +23,17 @@ from ..reg import (
 )
 
 
-def register_all_acquisitions(data_path, which):
+def register_all_acquisitions(data_path, which, by_tiles=False):
+    """Start bash job to register all ROIs
+
+    Args:
+        data_path (str): Relative path to data
+        which (str): "within" or "across" for acquisition registration and registration
+            to reference acquisiton respectively
+        by_tiles (bool, optional): Register across using single tiles instead of
+            stitched image. Defaults to False.
+    """
+
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
 
@@ -30,40 +41,67 @@ def register_all_acquisitions(data_path, which):
     prefixes += list(metadata["hybridisation"].keys())
     prefixes += list(metadata["fluorescence"].keys())
 
-    export_args = dict(DATAPATH=data_path)
-
     if which.lower() == "within":
-        script_name = "register_within_acquisition.sh"
+        script_name = "register_within_acquisition"
         rois_to_do = [None]
     elif which.lower() == "across":
         prefixes.remove("genes_round_1_1")
-        script_name = "register_across_acquisitions.sh"
+        script_name = "register_across_acquisitions"
         rois_to_do = ops["use_rois"]
     else:
         raise IOError("`which` must be 'within' or 'across'")
-    script_path = str(Path(__file__).parent.parent.parent / "scripts" / script_name)
 
     for prefix in prefixes:
-        export_args["PREFIX"] = prefix
-        for roi in rois_to_do:
-            if roi is not None:
-                export_args["ROI"] = roi
-            args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
-            args = (
-                args
-                + f" --output={Path.home()}/slurm_logs/iss_reg_{which}_%j.out"
-                + f" --error={Path.home()}/slurm_logs/iss_reg_{which}_%j.err"
+        export_args = dict(PREFIX=prefix)
+        if by_tiles:
+            arguments = ",".join([f"{k}={v}" for k, v in export_args.items()])
+            pipeline.batch_process_tiles(
+                data_path, script_name, additional_args="," + arguments
             )
-            command = f"sbatch {args} {script_path}"
-            print(command)
-            subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
+        else:
+            export_args["DATAPATH"] = data_path
+            script_path = str(
+                Path(__file__).parent.parent.parent / "scripts" / f"{script_name}.sh"
             )
+            for roi in rois_to_do:
+                if roi is not None:  # within. we register only one tile in one roi
+                    export_args["ROI"] = roi
+                args = "--export=" + ",".join(
+                    [f"{k}={v}" for k, v in export_args.items()]
+                )
+                args = (
+                    args
+                    + f" --output={Path.home()}/slurm_logs/iss_reg_{which}_%j.out"
+                    + f" --error={Path.home()}/slurm_logs/iss_reg_{which}_%j.err"
+                )
+                command = f"sbatch {args} {script_path}"
+                print(command)
+                subprocess.Popen(
+                    shlex.split(command),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
+                )
 
 
-def load_tile(data_path, tile_coordinates, prefix):
+def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
+    """Load one single tile
+
+    This load a tile of `prefix` with channels/rounds registered if `coordinate_frame`
+    is "local". If `coordinate_frame` is "global" also register to reference acquisition
+
+    Args:
+        data_path (str): Relative path to data
+        tile_coordinates (tuple): (Roi, tileX, tileY) tuple
+        prefix (str): Acquisition to load. If `genes_round` or `barcode_round` will load
+            all the rounds.
+        coordinate_frame (str, optional): Either "local" or "global". Defaults to
+            "global".
+
+    Returns:
+        np.array: A (X x Y x Nchannels x Nrounds) registered stack
+    """
+    assert coordinate_frame in ("local", "global")
+
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
@@ -73,8 +111,6 @@ def load_tile(data_path, tile_coordinates, prefix):
             rounds = np.array([int(parts[2])])
         else:
             acq_type = prefix
-            # use the first round for across acq stitching below
-            prefix = acq_type + "_1_1"
             rounds = np.arange(ops[f"{acq_type}s"]) + 1
 
         stack, bad_pixel = load_and_register_tile(
@@ -88,11 +124,14 @@ def load_tile(data_path, tile_coordinates, prefix):
             corrected_shifts=True,
             specific_rounds=rounds,
         )
+        # the transforms for all rounds are the same and saved with round 1
+        prefix = acq_type + "_1_1"
+
     elif prefix in metadata["hybridisation"]:
         stack, bad_pixel = load_and_register_hyb_tile(
             data_path,
             tile_coors=tile_coordinates,
-            prefix="hybridisation_1_1",
+            prefix=prefix,
             suffix=ops["hybridisation_projection"],
             filter_r=ops["filter_r"],
             correct_illumination=True,
@@ -107,16 +146,16 @@ def load_tile(data_path, tile_coordinates, prefix):
             prefix=prefix,
         )
         bad_pixel = np.zeros(stack.shape, dtype=bool)
-    
+
     stack[bad_pixel] = 0
-    
-    if prefix == "genes_round_1_1":
-        # this is the reference
-        return stack
 
     # ensure we have 4d to match acquisitions with rounds
     if stack.ndim == 3:
         stack = stack[..., np.newaxis]
+
+    if coordinate_frame == "local" or prefix == "genes_round_1_1":
+        # No need to register to ref
+        return stack
 
     # we have data with channels/rounds registered
     # Now find how much the acquisition stitching is shifting the data compared to
@@ -427,44 +466,151 @@ def merge_roi_spots(
 
 
 def register_across_acquisitions(
-    data_path, prefix, roi, ref_ch=0, target_ch=0, reference_prefix="genes_round_1_1"
+    data_path,
+    prefix,
+    roi,
+    ref_ch=0,
+    target_ch=0,
+    reference_prefix="genes_round_1_1",
+    estimate_scale=False,
+    tilex=None,
+    tiley=None,
 ):
-    _, _, angle, shift, scale = stitch_and_register(
-        data_path,
-        reference_prefix=reference_prefix,
-        target_prefix=prefix,
-        roi=roi,
-        downsample=5,
-        ref_ch=ref_ch,
-        target_ch=target_ch,
-        estimate_scale=False,
-    )
+    """Register an acquisition to the reference acquisition
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Acquisition to register
+        roi (int): ROI to register
+        ref_ch (int, optional): Channel from reference to use. Defaults to 0.
+        target_ch (int, optional): Channel from target to use. Defaults to 0.
+        reference_prefix (str, optional): Reference acquisition. Defaults to
+            "genes_round_1_1".
+        estimate_scale (bool, optional): Estimate scale if True. Only shift and angle
+            otherwise. Defaults to True
+        tilex (int, optional): X of tile to register. If not provided will use the whole
+            stitched acquisition. Defaults to None.
+        tiley (int, optional): Y of tile to register. If not provided will use the whole
+            stitched acquisition. Defaults to None.
+    """
+    input_args = locals()
+    for k, v in input_args.items():
+        if not k.startswith("_"):
+            print(f"{k} = {v}")
+    print("", flush=True)
+
+    if tilex is None:
+        assert tiley is None
+        print("Stitch and register", flush=True)
+        _, _, angle, shift, scale = stitch_and_register(
+            data_path,
+            reference_prefix=reference_prefix,
+            target_prefix=prefix,
+            roi=roi,
+            downsample=5,
+            ref_ch=ref_ch,
+            target_ch=target_ch,
+            estimate_scale=estimate_scale,
+        )
+    else:
+        assert tiley is not None
+        print("Register single tile", flush=True)
+        angle, shift, scale = register_single_tile(
+            data_path,
+            reference_prefix=reference_prefix,
+            target_prefix=prefix,
+            tile_coordinates=(roi, tilex, tiley),
+            ref_ch=ref_ch,
+            target_ch=target_ch,
+            estimate_scale=estimate_scale,
+        )
+
     processed_path = Path(PARAMETERS["data_root"]["processed"])
+    tilecoor = "" if tilex is None else f"{tilex}_{tiley}_"
+    fname = f"{prefix}_roi{roi}_{tilecoor}shifts_to_global.npz"
+    print(f"Saving {fname} in the reg folder")
     np.savez(
-        processed_path / data_path / "reg" / f"{prefix}_roi{roi}_shifts_to_global.npz",
+        processed_path / data_path / "reg" / fname,
         angle=angle,
         shift=shift,
         scale=scale,
     )
-    roi_dims = get_roi_dimensions(data_path)
-    ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-    shifts_within = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
-    tile_corners = calculate_tile_positions(
-        shifts_within["shift_right"],
-        shifts_within["shift_down"],
-        shifts_within["tile_shape"],
-        ntiles,
-        shift=shift,
-        scale=scale,
-        angle=angle,
+    if tilex is None:
+        roi_dims = get_roi_dimensions(data_path)
+        ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
+        shifts_within = np.load(
+            processed_path / data_path / "reg" / f"{prefix}_shifts.npz"
+        )
+        tile_corners = calculate_tile_positions(
+            shifts_within["shift_right"],
+            shifts_within["shift_down"],
+            shifts_within["tile_shape"],
+            ntiles,
+            shift=shift,
+            scale=scale,
+            angle=angle,
+        )
+        np.save(
+            processed_path
+            / data_path
+            / "reg"
+            / f"{prefix}_roi{roi}_global_tile_corners.npy",
+            tile_corners,
+        )
+
+
+def register_single_tile(
+    data_path,
+    target_prefix,
+    tile_coordinates,
+    reference_prefix="genes_round_1_1",
+    ref_ch=0,
+    target_ch=0,
+    estimate_scale=False,
+):
+    """Register a single tile to the corresponding reference acquisition tile
+
+    Args:
+        data_path (str): Relative path to data
+        target_prefix (str): Acquisition to register
+        tile_coordinates (tuple): (ROI, tileX, tileY) coordinates of tile)
+        reference_prefix (str, optional): Reference acquisition. Defaults to
+            "genes_round_1_1"
+        ref_ch (int, optional): Reference channel. Defaults to 0.
+        target_ch (int, optional): Target channel. Defaults to 0.
+        estimate_scale (bool, optional): Estimate scale if True. Defaults to False.
+
+    Returns:
+        angle, shift, scale: Transform parameters
+    """
+    ref_tile = load_tile(
+        data_path, tile_coordinates, reference_prefix, coordinate_frame="local"
     )
-    np.save(
-        processed_path
-        / data_path
-        / "reg"
-        / f"{prefix}_roi{roi}_global_tile_corners.npy",
-        tile_corners,
+    target_tile = load_tile(
+        data_path, tile_coordinates, target_prefix, coordinate_frame="local"
     )
+    if estimate_scale:
+        scale, angle, shift = estimate_scale_rotation_translation(
+            ref_tile[:, :, ref_ch, 0],
+            target_tile[:, :, target_ch, 0],
+            niter=3,
+            nangles=11,
+            verbose=True,
+            scale_range=0.01,
+            angle_range=1.0,
+            upsample=False,
+        )
+    else:
+        angle, shift = estimate_rotation_translation(
+            ref_tile[:, :, ref_ch, 0],
+            target_tile[:, :, target_ch, 0],
+            angle_range=1.0,
+            niter=3,
+            nangles=11,
+            upsample=None,
+        )
+        scale = 1
+    return angle, shift, scale
 
 
 def stitch_and_register(
