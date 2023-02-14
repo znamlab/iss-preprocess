@@ -93,8 +93,8 @@ def load_tile(data_path, tile_coordinates, prefix):
             data_path,
             tile_coors=tile_coordinates,
             prefix="hybridisation_1_1",
-            suffix="fstack",
-            filter_r=(2, 4),
+            suffix=ops["hybridisation_projection"],
+            filter_r=ops["filter_r"],
             correct_illumination=True,
             correct_channels=True,
         )
@@ -106,13 +106,17 @@ def load_tile(data_path, tile_coordinates, prefix):
             suffix=ops["projection"],
             prefix=prefix,
         )
-
+        bad_pixel = np.zeros(stack.shape, dtype=bool)
+    
+    stack[bad_pixel] = 0
+    
     if prefix == "genes_round_1_1":
         # this is the reference
         return stack
 
     # ensure we have 4d to match acquisitions with rounds
-    stack = np.array(stack, ndmin=4, copy=False)
+    if stack.ndim == 3:
+        stack = stack[..., np.newaxis]
 
     # we have data with channels/rounds registered
     # Now find how much the acquisition stitching is shifting the data compared to
