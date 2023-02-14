@@ -287,23 +287,24 @@ def segment_all(path, prefix, use_gpu=False):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
 @click.option("-w", "--which", default="within", help="Either `within` or `across`")
 @click.option(
     "--by-tiles/--no-by-tiles",
     default=False,
     help="Run across registration on all single tiles instead of the stitched image",
 )
-def register_all(path, which, by_tiles):
-    """Process all acquisitions for registration either within or across acquisitions"""
-    from iss_preprocess.pipeline import register_all_acquisitions
+def register_acquisition(path, which, prefix, by_tiles):
+    """Start sbatch job to register either within or across acquisitions"""
+    from iss_preprocess.pipeline import register_acquisitions
 
-    register_all_acquisitions(path, which, by_tiles=by_tiles)
+    register_acquisitions(path, which, prefix=prefix, by_tiles=by_tiles)
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
-def register_acquisition(path, prefix):
+def register_within_acquisition(path, prefix):
     """Save the information required to stitch one acquisition"""
     from iss_preprocess.pipeline import register_within_acquisition
 

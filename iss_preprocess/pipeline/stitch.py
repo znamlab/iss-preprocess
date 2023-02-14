@@ -23,7 +23,7 @@ from ..reg import (
 )
 
 
-def register_all_acquisitions(data_path, which, by_tiles=False):
+def register_acquisitions(data_path, which, prefix, by_tiles=False):
     """Start bash job to register all ROIs
 
     Args:
@@ -35,52 +35,43 @@ def register_all_acquisitions(data_path, which, by_tiles=False):
     """
 
     ops = load_ops(data_path)
-    metadata = load_metadata(data_path)
-
-    prefixes = ["barcode_round_1_1", "genes_round_1_1"]
-    prefixes += list(metadata["hybridisation"].keys())
-    prefixes += list(metadata["fluorescence"].keys())
 
     if which.lower() == "within":
         script_name = "register_within_acquisition"
         rois_to_do = [None]
     elif which.lower() == "across":
-        prefixes.remove("genes_round_1_1")
         script_name = "register_across_acquisitions"
         rois_to_do = ops["use_rois"]
     else:
         raise IOError("`which` must be 'within' or 'across'")
 
-    for prefix in prefixes:
-        export_args = dict(PREFIX=prefix)
-        if by_tiles:
-            arguments = ",".join([f"{k}={v}" for k, v in export_args.items()])
-            pipeline.batch_process_tiles(
-                data_path, script_name, additional_args="," + arguments
+    export_args = dict(PREFIX=prefix)
+    if by_tiles:
+        arguments = ",".join([f"{k}={v}" for k, v in export_args.items()])
+        pipeline.batch_process_tiles(
+            data_path, script_name, additional_args="," + arguments
+        )
+    else:
+        export_args["DATAPATH"] = data_path
+        script_path = str(
+            Path(__file__).parent.parent.parent / "scripts" / f"{script_name}.sh"
+        )
+        for roi in rois_to_do:
+            if roi is not None:  # within. we register only one tile in one roi
+                export_args["ROI"] = roi
+            args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+            args = (
+                args
+                + f" --output={Path.home()}/slurm_logs/iss_reg_{which}_%j.out"
+                + f" --error={Path.home()}/slurm_logs/iss_reg_{which}_%j.err"
             )
-        else:
-            export_args["DATAPATH"] = data_path
-            script_path = str(
-                Path(__file__).parent.parent.parent / "scripts" / f"{script_name}.sh"
+            command = f"sbatch {args} {script_path}"
+            print(command)
+            subprocess.Popen(
+                shlex.split(command),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
             )
-            for roi in rois_to_do:
-                if roi is not None:  # within. we register only one tile in one roi
-                    export_args["ROI"] = roi
-                args = "--export=" + ",".join(
-                    [f"{k}={v}" for k, v in export_args.items()]
-                )
-                args = (
-                    args
-                    + f" --output={Path.home()}/slurm_logs/iss_reg_{which}_%j.out"
-                    + f" --error={Path.home()}/slurm_logs/iss_reg_{which}_%j.err"
-                )
-                command = f"sbatch {args} {script_path}"
-                print(command)
-                subprocess.Popen(
-                    shlex.split(command),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.STDOUT,
-                )
 
 
 def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
