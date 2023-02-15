@@ -144,8 +144,7 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global",
             prefix=prefix,
         )
         bad_pixel = np.zeros(stack.shape, dtype=bool)
-
-    stack = apply_illumination_correction(data_path, stack, prefix)
+        stack = apply_illumination_correction(data_path, stack, prefix)
 
     stack[bad_pixel] = 0
 
