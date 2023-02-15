@@ -285,20 +285,26 @@ def segment_all(path, prefix, use_gpu=False):
     segment_all_rois(path, prefix, use_gpu=use_gpu)
 
 
-
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-w", "--which", help="Either `within` or `across`")
-def register_all(path, which="within"):
-    """Process all acquisitions for registration either within or across acquisitions"""
-    from iss_preprocess.pipeline import register_all_acquisitions
-    register_all_acquisitions(path, which)
+@click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
+@click.option("-w", "--which", default="within", help="Either `within` or `across`")
+@click.option(
+    "--by-tiles/--no-by-tiles",
+    default=False,
+    help="Run across registration on all single tiles instead of the stitched image",
+)
+def register_acquisition(path, which, prefix, by_tiles):
+    """Start sbatch job to register either within or across acquisitions"""
+    from iss_preprocess.pipeline import register_acquisitions
+
+    register_acquisitions(path, which, prefix=prefix, by_tiles=by_tiles)
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
-def register_acquisition(path, prefix):
+def register_within_acquisition(path, prefix):
     """Save the information required to stitch one acquisition"""
     from iss_preprocess.pipeline import register_within_acquisition
 
@@ -309,11 +315,24 @@ def register_acquisition(path, prefix):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
 @click.option("-r", "--roi", default=1, help="Number of the ROI to register.")
-def register_to_reference(path, prefix, roi):
+@click.option(
+    "--tilex",
+    default=None,
+    help="X of tile to register. If None will use stitched image.",
+)
+@click.option(
+    "--tiley",
+    default=None,
+    help="Y of tile to register. If None will use stitched image.",
+)
+@click.option("--scale/--no-scale", help="Estimate scale changes", default=False)
+def register_to_reference(path, prefix, roi, tilex, tiley, scale):
     """Register one acquisition to the reference"""
     from iss_preprocess.pipeline import register_across_acquisitions
 
-    register_across_acquisitions(path, prefix, roi)
+    register_across_acquisitions(
+        path, prefix, roi, tilex=tilex, tiley=tiley, estimate_scale=scale
+    )
 
 
 @cli.command()
