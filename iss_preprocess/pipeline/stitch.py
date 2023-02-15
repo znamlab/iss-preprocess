@@ -6,6 +6,7 @@ from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from . import pipeline
+from ..image.correction import apply_illumination_correction
 from ..io import (
     load_tile_by_coors,
     load_stack,
@@ -74,7 +75,9 @@ def register_acquisitions(data_path, which, prefix, by_tiles=False):
             )
 
 
-def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
+def load_tile(
+    data_path, tile_coordinates, prefix, coordinate_frame="global", filter_r=True
+):
     """Load one single tile
 
     This load a tile of `prefix` with channels/rounds registered if `coordinate_frame`
@@ -87,6 +90,8 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
             all the rounds.
         coordinate_frame (str, optional): Either "local" or "global". Defaults to
             "global".
+        filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
+            from `ops`. Default to True
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
@@ -95,6 +100,9 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
 
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
+
+    if filter_r:
+        filter_r = ops["filter_r"]
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
         parts = prefix.split("_")
         if len(parts) > 2:
@@ -109,7 +117,7 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
             tile_coors=tile_coordinates,
             suffix=ops["projection"],
             prefix=acq_type,
-            filter_r=ops["filter_r"],
+            filter_r=filter_r,
             correct_channels=True,
             correct_illumination=True,
             corrected_shifts=True,
@@ -124,7 +132,7 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
             tile_coors=tile_coordinates,
             prefix=prefix,
             suffix=ops["hybridisation_projection"],
-            filter_r=ops["filter_r"],
+            filter_r=filter_r,
             correct_illumination=True,
             correct_channels=True,
         )
@@ -137,6 +145,7 @@ def load_tile(data_path, tile_coordinates, prefix, coordinate_frame="global"):
             prefix=prefix,
         )
         bad_pixel = np.zeros(stack.shape, dtype=bool)
+        stack = apply_illumination_correction(data_path, stack, prefix)
 
     stack[bad_pixel] = 0
 
@@ -210,21 +219,6 @@ def register_within_acquisition(data_path, prefix):
         tile_shape=tile_shape,
     )
 
-    roi_dims = get_roi_dimensions(data_path)
-    for line in roi_dims:
-        roi = line[0]
-        ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-        tile_corners = calculate_tile_positions(
-            shift_right, shift_down, tile_shape, ntiles
-        )
-        np.save(
-            processed_path
-            / data_path
-            / "reg"
-            / f"{prefix}_roi{roi}_acquisition_tile_corners.npy",
-            tile_corners,
-        )
-
 
 def register_adjacent_tiles(
     data_path,
@@ -244,12 +238,14 @@ def register_adjacent_tiles(
         ref_coors (tuple, optional): coordinates of the reference tile to use for
             registration. Must not be along the bottom or right edge of image. If `None`
             use `ops['ref_tile']`. Defaults to None.
-        reg_fraction (float, optional): overlap fraction used for registration. Defaults to 0.1.
+        reg_fraction (float, optional): overlap fraction used for registration.
+            Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'proj'.
-        prefix (str, optional): the folder name prefix, before round number. Defaults to "round"
+        prefix (str, optional): the folder name prefix, before round number.
+            Defaults to "round"
 
     Returns:
         numpy.array: `shift_right`, X and Y shifts between different columns
@@ -292,9 +288,43 @@ def register_adjacent_tiles(
     return shift_right, shift_down, (ypix, xpix)
 
 
-def calculate_tile_positions(
-    shift_right, shift_down, tile_shape, ntiles, shift=None, angle=0, scale=1
-):
+def get_tiles_corners(data_path, prefix, roi):
+    """Find the corners of all tiles for a roi
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Acquisition prefix. For round-based acquisition, round 1 will be
+            used
+        roi (int): Roi ID
+
+    Returns:
+        numpy.ndarray: `tile_corners`, ntiles[0] x ntiles[1] x 2 x 4 matrix of tile
+            corners coordinates. Corners are in this order:
+            [(origin), (0, 1), (1, 1), (1, 0)]
+    """
+    roi_dims = get_roi_dimensions(data_path)
+    ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
+    if "round" in prefix:
+        # always use round 1
+        prefix = f"{prefix.split('_')[0]}_round_1_1"
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    shifts = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
+    tile_origins, _ = calculate_tile_positions(
+        shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles
+    )
+
+    corners = np.stack(
+        [
+            tile_origins + np.array(c_pos) * shifts["tile_shape"]
+            for c_pos in ([0, 0], [0, 1], [1, 1], [1, 0])
+        ],
+        axis=3,
+    )
+
+    return corners
+
+
+def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
     """Calculate position of each tile based on the provided shifts.
 
     Args:
@@ -302,38 +332,25 @@ def calculate_tile_positions(
         shift_down (numpy.array): X and Y shifts between different rows
         tile_shape (numpy.array): shape of each tile
         ntiles (numpy.array): number of tile rows and columns
-        shift (numpy.array): Extra shift to apply to all tiles
-        angle (float): Rotation angle
-        scale (float): scale to change tile size
 
     Returns:
-        numpy.ndarray: `tile_corners`, ntiles[0] x ntiles[1] x 2 x 4 matrix of tile
-            corners coordinates. Corners are:
-            [bottom left (origin), bottom right (0, 1), top right (1, 1), top left (1, 0)]
+        numpy.ndarray: `tile_origins`, ntiles[0] x ntiles[1] x 2 matrix of tile origin
+            coordinates
+        numpy.ndarray: `tile_centers`, ntiles[0] x ntiles[1] x 2 matrix of tile center
+            coordinates
     """
 
     yy, xx = np.meshgrid(np.arange(ntiles[1]), np.arange(ntiles[0]))
 
-    origin = xx[:, :, np.newaxis] * shift_right + yy[:, :, np.newaxis] * shift_down
-    origin -= np.min(origin, axis=(0, 1))[np.newaxis, np.newaxis, :]
-
-    corners = np.stack(
-        [
-            origin + np.array(c_pos) * tile_shape
-            for c_pos in ([0, 0], [0, 1], [1, 1], [1, 0])
-        ],
-        axis=3,
+    tile_origins = (
+        xx[:, :, np.newaxis] * shift_right + yy[:, :, np.newaxis] * shift_down
     )
+    tile_origins -= np.min(tile_origins, axis=(0, 1))[np.newaxis, np.newaxis, :]
 
-    if shift is not None:
-        # TODO: should it be round not int?
-        tform = make_transform(
-            scale, angle, shift, shape=corners.max(axis=(0, 1, 3)).astype(int)
-        )
-        corners = np.pad(corners, [(0, 0), (0, 0), (0, 1), (0, 0)], constant_values=1)
-        corners = tform[np.newaxis, np.newaxis, :, :] @ corners
-        corners = corners[:, :, :-1, :]
-    return corners
+    center_offset = np.array([tile_shape[0] / 2, tile_shape[1] / 2])
+    tile_centers = tile_origins + center_offset[np.newaxis, np.newaxis, :]
+
+    return tile_origins, tile_centers
 
 
 def stitch_tiles(
@@ -421,9 +438,9 @@ def merge_roi_spots(
     roi_dims = get_roi_dimensions(data_path)
     all_spots = []
     ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
-    tile_corners = calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles)
-    tile_origins = tile_corners[..., 0]
-    tile_centers = np.mean(tile_corners, axis=3)
+    tile_origins, tile_centers = calculate_tile_positions(
+        shift_right, shift_down, tile_shape, ntiles
+    )
 
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
@@ -526,28 +543,6 @@ def register_across_acquisitions(
         shift=shift,
         scale=scale,
     )
-    if tilex is None:
-        roi_dims = get_roi_dimensions(data_path)
-        ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-        shifts_within = np.load(
-            processed_path / data_path / "reg" / f"{prefix}_shifts.npz"
-        )
-        tile_corners = calculate_tile_positions(
-            shifts_within["shift_right"],
-            shifts_within["shift_down"],
-            shifts_within["tile_shape"],
-            ntiles,
-            shift=shift,
-            scale=scale,
-            angle=angle,
-        )
-        np.save(
-            processed_path
-            / data_path
-            / "reg"
-            / f"{prefix}_roi{roi}_global_tile_corners.npy",
-            tile_corners,
-        )
 
 
 def register_single_tile(

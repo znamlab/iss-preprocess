@@ -75,11 +75,11 @@ def align_channels_and_rounds(stack, tforms):
     Apply the provided transformations to align images across channels and rounds.
 
     Args:
-        stack:
-        tforms:
+        stack (np.array): X x Y x Nchannels x Nrounds images stack
+        tforms (np.array): Nch x Nrounds array of transformation matrices (each 3x3)
 
     Returns:
-
+        np.array: Aligned stack with NaN for missing pixels. Same shape as input stack
     """
     nchannels, nrounds = stack.shape[2:]
     reg_stack = np.empty((stack.shape))
