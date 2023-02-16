@@ -331,7 +331,7 @@ def merge_roi_spots(
                 keep_spots = home_tile_dist < min_spot_dist
                 all_spots.append(spots[keep_spots])
             except FileNotFoundError:
-                print(f"coult not load roi {iroi}, tile {ix}, {iy}")
+                print(f"could not load roi {iroi}, tile {ix}, {iy}")
 
     spots = pd.concat(all_spots, ignore_index=True)
     return spots
