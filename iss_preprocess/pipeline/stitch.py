@@ -162,18 +162,9 @@ def load_tile(
     # reference
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi, tilex, tiley = tile_coordinates
-    ref_corners = np.load(
-        processed_path
-        / data_path
-        / "reg"
-        / f"genes_round_1_1_roi{roi}_acquisition_tile_corners.npy"
-    )
-    acq_corners = np.load(
-        processed_path
-        / data_path
-        / "reg"
-        / f"{prefix}_roi{roi}_acquisition_tile_corners.npy"
-    )
+    ref_corners = get_tiles_corners(data_path, prefix="genes_round_1_1", roi=roi)
+    acq_corners = get_tiles_corners(data_path, prefix=prefix, roi=roi)
+
     shift = acq_corners[tilex, tiley] - ref_corners[tilex, tiley]
     # shift should be the same for the 4 corners
     assert np.allclose(shift, shift[:, 0, np.newaxis])
@@ -200,9 +191,8 @@ def register_within_acquisition(data_path, prefix):
     """Save registration of a single acquisition
 
     This is for stitching and does not register across channel.
-    This saves "{prefix}_shifts.npz" and "{prefix}_acquisition_tile_corners.npy" which
-    contains the information need to stitch tiles together in the acquisition
-    coordinates
+    This saves "{prefix}_shifts.npz" which contains the information need to stitch tiles
+    together in the acquisition coordinates
 
     Args:
         data_path (str): Relative path to data
@@ -384,14 +374,9 @@ def stitch_tiles(
 
     shifts = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
     tile_shape = shifts["tile_shape"]
-    # TODO adapt to corners with angle
-    tile_corners = np.load(
-        processed_path
-        / data_path
-        / "reg"
-        / f"{prefix}_roi{roi}_acquisition_tile_corners.npy"
+    tile_origins, _ = calculate_tile_positions(
+        shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
     )
-    tile_origins = tile_corners[..., 0].astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros(max_origin + tile_shape)
     if correct_illumination:
