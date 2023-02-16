@@ -356,7 +356,17 @@ def align_spots_roi(
         stitch_and_register,
     )
 
-    stitch_and_register(path, reg_prefix, roi, reference_prefix=ref_prefix)
+    stitch_and_register(
+        path,
+        reference_prefix=ref_prefix,
+        target_prefix=reg_prefix,
+        roi=roi,
+        downsample=5,
+        ref_ch=0,
+        target_ch=0,
+        estimate_scale=False,
+    )
+
     merge_and_align_spots(
         path,
         spots_prefix=spots_prefix,
