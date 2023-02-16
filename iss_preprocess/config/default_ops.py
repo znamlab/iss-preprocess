@@ -1,10 +1,6 @@
 """
 Default parameters for the pipeline.
 """
-from ..image import analyze_dark_frames
-from flexiznam.config import PARAMETERS
-from pathlib import Path
-
 # TODO: Add description of what each option does somewhere. Maybe here
 DEFAULT_OPS = {
     "average_clip_value": 2000,
@@ -43,6 +39,4 @@ DEFAULT_OPS = {
     "cellpose_flow_threshold": 0.4,
 }
 
-processed_path = Path(PARAMETERS["data_root"]["processed"])
 dark_frame_path = "becalia_iss_microscope/calibration/20221209_dark_frame/20221209_dark_frame_MMStack_Pos0.ome.tif"
-DEFAULT_OPS["black_level"], _ = analyze_dark_frames(processed_path / dark_frame_path)
