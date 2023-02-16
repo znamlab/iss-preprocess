@@ -9,6 +9,7 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 import yaml
 import re
+from ..config import DEFAULT_OPS
 
 
 def load_hyb_probes_metadata():
@@ -30,7 +31,12 @@ def load_ops(data_path):
         dict: Options, see config.defaults_ops.py for description
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops_fname = processed_path / data_path / "ops.npy"
+    if ops_fname.exists():
+        ops = np.load(ops_fname, allow_pickle=True).item()
+    else:
+        print("ops.npy not found, using defaults")
+        ops = DEFAULT_OPS.copy()
     return ops
 
 
