@@ -100,8 +100,7 @@ def register_adjacent_tiles(
         ref_round (int, optional): reference round used for registration. Defaults to 0.
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'proj'.
-        prefix (str, optional): the folder name prefix, before round number.
-            Defaults to "round"
+        prefix (str, optional): Full name of the acquisition folder
 
     Returns:
         numpy.array: `shift_right`, X and Y shifts between different columns

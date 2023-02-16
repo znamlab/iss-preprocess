@@ -316,8 +316,8 @@ def align_spots(
         register_adjacent_tiles,
     )
 
-    register_adjacent_tiles(path, reg_prefix)
-    register_adjacent_tiles(path, ref_prefix)
+    register_adjacent_tiles(path, prefix=reg_prefix)
+    register_adjacent_tiles(path, prefix=ref_prefix)
     merge_and_align_spots_all_rois(
         path, spots_prefix=spots_prefix, reg_prefix=reg_prefix
     )
