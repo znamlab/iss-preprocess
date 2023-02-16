@@ -650,14 +650,15 @@ def stitch_and_register(
         )
         final_shape = np.max(stacks_shape, axis=0)
         padding = final_shape[np.newaxis, :] - stacks_shape
+        if padding.max() > 20:
+            raise IOError("Large shape difference. Check that everything is fine.")
         if np.sum(padding[0, :]):
-            stitched_stack_target = np.pad(
-                stitched_stack_target, [(0, p) for p in padding[0]]
-            )
+            pad_target = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[0]]
+            # if uneven, need to add one after
+            stitched_stack_target = np.pad(stitched_stack_target, pad_target)
         if np.sum(padding[1, :]):
-            stitched_stack_reference = np.pad(
-                stitched_stack_reference, [(0, p) for p in padding[1]]
-            )
+            pad_ref = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[1]]
+            stitched_stack_reference = np.pad(stitched_stack_reference, pad_ref)
 
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
@@ -684,11 +685,15 @@ def stitch_and_register(
     stitched_stack_target = transform_image(
         stitched_stack_target, scale=scale, angle=angle, shift=shift * downsample
     )
+
+    shift *= downsample
+    shift += np.asarray(pad_ref)[:, 0] - np.asarray(pad_target)[:, 0]
+
     return (
         stitched_stack_target,
         stitched_stack_reference,
         angle,
-        shift * downsample,
+        shift,
         scale,
     )
 
