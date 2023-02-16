@@ -319,7 +319,7 @@ def align_spots(
     register_adjacent_tiles(path, prefix=reg_prefix)
     register_adjacent_tiles(path, prefix=ref_prefix)
     merge_and_align_spots_all_rois(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, ref_prefix=ref_prefix
     )
 
 
@@ -356,7 +356,7 @@ def align_spots_roi(
         stitch_and_register,
     )
 
-    stitch_and_register(path, reg_prefix, roi, ref_prefix=ref_prefix)
+    stitch_and_register(path, reg_prefix, roi, reference_prefix=ref_prefix)
     merge_and_align_spots(
         path,
         spots_prefix=spots_prefix,
