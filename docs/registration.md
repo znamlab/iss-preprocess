@@ -3,7 +3,7 @@
 Final data is in one common coordinate system. It takes quite a few steps to get that.
 This file describe how genes and barcodes are registered together. 
 
-TODO: integrate hyb, reference, anchor, mcherry
+TODO: integrate hyb, anchor, mcherry
 
 # Registering a single acquisition
 
@@ -66,7 +66,7 @@ We estimate how much overlap there is between tiles (and therefore how much we n
 to shift them to merge) by phase correlation. This is done for each acquisition for one
 reference tile and is used for everything. No need to re-run for each ROI.
 
-This is done by calling:
+This is done by `iss align_spots` or manually by calling:
 ```python
 shift_right, shift_down, tile_shape = iss.pipeline.register_adjacent_tiles(
     data_path, ref_coors=ops['ref_tile'], prefix='genes_round_1_1')
@@ -102,4 +102,5 @@ This is done for raw images with `iss.pipeline.stitch_and_register`. It returns 
 two registered mosaic at full resolution as well as the transformation parameter: shift, 
 angle and scale.
 
-This output is saved as `"reg" / f"{prefix}_roi{roi}_shifts_to_global.npz"`
+This is called by `iss align_spots` which saves the output as
+`"reg" / f"{prefix}_roi{roi}_tform_to_ref.npz"`

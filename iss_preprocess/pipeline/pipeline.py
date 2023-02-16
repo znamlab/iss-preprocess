@@ -9,8 +9,85 @@ from ..io import (
     load_metadata,
     get_roi_dimensions,
     load_ops,
+    load_tile_by_coors,
 )
-from ..image import tilestats_and_mean_image
+from ..image import tilestats_and_mean_image, apply_illumination_correction
+from .sequencing import load_and_register_sequencing_tile
+from .hybridisation import load_and_register_hyb_tile
+
+
+def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
+    """Load one single tile
+
+    Load a tile of `prefix` with channels/rounds registered, apply illumination correction
+    and filtering.
+
+    Args:
+        data_path (str): Relative path to data
+        tile_coors (tuple): (Roi, tileX, tileY) tuple
+        prefix (str): Acquisition to load. If `genes_round` or `barcode_round` will load
+            all the rounds.
+        filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
+            from `ops`. Default to True
+
+    Returns:
+        np.array: A (X x Y x Nchannels x Nrounds) registered stack
+    """
+    ops = load_ops(data_path)
+    metadata = load_metadata(data_path)
+
+    if filter_r and isinstance(filter_r, bool):
+        filter_r = ops["filter_r"]
+    if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
+        parts = prefix.split("_")
+        if len(parts) > 2:
+            acq_type = "_".join(parts[:2])
+            rounds = np.array([int(parts[2])])
+        else:
+            acq_type = prefix
+            rounds = np.arange(ops[f"{acq_type}s"]) + 1
+
+        stack, bad_pixels = load_and_register_sequencing_tile(
+            data_path,
+            tile_coors=tile_coors,
+            suffix=ops["projection"],
+            prefix=acq_type,
+            filter_r=filter_r,
+            correct_channels=True,
+            correct_illumination=True,
+            corrected_shifts=True,
+            specific_rounds=rounds,
+        )
+        # the transforms for all rounds are the same and saved with round 1
+        prefix = acq_type + "_1_1"
+
+    elif prefix in metadata["hybridisation"]:
+        stack, bad_pixels = load_and_register_hyb_tile(
+            data_path,
+            tile_coors=tile_coors,
+            prefix=prefix,
+            suffix=ops["hybridisation_projection"],
+            filter_r=filter_r,
+            correct_illumination=True,
+            correct_channels=True,
+        )
+        stack = np.array(stack, ndmin=4)
+    else:
+        stack = load_tile_by_coors(
+            data_path,
+            tile_coors=tile_coors,
+            suffix=ops["projection"],
+            prefix=prefix,
+        )
+        bad_pixels = np.zeros(stack.shape, dtype=bool)
+        stack = apply_illumination_correction(data_path, stack, prefix)
+
+    stack[bad_pixels] = 0
+    # ensure we have 4d to match acquisitions with rounds
+    if stack.ndim == 3:
+        stack = stack[..., np.newaxis]
+
+    return stack
 
 
 def batch_process_tiles(data_path, script, additional_args=""):

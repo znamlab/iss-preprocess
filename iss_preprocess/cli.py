@@ -287,56 +287,6 @@ def segment_all(path, prefix, use_gpu=False):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
-@click.option("-w", "--which", default="within", help="Either `within` or `across`")
-@click.option(
-    "--by-tiles/--no-by-tiles",
-    default=False,
-    help="Run across registration on all single tiles instead of the stitched image",
-)
-def register_acquisition(path, which, prefix, by_tiles):
-    """Start sbatch job to register either within or across acquisitions"""
-    from iss_preprocess.pipeline import register_acquisitions
-
-    register_acquisitions(path, which, prefix=prefix, by_tiles=by_tiles)
-
-
-@cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
-def register_within_acquisition(path, prefix):
-    """Save the information required to stitch one acquisition"""
-    from iss_preprocess.pipeline import register_within_acquisition
-
-    register_within_acquisition(path, prefix)
-
-
-@cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Prefix to register, e.g. 'DAPI_1")
-@click.option("-r", "--roi", default=1, help="Number of the ROI to register.")
-@click.option(
-    "--tilex",
-    default=None,
-    help="X of tile to register. If None will use stitched image.",
-)
-@click.option(
-    "--tiley",
-    default=None,
-    help="Y of tile to register. If None will use stitched image.",
-)
-@click.option("--scale/--no-scale", help="Estimate scale changes", default=False)
-def register_to_reference(path, prefix, roi, tilex, tiley, scale):
-    """Register one acquisition to the reference"""
-    from iss_preprocess.pipeline import register_across_acquisitions
-
-    register_across_acquisitions(
-        path, prefix, roi, tilex=tilex, tiley=tiley, estimate_scale=scale
-    )
-
-
-@cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-s",
     "--spots-prefix",
@@ -347,11 +297,27 @@ def register_to_reference(path, prefix, roi, tilex, tiley, scale):
     "-g",
     "--reg_prefix",
     default="barcode_round_1_1",
-    help="Directory prefix to registration.",
+    help="Directory prefix to registration target.",
 )
-def align_spots(path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1"):
-    from iss_preprocess.pipeline import merge_and_align_spots_all_rois
+@click.option(
+    "-r",
+    "--ref_prefix",
+    default="genes_round_1_1",
+    help="Directory prefix to registration reference.",
+)
+def align_spots(
+    path,
+    spots_prefix="barcode_round",
+    reg_prefix="barcode_round_1_1",
+    ref_prefix="genes_round_1_1",
+):
+    from iss_preprocess.pipeline import (
+        merge_and_align_spots_all_rois,
+        register_adjacent_tiles,
+    )
 
+    register_adjacent_tiles(path, reg_prefix)
+    register_adjacent_tiles(path, ref_prefix)
     merge_and_align_spots_all_rois(
         path, spots_prefix=spots_prefix, reg_prefix=reg_prefix
     )
@@ -372,13 +338,30 @@ def align_spots(path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_
     help="Directory prefix to registration.",
 )
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
+@click.option(
+    "-f",
+    "--ref_prefix",
+    default="genes_round_1_1",
+    help="Directory prefix to use as a reference for registration.",
+)
 def align_spots_roi(
-    path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1", roi=1
+    path,
+    spots_prefix="barcode_round",
+    reg_prefix="barcode_round_1_1",
+    roi=1,
+    ref_prefix="genes_round_1_1",
 ):
-    from iss_preprocess.pipeline import merge_and_align_spots
+    from iss_preprocess.pipeline import (
+        merge_and_align_spots,
+        stitch_and_register,
+    )
 
+    stitch_and_register(path, reg_prefix, roi, ref_prefix=ref_prefix)
     merge_and_align_spots(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
+        path,
+        spots_prefix=spots_prefix,
+        reg_prefix=reg_prefix,
+        roi=roi,
     )
 
 
