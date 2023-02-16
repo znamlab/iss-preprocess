@@ -26,6 +26,8 @@ def batch_process_tiles(data_path, script, additional_args=""):
     roi_dims = get_roi_dimensions(data_path)
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
     ops = load_ops(data_path)
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
@@ -36,7 +38,8 @@ def batch_process_tiles(data_path, script, additional_args=""):
                     f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
                 )
                 args = args + additional_args
-                args = args + f" --output={Path.home()}/slurm_logs/iss_{script}_%j.out"
+                log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
+                args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
                 command = f"sbatch {args} {script_path}"
                 print(command)
                 subprocess.Popen(
