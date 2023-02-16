@@ -497,7 +497,7 @@ def merge_and_align_spots(
     )
 
     # get transform to global coordinate and apply to merged spots
-    tform2ref = np.load(reg_path / f"{reg_prefix}_tform_to_ref.npz")
+    tform2ref = np.load(reg_path / f"{reg_prefix}_roi{roi}_tform_to_ref.npz")
     spots_tform = make_transform(
         tform2ref["scale"], tform2ref["angle"], tform2ref["shift"], stitched_shape
     )
