@@ -146,7 +146,7 @@ def register_adjacent_tiles(
         processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
         shift_right=shift_right,
         shift_down=shift_down,
-        tile_shape=tile_ref.shape,
+        tile_shape=tile_ref.shape[:2],
     )
 
     return shift_right, shift_down, (ypix, xpix)
@@ -255,6 +255,7 @@ def stitch_tiles(
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
     )
+    tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros(max_origin + tile_shape)
     if correct_illumination:
@@ -330,7 +331,7 @@ def merge_roi_spots(
                 keep_spots = home_tile_dist < min_spot_dist
                 all_spots.append(spots[keep_spots])
             except FileNotFoundError:
-                print(f"coult not load roi {iroi}, tile {ix}, {iy}")
+                print(f"could not load roi {iroi}, tile {ix}, {iy}")
 
     spots = pd.concat(all_spots, ignore_index=True)
     return spots
@@ -496,7 +497,7 @@ def merge_and_align_spots(
     )
 
     # get transform to global coordinate and apply to merged spots
-    tform2ref = np.load(reg_path / f"{reg_prefix}_tform_to_ref.npz")
+    tform2ref = np.load(reg_path / f"{reg_prefix}_roi{roi}_tform_to_ref.npz")
     spots_tform = make_transform(
         tform2ref["scale"], tform2ref["angle"], tform2ref["shift"], stitched_shape
     )

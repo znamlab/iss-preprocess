@@ -67,6 +67,7 @@ to shift them to merge) by phase correlation. This is done for each acquisition 
 reference tile and is used for everything. No need to re-run for each ROI.
 
 This is done by `iss align_spots` or manually by calling:
+
 ```python
 shift_right, shift_down, tile_shape = iss.pipeline.register_adjacent_tiles(
     data_path, ref_coors=ops['ref_tile'], prefix='genes_round_1_1')
