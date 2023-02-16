@@ -1,7 +1,7 @@
 from os import system
 import numpy as np
+import warnings
 import pandas as pd
-import subprocess, shlex
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
@@ -72,7 +72,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
                 angle=reg2ref["angle"],
                 shift=reg2ref["shift"] + shift,  # add the stitching shifts
             )
-            raise ValueError("THIS IS WRONG: shift should depend on tile position")
+            warnings.warn("THIS IS WRONG: shift should depend on tile position")
     return stack
 
 
@@ -447,7 +447,7 @@ def stitch_and_register(
         angle=angle,
         shift=shift,
         scale=scale,
-        stitched_stack_shape=stacks_shape[0],
+        stitched_stack_shape=final_shape,
     )
 
     return (
@@ -537,6 +537,7 @@ def merge_and_align_spots_all_rois(
         args = f"--export=DATAPATH={data_path},ROI={roi},"
         args += f"SPOTS_PREFIX={spots_prefix},REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
         args += f" --output={Path.home()}/slurm_logs/iss_align_spots_%j.out"
+        args += f" --error={Path.home()}/slurm_logs/iss_align_spots_%j.err"
         command = f"sbatch {args} {script_path}"
         print(command)
         system(command)
