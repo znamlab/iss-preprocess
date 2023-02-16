@@ -146,7 +146,7 @@ def register_adjacent_tiles(
         processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
         shift_right=shift_right,
         shift_down=shift_down,
-        tile_shape=tile_ref[:2],
+        tile_shape=tile_ref.shape[:2],
     )
 
     return shift_right, shift_down, (ypix, xpix)
