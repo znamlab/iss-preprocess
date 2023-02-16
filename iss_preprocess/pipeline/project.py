@@ -4,39 +4,31 @@ import shutil
 from functools import partial
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from os import system
 from ..image import fstack_channels
 from ..io import get_tile_ome, write_stack, get_roi_dimensions
+from .pipeline import batch_process_tiles
 
 
 def project_round(data_path, prefix, overwrite=False):
-    """TODO: update to use `batch_process_tiles`
+    """Start SLURM jobs to z-project all tiles from a single imaging round.
+    Also, copy one of the MicroManager metadata files from raw to processed directory.
 
     Args:
         data_path (str): Relative path to dataset.
         prefix (str):  Full folder name prefix, including round number.
-        overwrite (bool, optional): _description_. Defaults to False.
+        overwrite (bool, optional): Whether to re-project if files already exist.
+            Defaults to False.
     """
-    rois_list = get_roi_dimensions(data_path, prefix)
-    script_path = str(
-        Path(__file__).parent.parent.parent / "scripts" / "project_tile.sh"
-    )
-    for roi in rois_list:
-        for tilex in range(roi[1] + 1):
-            for tiley in range(roi[2] + 1):
-                args = f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={tilex},TILEY={tiley},PREFIX={prefix}"
-                if overwrite:
-                    args = args + ",OVERWRITE=--overwrite"
-                args = (
-                    args + f" --output={Path.home()}/slurm_logs/iss_project_tile_%j.out"
-                )
-                command = f"sbatch {args} {script_path}"
-                print(command)
-                system(command)
-
+    if overwrite:
+        additional_args = ",OVERWRITE=--overwrite"
+    else:
+        additional_args = ""
+    batch_process_tiles(data_path, "project_tile", additional_args=additional_args)
+    # copy one of the tiff metadata files
+    roi_dims = get_roi_dimensions(data_path)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     raw_path = Path(PARAMETERS["data_root"]["raw"])
-    metadata_fname = f"{prefix}_MMStack_{rois_list[0][0]}-Pos000_000_metadata.txt"
+    metadata_fname = f"{prefix}_MMStack_{roi_dims[0][0]}-Pos000_000_metadata.txt"
     target_path = processed_path / data_path / prefix
     target_path.mkdir(parents=True, exist_ok=True)
     shutil.copy(
