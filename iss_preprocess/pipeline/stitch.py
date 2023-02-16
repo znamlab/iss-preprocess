@@ -575,6 +575,7 @@ def register_single_tile(
     target_tile = load_tile(
         data_path, tile_coordinates, target_prefix, coordinate_frame="local"
     )
+    # TODO binarise somehow and use all channels instead of one
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
             ref_tile[:, :, ref_ch, 0],
