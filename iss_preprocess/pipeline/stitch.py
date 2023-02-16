@@ -255,7 +255,8 @@ def stitch_tiles(
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
     )
-    max_origin = np.max(tile_origins, axis=(0, 1)).astype(int)
+    tile_origins = tile_origins.astype(int)
+    max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros(max_origin + tile_shape)
     if correct_illumination:
         ops = load_ops(data_path)
