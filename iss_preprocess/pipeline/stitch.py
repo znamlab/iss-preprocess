@@ -172,7 +172,7 @@ def load_tile(
 
     # now find registration to ref
     reg2ref = np.load(
-        processed_path / data_path / "reg" / f"{prefix}_roi{roi}_shifts_to_global.npz"
+        processed_path / data_path / "reg" / f"{prefix}_roi{roi}_tform_to_ref.npz"
     )
 
     # apply the same registration to all channels and rounds
@@ -520,7 +520,7 @@ def register_across_acquisitions(
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     tilecoor = "" if tilex is None else f"{tilex}_{tiley}_"
-    fname = f"{prefix}_roi{roi}_{tilecoor}shifts_to_global.npz"
+    fname = f"{prefix}_roi{roi}_{tilecoor}tform_to_ref.npz"
     print(f"Saving {fname} in the reg folder")
     np.savez(
         processed_path / data_path / "reg" / fname,
@@ -720,23 +720,25 @@ def merge_and_align_spots(
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = load_ops(data_path)
+    reg_path = processed_path / data_path / "reg"
+    tile_corners = get_tiles_corners(data_path, prefix=spots_prefix, roi=roi)
+    stitched_shape = np.max(tile_corners, axis=(0, 1, 3)).astype(int)
 
-    ref_prefix = f'genes_round_{ops["ref_round"]+1}_1'
-    stitched_stack_barcodes, _, angle, shift, scale = stitch_and_register(
-        data_path, ref_prefix, reg_prefix, roi=roi, downsample=5
-    )
-    spots_tform = make_transform(scale, angle, shift, stitched_stack_barcodes.shape)
-    shift_right, shift_down, tile_shape = register_adjacent_tiles(
-        data_path, ref_coors=ops["ref_tile"], prefix=ref_prefix
-    )
+    # find within acq shifts and merge roi spots
+    shifts = np.load(reg_path / f"{reg_prefix}_shifts.npz")
     spots = merge_roi_spots(
         data_path,
-        shift_right,
-        shift_down,
-        tile_shape,
+        shifts["shift_right"],
+        shifts["shift_down"],
+        shifts["tile_shape"],
         iroi=roi,
         prefix=spots_prefix,
+    )
+    
+    # get transform to global coordinate and apply to merged spots
+    tform2ref = np.load(reg_path / f"{reg_prefix}_tform_to_ref.npz")
+    spots_tform = make_transform(
+        tform2ref["scale"], tform2ref["angle"], tform2ref["shift"], stitched_shape
     )
     transformed_coors = spots_tform @ np.stack(
         [spots["x"], spots["y"], np.ones(len(spots))]
@@ -744,12 +746,6 @@ def merge_and_align_spots(
     spots["x"] = [x for x in transformed_coors[0, :]]
     spots["y"] = [y for y in transformed_coors[1, :]]
     spots.to_pickle(processed_path / data_path / f"{spots_prefix}_spots_{roi}.pkl")
-    np.savez(
-        processed_path / data_path / f"{spots_prefix}_spots_tform_{roi}.npz",
-        angle=angle,
-        shift=shift,
-        tform=spots_tform,
-    )
 
 
 def merge_and_align_spots_all_rois(

@@ -102,4 +102,4 @@ This is done for raw images with `iss.pipeline.stitch_and_register`. It returns 
 two registered mosaic at full resolution as well as the transformation parameter: shift, 
 angle and scale.
 
-This output is saved as `"reg" / f"{prefix}_roi{roi}_shifts_to_global.npz"`
+This output is saved as `"reg" / f"{prefix}_roi{roi}_tform_to_ref.npz"`
