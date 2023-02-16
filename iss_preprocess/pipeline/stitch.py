@@ -20,59 +20,6 @@ from ..reg import (
 )
 
 
-def register_acquisitions(data_path, which, prefix, by_tiles=False):
-    """Start SLURM jobs to register all ROIs.
-
-    Args:
-        data_path (str): Relative path to data
-        which (str): "within" or "across" for acquisition registration and registration
-            to reference acquisiton respectively
-        by_tiles (bool, optional): Register across using single tiles instead of
-            stitched image. Defaults to False.
-        prefix (str): Acquisition to register to "genes_round_1_1".
-
-    """
-
-    ops = load_ops(data_path)
-
-    if which.lower() == "within":
-        script_name = "register_within_acquisition"
-        rois_to_do = [None]
-    elif which.lower() == "across":
-        script_name = "register_across_acquisitions"
-        rois_to_do = ops["use_rois"]
-    else:
-        raise IOError("`which` must be 'within' or 'across'")
-
-    export_args = dict(PREFIX=prefix)
-    if by_tiles:
-        arguments = ",".join([f"{k}={v}" for k, v in export_args.items()])
-        pipeline.batch_process_tiles(
-            data_path, script_name, additional_args="," + arguments
-        )
-    else:
-        export_args["DATAPATH"] = data_path
-        script_path = str(
-            Path(__file__).parent.parent.parent / "scripts" / f"{script_name}.sh"
-        )
-        for roi in rois_to_do:
-            if roi is not None:  # within. we register only one tile in one roi
-                export_args["ROI"] = roi
-            args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
-            args = (
-                args
-                + f" --output={Path.home()}/slurm_logs/iss_reg_{which}_%j.out"
-                + f" --error={Path.home()}/slurm_logs/iss_reg_{which}_%j.err"
-            )
-            command = f"sbatch {args} {script_path}"
-            print(command)
-            subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
-
-
 def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     """Load one single tile
 
@@ -390,135 +337,6 @@ def merge_roi_spots(
     return spots
 
 
-def register_across_acquisitions(
-    data_path,
-    prefix,
-    roi,
-    ref_ch=0,
-    target_ch=0,
-    reference_prefix="genes_round_1_1",
-    estimate_scale=False,
-    tilex=None,
-    tiley=None,
-):
-    """TODO: This function is not needed, use `stitch_and_register` directly.
-
-    Register an acquisition to the reference acquisition
-
-    Args:
-        data_path (str): Relative path to data
-        prefix (str): Acquisition to register
-        roi (int): ROI to register
-        ref_ch (int, optional): Channel from reference to use. Defaults to 0.
-        target_ch (int, optional): Channel from target to use. Defaults to 0.
-        reference_prefix (str, optional): Reference acquisition. Defaults to
-            "genes_round_1_1".
-        estimate_scale (bool, optional): Estimate scale if True. Only shift and angle
-            otherwise. Defaults to True
-        tilex (int, optional): X of tile to register. If not provided will use the whole
-            stitched acquisition. Defaults to None.
-        tiley (int, optional): Y of tile to register. If not provided will use the whole
-            stitched acquisition. Defaults to None.
-    """
-    input_args = locals()
-    for k, v in input_args.items():
-        if not k.startswith("_"):
-            print(f"{k} = {v}")
-    print("", flush=True)
-
-    if tilex is None:
-        assert tiley is None
-        print("Stitch and register", flush=True)
-        _, _, angle, shift, scale = stitch_and_register(
-            data_path,
-            reference_prefix=reference_prefix,
-            target_prefix=prefix,
-            roi=roi,
-            downsample=5,
-            ref_ch=ref_ch,
-            target_ch=target_ch,
-            estimate_scale=estimate_scale,
-        )
-    else:
-        assert tiley is not None
-        print("Register single tile", flush=True)
-        angle, shift, scale = register_single_tile(
-            data_path,
-            reference_prefix=reference_prefix,
-            target_prefix=prefix,
-            tile_coordinates=(roi, tilex, tiley),
-            ref_ch=ref_ch,
-            target_ch=target_ch,
-            estimate_scale=estimate_scale,
-        )
-
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    tilecoor = "" if tilex is None else f"{tilex}_{tiley}_"
-    fname = f"{prefix}_roi{roi}_{tilecoor}tform_to_ref.npz"
-    print(f"Saving {fname} in the reg folder")
-    np.savez(
-        processed_path / data_path / "reg" / fname,
-        angle=angle,
-        shift=shift,
-        scale=scale,
-    )
-
-
-def register_single_tile(
-    data_path,
-    target_prefix,
-    tile_coordinates,
-    reference_prefix="genes_round_1_1",
-    ref_ch=0,
-    target_ch=0,
-    estimate_scale=False,
-):
-    """Register a single tile to the corresponding reference acquisition tile
-
-    Args:
-        data_path (str): Relative path to data
-        target_prefix (str): Acquisition to register
-        tile_coordinates (tuple): (ROI, tileX, tileY) coordinates of tile)
-        reference_prefix (str, optional): Reference acquisition. Defaults to
-            "genes_round_1_1"
-        ref_ch (int, optional): Reference channel. Defaults to 0.
-        target_ch (int, optional): Target channel. Defaults to 0.
-        estimate_scale (bool, optional): Estimate scale if True. Defaults to False.
-
-    Returns:
-        angle, shift, scale: Transform parameters
-    """
-    ref_tile = load_tile_ref_coors(
-        data_path, tile_coordinates, reference_prefix, coordinate_frame="local"
-    )
-    target_tile = load_tile_ref_coors(
-        data_path, tile_coordinates, target_prefix, coordinate_frame="local"
-    )
-    # TODO binarise somehow and use all channels instead of one
-    if estimate_scale:
-        scale, angle, shift = estimate_scale_rotation_translation(
-            ref_tile[:, :, ref_ch, 0],
-            target_tile[:, :, target_ch, 0],
-            niter=3,
-            nangles=11,
-            verbose=True,
-            scale_range=0.01,
-            angle_range=1.0,
-            upsample=False,
-        )
-    else:
-        angle, shift = estimate_rotation_translation(
-            ref_tile[:, :, ref_ch, 0],
-            target_tile[:, :, target_ch, 0],
-            angle_range=1.0,
-            niter=3,
-            nangles=11,
-            upsample=None,
-        )
-        scale = 1
-    return angle, shift, scale
-
-
 def stitch_and_register(
     data_path,
     reference_prefix,
@@ -619,6 +437,17 @@ def stitch_and_register(
 
     stitched_stack_target = transform_image(
         stitched_stack_target, scale=scale, angle=angle, shift=shift
+    )
+
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    fname = f"{target_prefix}_roi{roi}_tform_to_ref.npz"
+    print(f"Saving {fname} in the reg folder")
+    np.savez(
+        processed_path / data_path / "reg" / fname,
+        angle=angle,
+        shift=shift,
+        scale=scale,
+        stitched_stack_shape=stacks_shape[0],
     )
 
     return (

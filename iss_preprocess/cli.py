@@ -353,10 +353,10 @@ def align_spots_roi(
 ):
     from iss_preprocess.pipeline import (
         merge_and_align_spots,
-        register_across_acquisitions,
+        stitch_and_register,
     )
 
-    register_across_acquisitions(path, reg_prefix, roi, ref_prefix=ref_prefix)
+    stitch_and_register(path, reg_prefix, roi, ref_prefix=ref_prefix)
     merge_and_align_spots(
         path,
         spots_prefix=spots_prefix,
