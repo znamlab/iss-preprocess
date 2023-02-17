@@ -8,7 +8,7 @@ from ..reg import (
     estimate_shifts_and_angles_for_tile,
 )
 from .sequencing import load_sequencing_rounds
-from ..io import load_tile_by_coors, load_metadata, load_ops
+from ..io import load_tile_by_coors, load_metadata, load_ops, get_roi_dimensions
 
 
 def register_reference_tile(data_path, prefix="genes_round"):
@@ -119,7 +119,11 @@ def estimate_shifts_by_coors(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
-    (_, shifts_within_channels, shifts_between_channels,) = estimate_shifts_for_tile(
+    (
+        _,
+        shifts_within_channels,
+        shifts_between_channels,
+    ) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
         reference_tforms["scales_between_channels"],
@@ -149,8 +153,7 @@ def correct_shifts(data_path, prefix):
         data_path (str): Relative path to data.
         prefix (str): Directory prefix to use, e.g. "genes_round".
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
@@ -252,8 +255,7 @@ def correct_hyb_shifts(data_path, prefix=None):
         prefix (str): Directory prefix to use, e.g. "genes_round". If None,
             processes all rounds.
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)

@@ -32,7 +32,12 @@ from ..call import (
 
 # AB: LGTM 10/03/23
 def load_sequencing_rounds(
-    data_path, tile_coors=(1, 0, 0), nrounds=7, suffix="fstack", prefix="round"
+    data_path,
+    tile_coors=(1, 0, 0),
+    nrounds=7,
+    suffix="fstack",
+    prefix="round",
+    specific_rounds=None,
 ):
     """Load processed tile images across rounds
 
@@ -40,18 +45,24 @@ def load_sequencing_rounds(
         data_path (str): relative path to dataset.
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
             Defaults to (1,0,0).
-        nrounds (int, optional): Number of rounds to load. Defaults to 7.
+        nrounds (int, optional): Number of rounds to load. Used only if
+            `specific_rounds` is None. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'fstack'.
         prefix (str, optional): the folder name prefix, before round number. Defaults
             to "round"
+        specific_round (list, optional): if not None, specify which rounds must be
+            loaded and ignores `nrounds`. Defaults to None
 
     Returns:
         numpy.ndarray: X x Y x channels x rounds stack.
 
     """
+    if specific_rounds is None:
+        specific_rounds = np.arange(nrounds) + 1
+
     ims = []
-    for iround in range(nrounds):
-        dirname = f"{prefix}_{iround+1}_1"
+    for iround in specific_rounds:
+        dirname = f"{prefix}_{iround}_1"
         ims.append(
             load_tile_by_coors(
                 data_path, tile_coors=tile_coors, suffix=suffix, prefix=dirname
@@ -84,7 +95,7 @@ def setup_barcode_calling(
     all_spots = []
     for ref_tile in ops["barcode_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
-        stack, _ = load_and_register_tile(
+        stack, _ = load_and_register_sequencing_tile(
             data_path,
             ref_tile,
             filter_r=ops["filter_r"],
@@ -121,7 +132,7 @@ def basecall_tile(data_path, tile_coors):
     cluster_means = np.load(processed_path / data_path / "barcode_cluster_means.npy")
     nrounds = cluster_means.shape[0]
 
-    stack, bad_pixels = load_and_register_tile(
+    stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
         filter_r=ops["filter_r"],
@@ -279,7 +290,7 @@ def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
     return pixel_dist, norm_factors
 
 
-def load_and_register_tile(
+def load_and_register_sequencing_tile(
     data_path,
     tile_coors=(1, 0, 0),
     prefix="genes_round",
@@ -289,6 +300,7 @@ def load_and_register_tile(
     corrected_shifts=True,
     correct_illumination=False,
     nrounds=7,
+    specific_rounds=None,
 ):
     """Load sequencing tile and align channels. Optionally, filter, correct
     illumination and channel brightness.
@@ -309,17 +321,33 @@ def load_and_register_tile(
             by robust regression across tiles. Defaults to True.
         correct_illumination (bool, optional): Whether to correct vignetting.
             Defaults to False.
-        nrounds (int, optional): Number of sequencing rounds to load. Defaults to 7.
+        nrounds (int, optional): Number of sequencing rounds to load. Used only if
+            specific_rounds is None. Defaults to 7.
+        specific_rounds (list, optional): if not None, specifies which rounds must be
+            loaded and ignores `nrounds`. Defaults to None
 
     Returns:
-        numpy.ndarray: X x Y x Nch x Nrounds image stack.
+        numpy.ndarray: X x Y x Nch x len(specific_rounds) or Nrounds image stack.
         numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged
             for all channels and rounds (due to registration offsets) and should be discarded
             during analysis.
     """
+    if specific_rounds is None:
+        specific_rounds = np.arange(nrounds) + 1
+    elif isinstance(specific_rounds, int):
+        specific_rounds = [specific_rounds]
+    # ensure we have an array
+    specific_rounds = np.asarray(specific_rounds, dtype=int)
+    assert specific_rounds.min() > 0
+
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     stack = load_sequencing_rounds(
-        data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
+        data_path,
+        tile_coors,
+        suffix=suffix,
+        prefix=prefix,
+        nrounds=nrounds,
+        specific_rounds=specific_rounds,
     )
     if correct_illumination:
         stack = apply_illumination_correction(data_path, stack, prefix)
@@ -339,6 +367,7 @@ def load_and_register_tile(
         tforms["shifts_between_channels"],
         stack.shape[:2],
     )
+    tforms = tforms[:, specific_rounds - 1]
     stack = align_channels_and_rounds(stack, tforms)
 
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
@@ -353,7 +382,7 @@ def load_and_register_tile(
         if correct_channels == "round1_only":
             stack = stack / norm_factors[np.newaxis, np.newaxis, :, 0, np.newaxis]
         else:
-            stack = stack / norm_factors[np.newaxis, np.newaxis, :, :nrounds]
+            stack = stack / norm_factors[np.newaxis, np.newaxis, :, specific_rounds - 1]
 
     return stack, bad_pixels
 
@@ -408,12 +437,13 @@ def run_omp_on_tile(
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
 
-    stack, bad_pixels = load_and_register_tile(
+    stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
         suffix=ops["projection"],
         correct_channels=correct_channels,
         prefix=prefix,
+        nrounds=ops["genes_rounds"],
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 

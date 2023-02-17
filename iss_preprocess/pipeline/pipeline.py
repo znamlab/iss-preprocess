@@ -1,59 +1,93 @@
 import subprocess, shlex
 import warnings
 import numpy as np
-import re
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from . import ara_registration as ara_reg
-from ..io import write_stack, load_metadata
-from ..image import tilestats_and_mean_image
-from ..io import write_stack, load_metadata, load_ops
+from ..io import (
+    write_stack,
+    load_metadata,
+    get_roi_dimensions,
+    load_ops,
+    load_tile_by_coors,
+)
+from ..image import tilestats_and_mean_image, apply_illumination_correction
+from .sequencing import load_and_register_sequencing_tile
+from .hybridisation import load_and_register_hyb_tile
 
 
-def save_roi_dimensions(data_path, prefix):
-    """Determine the number of tiles in each ROI and save them.
+def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
+    """Load one single tile
 
-    Args:
-        data_path (str): Relative path to data.
-        prefix (str): Directory name to use, e.g. "genes_round_1_1".
-    """
-    rois_list = get_roi_dimensions(data_path, prefix)
-
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    (processed_path / data_path).mkdir(parents=True, exist_ok=True)
-
-    np.save(processed_path / data_path / "roi_dims.npy", rois_list)
-
-
-def get_roi_dimensions(data_path, prefix):
-    """Find imaging ROIs and determine their dimensions.
+    Load a tile of `prefix` with channels/rounds registered, apply illumination correction
+    and filtering.
 
     Args:
-        data_path (str): path to data in the raw data directory.
-        prefix (str): directory and file name prefix, e.g. 'round_01_1'
+        data_path (str): Relative path to data
+        tile_coors (tuple): (Roi, tileX, tileY) tuple
+        prefix (str): Acquisition to load. If `genes_round` or `barcode_round` will load
+            all the rounds.
+        filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
+            from `ops`. Default to True
 
+    Returns:
+        np.array: A (X x Y x Nchannels x Nrounds) registered stack
     """
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
-    data_dir = raw_path / data_path / prefix
-    fnames = [p.name for p in data_dir.glob("*.tif")]
-    pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
-    matcher = re.compile(pattern=pattern)
-    tile_coors = np.stack(
-        [np.array(matcher.match(fname).groups(), dtype=int) for fname in fnames]
-    )
+    ops = load_ops(data_path)
+    metadata = load_metadata(data_path)
 
-    rois = np.unique(tile_coors[:, 0])
-    roi_list = []
-    for roi in rois:
-        roi_list.append(
-            [
-                roi,
-                np.max(tile_coors[tile_coors[:, 0] == roi, 1]),
-                np.max(tile_coors[tile_coors[:, 0] == roi, 2]),
-            ]
+    if filter_r and isinstance(filter_r, bool):
+        filter_r = ops["filter_r"]
+    if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
+        parts = prefix.split("_")
+        if len(parts) > 2:
+            acq_type = "_".join(parts[:2])
+            rounds = np.array([int(parts[2])])
+        else:
+            acq_type = prefix
+            rounds = np.arange(ops[f"{acq_type}s"]) + 1
+
+        stack, bad_pixels = load_and_register_sequencing_tile(
+            data_path,
+            tile_coors=tile_coors,
+            suffix=ops["projection"],
+            prefix=acq_type,
+            filter_r=filter_r,
+            correct_channels=True,
+            correct_illumination=True,
+            corrected_shifts=True,
+            specific_rounds=rounds,
         )
+        # the transforms for all rounds are the same and saved with round 1
+        prefix = acq_type + "_1_1"
 
-    return roi_list
+    elif prefix in metadata["hybridisation"]:
+        stack, bad_pixels = load_and_register_hyb_tile(
+            data_path,
+            tile_coors=tile_coors,
+            prefix=prefix,
+            suffix=ops["hybridisation_projection"],
+            filter_r=filter_r,
+            correct_illumination=True,
+            correct_channels=True,
+        )
+        stack = np.array(stack, ndmin=4)
+    else:
+        stack = load_tile_by_coors(
+            data_path,
+            tile_coors=tile_coors,
+            suffix=ops["projection"],
+            prefix=prefix,
+        )
+        bad_pixels = np.zeros(stack.shape, dtype=bool)
+        stack = apply_illumination_correction(data_path, stack, prefix)
+
+    stack[bad_pixels] = 0
+    # ensure we have 4d to match acquisitions with rounds
+    if stack.ndim == 3:
+        stack = stack[..., np.newaxis]
+
+    return stack
 
 
 def batch_process_tiles(data_path, script, additional_args=""):
@@ -66,10 +100,11 @@ def batch_process_tiles(data_path, script, additional_args=""):
             to pass to the sbatch job. Should start with a leading comma.
             Defaults to "".
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = np.load(processed_path / data_path / "roi_dims.npy")
+    roi_dims = get_roi_dimensions(data_path)
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
     ops = load_ops(data_path)
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
@@ -80,7 +115,8 @@ def batch_process_tiles(data_path, script, additional_args=""):
                     f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
                 )
                 args = args + additional_args
-                args = args + f" --output={Path.home()}/slurm_logs/iss_{script}_%j.out"
+                log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
+                args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
                 command = f"sbatch {args} {script_path}"
                 print(command)
                 subprocess.Popen(

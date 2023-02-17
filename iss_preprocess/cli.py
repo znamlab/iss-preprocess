@@ -116,6 +116,16 @@ def project_round(path, prefix, overwrite=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+def register_ref_tile(path, prefix):
+    """Run registration across channels and rounds for the reference tile."""
+    from iss_preprocess.pipeline import register_reference_tile
+
+    register_reference_tile(path, prefix=prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
 )
@@ -240,16 +250,6 @@ def extract(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
-def register_ref_tile(path, prefix):
-    """Run registration across channels and rounds for the reference tile."""
-    from iss_preprocess.pipeline import register_reference_tile
-
-    register_reference_tile(path, prefix=prefix)
-
-
-@cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
 )
@@ -297,13 +297,29 @@ def segment_all(path, prefix, use_gpu=False):
     "-g",
     "--reg_prefix",
     default="barcode_round_1_1",
-    help="Directory prefix to registration.",
+    help="Directory prefix to registration target.",
 )
-def align_spots(path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1"):
-    from iss_preprocess.pipeline import merge_and_align_spots_all_rois
+@click.option(
+    "-r",
+    "--ref_prefix",
+    default="genes_round_1_1",
+    help="Directory prefix to registration reference.",
+)
+def align_spots(
+    path,
+    spots_prefix="barcode_round",
+    reg_prefix="barcode_round_1_1",
+    ref_prefix="genes_round_1_1",
+):
+    from iss_preprocess.pipeline import (
+        merge_and_align_spots_all_rois,
+        register_adjacent_tiles,
+    )
 
+    register_adjacent_tiles(path, prefix=reg_prefix)
+    register_adjacent_tiles(path, prefix=ref_prefix)
     merge_and_align_spots_all_rois(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, ref_prefix=ref_prefix
     )
 
 
@@ -322,13 +338,40 @@ def align_spots(path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_
     help="Directory prefix to registration.",
 )
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
+@click.option(
+    "-f",
+    "--ref_prefix",
+    default="genes_round_1_1",
+    help="Directory prefix to use as a reference for registration.",
+)
 def align_spots_roi(
-    path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1", roi=1
+    path,
+    spots_prefix="barcode_round",
+    reg_prefix="barcode_round_1_1",
+    roi=1,
+    ref_prefix="genes_round_1_1",
 ):
-    from iss_preprocess.pipeline import merge_and_align_spots
+    from iss_preprocess.pipeline import (
+        merge_and_align_spots,
+        stitch_and_register,
+    )
+
+    stitch_and_register(
+        path,
+        reference_prefix=ref_prefix,
+        target_prefix=reg_prefix,
+        roi=roi,
+        downsample=5,
+        ref_ch=0,
+        target_ch=0,
+        estimate_scale=False,
+    )
 
     merge_and_align_spots(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
+        path,
+        spots_prefix=spots_prefix,
+        reg_prefix=reg_prefix,
+        roi=roi,
     )
 
 
@@ -433,5 +476,6 @@ def overview_for_ara_registration(
         sigma_blur (float, optional): Sigma for gaussian blur. Defaults to 10.
     """
     from iss_preprocess.pipeline.ara_registration import overview_single_roi
-    print('Calling')
+
+    print("Calling")
     overview_single_roi(data_path=path, roi=roi, slice_id=slice_id, sigma_blur=sigma)

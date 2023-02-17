@@ -59,28 +59,34 @@ def cellpose_segmentation(
     return masks
 
 
-def count_rolonies(masks, spots):
+def count_rolonies(masks, spots, grouping_column):
     """
-    Count number of rolonies within each mask and return a DataFrame of gene counts.
+    Count number of rolonies within each mask and return a DataFrame of counts.
 
     Args:
-        masks (numpy.ndarray): cell masks
-        spots (pandas.DataFrame): table of spot locations for each gene
+        masks (numpy.ndarray): cell masks. Must be positive integers
+        spots (pandas.DataFrame): table of spot locations for each group
+        grouping_column (str): name of the column to group counts, usually 'gene' or
+            'bases'
 
     Returns:
-        A DataFrame of gene counts.
+        A DataFrame of counts by unique values of `grouping_column`.
 
     """
-    gene_names = spots["gene"].unique()
-    nmasks = np.max(masks)
-    gene_matrix = np.zeros((nmasks + 1, len(gene_names)))
-    gene_df = pd.DataFrame(gene_matrix, columns=gene_names)
-    for gene in gene_names:
-        this_gene = spots[spots["gene"] == gene]
-        mask_ids = masks[
-            this_gene["y"].round().to_numpy().astype(int),
-            this_gene["x"].round().to_numpy().astype(int),
-        ]
-        for mask in mask_ids:
-            gene_df.loc[mask, gene] += 1
-    return gene_df
+
+    # find value of mask for each rolonie
+    xy = np.round(spots.loc[:, ["x", "y"]].values).astype(int)
+    mask_val = masks[xy[:, 1], xy[:, 0]]
+    # add that to the spots df
+    spots["mask_id"] = mask_val
+    # count the number of occurence of each ("mask_id", genes or barcode) pair
+    cell_df = pd.DataFrame(
+        spots.loc[:, ["mask_id", grouping_column]]
+        .groupby(["mask_id", grouping_column])
+        .aggregate(len)
+    )
+    # formating
+    cell_df = cell_df.unstack(grouping_column)
+    cell_df[np.isnan(cell_df)] = 0
+
+    return cell_df[0].astype(int)
