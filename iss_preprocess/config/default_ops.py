@@ -5,6 +5,7 @@ Default parameters for the pipeline.
 DEFAULT_OPS = {
     "average_clip_value": 2000,
     "average_median_filter": 5,
+    "fit_channel_correction": True,
     "correction_tiles": [(1, 0, 0)],
     "correction_quantile": 0.9999,
     "ref_tile": (1, 0, 0),

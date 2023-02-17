@@ -81,6 +81,7 @@ def setup_barcode_calling(
             because N channels is equal to N clusters) array of cluster means,
             normalised by round 0 intensity
         all_spots (pandas.DataFrame): All detected spots.
+
     """
     ops = load_ops(data_path)
     all_spots = []
@@ -108,6 +109,10 @@ def setup_barcode_calling(
         all_spots.append(spots)
     all_spots = pd.concat(all_spots, ignore_index=True)
     cluster_means = get_cluster_means(all_spots, vis=True, score_thresh=score_thresh)
+
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    save_path = processed_path / data_path / "barcode_cluster_means.npy"
+    np.save(save_path, cluster_means)
     return cluster_means, all_spots
 
 
@@ -181,23 +186,15 @@ def basecall_tile(data_path, tile_coors):
     )
 
 
-def setup_omp(
-    stack,
-    codebook_name="codebook_83gene_pool.csv",
-    detection_threshold=40,
-    isolation_threshold=30,
-):
+def setup_omp(data_path, score_thresh=0):
     """Prepare variables required to run the OMP algorithm. Finds isolated spots using
     STD across rounds and channels. Detected spots are then used to determine the
     bleedthrough matrix using scaled k-means.
 
     Args:
-        stack (numpy.ndarray): X x Y x C x R image stack.
-        codebook_name (str): filename of the codebook to use.
-        detection_threshold (float): spot detection threshold to find spots for
-            training the bleedthrough matrix.
-        isolation_threshold (float): threshold used to selected isolated spots
-            based on average values in the annulus around each spot.
+        data_path (str): Relative path to data.
+        score_thresh (float): Dot product threshold to include spots in cluster
+            mean calculation. Defaults to 0.
 
     Returns:
         numpy.ndarray: N x M dictionary, where N = R * C and M is the
@@ -206,23 +203,42 @@ def setup_omp(
         float: norm shift for the OMP algorithm, estimated as median norm of all pixels.
 
     """
-    spots = detect_isolated_spots(
-        np.std(stack, axis=(2, 3)),
-        detection_threshold=detection_threshold,
-        isolation_threshold=isolation_threshold,
-    )
+    ops = load_ops(data_path)
+    all_spots = []
+    for ref_tile in ops["barcode_ref_tiles"]:
+        print(f"detecting spots in tile {ref_tile}")
+        stack, _ = load_and_register_tile(
+            data_path,
+            ref_tile,
+            filter_r=ops["filter_r"],
+            prefix="genes_round",
+            suffix=ops["projection"],
+            correct_channels=True,
+        )
+        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+        spots = detect_isolated_spots(
+            np.std(stack, axis=(2, 3)),
+            detection_threshold=ops["detection_threshold"],
+            isolation_threshold=ops["isolation_threshold"],
+        )
 
-    extract_spots(spots, stack)
-    cluster_means = get_cluster_means(spots, vis=True)
+        extract_spots(spots, stack)
+        all_spots.append(spots)
+    all_spots = pd.concat(all_spots, ignore_index=True)
+    cluster_means = get_cluster_means(all_spots, vis=True, score_thresh=score_thresh)
     codebook = pd.read_csv(
-        Path(__file__).parent.parent / "call" / codebook_name,
+        Path(__file__).parent.parent / "call" / ops["codebook"],
         header=None,
         names=["gii", "seq", "gene"],
     )
-    gene_dict, unique_genes = make_gene_templates(cluster_means, codebook, vis=True)
+    gene_dict, gene_names = make_gene_templates(cluster_means, codebook, vis=True)
 
-    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
-    return gene_dict, unique_genes, norm_shift
+    norm_shift = np.sqrt(np.median(np.sum(stack ** 2, axis=(2, 3))))
+    save_path = Path(PARAMETERS["data_root"]["processed"]) / data_path / "gene_dict.npz"
+    np.savez(
+        save_path, gene_dict=gene_dict, gene_names=gene_names, norm_shift=norm_shift
+    )
+    return gene_dict, gene_names, norm_shift
 
 
 # AB: LGTM
@@ -274,10 +290,10 @@ def estimate_channel_correction(
 
     cumulative_pixel_dist = np.cumsum(pixel_dist, axis=0)
     cumulative_pixel_dist = cumulative_pixel_dist / cumulative_pixel_dist[-1, :, :]
-    norm_factors = np.zeros((nch, nrounds))
+    norm_factors_raw = np.zeros((nch, nrounds))
     for iround in range(nrounds):
         for ich in range(nch):
-            norm_factors[ich, iround] = np.argmax(
+            norm_factors_raw[ich, iround] = np.argmax(
                 cumulative_pixel_dist[:, ich, iround] > ops["correction_quantile"]
             )
 

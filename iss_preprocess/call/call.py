@@ -23,9 +23,9 @@ def get_cluster_means(spots, vis=False, score_thresh=0.0):
             greater than this contribute to new estimate of mean vector. Defaults to 0.
 
     Returns:
-        cluster_means (list): A list with Nrounds elements. Each a Nch x Ncl (square
-            because N channels is equal to N clusters) array of cluster means,
-            normalised by round 0 intensity
+        cluster_means (list): A list with Nrounds elements. Each a Ncl x Nch (square
+            because N channels is equal to N clusters) array of cluster means
+            
     """
     x = np.stack(spots["trace"], axis=2)  # round x channels x spots
     nrounds = x.shape[0]
@@ -35,15 +35,16 @@ def get_cluster_means(spots, vis=False, score_thresh=0.0):
         _, ax2 = plt.subplots(nrows=2, ncols=ceil(nrounds / 2))
 
     cluster_means = []
-    cluster_intensity = np.zeros((nrounds, nch))
     for iround in range(nrounds):
-        norm_cluster_mean, _, cluster_ind, _, _, _ = scaled_k_means(
+        _, _, cluster_ind, _, _, _ = scaled_k_means(
             x[iround, :, :].T, np.eye(nch), score_thresh=score_thresh
         )
-        cluster_means.append(norm_cluster_mean)
-        for ich in range(nch):
-            # TODO: should this be a norm instead of a mean?
-            cluster_intensity[iround, ich] = np.mean(x[iround, ich, cluster_ind == ich])
+        cluster_mean = np.zeros((nch, nch))
+        for icluster in range(nch):
+            cluster_mean[icluster, :] = np.mean(
+                x[iround, :, cluster_ind == icluster], axis=0
+            )
+        cluster_means.append(cluster_mean)
         if vis:
             plt.sca(ax2.flatten()[iround])
             for ich in range(nch):
@@ -54,20 +55,13 @@ def get_cluster_means(spots, vis=False, score_thresh=0.0):
                     markersize=1,
                 )
             plt.title(f"Round {iround}")
-    # normalize intensity to first round
-    cluster_intensity = cluster_intensity / cluster_intensity[0, :]
-    for iround in range(nrounds):
-        for ich in range(nch):
-            cluster_means[iround][ich, :] = (
-                cluster_means[iround][ich, :] * cluster_intensity[iround, ich]
-            )
     if vis:
-        for ich in range(nch):
-            plt.sca(ax1[ich])
-            plt.imshow(np.stack(cluster_means, axis=2)[ich, :, :])
+        for icluster in range(nch):
+            plt.sca(ax1[icluster])
+            plt.imshow(np.stack(cluster_means, axis=2)[icluster, :, :])
             plt.xlabel("rounds")
             plt.ylabel("channels")
-            plt.title(f"channel {ich+1}")
+            plt.title(f"Cluster {icluster+1}")
         plt.tight_layout()
     return cluster_means
 
