@@ -115,6 +115,18 @@ def project_round(path, prefix, overwrite=False):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
+)
+def check_projection(path, prefix):
+    """Check if projection has completed for all tile."""
+    import iss_preprocess.pipeline as pipeline
+
+    pipeline.check_projection(path, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 def register_ref_tile(path, prefix):
     """Run registration across channels and rounds for the reference tile."""
@@ -140,10 +152,7 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path,
-        tile_coors=(roi, tilex, tiley),
-        prefix=prefix,
-        suffix=suffix,
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix,
     )
 
 
@@ -360,8 +369,7 @@ def create_grand_averages(path):
     from iss_preprocess import pipeline
 
     pipeline.create_grand_averages(
-        path,
-        prefix_todo=("genes_round", "barcode_round"),
+        path, prefix_todo=("genes_round", "barcode_round"),
     )
 
 
@@ -419,10 +427,7 @@ def create_single_average(
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
 @click.option("--sigma", help="Sigma for gaussian blur")
 def overview_for_ara_registration(
-    path,
-    roi,
-    slice_id,
-    sigma=10.0,
+    path, roi, slice_id, sigma=10.0,
 ):
     """Generate the overview of one ROI used for registration
 
