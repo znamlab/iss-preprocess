@@ -9,8 +9,14 @@ Welcome to iss-preprocess's documentation!
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+
    registration
-   modules
+
+.. toctree::
+   :maxdepth: 3
+   :caption: API reference:
+
+   iss_preprocess
 
 
 Indices and tables
