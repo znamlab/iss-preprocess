@@ -10,6 +10,12 @@ Welcome to iss-preprocess's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   registration
+
+.. toctree::
+   :maxdepth: 3
+   :caption: API reference:
+
    iss_preprocess
 
 
