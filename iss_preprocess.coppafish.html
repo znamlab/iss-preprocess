@@ -1,0 +1,429 @@
+<!doctype html>
+<html class="no-js" lang="en">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.image package" href="iss_preprocess.image.html" /><link rel="prev" title="iss_preprocess.config package" href="iss_preprocess.config.html" />
+
+    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
+        <title>iss_preprocess.coppafish package - iss-preprocess 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">iss-preprocess 0.1 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">iss-preprocess 0.1 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html">iss_preprocess.call package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.config.html">iss_preprocess.config package</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">iss_preprocess.coppafish package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.image.html">iss_preprocess.image package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.io.html">iss_preprocess.io package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html">iss_preprocess.pipeline package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.reg.html">iss_preprocess.reg package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.segment.html">iss_preprocess.segment package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html">iss_preprocess.vis package</a></li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="iss-preprocess-coppafish-package">
+<h1>iss_preprocess.coppafish package<a class="headerlink" href="#iss-preprocess-coppafish-package" title="Permalink to this heading">#</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">#</a></h2>
+</section>
+<section id="module-iss_preprocess.coppafish.utils">
+<span id="iss-preprocess-coppafish-utils-module"></span><h2>iss_preprocess.coppafish.utils module<a class="headerlink" href="#module-iss_preprocess.coppafish.utils" title="Permalink to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.coppafish.utils.annulus">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.coppafish.utils.</span></span><span class="sig-name descname"><span class="pre">annulus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">r0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r_xy</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#iss_preprocess.coppafish.utils.annulus" title="Permalink to this definition">#</a></dt>
+<dd><p>Gets structuring element used to assess if spot isolated.
+:param r0: Inner radius within which values are all zero.
+:param r_xy: Outer radius in xy direction.</p>
+<blockquote>
+<div><p>Can be float not integer because all values with <cite>radius &lt; r_xy1</cite> and <cite>&gt; r0</cite> will be set to <cite>1</cite>.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>r_z</strong> – Outer radius in z direction. Size in z-pixels.
+None means 2D annulus returned.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt><cite>int [2*floor(r_xy1)+1, 2*floor(r_xy1)+1, 2*floor(r_z1)+1]</cite>.</dt><dd><p>Structuring element with each element either <cite>0</cite> or <cite>1</cite>.</p>
+</dd>
+</dl>
+</p>
+</dd>
+</dl>
+<p>adapted from coppafish</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.coppafish.utils.ftrans2">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.coppafish.utils.</span></span><span class="sig-name descname"><span class="pre">ftrans2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">b</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#iss_preprocess.coppafish.utils.ftrans2" title="Permalink to this definition">#</a></dt>
+<dd><p>Produces a 2D convolve kernel that corresponds to the 1D convolve kernel, <cite>b</cite>, using the transform, <cite>t</cite>.
+Copied from [MATLAB <cite>ftrans2</cite>](<a class="reference external" href="https://www.mathworks.com/help/images/ref/ftrans2.html">https://www.mathworks.com/help/images/ref/ftrans2.html</a>).
+:param b: <cite>float [Q]</cite>.</p>
+<blockquote>
+<div><p>1D convolve kernel.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>t</strong> – <cite>float [M x N]</cite>.
+Transform to make <cite>b</cite> a 2D convolve kernel.
+If <cite>None</cite>, McClellan transform used.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt><cite>float [(M-1)*(Q-1)/2+1 x (N-1)*(Q-1)/2+1]</cite>.</dt><dd><p>2D convolve kernel.</p>
+</dd>
+</dl>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.coppafish.utils.hanning_diff">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.coppafish.utils.</span></span><span class="sig-name descname"><span class="pre">hanning_diff</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">r1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#iss_preprocess.coppafish.utils.hanning_diff" title="Permalink to this definition">#</a></dt>
+<dd><p>Gets difference of two hanning window 2D convolve kernel.
+Central positive, outer negative with sum of <cite>0</cite>.
+:param r1: radius in pixels of central positive hanning convolve kernel.
+:param r2: radius in pixels of outer negative hanning convolve kernel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt><cite>float [2*r2+1 x 2*r2+1]</cite>.</dt><dd><p>Difference of two hanning window 2D convolve kernel.</p>
+</dd>
+</dl>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.coppafish.utils.scaled_k_means">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.coppafish.utils.</span></span><span class="sig-name descname"><span class="pre">scaled_k_means</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_cluster_mean</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_cluster_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.coppafish.utils.scaled_k_means" title="Permalink to this definition">#</a></dt>
+<dd><p>Does a clustering that minimizes the norm of <code class="docutils literal notranslate"><span class="pre">`x[i]</span> <span class="pre">-</span> <span class="pre">g[i]</span> <span class="pre">*</span> <span class="pre">cluster_mean[cluster_ind[i]]`</span></code>
+for each data point <code class="docutils literal notranslate"><span class="pre">`i`</span></code> in <code class="docutils literal notranslate"><span class="pre">`x`</span></code>, where <code class="docutils literal notranslate"><span class="pre">`g`</span></code> is the gain which is not explicitly computed.
+:param x: <code class="docutils literal notranslate"><span class="pre">`float</span> <span class="pre">[n_points</span> <span class="pre">x</span> <span class="pre">n_dims]`</span></code>.</p>
+<blockquote>
+<div><p>Data set of vectors to build cluster means from.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>initial_cluster_mean</strong> – <code class="docutils literal notranslate"><span class="pre">`float</span> <span class="pre">[n_clusters</span> <span class="pre">x</span> <span class="pre">n_dims]`</span></code>.
+Starting point of mean cluster vectors.</p></li>
+<li><p><strong>score_thresh</strong> – <cite>float</cite> or give different score for each cluster as <cite>float [n_clusters]</cite>
+Scalar between <code class="docutils literal notranslate"><span class="pre">`0`</span></code> and <code class="docutils literal notranslate"><span class="pre">`1`</span></code>.
+Points in <code class="docutils literal notranslate"><span class="pre">`x`</span></code> with dot product to a cluster mean vector greater than this
+contribute to new estimate of mean vector.</p></li>
+<li><p><strong>min_cluster_size</strong> – If less than this many points assigned to a cluster,
+that cluster mean vector will be set to <code class="docutils literal notranslate"><span class="pre">`0`</span></code>.</p></li>
+<li><p><strong>n_iter</strong> – Maximum number of iterations performed.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><dl class="simple">
+<dt>norm_cluster_mean - <code class="docutils literal notranslate"><span class="pre">`float</span> <span class="pre">[n_clusters</span> <span class="pre">x</span> <span class="pre">n_dims]`</span></code>.</dt><dd><p>Final normalised mean cluster vectors.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>cluster_eig_value - <code class="docutils literal notranslate"><span class="pre">`float</span> <span class="pre">[n_clusters]`</span></code>.</dt><dd><p>First eigenvalue of outer product matrix for each cluster.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>cluster_ind - <code class="docutils literal notranslate"><span class="pre">`int</span> <span class="pre">[n_points]`</span></code>.</dt><dd><p>Index of cluster each point was assigned to. <code class="docutils literal notranslate"><span class="pre">`-1`</span></code> means fell below score_thresh and not assigned.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>top_score - <code class="docutils literal notranslate"><span class="pre">`float</span> <span class="pre">[n_points]`</span></code>.</dt><dd><p><cite>top_score[i]</cite> is the dot product score between <cite>x[i]</cite> and <cite>norm_cluster_mean[cluster_ind[i]]</cite>.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>cluster_ind0 - <code class="docutils literal notranslate"><span class="pre">`int</span> <span class="pre">[n_points]`</span></code>.</dt><dd><p>Index of cluster each point was assigned to on first iteration.
+<code class="docutils literal notranslate"><span class="pre">`-1`</span></code> means fell below score_thresh and not assigned.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>top_score0 - <code class="docutils literal notranslate"><span class="pre">`float</span> <span class="pre">[n_points]`</span></code>.</dt><dd><p><cite>top_score0[i]</cite> is the dot product score between <cite>x[i]</cite> and <cite>initial_cluster_mean[cluster_ind0[i]]</cite>.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-iss_preprocess.coppafish">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-iss_preprocess.coppafish" title="Permalink to this heading">#</a></h2>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="iss_preprocess.image.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">iss_preprocess.image package</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="iss_preprocess.config.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">iss_preprocess.config package</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2023, Znamenskiy lab
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">iss_preprocess.coppafish package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-iss_preprocess.coppafish.utils">iss_preprocess.coppafish.utils module</a><ul>
+<li><a class="reference internal" href="#iss_preprocess.coppafish.utils.annulus"><code class="docutils literal notranslate"><span class="pre">annulus()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.coppafish.utils.ftrans2"><code class="docutils literal notranslate"><span class="pre">ftrans2()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.coppafish.utils.hanning_diff"><code class="docutils literal notranslate"><span class="pre">hanning_diff()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.coppafish.utils.scaled_k_means"><code class="docutils literal notranslate"><span class="pre">scaled_k_means()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-iss_preprocess.coppafish">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/scripts/furo.js"></script>
+    </body>
+</html>
