@@ -28,6 +28,8 @@ from ..call import (
     barcode_spots_dot_product,
     BASES,
 )
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.linear_model import LinearRegression
 
 
 # AB: LGTM 10/03/23
@@ -224,7 +226,9 @@ def setup_omp(
 
 
 # AB: LGTM
-def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
+def estimate_channel_correction(
+    data_path, prefix="genes_round", nrounds=7, fit_norm_factors=False
+):
     """Compute grayscale value distribution and normalisation factors
 
     Each `correction_tiles` of `ops` is filtered before being used to compute the
@@ -276,7 +280,32 @@ def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
             norm_factors[ich, iround] = np.argmax(
                 cumulative_pixel_dist[:, ich, iround] > ops["correction_quantile"]
             )
-    return pixel_dist, norm_factors
+
+    if fit_norm_factors:
+        x_ch = np.repeat(np.arange(nch)[:, np.newaxis], nrounds, axis=1)
+        x_round = np.repeat(np.arange(nrounds)[np.newaxis, :], nch, axis=0)
+        channels_encoding = (
+            OneHotEncoder().fit_transform(x_ch.flatten()[:, np.newaxis]).todense()
+        )
+        x = np.hstack((x_round.flatten()[:, np.newaxis], channels_encoding))
+
+        mdl = LinearRegression(fit_intercept=False).fit(
+            x, np.log(norm_factors_raw.flatten()[:, np.newaxis])
+        )
+        norm_factors_fit = np.exp(mdl.predict(x))
+        norm_factors_fit = np.reshape(norm_factors_fit, norm_factors_raw.shape)
+    else:
+        norm_factors_fit = norm_factors_raw
+
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    save_path = processed_path / data_path / f"correction_{prefix}.npz"
+    np.savez(
+        save_path,
+        pixel_dist=pixel_dist,
+        norm_factors=norm_factors_fit,
+        norm_factors_raw=norm_factors_raw,
+    )
+    return pixel_dist, norm_factors_fit, norm_factors_raw
 
 
 def load_and_register_tile(
