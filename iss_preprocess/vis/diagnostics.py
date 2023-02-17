@@ -126,7 +126,7 @@ def _plot_channels_intensity(
             )
         if chan_names is not None:
             ax.set_ylabel(chan_names[i])
-        plt.colorbar(img)
+        plt.colorbar(img, ax=ax)
         ax.set_xticks([])
         ax.set_yticks([])
 
@@ -215,12 +215,13 @@ def plot_tilestats_distributions(
     ops = load_ops(data_path)
     camera_order = ops["camera_order"]
     distri = distributions.copy()
-    fig = plt.figure(figsize=(10, 20))
+    fig = plt.figure(figsize=(10, 20), facecolor="white")
     colors = ["blue", "green", "red", "purple"]
     # TODO: adapt to varying number of rounds
+    nrounds = [np.sum([k.startswith(p) for k in distri]) for p in grand_averages]
     for ip, prefix in enumerate(grand_averages):
         grand_data = distri.pop(prefix)
-        ax = fig.add_subplot(11, 2, 1 + ip)
+        ax = fig.add_subplot(np.max(nrounds), 2, 1 + ip)
         ax.set_title(prefix)
         for c, i in enumerate(np.argsort(camera_order)):
             ax.plot(
@@ -245,7 +246,7 @@ def plot_tilestats_distributions(
                     label=f"Channel {c}",
                     color=colors[c],
                 )
-            ax.set_ylim(-0.3, 0.3)
+            ax.set_ylim(-0.4, 0.4)
 
     for ax in fig.axes:
         ax.axvline(2**12, color="k", zorder=-10)
