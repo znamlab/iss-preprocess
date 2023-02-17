@@ -1,0 +1,555 @@
+<!doctype html>
+<html class="no-js" lang="en">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.call package" href="iss_preprocess.call.html" /><link rel="prev" title="Welcome to iss-preprocess’s documentation!" href="index.html" />
+
+    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
+        <title>iss_preprocess package - iss-preprocess 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">iss-preprocess 0.1 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">iss-preprocess 0.1 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">iss_preprocess package</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html">iss_preprocess.call package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.config.html">iss_preprocess.config package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.coppafish.html">iss_preprocess.coppafish package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.image.html">iss_preprocess.image package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.io.html">iss_preprocess.io package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html">iss_preprocess.pipeline package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.reg.html">iss_preprocess.reg package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.segment.html">iss_preprocess.segment package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html">iss_preprocess.vis package</a></li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="iss-preprocess-package">
+<h1>iss_preprocess package<a class="headerlink" href="#iss-preprocess-package" title="Permalink to this heading">#</a></h1>
+<section id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this heading">#</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.call.html">iss_preprocess.call package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html#module-iss_preprocess.call.call">iss_preprocess.call.call module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.call.basecall_rois"><code class="docutils literal notranslate"><span class="pre">basecall_rois()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.call.call_genes"><code class="docutils literal notranslate"><span class="pre">call_genes()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.call.correct_barcode_sequences"><code class="docutils literal notranslate"><span class="pre">correct_barcode_sequences()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.call.extract_spots"><code class="docutils literal notranslate"><span class="pre">extract_spots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.call.get_cluster_means"><code class="docutils literal notranslate"><span class="pre">get_cluster_means()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.call.rois_to_array"><code class="docutils literal notranslate"><span class="pre">rois_to_array()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html#module-iss_preprocess.call.omp">iss_preprocess.call.omp module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.omp.barcode_spots_dot_product"><code class="docutils literal notranslate"><span class="pre">barcode_spots_dot_product()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.omp.make_background_vectors"><code class="docutils literal notranslate"><span class="pre">make_background_vectors()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.omp.make_gene_templates"><code class="docutils literal notranslate"><span class="pre">make_gene_templates()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.omp.omp"><code class="docutils literal notranslate"><span class="pre">omp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.omp.omp_weighted"><code class="docutils literal notranslate"><span class="pre">omp_weighted()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.omp.refine_gene_templates"><code class="docutils literal notranslate"><span class="pre">refine_gene_templates()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.omp.run_omp"><code class="docutils literal notranslate"><span class="pre">run_omp()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html#module-iss_preprocess.call.spot_shape">iss_preprocess.call.spot_shape module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.spot_shape.apply_symmetry"><code class="docutils literal notranslate"><span class="pre">apply_symmetry()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.spot_shape.detect_spots_by_shape"><code class="docutils literal notranslate"><span class="pre">detect_spots_by_shape()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.spot_shape.find_gene_spots"><code class="docutils literal notranslate"><span class="pre">find_gene_spots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html#iss_preprocess.call.spot_shape.get_spot_shape"><code class="docutils literal notranslate"><span class="pre">get_spot_shape()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html#module-iss_preprocess.call">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.config.html">iss_preprocess.config package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.config.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.config.html#module-iss_preprocess.config.default_ops">iss_preprocess.config.default_ops module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.config.html#module-iss_preprocess.config">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.coppafish.html">iss_preprocess.coppafish package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.coppafish.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.coppafish.html#module-iss_preprocess.coppafish.utils">iss_preprocess.coppafish.utils module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.coppafish.html#iss_preprocess.coppafish.utils.annulus"><code class="docutils literal notranslate"><span class="pre">annulus()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.coppafish.html#iss_preprocess.coppafish.utils.ftrans2"><code class="docutils literal notranslate"><span class="pre">ftrans2()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.coppafish.html#iss_preprocess.coppafish.utils.hanning_diff"><code class="docutils literal notranslate"><span class="pre">hanning_diff()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.coppafish.html#iss_preprocess.coppafish.utils.scaled_k_means"><code class="docutils literal notranslate"><span class="pre">scaled_k_means()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.coppafish.html#module-iss_preprocess.coppafish">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.image.html">iss_preprocess.image package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.image.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.image.html#module-iss_preprocess.image.correction">iss_preprocess.image.correction module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html#iss_preprocess.image.correction.analyze_dark_frames"><code class="docutils literal notranslate"><span class="pre">analyze_dark_frames()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html#iss_preprocess.image.correction.apply_illumination_correction"><code class="docutils literal notranslate"><span class="pre">apply_illumination_correction()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html#iss_preprocess.image.correction.compute_distribution"><code class="docutils literal notranslate"><span class="pre">compute_distribution()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html#iss_preprocess.image.correction.filter_stack"><code class="docutils literal notranslate"><span class="pre">filter_stack()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html#iss_preprocess.image.correction.tilestats_and_mean_image"><code class="docutils literal notranslate"><span class="pre">tilestats_and_mean_image()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.image.html#module-iss_preprocess.image.fstack">iss_preprocess.image.fstack module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html#iss_preprocess.image.fstack.fstack"><code class="docutils literal notranslate"><span class="pre">fstack()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html#iss_preprocess.image.fstack.fstack_channels"><code class="docutils literal notranslate"><span class="pre">fstack_channels()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html#iss_preprocess.image.fstack.gauss3P"><code class="docutils literal notranslate"><span class="pre">gauss3P()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html#iss_preprocess.image.fstack.gfocus"><code class="docutils literal notranslate"><span class="pre">gfocus()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.image.html#module-iss_preprocess.image">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.io.html">iss_preprocess.io package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.io.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.io.html#module-iss_preprocess.io.load">iss_preprocess.io.load module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.get_roi_dimensions"><code class="docutils literal notranslate"><span class="pre">get_roi_dimensions()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.get_tile_ome"><code class="docutils literal notranslate"><span class="pre">get_tile_ome()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.get_tiles"><code class="docutils literal notranslate"><span class="pre">get_tiles()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.get_tiles_micromanager"><code class="docutils literal notranslate"><span class="pre">get_tiles_micromanager()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.load_hyb_probes_metadata"><code class="docutils literal notranslate"><span class="pre">load_hyb_probes_metadata()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.load_metadata"><code class="docutils literal notranslate"><span class="pre">load_metadata()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.load_ops"><code class="docutils literal notranslate"><span class="pre">load_ops()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.load_section_position"><code class="docutils literal notranslate"><span class="pre">load_section_position()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.load_single_acq_metdata"><code class="docutils literal notranslate"><span class="pre">load_single_acq_metdata()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.load_stack"><code class="docutils literal notranslate"><span class="pre">load_stack()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.load_tile_by_coors"><code class="docutils literal notranslate"><span class="pre">load_tile_by_coors()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.load.reorder_channels"><code class="docutils literal notranslate"><span class="pre">reorder_channels()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.io.html#module-iss_preprocess.io.save">iss_preprocess.io.save module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.save.save_ome_tiff_pyramid"><code class="docutils literal notranslate"><span class="pre">save_ome_tiff_pyramid()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html#iss_preprocess.io.save.write_stack"><code class="docutils literal notranslate"><span class="pre">write_stack()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.io.html#module-iss_preprocess.io">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.pipeline.html">iss_preprocess.pipeline package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.ara_registration">iss_preprocess.pipeline.ara_registration module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.ara_registration.find_roi_position_on_cryostat"><code class="docutils literal notranslate"><span class="pre">find_roi_position_on_cryostat()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.ara_registration.load_coordinate_image"><code class="docutils literal notranslate"><span class="pre">load_coordinate_image()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.ara_registration.load_registration_reference_metadata"><code class="docutils literal notranslate"><span class="pre">load_registration_reference_metadata()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.ara_registration.make_area_image"><code class="docutils literal notranslate"><span class="pre">make_area_image()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.ara_registration.overview_single_roi"><code class="docutils literal notranslate"><span class="pre">overview_single_roi()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.ara_registration.spots_ara_infos"><code class="docutils literal notranslate"><span class="pre">spots_ara_infos()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.diagnostics">iss_preprocess.pipeline.diagnostics module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.diagnostics.check_illumination_correction"><code class="docutils literal notranslate"><span class="pre">check_illumination_correction()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.hybridisation">iss_preprocess.pipeline.hybridisation module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.hybridisation.estimate_channel_correction_hybridisation"><code class="docutils literal notranslate"><span class="pre">estimate_channel_correction_hybridisation()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.hybridisation.extract_hyb_spots_all"><code class="docutils literal notranslate"><span class="pre">extract_hyb_spots_all()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.hybridisation.extract_hyb_spots_roi"><code class="docutils literal notranslate"><span class="pre">extract_hyb_spots_roi()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.hybridisation.extract_hyb_spots_tile"><code class="docutils literal notranslate"><span class="pre">extract_hyb_spots_tile()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.hybridisation.hyb_spot_cluster_means"><code class="docutils literal notranslate"><span class="pre">hyb_spot_cluster_means()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.hybridisation.load_and_register_hyb_tile"><code class="docutils literal notranslate"><span class="pre">load_and_register_hyb_tile()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.hybridisation.setup_hyb_spot_calling"><code class="docutils literal notranslate"><span class="pre">setup_hyb_spot_calling()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.pipeline">iss_preprocess.pipeline.pipeline module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.pipeline.batch_process_tiles"><code class="docutils literal notranslate"><span class="pre">batch_process_tiles()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.pipeline.create_all_single_averages"><code class="docutils literal notranslate"><span class="pre">create_all_single_averages()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.pipeline.create_grand_averages"><code class="docutils literal notranslate"><span class="pre">create_grand_averages()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.pipeline.create_single_average"><code class="docutils literal notranslate"><span class="pre">create_single_average()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.pipeline.overview_for_ara_registration"><code class="docutils literal notranslate"><span class="pre">overview_for_ara_registration()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.project">iss_preprocess.pipeline.project module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.project.check_projection"><code class="docutils literal notranslate"><span class="pre">check_projection()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.project.project_round"><code class="docutils literal notranslate"><span class="pre">project_round()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.project.project_tile"><code class="docutils literal notranslate"><span class="pre">project_tile()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.project.project_tile_by_coors"><code class="docutils literal notranslate"><span class="pre">project_tile_by_coors()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.project.project_tile_row"><code class="docutils literal notranslate"><span class="pre">project_tile_row()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.register">iss_preprocess.pipeline.register module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.register.correct_hyb_shifts"><code class="docutils literal notranslate"><span class="pre">correct_hyb_shifts()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.register.correct_hyb_shifts_roi"><code class="docutils literal notranslate"><span class="pre">correct_hyb_shifts_roi()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.register.correct_shifts"><code class="docutils literal notranslate"><span class="pre">correct_shifts()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.register.correct_shifts_roi"><code class="docutils literal notranslate"><span class="pre">correct_shifts_roi()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.register.estimate_shifts_and_angles_by_coors"><code class="docutils literal notranslate"><span class="pre">estimate_shifts_and_angles_by_coors()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.register.estimate_shifts_by_coors"><code class="docutils literal notranslate"><span class="pre">estimate_shifts_by_coors()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.register.register_reference_tile"><code class="docutils literal notranslate"><span class="pre">register_reference_tile()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.segment">iss_preprocess.pipeline.segment module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.segment.segment_all_rois"><code class="docutils literal notranslate"><span class="pre">segment_all_rois()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.segment.segment_roi"><code class="docutils literal notranslate"><span class="pre">segment_roi()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.sequencing">iss_preprocess.pipeline.sequencing module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.sequencing.basecall_tile"><code class="docutils literal notranslate"><span class="pre">basecall_tile()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.sequencing.estimate_channel_correction"><code class="docutils literal notranslate"><span class="pre">estimate_channel_correction()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.sequencing.load_and_register_tile"><code class="docutils literal notranslate"><span class="pre">load_and_register_tile()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.sequencing.load_sequencing_rounds"><code class="docutils literal notranslate"><span class="pre">load_sequencing_rounds()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.sequencing.load_spot_sign_image"><code class="docutils literal notranslate"><span class="pre">load_spot_sign_image()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.sequencing.run_omp_on_tile"><code class="docutils literal notranslate"><span class="pre">run_omp_on_tile()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.sequencing.setup_barcode_calling"><code class="docutils literal notranslate"><span class="pre">setup_barcode_calling()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.sequencing.setup_omp"><code class="docutils literal notranslate"><span class="pre">setup_omp()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.stitch">iss_preprocess.pipeline.stitch module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.stitch.calculate_tile_positions"><code class="docutils literal notranslate"><span class="pre">calculate_tile_positions()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.stitch.merge_and_align_spots"><code class="docutils literal notranslate"><span class="pre">merge_and_align_spots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.stitch.merge_and_align_spots_all_rois"><code class="docutils literal notranslate"><span class="pre">merge_and_align_spots_all_rois()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.stitch.merge_roi_spots"><code class="docutils literal notranslate"><span class="pre">merge_roi_spots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.stitch.register_adjacent_tiles"><code class="docutils literal notranslate"><span class="pre">register_adjacent_tiles()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.stitch.stitch_and_register"><code class="docutils literal notranslate"><span class="pre">stitch_and_register()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html#iss_preprocess.pipeline.stitch.stitch_tiles"><code class="docutils literal notranslate"><span class="pre">stitch_tiles()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.reg.html">iss_preprocess.reg package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.reg.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.reg.html#module-iss_preprocess.reg.rounds_and_channels">iss_preprocess.reg.rounds_and_channels module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.align_channels_and_rounds"><code class="docutils literal notranslate"><span class="pre">align_channels_and_rounds()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.align_within_channels"><code class="docutils literal notranslate"><span class="pre">align_within_channels()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.apply_corrections"><code class="docutils literal notranslate"><span class="pre">apply_corrections()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.estimate_correction"><code class="docutils literal notranslate"><span class="pre">estimate_correction()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.estimate_rotation_angle"><code class="docutils literal notranslate"><span class="pre">estimate_rotation_angle()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.estimate_rotation_translation"><code class="docutils literal notranslate"><span class="pre">estimate_rotation_translation()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.estimate_scale_rotation_translation"><code class="docutils literal notranslate"><span class="pre">estimate_scale_rotation_translation()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.estimate_shifts_and_angles_for_tile"><code class="docutils literal notranslate"><span class="pre">estimate_shifts_and_angles_for_tile()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.estimate_shifts_for_tile"><code class="docutils literal notranslate"><span class="pre">estimate_shifts_for_tile()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.generate_channel_round_transforms"><code class="docutils literal notranslate"><span class="pre">generate_channel_round_transforms()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.get_channel_reference_images"><code class="docutils literal notranslate"><span class="pre">get_channel_reference_images()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.rounds_and_channels.register_channels_and_rounds"><code class="docutils literal notranslate"><span class="pre">register_channels_and_rounds()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.reg.html#module-iss_preprocess.reg.util">iss_preprocess.reg.util module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.util.make_transform"><code class="docutils literal notranslate"><span class="pre">make_transform()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.util.phase_corr"><code class="docutils literal notranslate"><span class="pre">phase_corr()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html#iss_preprocess.reg.util.transform_image"><code class="docutils literal notranslate"><span class="pre">transform_image()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.reg.html#module-iss_preprocess.reg">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.segment.html">iss_preprocess.segment package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.segment.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment.barcodes">iss_preprocess.segment.barcodes module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.barcodes.corrcoef"><code class="docutils literal notranslate"><span class="pre">corrcoef()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.barcodes.correlation_map"><code class="docutils literal notranslate"><span class="pre">correlation_map()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.barcodes.create_overlap_map"><code class="docutils literal notranslate"><span class="pre">create_overlap_map()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.barcodes.detect_rois"><code class="docutils literal notranslate"><span class="pre">detect_rois()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.barcodes.extract_roi"><code class="docutils literal notranslate"><span class="pre">extract_roi()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.barcodes.find_overlappers"><code class="docutils literal notranslate"><span class="pre">find_overlappers()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.barcodes.remove_overlaps"><code class="docutils literal notranslate"><span class="pre">remove_overlaps()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment.cells">iss_preprocess.segment.cells module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.cells.cellpose_segmentation"><code class="docutils literal notranslate"><span class="pre">cellpose_segmentation()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.cells.count_rolonies"><code class="docutils literal notranslate"><span class="pre">count_rolonies()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment.roi">iss_preprocess.segment.roi module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.roi.ROI"><code class="docutils literal notranslate"><span class="pre">ROI</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.roi.ROI.mask"><code class="docutils literal notranslate"><span class="pre">ROI.mask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.roi.ROI.npix"><code class="docutils literal notranslate"><span class="pre">ROI.npix</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment.spots">iss_preprocess.segment.spots module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.spots.detect_gene_spots"><code class="docutils literal notranslate"><span class="pre">detect_gene_spots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.spots.detect_isolated_spots"><code class="docutils literal notranslate"><span class="pre">detect_isolated_spots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.spots.detect_spots"><code class="docutils literal notranslate"><span class="pre">detect_spots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html#iss_preprocess.segment.spots.filter_spots"><code class="docutils literal notranslate"><span class="pre">filter_spots()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.vis.html">iss_preprocess.vis package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html#module-iss_preprocess.vis.diagnostics">iss_preprocess.vis.diagnostics module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.vis.html#iss_preprocess.vis.diagnostics.plot_correction_images"><code class="docutils literal notranslate"><span class="pre">plot_correction_images()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.vis.html#iss_preprocess.vis.diagnostics.plot_registration"><code class="docutils literal notranslate"><span class="pre">plot_registration()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.vis.html#iss_preprocess.vis.diagnostics.plot_tilestats_distributions"><code class="docutils literal notranslate"><span class="pre">plot_tilestats_distributions()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html#module-iss_preprocess.vis.vis">iss_preprocess.vis.vis module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.vis.html#iss_preprocess.vis.vis.make_lut"><code class="docutils literal notranslate"><span class="pre">make_lut()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.vis.html#iss_preprocess.vis.vis.plot_gene_matrix"><code class="docutils literal notranslate"><span class="pre">plot_gene_matrix()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.vis.html#iss_preprocess.vis.vis.plot_gene_templates"><code class="docutils literal notranslate"><span class="pre">plot_gene_templates()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.vis.html#iss_preprocess.vis.vis.plot_spots"><code class="docutils literal notranslate"><span class="pre">plot_spots()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.vis.html#iss_preprocess.vis.vis.to_rgb"><code class="docutils literal notranslate"><span class="pre">to_rgb()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html#module-iss_preprocess.vis">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">#</a></h2>
+</section>
+<section id="module-iss_preprocess.cli">
+<span id="iss-preprocess-cli-module"></span><h2>iss_preprocess.cli module<a class="headerlink" href="#module-iss_preprocess.cli" title="Permalink to this heading">#</a></h2>
+</section>
+<section id="module-iss_preprocess">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-iss_preprocess" title="Permalink to this heading">#</a></h2>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="iss_preprocess.call.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">iss_preprocess.call package</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="index.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Home</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2023, Znamenskiy lab
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">iss_preprocess package</a><ul>
+<li><a class="reference internal" href="#subpackages">Subpackages</a></li>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-iss_preprocess.cli">iss_preprocess.cli module</a></li>
+<li><a class="reference internal" href="#module-iss_preprocess">Module contents</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/scripts/furo.js"></script>
+    </body>
+</html>
