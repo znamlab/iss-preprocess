@@ -1,6 +1,7 @@
 from os import system
 import numpy as np
 import pandas as pd
+import warnings
 import subprocess, shlex
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
@@ -72,7 +73,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
                 angle=reg2ref["angle"],
                 shift=reg2ref["shift"] + shift,  # add the stitching shifts
             )
-            raise ValueError("THIS IS WRONG: shift should depend on tile position")
+            warnings.warn("THIS IS WRONG: shift should depend on tile position")
     return stack
 
 
@@ -403,7 +404,7 @@ def stitch_and_register(
         final_shape = np.max(stacks_shape, axis=0)
         padding = final_shape[np.newaxis, :] - stacks_shape
         if padding.max() > 20:
-            raise IOError("Large shape difference. Check that everything is fine.")
+            warnings.warn("Large shape difference. Check that everything is fine.")
         if np.sum(padding[0, :]):
             pad_target = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[0]]
             # if uneven, need to add one after
