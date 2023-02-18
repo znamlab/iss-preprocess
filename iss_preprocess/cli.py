@@ -25,7 +25,7 @@ def extract_tile(path, roi=1, x=0, y=0, save=False):
     from iss_preprocess.pipeline import run_omp_on_tile
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
-    run_omp_on_tile(path, (roi, x, y), save_stack=save, correct_channels=True)
+    run_omp_on_tile(path, (roi, x, y), save_stack=save)
 
 
 @cli.command()

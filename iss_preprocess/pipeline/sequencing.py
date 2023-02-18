@@ -186,7 +186,7 @@ def basecall_tile(data_path, tile_coors):
     )
 
 
-def setup_omp(data_path, score_thresh=0):
+def setup_omp(data_path, score_thresh=0, correct_channels=True):
     """Prepare variables required to run the OMP algorithm. Finds isolated spots using
     STD across rounds and channels. Detected spots are then used to determine the
     bleedthrough matrix using scaled k-means.
@@ -213,7 +213,7 @@ def setup_omp(data_path, score_thresh=0):
             filter_r=ops["filter_r"],
             prefix="genes_round",
             suffix=ops["projection"],
-            correct_channels=True,
+            correct_channels=correct_channels,
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
         spots = detect_isolated_spots(
@@ -262,6 +262,7 @@ def estimate_channel_correction(
         pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values
             for filtered stacks
         norm_factors (np.array) A Nch x Nround array of normalisation factors
+        
     """
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
@@ -361,6 +362,7 @@ def load_and_register_tile(
         numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged
             for all channels and rounds (due to registration offsets) and should be discarded
             during analysis.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     stack = load_sequencing_rounds(
@@ -415,6 +417,7 @@ def load_spot_sign_image(data_path, threshold):
 
     Returns:
         numpy.ndarray: Spot sign image after thresholding, containing -1, 0, or 1s.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     spot_image_path = processed_path / data_path / "spot_sign_image.npy"
@@ -430,11 +433,7 @@ def load_spot_sign_image(data_path, threshold):
 
 
 def run_omp_on_tile(
-    data_path,
-    tile_coors,
-    save_stack=False,
-    correct_channels=False,
-    prefix="genes_round",
+    data_path, tile_coors, save_stack=False, prefix="genes_round",
 ):
     """Apply the OMP algorithm to unmix spots in a given tile using the saved
     gene dictionary and settings saved in `ops.npy`. Then detect gene spots in
@@ -449,6 +448,7 @@ def run_omp_on_tile(
             If not False, can specify normalization method, e.g. "round1_only". Defaults to False.
         prefix (str, optional): Prefix of the sequencing read to analyse.
             Defaults to "genes_round".
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
@@ -457,7 +457,7 @@ def run_omp_on_tile(
         data_path,
         tile_coors,
         suffix=ops["projection"],
-        correct_channels=correct_channels,
+        correct_channels=ops["genes_correct_channels"],
         prefix=prefix,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
