@@ -3,10 +3,10 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Cell segmentation" href="segmentation.html" /><link rel="prev" title="Gene and barcode sequencing" href="sequencing.html" />
 
     <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
-        <title>iss_preprocess - iss-preprocess 0.1 documentation</title>
+        <title>Detecting hybridisation spots - iss-preprocess 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
@@ -155,12 +155,12 @@
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="registration.html">Registration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="correction.html">Channel brightness and illumination correction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="bleedthrough.html">Bleedthrough matrix estimation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sequencing.html">Gene and barcode sequencing</a></li>
-<li class="toctree-l1"><a class="reference internal" href="hybridisation.html">Detecting hybridisation spots</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Detecting hybridisation spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="segmentation.html">Cell segmentation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API reference:</span></p>
@@ -211,92 +211,8 @@
           </label>
         </div>
         <article role="main">
-          <section id="iss-preprocess">
-<h1>iss_preprocess<a class="headerlink" href="#iss-preprocess" title="Permalink to this heading">#</a></h1>
-<div class="toctree-wrapper compound">
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.html#subpackages">Subpackages</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.call.html">iss_preprocess.call package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.call.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.call.html#module-iss_preprocess.call.call">iss_preprocess.call.call module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.call.html#module-iss_preprocess.call.omp">iss_preprocess.call.omp module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.call.html#module-iss_preprocess.call.spot_shape">iss_preprocess.call.spot_shape module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.call.html#module-iss_preprocess.call">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.config.html">iss_preprocess.config package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.config.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.config.html#module-iss_preprocess.config.default_ops">iss_preprocess.config.default_ops module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.config.html#module-iss_preprocess.config">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.coppafish.html">iss_preprocess.coppafish package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.coppafish.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.coppafish.html#module-iss_preprocess.coppafish.utils">iss_preprocess.coppafish.utils module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.coppafish.html#module-iss_preprocess.coppafish">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.image.html">iss_preprocess.image package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.image.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.image.html#module-iss_preprocess.image.correction">iss_preprocess.image.correction module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.image.html#module-iss_preprocess.image.fstack">iss_preprocess.image.fstack module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.image.html#module-iss_preprocess.image">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.io.html">iss_preprocess.io package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.io.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.io.html#module-iss_preprocess.io.load">iss_preprocess.io.load module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.io.html#module-iss_preprocess.io.save">iss_preprocess.io.save module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.io.html#module-iss_preprocess.io">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.pipeline.html">iss_preprocess.pipeline package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.ara_registration">iss_preprocess.pipeline.ara_registration module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.diagnostics">iss_preprocess.pipeline.diagnostics module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.hybridisation">iss_preprocess.pipeline.hybridisation module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.pipeline">iss_preprocess.pipeline.pipeline module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.project">iss_preprocess.pipeline.project module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.register">iss_preprocess.pipeline.register module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.segment">iss_preprocess.pipeline.segment module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.sequencing">iss_preprocess.pipeline.sequencing module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline.stitch">iss_preprocess.pipeline.stitch module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.pipeline.html#module-iss_preprocess.pipeline">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.reg.html">iss_preprocess.reg package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.reg.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.reg.html#module-iss_preprocess.reg.rounds_and_channels">iss_preprocess.reg.rounds_and_channels module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.reg.html#module-iss_preprocess.reg.util">iss_preprocess.reg.util module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.reg.html#module-iss_preprocess.reg">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.segment.html">iss_preprocess.segment package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.segment.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment.barcodes">iss_preprocess.segment.barcodes module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment.cells">iss_preprocess.segment.cells module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment.roi">iss_preprocess.segment.roi module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment.spots">iss_preprocess.segment.spots module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.segment.html#module-iss_preprocess.segment">Module contents</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="iss_preprocess.vis.html">iss_preprocess.vis package</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.vis.html#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.vis.html#module-iss_preprocess.vis.diagnostics">iss_preprocess.vis.diagnostics module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.vis.html#module-iss_preprocess.vis.vis">iss_preprocess.vis.vis module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="iss_preprocess.vis.html#module-iss_preprocess.vis">Module contents</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.html#module-iss_preprocess.cli">iss_preprocess.cli module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.html#module-iss_preprocess">Module contents</a></li>
-</ul>
-</li>
-</ul>
-</div>
+          <section id="detecting-hybridisation-spots">
+<h1>Detecting hybridisation spots<a class="headerlink" href="#detecting-hybridisation-spots" title="Permalink to this heading">#</a></h1>
 </section>
 
         </article>
@@ -304,8 +220,26 @@
       <footer>
         
         <div class="related-pages">
-          
-          
+          <a class="next-page" href="segmentation.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Cell segmentation</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="sequencing.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Gene and barcode sequencing</div>
+                
+              </div>
+            </a>
         </div>
         <div class="bottom-of-page">
           <div class="left-details">

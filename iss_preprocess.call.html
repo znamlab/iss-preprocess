@@ -157,6 +157,11 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="registration.html">Registration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="correction.html">Channel brightness and illumination correction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bleedthrough.html">Bleedthrough matrix estimation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Gene and barcode sequencing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hybridisation.html">Detecting hybridisation spots</a></li>
+<li class="toctree-l1"><a class="reference internal" href="segmentation.html">Cell segmentation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API reference:</span></p>
 <ul class="current">
@@ -300,8 +305,7 @@ greater than this contribute to new estimate of mean vector. Defaults to 0.</p><
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><dl class="simple">
-<dt>A list with Nrounds elements. Each a Nch x Ncl (square</dt><dd><p>because N channels is equal to N clusters) array of cluster means,
-normalised by round 0 intensity</p>
+<dt>A list with Nrounds elements. Each a Ncl x Nch (square</dt><dd><p>because N channels is equal to N clusters) array of cluster means</p>
 </dd>
 </dl>
 </p>

@@ -11,6 +11,11 @@ Welcome to iss-preprocess's documentation!
    :caption: Contents:
 
    registration
+   correction
+   bleedthrough
+   sequencing
+   hybridisation
+   segmentation
 
 .. toctree::
    :maxdepth: 3

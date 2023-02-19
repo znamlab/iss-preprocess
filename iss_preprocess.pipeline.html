@@ -157,6 +157,11 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="registration.html">Registration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="correction.html">Channel brightness and illumination correction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bleedthrough.html">Bleedthrough matrix estimation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Gene and barcode sequencing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hybridisation.html">Detecting hybridisation spots</a></li>
+<li class="toctree-l1"><a class="reference internal" href="segmentation.html">Cell segmentation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API reference:</span></p>
 <ul class="current">
@@ -881,7 +886,7 @@ Defaults to “genes_round_1_1”.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.estimate_channel_correction">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">estimate_channel_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.estimate_channel_correction" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">estimate_channel_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_norm_factors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.estimate_channel_correction" title="Permalink to this definition">#</a></dt>
 <dd><p>Compute grayscale value distribution and normalisation factors</p>
 <p>Each <cite>correction_tiles</cite> of <cite>ops</cite> is filtered before being used to compute the
 distribution of pixel values.
@@ -1001,7 +1006,7 @@ sign image.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.run_omp_on_tile">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">run_omp_on_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_stack</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.run_omp_on_tile" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">run_omp_on_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_stack</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.run_omp_on_tile" title="Permalink to this definition">#</a></dt>
 <dd><p>Apply the OMP algorithm to unmix spots in a given tile using the saved
 gene dictionary and settings saved in <cite>ops.npy</cite>. Then detect gene spots in
 the resulting gene maps.</p>
@@ -1054,19 +1059,16 @@ normalised by round 0 intensity</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.setup_omp">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">setup_omp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">codebook_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'codebook_83gene_pool.csv'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">detection_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">40</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">isolation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.setup_omp" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">setup_omp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.setup_omp" title="Permalink to this definition">#</a></dt>
 <dd><p>Prepare variables required to run the OMP algorithm. Finds isolated spots using
 STD across rounds and channels. Detected spots are then used to determine the
 bleedthrough matrix using scaled k-means.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>stack</strong> (<em>numpy.ndarray</em>) – X x Y x C x R image stack.</p></li>
-<li><p><strong>codebook_name</strong> (<em>str</em>) – filename of the codebook to use.</p></li>
-<li><p><strong>detection_threshold</strong> (<em>float</em>) – spot detection threshold to find spots for
-training the bleedthrough matrix.</p></li>
-<li><p><strong>isolation_threshold</strong> (<em>float</em>) – threshold used to selected isolated spots
-based on average values in the annulus around each spot.</p></li>
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
+<li><p><strong>score_thresh</strong> (<em>float</em>) – Dot product threshold to include spots in cluster
+mean calculation. Defaults to 0.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>

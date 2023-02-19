@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess package" href="iss_preprocess.html" /><link rel="prev" title="Welcome to iss-preprocess’s documentation!" href="index.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Channel brightness and illumination correction" href="correction.html" /><link rel="prev" title="Welcome to iss-preprocess’s documentation!" href="index.html" />
 
     <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
         <title>Registration - iss-preprocess 0.1 documentation</title>
@@ -157,6 +157,11 @@
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Registration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="correction.html">Channel brightness and illumination correction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bleedthrough.html">Bleedthrough matrix estimation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Gene and barcode sequencing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="hybridisation.html">Detecting hybridisation spots</a></li>
+<li class="toctree-l1"><a class="reference internal" href="segmentation.html">Cell segmentation</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API reference:</span></p>
 <ul>
@@ -211,13 +216,13 @@
 <p>Final data is in one common coordinate system. It takes quite a few steps to get that.
 This file describe how genes and barcodes are registered together.</p>
 <p>TODO: integrate hyb, reference, anchor, mcherry</p>
-<section id="registering-a-single-acquisition">
-<h2>Registering a single acquisition<a class="headerlink" href="#registering-a-single-acquisition" title="Permalink to this heading">#</a></h2>
-<p>We need to register both the channels together and the tiles with their neighbours.</p>
+<section id="registering-sequencing-rounds">
+<h2>Registering sequencing rounds<a class="headerlink" href="#registering-sequencing-rounds" title="Permalink to this heading">#</a></h2>
+<p>We need to register the channels and rounds together and the tiles with their neighbours.</p>
 <section id="short-version">
 <h3>Short version:<a class="headerlink" href="#short-version" title="Permalink to this heading">#</a></h3>
 <p>Final transforms for channel and round registration are saved in
-<code class="docutils literal notranslate"><span class="pre">&quot;reg&quot;</span> <span class="pre">/</span> <span class="pre">f&quot;tforms_{prefix}_{roi}_{tilex}_{tiley}.npz&quot;</span></code>.
+<code class="docutils literal notranslate"><span class="pre">&quot;reg&quot;</span> <span class="pre">/</span> <span class="pre">f&quot;tforms_corrected_{prefix}_{roi}_{tilex}_{tiley}.npz&quot;</span></code>.
 The second part must be run each time.</p>
 </section>
 </section>
@@ -226,32 +231,62 @@ The second part must be run each time.</p>
 <p>For each acquisition we need to find how the channels register together. It needs to be
 done for each acquisition as the mirrors wobble a bit and the gain of the stage motor
 seem to vary a bit.</p>
-<section id="get-first-estimate">
-<h3>Get first estimate<a class="headerlink" href="#get-first-estimate" title="Permalink to this heading">#</a></h3>
-<p>We do that on a few manually selected tiles that have signal with
+<section id="register-reference-tile">
+<h3>Register reference tile<a class="headerlink" href="#register-reference-tile" title="Permalink to this heading">#</a></h3>
+<p>We do that on a manually tile that has signal with
 <code class="docutils literal notranslate"><span class="pre">iss</span> <span class="pre">register_ref_tile</span></code>.</p>
 <p>This will save <code class="docutils literal notranslate"><span class="pre">f&quot;tforms_{prefix}.npz&quot;</span></code> in the main <code class="docutils literal notranslate"><span class="pre">data_folder</span></code>. The npz contains:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">angles_within_channels</span></code>: across round change for each channel</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">shifts_within_channels</span></code>: across round change for each channel</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">scales_between_channels</span></code>: across channel scale (common for all rounds)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">angles_between_channels</span></code>: across channel angle (common for all rounds)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">shifts_between_channels</span></code>: across channel shift (common for all rounds)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">angles_within_channels</span></code>: rotation angles between rounds for each channel</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">shifts_within_channels</span></code>: shifts between rounds for each channel</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scales_between_channels</span></code>: scaling between channels (common for all rounds)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">angles_between_channels</span></code>: rotation angles between channels (common for all rounds)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">shifts_between_channels</span></code>: shifts between channels (common for all rounds)</p></li>
 </ul>
-<p>### Estimate for all tiles</p>
-<p>We can then use this initial guess and refine for all the tiles with
-<code class="docutils literal notranslate"><span class="pre">iss</span> <span class="pre">estimate-shifts</span></code>. This will re-estimate shifts, both within and across channel,
+<p>To estimate these values, the algorithm first align images for each channel across rounds.
+This is much more reliable than registering different channels for the same acquisition, as
+the sequencing dyes have limited bleedthrough across channels. On the other hand, when aligning
+between rounds, many rolonies will have the same base and therefore show up across rounds,
+providing a robust signal for registration.</p>
+<p>Registration is done by iterative grid search. We first search over an initial range of rotation
+angles and compute phase correlation for each angle. We then determine the best angle and narrow
+the search range around this value. It is important that the initial spacing between angles is
+fine enough that we can find this peak. This will yield <code class="docutils literal notranslate"><span class="pre">angles_within_channels</span></code> and
+<code class="docutils literal notranslate"><span class="pre">shifts_within_channels</span></code>.</p>
+<p>Once we have registered together rounds for each channel, we can use the resulting angles and
+shifts to compute mean and STD projections across rounds (we use the STD projections because
+rolonies show up very nicely on them). These projection should capture all rolonies and will
+look very similar across channels. They are provide ideal signal for registration across channels.</p>
+<p>To register channels we need to correct for scaling as well as rotation due to chromatic aberration
+and small differences in alignment of the tube lenses for each camera. This is done using grid search,
+similar to how <code class="docutils literal notranslate"><span class="pre">angles_within_channels</span></code> are estimated. We search for the best angles and scales
+while iteratively refining the search range. This will yield <code class="docutils literal notranslate"><span class="pre">scales_between_channels</span></code>,
+<code class="docutils literal notranslate"><span class="pre">angles_between_channels</span></code>, and <code class="docutils literal notranslate"><span class="pre">shifts_between_channels</span></code>.</p>
+</section>
+<section id="estimate-for-all-tiles">
+<h3>Estimate for all tiles<a class="headerlink" href="#estimate-for-all-tiles" title="Permalink to this heading">#</a></h3>
+<p>We can then use the parameters estimated for the reference tile to register all tiles with
+<code class="docutils literal notranslate"><span class="pre">iss</span> <span class="pre">estimate-shifts</span></code>. This is necessary for two reasons. First, dichroic wobble slightly
+during and between acquisitions resulting in different shifts between channels. Second, the
+gain of the microscope stage seems to vary from day to day. Therefore, the microscope does not
+consistently move to the same position for each tile from round to round, resulting in different
+shifts across rounds. Therefore, we will re-estimate shifts, both within and across channel,
 but will <strong>not</strong> change <code class="docutils literal notranslate"><span class="pre">angles_within_channels</span></code>, <code class="docutils literal notranslate"><span class="pre">angles_between_channels</span></code> and
 <code class="docutils literal notranslate"><span class="pre">scales_between_channels</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">angles_within_channels</span></code> and <code class="docutils literal notranslate"><span class="pre">angles_across_channels</span></code> might actually vary due to the
+dichroic wobble but in practice registration works well using values from the reference tile.</p>
+</div>
 <p>The output is saved in the <cite>reg</cite> subfolder as
 <code class="docutils literal notranslate"><span class="pre">f&quot;tforms_{prefix}_{roi}_{tilex}_{tiley}.npz&quot;</span></code></p>
 </section>
 <section id="final-shift-correction">
 <h3>Final shift correction<a class="headerlink" href="#final-shift-correction" title="Permalink to this heading">#</a></h3>
-<p>The single tile estimation tend to fail sporadically if there is not enough signal. This
+<p>The single tile estimation tends to fail sporadically if there is not enough signal. This
 can be corrected given that the main change of shifts from tile to tile is a linear
 function of X and Y (probably due to change in gain of the stage). We do that with
-ransac robust regression in <code class="docutils literal notranslate"><span class="pre">iss</span> <span class="pre">correct-shifts</span></code>. Once again, this does <strong>not</strong>
+RANSAC robust regression in <code class="docutils literal notranslate"><span class="pre">iss</span> <span class="pre">correct-shifts</span></code>. Once again, this does <strong>not</strong>
 re-estimate angles and scale changes, just shifts.</p>
 <p>The output is saved in the <code class="docutils literal notranslate"><span class="pre">reg</span></code> folder as
 <code class="docutils literal notranslate"><span class="pre">f&quot;tforms_corrected_{prefix}_{roi}_{tilex}_{tiley}.npz&quot;</span></code></p>
@@ -307,12 +342,12 @@ and angle.</p>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="iss_preprocess.html">
+          <a class="next-page" href="correction.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">iss_preprocess package</div>
+                <div class="title">Channel brightness and illumination correction</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -358,12 +393,13 @@ and angle.</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Registration</a><ul>
-<li><a class="reference internal" href="#registering-a-single-acquisition">Registering a single acquisition</a><ul>
+<li><a class="reference internal" href="#registering-sequencing-rounds">Registering sequencing rounds</a><ul>
 <li><a class="reference internal" href="#short-version">Short version:</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#detailed-explanation-part-1-estimating-angle-scale-and-shift">Detailed explanation part 1: Estimating angle, scale and shift</a><ul>
-<li><a class="reference internal" href="#get-first-estimate">Get first estimate</a></li>
+<li><a class="reference internal" href="#register-reference-tile">Register reference tile</a></li>
+<li><a class="reference internal" href="#estimate-for-all-tiles">Estimate for all tiles</a></li>
 <li><a class="reference internal" href="#final-shift-correction">Final shift correction</a></li>
 </ul>
 </li>
