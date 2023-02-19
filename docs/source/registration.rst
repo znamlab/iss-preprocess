@@ -6,15 +6,15 @@ This file describe how genes and barcodes are registered together.
 
 TODO: integrate hyb, reference, anchor, mcherry
 
-Registering a single acquisition
---------------------------------
-We need to register both the channels together and the tiles with their neighbours.
+Registering sequencing rounds
+-----------------------------
+We need to register the channels and rounds together and the tiles with their neighbours.
 
 Short version: 
 ~~~~~~~~~~~~~~
 
 Final transforms for channel and round registration are saved in 
-``"reg" / f"tforms_{prefix}_{roi}_{tilex}_{tiley}.npz"``.
+``"reg" / f"tforms_corrected_{prefix}_{roi}_{tilex}_{tiley}.npz"``.
 The second part must be run each time.
 
 Detailed explanation part 1: Estimating angle, scale and shift
@@ -24,26 +24,59 @@ For each acquisition we need to find how the channels register together. It need
 done for each acquisition as the mirrors wobble a bit and the gain of the stage motor 
 seem to vary a bit.
 
-Get first estimate
-~~~~~~~~~~~~~~~~~~
+Register reference tile
+~~~~~~~~~~~~~~~~~~~~~~~
 
-We do that on a few manually selected tiles that have signal with
+We do that on a manually tile that has signal with
 ``iss register_ref_tile``.
 
 This will save ``f"tforms_{prefix}.npz"`` in the main ``data_folder``. The npz contains:
 
-- ``angles_within_channels``: across round change for each channel
-- ``shifts_within_channels``: across round change for each channel
-- ``scales_between_channels``: across channel scale (common for all rounds)
-- ``angles_between_channels``: across channel angle (common for all rounds)
-- ``shifts_between_channels``: across channel shift (common for all rounds)
+- ``angles_within_channels``: rotation angles between rounds for each channel
+- ``shifts_within_channels``: shifts between rounds for each channel
+- ``scales_between_channels``: scaling between channels (common for all rounds)
+- ``angles_between_channels``: rotation angles between channels (common for all rounds)
+- ``shifts_between_channels``: shifts between channels (common for all rounds)
 
-### Estimate for all tiles
+To estimate these values, the algorithm first align images for each channel across rounds.
+This is much more reliable than registering different channels for the same acquisition, as
+the sequencing dyes have limited bleedthrough across channels. On the other hand, when aligning
+between rounds, many rolonies will have the same base and therefore show up across rounds, 
+providing a robust signal for registration.
 
-We can then use this initial guess and refine for all the tiles with 
-``iss estimate-shifts``. This will re-estimate shifts, both within and across channel,
+Registration is done by iterative grid search. We first search over an initial range of rotation
+angles and compute phase correlation for each angle. We then determine the best angle and narrow
+the search range around this value. It is important that the initial spacing between angles is
+fine enough that we can find this peak. This will yield ``angles_within_channels`` and 
+``shifts_within_channels``.
+
+Once we have registered together rounds for each channel, we can use the resulting angles and 
+shifts to compute mean and STD projections across rounds (we use the STD projections because 
+rolonies show up very nicely on them). These projection should capture all rolonies and will 
+look very similar across channels. They are provide ideal signal for registration across channels.
+
+To register channels we need to correct for scaling as well as rotation due to chromatic aberration
+and small differences in alignment of the tube lenses for each camera. This is done using grid search,
+similar to how ``angles_within_channels`` are estimated. We search for the best angles and scales 
+while iteratively refining the search range. This will yield ``scales_between_channels``, 
+``angles_between_channels``, and ``shifts_between_channels``.
+
+
+Estimate for all tiles
+~~~~~~~~~~~~~~~~~~~~~~
+
+We can then use the parameters estimated for the reference tile to register all tiles with 
+``iss estimate-shifts``. This is necessary for two reasons. First, dichroic wobble slightly
+during and between acquisitions resulting in different shifts between channels. Second, the
+gain of the microscope stage seems to vary from day to day. Therefore, the microscope does not
+consistently move to the same position for each tile from round to round, resulting in different
+shifts across rounds. Therefore, we will re-estimate shifts, both within and across channel,
 but will **not** change ``angles_within_channels``, ``angles_between_channels`` and
 ``scales_between_channels``.
+
+.. note::
+    ``angles_within_channels`` and ``angles_across_channels`` might actually vary due to the 
+    dichroic wobble but in practice registration works well using values from the reference tile.
 
 The output is saved in the `reg` subfolder as 
 ``f"tforms_{prefix}_{roi}_{tilex}_{tiley}.npz"``
@@ -51,10 +84,10 @@ The output is saved in the `reg` subfolder as
 Final shift correction
 ~~~~~~~~~~~~~~~~~~~~~~
 
-The single tile estimation tend to fail sporadically if there is not enough signal. This
+The single tile estimation tends to fail sporadically if there is not enough signal. This
 can be corrected given that the main change of shifts from tile to tile is a linear 
 function of X and Y (probably due to change in gain of the stage). We do that with
-ransac robust regression in ``iss correct-shifts``. Once again, this does **not** 
+RANSAC robust regression in ``iss correct-shifts``. Once again, this does **not** 
 re-estimate angles and scale changes, just shifts.
 
 The output is saved in the ``reg`` folder as 
