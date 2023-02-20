@@ -51,17 +51,18 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     # reference
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi, tilex, tiley = tile_coors
-    ref_corners = get_tile_corners(data_path, prefix="genes_round_1_1", roi=roi)
-    acq_corners = get_tile_corners(data_path, prefix=prefix, roi=roi)
-
-    shift = acq_corners[tilex, tiley] - ref_corners[tilex, tiley]
-    # shift should be the same for the 4 corners
-    assert np.allclose(shift, shift[:, 0, np.newaxis])
-    shift = shift[:, 0]
 
     # now find registration to ref
+    if ("round" in prefix) and (not prefix.endswith('round')):
+        reg_prefix = '_'.join(prefix.split('_')[:-2])
+    else:
+        reg_prefix = prefix
+    
     reg2ref = np.load(
-        processed_path / data_path / "reg" / f"{prefix}_roi{roi}_tform_to_ref.npz"
+        processed_path
+        / data_path
+        / "reg"
+        / f"tforms_corrected_to_ref_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
 
     # apply the same registration to all channels and rounds
@@ -69,11 +70,10 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
         for ic in range(stack.shape[2]):
             stack[:, :, ic, ir] = transform_image(
                 stack[:, :, ic, ir],
-                scale=reg2ref["scale"],
-                angle=reg2ref["angle"],
-                shift=reg2ref["shift"] + shift,  # add the stitching shifts
+                scale=reg2ref["scales"][0][0],  # same reg for all round and channels
+                angle=reg2ref["angles"][0][0],
+                shift=reg2ref["shifts"][0],
             )
-            warnings.warn("THIS IS WRONG: shift should depend on tile position")
     return stack
 
 
