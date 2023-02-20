@@ -152,7 +152,10 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix,
+        path,
+        tile_coors=(roi, tilex, tiley),
+        prefix=prefix,
+        suffix=suffix,
     )
 
 
@@ -297,6 +300,46 @@ def segment_all(path, prefix, use_gpu=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
+    "-g",
+    "--reg_prefix",
+    default="barcode_round",
+    help="Directory prefix to registration target.",
+)
+@click.option(
+    "-f",
+    "--ref_prefix",
+    default="genes_round",
+    help="Directory prefix to registration reference.",
+)
+@click.option("-r", "--roi", default=None, help="ROI number. None for all.")
+@click.option("-x", "--tilex", default=None, help="Tile X position. None for all.")
+@click.option("-y", "--tiley", default=None, help="Tile Y position. None for all.")
+def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
+    """Register an acquisition to reference tile by tile."""
+    if any([x is None for x in [roi, tilex, tiley]]):
+        print("Batch processing all tiles", flush=True)
+        from iss_preprocess.pipeline import batch_process_tiles
+
+        batch_process_tiles(
+            path,
+            "register_tile_to_ref",
+            f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}",
+        )
+    else:
+        print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
+        from iss_preprocess.pipeline import register
+
+        register.register_tile_to_ref(
+            data_path=path,
+            tile_coors=(roi, tilex, tiley),
+            reg_prefix=reg_prefix,
+            ref_prefix=ref_prefix,
+        )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
     "-s",
     "--spots-prefix",
     default="barcode_round",
@@ -412,7 +455,8 @@ def create_grand_averages(path):
     from iss_preprocess import pipeline
 
     pipeline.create_grand_averages(
-        path, prefix_todo=("genes_round", "barcode_round"),
+        path,
+        prefix_todo=("genes_round", "barcode_round"),
     )
 
 
@@ -470,7 +514,10 @@ def create_single_average(
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
 @click.option("--sigma", help="Sigma for gaussian blur")
 def overview_for_ara_registration(
-    path, roi, slice_id, sigma=10.0,
+    path,
+    roi,
+    slice_id,
+    sigma=10.0,
 ):
     """Generate the overview of one ROI used for registration
 

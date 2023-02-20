@@ -6,7 +6,9 @@ from ..reg import (
     register_channels_and_rounds,
     estimate_shifts_for_tile,
     estimate_shifts_and_angles_for_tile,
+    estimate_rotation_translation,
 )
+from . import pipeline
 from .sequencing import load_sequencing_rounds
 from ..io import load_tile_by_coors, load_metadata, load_ops, get_roi_dimensions
 
@@ -352,3 +354,54 @@ def correct_hyb_shifts_roi(
                 allow_pickle=True,
             )
             itile += 1
+
+
+def register_tile_to_ref(
+    data_path,
+    tile_coors,
+    reg_prefix,
+    ref_prefix="genes_round",
+    binarise_quantile=0.7,
+    max_shift=300,
+):
+    """Register a single tile to the corresponding reference tile
+
+    Args:
+        data_path (str): Relative path to data
+        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinats
+        reg_prefix (str): Prefix to register, "barcode_round" for instance
+        ref_prefix (str, optional): Reference prefix. Defaults to "genes_round".
+        binarise_quantile (float, optional): Quantile to binarise images before
+        registration. Defaults to 0.7.
+
+    Returns:
+        angle (float): Rotation angle
+        shifts (np.array): X and Y shifts
+    """
+    ref_all_channels, bad_px = pipeline.load_and_register_tile(
+        data_path=data_path,
+        tile_coors=tile_coors,
+        prefix=ref_prefix,
+        filter_r=False,
+    )
+
+    target_all_channels, bad_px = pipeline.load_and_register_tile(
+        data_path=data_path,
+        tile_coors=tile_coors,
+        prefix=reg_prefix,
+        filter_r=False,
+    )
+    ref = np.nanmean(ref_all_channels, axis=(2, 3))
+    target = np.nanmean(target_all_channels, axis=(2, 3))
+    ref = ref > np.quantile(ref, binarise_quantile)
+    target = target > np.quantile(target, binarise_quantile)
+    angle, shifts = estimate_rotation_translation(
+        ref,
+        target,
+        angle_range=1.0,
+        niter=3,
+        nangles=15,
+        min_shift=2,
+        max_shift=max_shift,
+    )
+    return angle, shifts
