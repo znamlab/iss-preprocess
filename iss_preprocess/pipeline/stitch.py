@@ -2,11 +2,11 @@ from os import system
 import numpy as np
 import pandas as pd
 import warnings
-import subprocess, shlex
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from . import pipeline
+from ..vis import diagnostics
 from ..io import (
     load_tile_by_coors,
     load_stack,
@@ -22,7 +22,7 @@ from ..reg import (
 
 
 def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
-    """Load one single tile
+    """Load one single tile in the reference coordinates
 
     This load a tile of `prefix` with channels/rounds registered if `coordinate_frame`
     is "local". If `coordinate_frame` is "global" also register to reference acquisition
@@ -77,13 +77,87 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     return stack
 
 
+def register_within_acquisition(
+    data_path,
+    prefix,
+    ref_roi=None,
+    reg_fraction=0.1,
+    ref_ch=0,
+    suffix="fstack",
+    reload=True,
+    save_plot=False,
+):
+    """Estimate shifts between all adjacent tiles of all rois of an acquisition
+
+    Saves the median shifts in `"reg" / f"{prefix}_shifts.npz"`.
+
+    Args:
+        data_path (str): path to image stacks.
+        prefix (str, optional): Full name of the acquisition folder.
+        ref_roi (int, optional): ROI to use for registration. If `None` use
+            `ops['ref_tile'][0]`. Defaults to None.
+        reg_fraction (float, optional): overlap fraction used for registration.
+            Defaults to 0.1.
+        ref_ch (int, optional): reference channel used for registration. Defaults to 0.
+        ref_round (int, optional): reference round used for registration. Defaults to 0.
+        nrounds (int, optional): Number of rounds to load. Defaults to 7.
+        suffix (str, optional): File name suffix. Defaults to 'proj'.
+        reload (bool, optional): If target file already exists, reload instead of
+            recomputing. Defaults to True
+        save_plot (bool, optional): If True save diagnostic plot. Defaults to False
+
+    Returns:
+        numpy.array: `shift_right`, X and Y shifts between different columns
+        numpy.array: `shift_down`, X and Y shifts between different rows
+        numpy.array: shape of the tile
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    target = processed_path / data_path / "reg" / f"{prefix}_shifts.npz"
+
+    if reload and target.exists():
+        return np.load(target)
+
+    if ref_roi is None:
+        ops = load_ops(data_path)
+        ref_roi = ops["ref_tile"][0]
+    ndim = get_roi_dimensions(data_path)
+
+    ntiles = ndim[ndim[:, 0] == ref_roi][0][1:]
+    output = np.zeros((ntiles[0], ntiles[1], 4))
+    for tilex in range(ntiles[0]):
+        for tiley in range(ntiles[1]):
+            shift_right, shift_down, tile_shape = register_adjacent_tiles(
+                data_path,
+                ref_coors=(ref_roi, tilex, tiley),
+                reg_fraction=reg_fraction,
+                ref_ch=ref_ch,
+                suffix=suffix,
+                prefix=prefix,
+            )
+            output[tilex, tiley] = np.hstack([shift_right, shift_down])
+    shifts = np.nanmedian(output, axis=(0, 1))
+
+    if save_plot:
+        diagnostics.adjacent_tiles_registration(
+            data_path, prefix, saved_shifts=shifts, bytile_shifts=output
+        )
+
+    np.savez(
+        target,
+        shift_right=shifts[:2],
+        shift_down=shifts[2:],
+        tile_shape=tile_shape,
+    )
+    return shifts[:2], shifts[2:], tile_shape
+
+
 def register_adjacent_tiles(
     data_path,
     ref_coors=None,
     reg_fraction=0.1,
     ref_ch=0,
     suffix="fstack",
-    prefix="genes_round",
+    prefix="genes_round_1_1",
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -109,7 +183,6 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
 
     if ref_coors is None:
         ops = load_ops(data_path)
@@ -142,13 +215,6 @@ def register_adjacent_tiles(
         tile_down[-reg_pix_y:, :, ref_ch],
         upsample_factor=5,
     )[0] - [ypix - reg_pix_y, 0]
-
-    np.savez(
-        processed_path / data_path / "reg" / f"{prefix}_shifts.npz",
-        shift_right=shift_right,
-        shift_down=shift_down,
-        tile_shape=tile_ref.shape[:2],
-    )
 
     return shift_right, shift_down, (ypix, xpix)
 

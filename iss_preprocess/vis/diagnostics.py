@@ -131,6 +131,44 @@ def _plot_channels_intensity(
         ax.set_yticks([])
 
 
+def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
+    """Save figure of tile registration for within acquisition stitching
+
+    see pipeline.stitch.register_within_acquisition for usage.
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of acquisition
+        saved_shifts (np.array): vector of shifts right and shifts down concatenated
+        bytile_shifts (np.array): (tilex x tiley x 4) vector of shifts per tile
+    """
+    fig, axes = plt.subplots(2, 4)
+    fig.set_size_inches(9, 3)
+    labels = ["shift right x", "shift right y", "shift down x", "shift down y"]
+    for i in range(4):
+        ax = axes.flatten()[i]
+        img = ax.imshow(
+            bytile_shifts[..., i].T,
+            vmin=saved_shifts[i] - 10,
+            vmax=saved_shifts[i] + 10,
+        )
+        ax.set_title(labels[i])
+        plt.colorbar(img, ax=ax)
+        ax = axes.flatten()[i + 4]
+        img = ax.imshow(
+            bytile_shifts[..., i].T - saved_shifts[i], vmin=-5, vmax=5, cmap="RdBu_r"
+        )
+        ax.set_title(rf"$\Delta$ {labels[i]}")
+        plt.colorbar(img, ax=ax)
+    fig.tight_layout()
+    fig.suptitle(prefix)
+    processed = Path(PARAMETERS["data_root"]["processed"])
+    fig_file = processed / data_path / "figures" / f"adjacent_tile_reg_{prefix}.png"
+    fig.savefig(fig_file, dpi=300)
+    print(f"Saving {fig_file}")
+    return fig
+
+
 def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     """Overlay reference image to ARA borders
 
