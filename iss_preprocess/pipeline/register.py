@@ -271,7 +271,7 @@ def correct_hyb_shifts(data_path, prefix=None):
 
 
 def correct_hyb_shifts_roi(
-    data_path, roi_dims, prefix="hybridisation_1_1", max_shift=500
+    data_path, roi_dims, prefix="hybridisation_1_1", max_shift=500, fit_angle=True
 ):
     """Use robust regression across tiles to correct shifts and angles
     for a single hybridisation round and ROI.
@@ -285,6 +285,8 @@ def correct_hyb_shifts_roi(
         max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
             Tiles with larger absolute shifts will not be included in the fit but will
             still have their corrected shifts estimated. Defaults to 500.
+        fit_angle (bool, optional): Fit the angle with robust regression if True, 
+            otherwise takes the median. Defaults to True
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
 
@@ -331,8 +333,11 @@ def correct_hyb_shifts_roi(
                 X[inliers, :], shifts[ich, idim, inliers]
             )
             shifts_corrected[ich, idim, :] = reg.predict(X)
-        reg = RANSACRegressor(random_state=0).fit(X, angles[ich, :])
-        angles_corrected[ich, :] = reg.predict(X)
+        if fit_angle:
+            reg = RANSACRegressor(random_state=0).fit(X, angles[ich, :])
+            angles_corrected[ich, :] = reg.predict(X)
+        else:
+            angles_corrected[ich, :] = np.nanmedian(angles[ich, :])
 
     save_dir = processed_path / data_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
