@@ -287,7 +287,7 @@ def correct_hyb_shifts_roi(
         max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
             Tiles with larger absolute shifts will not be included in the fit but will
             still have their corrected shifts estimated. Defaults to 500.
-        fit_angle (bool, optional): Fit the angle with robust regression if True, 
+        fit_angle (bool, optional): Fit the angle with robust regression if True,
             otherwise takes the median. Defaults to True
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -378,14 +378,14 @@ def register_tile_to_ref(
         angle (float): Rotation angle
         shifts (np.array): X and Y shifts
     """
-    ref_all_channels, bad_px = pipeline.load_and_register_tile(
+    ref_all_channels = pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=tile_coors,
         prefix=ref_prefix,
         filter_r=False,
     )
 
-    target_all_channels, bad_px = pipeline.load_and_register_tile(
+    target_all_channels = pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=tile_coors,
         prefix=reg_prefix,
