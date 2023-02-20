@@ -5,6 +5,7 @@ Default parameters for the pipeline.
 DEFAULT_OPS = {
     "average_clip_value": 2000,
     "average_median_filter": 5,
+    "fit_channel_correction": True,
     "correction_tiles": [(1, 0, 0)],
     "correction_quantile": 0.9999,
     "ref_tile": (1, 0, 0),
@@ -14,6 +15,7 @@ DEFAULT_OPS = {
     "filter_r": (2, 4),
     "detection_threshold": 0.15,
     "isolation_threshold": 0.05,
+    "genes_correct_channels": "round1_only",
     "barcode_correct_channels": "round1_only",
     "barcode_detection_threshold": 0.3,
     "barcode_isolation_threshold": 0.3,
