@@ -254,8 +254,8 @@ def correct_hyb_shifts(data_path, prefix=None):
 
     Args:
         data_path (str): Relative path to data.
-        prefix (str): Directory prefix to use, e.g. "genes_round". If None,
-            processes all rounds.
+        prefix (str): Directory prefix to use, e.g. "hybridisation_1_1". If None,
+            processes all hybridisation acquisitions.
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
@@ -264,15 +264,35 @@ def correct_hyb_shifts(data_path, prefix=None):
     if prefix:
         for roi in roi_dims[use_rois, :]:
             print(f"correcting shifts for ROI {roi}, {prefix} from {data_path}")
-            correct_hyb_shifts_roi(data_path, roi, prefix=prefix)
+            correct_shifts_single_round_roi(data_path, roi, prefix=prefix)
     else:
         for hyb_round in metadata["hybridisation"].keys():
             for roi in roi_dims[use_rois, :]:
                 print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
-                correct_hyb_shifts_roi(data_path, roi, prefix=hyb_round)
+                correct_shifts_single_round_roi(data_path, roi, prefix=hyb_round)
 
 
-def correct_hyb_shifts_roi(
+def correct_shifts_to_ref(data_path, prefix, fit_angle=False):
+    """Use robust regression across tiles to correct shifts to reference acquisition
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Directory prefix to use, e.g. "genes_round".
+        fit_angle (bool, optional): Fit the angle with robust regression if True,
+            otherwise takes the median. Defaults to False
+    """
+    roi_dims = get_roi_dimensions(data_path)
+    ops = load_ops(data_path)
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    prefix_to_reg = f"to_ref_{prefix}"
+    for roi in roi_dims[use_rois, :]:
+        print(f"correcting shifts for ROI {roi}, {prefix_to_reg} from {data_path}")
+        correct_shifts_single_round_roi(
+            data_path, roi, prefix=prefix_to_reg, fit_angle=fit_angle
+        )
+
+
+def correct_shifts_single_round_roi(
     data_path, roi_dims, prefix="hybridisation_1_1", max_shift=500, fit_angle=True
 ):
     """Use robust regression across tiles to correct shifts and angles

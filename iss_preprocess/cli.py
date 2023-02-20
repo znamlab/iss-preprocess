@@ -241,6 +241,17 @@ def correct_hyb_shifts(path, prefix=None):
 
     correct_hyb_shifts(path, prefix)
 
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
+def correct_ref_shifts(path, prefix=None):
+    """
+    Correct X-Y shifts for registration to reference using robust regression
+    across tiles.
+    """
+    from iss_preprocess.pipeline import correct_shifts_to_ref
+    correct_shifts_to_ref(path, prefix)
+
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
