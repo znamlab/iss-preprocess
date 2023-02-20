@@ -70,8 +70,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             filter_r=filter_r,
             correct_illumination=True,
             correct_channels=True,
-        )
-        stack = np.array(stack, ndmin=4)
+        )        
     else:
         stack = load_tile_by_coors(
             data_path,
