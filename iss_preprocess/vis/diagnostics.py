@@ -1,6 +1,7 @@
 from natsort import natsorted
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 import cv2
 from pathlib import Path
 from flexiznam import PARAMETERS
@@ -294,3 +295,52 @@ def plot_tilestats_distributions(
         ax.semilogx()
     ax.legend()
     fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)
+
+
+def plot_matrix_difference(raw, corrected, col_labels=None, line_labels=('Raw', 'Corrected', 'Difference')):
+    """Plot the raw, corrected matrices and their difference
+
+    Args:
+        raw (np.array): n feature x tilex x tiley array of raw estimates
+        corrected (np.array): n feature x tilex x tiley array of corrected estimates
+        col_labels (list, optional): List of feature names for axes titles. Defaults to
+            None.
+        line_labels (list, optional): List of names for ylabel of leftmost plots. 
+            Defaults to ('Raw', 'Corrected', 'Difference').
+
+    Returns:
+        plt.Figure: Figure instance
+    """
+    fig, axes = plt.subplots(3, 3)
+    fig.set_size_inches((10, 5))
+
+    for col in range(3):
+        vmin = corrected[col].min()
+        vmax = corrected[col].max()
+        rng = (vmax-vmin)
+        if rng == 0:
+            rng = 0.1
+        im = axes[0, col].imshow(raw[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5)
+        ax_divider = make_axes_locatable(axes[0, col])
+        cax = ax_divider.append_axes("right", size="7%", pad="2%")
+        cb = fig.colorbar(im, cax=cax)
+        im = axes[1, col].imshow(corrected[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5)
+        ax_divider = make_axes_locatable(axes[1, col])
+        cax = ax_divider.append_axes("right", size="7%", pad="2%")
+        cb = fig.colorbar(im, cax=cax)
+        im = axes[2, col].imshow((raw[col]-corrected[col]).T, cmap='RdBu_r', vmin=-rng, vmax=rng)
+        ax_divider = make_axes_locatable(axes[2, col])
+        cax = ax_divider.append_axes("right", size="7%", pad="2%")
+        cb = fig.colorbar(im, cax=cax)
+
+    for x in axes.flatten():
+        x.set_xticks([])
+        x.set_yticks([])
+    if col_labels is not None:
+        for il, label in enumerate(col_labels):
+            axes[0, il].set_title(label, fontsize=14)
+    if line_labels is not None:
+        for il, label in enumerate(line_labels):
+            axes[il, 0].set_ylabel(label, fontsize=14)
+    plt.tight_layout()
+    return fig
