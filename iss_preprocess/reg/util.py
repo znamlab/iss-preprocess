@@ -4,9 +4,9 @@ from math import cos, sin, radians
 from skimage.transform import SimilarityTransform, warp
 
 
-def transform_image(im, scale=1, angle=0, shift=(0, 0)):
+def transform_image(im, scale=1, angle=0, shift=(0, 0), cval=0.0):
     tform = SimilarityTransform(matrix=make_transform(scale, angle, shift, im.shape))
-    return warp(im, tform.inverse, preserve_range=True)
+    return warp(im, tform.inverse, preserve_range=True, cval=cval)
 
 
 def make_transform(s, angle, shift, shape):

@@ -25,7 +25,7 @@ def extract_tile(path, roi=1, x=0, y=0, save=False):
     from iss_preprocess.pipeline import run_omp_on_tile
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
-    run_omp_on_tile(path, (roi, x, y), save_stack=save, correct_channels=True)
+    run_omp_on_tile(path, (roi, x, y), save_stack=save)
 
 
 @cli.command()
@@ -111,6 +111,18 @@ def project_round(path, prefix, overwrite=False):
 
     click.echo(f"Projecting ROI {prefix} from {path}")
     project_round(path, prefix, overwrite=overwrite)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
+)
+def check_projection(path, prefix):
+    """Check if projection has completed for all tile."""
+    import iss_preprocess.pipeline as pipeline
+
+    pipeline.check_projection(path, prefix)
 
 
 @cli.command()
@@ -229,6 +241,17 @@ def correct_hyb_shifts(path, prefix=None):
 
     correct_hyb_shifts(path, prefix)
 
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
+def correct_ref_shifts(path, prefix=None):
+    """
+    Correct X-Y shifts for registration to reference using robust regression
+    across tiles.
+    """
+    from iss_preprocess.pipeline import correct_shifts_to_ref
+    correct_shifts_to_ref(path, prefix)
+
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
@@ -288,6 +311,46 @@ def segment_all(path, prefix, use_gpu=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
+    "-g",
+    "--reg_prefix",
+    default="barcode_round",
+    help="Directory prefix to registration target.",
+)
+@click.option(
+    "-f",
+    "--ref_prefix",
+    default="genes_round",
+    help="Directory prefix to registration reference.",
+)
+@click.option("-r", "--roi", default=None, help="ROI number. None for all.")
+@click.option("-x", "--tilex", default=None, help="Tile X position. None for all.")
+@click.option("-y", "--tiley", default=None, help="Tile Y position. None for all.")
+def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
+    """Register an acquisition to reference tile by tile."""
+    if any([x is None for x in [roi, tilex, tiley]]):
+        print("Batch processing all tiles", flush=True)
+        from iss_preprocess.pipeline import batch_process_tiles
+
+        batch_process_tiles(
+            path,
+            "register_tile_to_ref",
+            f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}",
+        )
+    else:
+        print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
+        from iss_preprocess.pipeline import register
+
+        register.register_tile_to_ref(
+            data_path=path,
+            tile_coors=(roi, tilex, tiley),
+            reg_prefix=reg_prefix,
+            ref_prefix=ref_prefix,
+        )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
     "-s",
     "--spots-prefix",
     default="barcode_round",
@@ -313,11 +376,11 @@ def align_spots(
 ):
     from iss_preprocess.pipeline import (
         merge_and_align_spots_all_rois,
-        register_adjacent_tiles,
+        register_within_acquisition,
     )
 
-    register_adjacent_tiles(path, prefix=reg_prefix)
-    register_adjacent_tiles(path, prefix=ref_prefix)
+    register_within_acquisition(path, prefix=reg_prefix, reload=True, save_plot=True)
+    register_within_acquisition(path, prefix=ref_prefix, reload=True, save_plot=True)
     merge_and_align_spots_all_rois(
         path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, ref_prefix=ref_prefix
     )

@@ -6,8 +6,12 @@ The functions in here do not compute anything useful, but create figures
 from pathlib import Path
 import numpy as np
 from flexiznam.config import PARAMETERS
-from ..io import load_stack
-from ..vis import plot_correction_images, plot_tilestats_distributions
+from ..io import load_stack, get_roi_dimensions, load_ops
+from ..vis import (
+    plot_correction_images,
+    plot_tilestats_distributions,
+    plot_matrix_difference,
+)
 
 
 def check_illumination_correction(
@@ -44,3 +48,45 @@ def check_illumination_correction(
     plot_tilestats_distributions(
         data_path, distributions, grand_averages, figure_folder
     )
+
+
+def reg_to_ref_estimation(data_path, prefix):
+    """Plot estimation of shifts/angle for registration to ref
+
+    Compare raw measures to ransac
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Acquisition prefix, "barcode_round" for instance.
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    reg_dir = processed_path / data_path / "reg"
+    figure_folder = processed_path / data_path / "figures"
+
+    ndims = get_roi_dimensions(data_path)
+    ops = load_ops(data_path)
+    if "use_rois" in ops:
+        ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
+
+    for roi, *ntiles in ndims:
+        raw = np.zeros([3, *ntiles])
+        corrected = np.zeros([3, *ntiles])
+        for ix in range(ntiles[0]):
+            for iy in range(ntiles[1]):
+                data = np.load(reg_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz")
+                raw[:2, ix, iy] = data["shifts"]
+                raw[2, ix, iy] = data["angles"]
+                data = np.load(
+                    reg_dir / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                )
+                corrected[:2, ix, iy] = data["shifts"]
+                corrected[2, ix, iy] = data["angles"]
+        fig = plot_matrix_difference(
+            fig=fig,
+            raw=raw,
+            corrected=corrected,
+            col_labels=["Shift x", "Shift y", "Angle"],
+            line_labels=["Raw", "Corrected", "Difference"],
+        )
+
+        fig.savefig(figure_folder / "registration_to_ref_estimation_{prefix}.png")

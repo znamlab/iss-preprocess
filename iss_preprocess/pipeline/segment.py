@@ -23,7 +23,7 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
     for roi in roi_dims:
         args = f"--export=DATAPATH={data_path},ROI={roi[0]},PREFIX={prefix}"
         if use_gpu:
-            args = args + ",USE_GPU=--use_gpu --partition=gpu"
+            args = args + ",USE_GPU=--use-gpu --partition=gpu --gpus-per-node=1"
         else:
             args = args + " --partition=cpu"
         args = args + f" --output={Path.home()}/slurm_logs/iss_segment_%j.out"
