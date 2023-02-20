@@ -322,11 +322,11 @@ def align_spots(
 ):
     from iss_preprocess.pipeline import (
         merge_and_align_spots_all_rois,
-        register_adjacent_tiles,
+        register_within_acquisition,
     )
 
-    register_adjacent_tiles(path, prefix=reg_prefix)
-    register_adjacent_tiles(path, prefix=ref_prefix)
+    register_within_acquisition(path, prefix=reg_prefix, reload=True, save_plot=True)
+    register_within_acquisition(path, prefix=ref_prefix, reload=True, save_plot=True)
     merge_and_align_spots_all_rois(
         path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, ref_prefix=ref_prefix
     )
