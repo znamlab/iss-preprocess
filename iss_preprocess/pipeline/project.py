@@ -52,10 +52,10 @@ def project_round(data_path, prefix, overwrite=False):
         overwrite (bool, optional): Whether to re-project if files already exist.
             Defaults to False.
     """
+    additional_args = f",PREFIX={prefix}"
     if overwrite:
-        additional_args = ",OVERWRITE=--overwrite"
-    else:
-        additional_args = ""
+        additional_args += ",OVERWRITE=--overwrite"
+        
     batch_process_tiles(data_path, "project_tile", additional_args=additional_args)
     # copy one of the tiff metadata files
     roi_dims = get_roi_dimensions(data_path)
