@@ -449,7 +449,7 @@ def register_tile_to_ref(
     return angles, shifts
 
 
-def registered_spots(data_path, tile_coors, prefix):
+def registered_spots(data_path, tile_coors, prefix, ref_prefix='genes_round_1_1'):
     """Return spots in reference coordinates
 
     Args:
@@ -462,6 +462,16 @@ def registered_spots(data_path, tile_coors, prefix):
     """
     roi, tilex, tiley = tile_coors
     processed_path = Path(PARAMETERS["data_root"]["processed"])
+    spots = pd.read_pickle(
+        processed_path
+        / data_path
+        / "spots"
+        / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
+    )
+    if ref_prefix.startswith(prefix):
+        # it is the ref, no need to register
+        return spots
+    
     tform2ref = np.load(
         processed_path
         / data_path
@@ -470,14 +480,8 @@ def registered_spots(data_path, tile_coors, prefix):
     )
     # always get tile shape for genes_round_1_1
     tile_shape = np.load(
-        processed_path / data_path / "reg" / f"genes_round_1_1_shifts.npz"
+        processed_path / data_path / "reg" / f"{ref_prefix}_shifts.npz"
     )["tile_shape"]
-    spots = pd.read_pickle(
-        processed_path
-        / data_path
-        / "spots"
-        / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
-    )
     spots_tform = make_transform(
         tform2ref["scales"][0][0],
         tform2ref["angles"][0][0],
