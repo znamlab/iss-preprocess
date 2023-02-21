@@ -607,19 +607,23 @@ def merge_and_align_spots(
     ref_centers = np.mean(ref_corners, axis=3)
     ref_origins = ref_corners[..., 0]
 
-    # get transform to global coordinate and apply to reg_centers
-    tform2ref = np.load(reg_path / f"{reg_prefix}_roi{roi}_tform_to_ref.npz")
-    tform2ref = make_transform(
-        tform2ref["scale"],
-        tform2ref["angle"],
-        tform2ref["shift"],
-        ref_corners[0, 0, :, 2].astype(int),
-    )
-    trans_centers = np.pad(ref_centers, ((0, 0), (0, 0), (0, 1)), constant_values=1)
-    trans_centers = (
-        tform2ref[np.newaxis, np.newaxis, ...] @ trans_centers[..., np.newaxis]
-    )
-    trans_centers = trans_centers[..., :-1, 0]
+    if ref_prefix.startswith(spots_prefix):
+        # no need to register
+        trans_centers = ref_centers
+    else:
+        # get transform to global coordinate and apply to reg_centers
+        tform2ref = np.load(reg_path / f"{reg_prefix}_roi{roi}_tform_to_ref.npz")
+        tform2ref = make_transform(
+            tform2ref["scale"],
+            tform2ref["angle"],
+            tform2ref["shift"],
+            ref_corners[0, 0, :, 2].astype(int),
+        )
+        trans_centers = np.pad(ref_centers, ((0, 0), (0, 0), (0, 1)), constant_values=1)
+        trans_centers = (
+            tform2ref[np.newaxis, np.newaxis, ...] @ trans_centers[..., np.newaxis]
+        )
+        trans_centers = trans_centers[..., :-1, 0]
 
     spots = merge_roi_spots(
         data_path,
