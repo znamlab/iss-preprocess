@@ -3,7 +3,7 @@ import numpy as np
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from ..segment import cellpose_segmentation
-from .stitch import stitch_and_register
+from .stitch import stitch_registered
 from ..io import get_roi_dimensions, load_ops
 
 
@@ -52,8 +52,8 @@ def segment_roi(
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     print(f"stitching {prefix} and aligning to {reference}", flush=True)
-    stitched_stack, _, _, _, _ = stitch_and_register(
-        data_path, reference, prefix, roi=iroi
+    stitched_stack = stitch_registered(
+        data_path, ref_prefix=reference, prefix=prefix, roi=iroi
     )
     print("starting segmentation", flush=True)
     masks = cellpose_segmentation(
