@@ -346,6 +346,53 @@ def stitch_tiles(
     return stitched_stack
 
 
+def stitch_registered(
+    data_path, prefix, roi, ich=0, ref_prefix="genes_round_1_1", filter_r=False
+):
+    """Load registered stack and stitch them
+
+    The output is in the reference coordinate.
+    #TODO handle bad pixels at borders better for fusing tiles properly
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of acquisition to stitch
+        roi (int): Roi ID
+        ich (int, optional): Channel id. Defaults to 0.
+        ref_prefix (str, optional): Prefix of reference acquisition to load shifts.
+            Defaults to "genes_round".
+        filter_r (bool, optional): Filter image before stitching? Defaults to False.
+
+    Returns:
+        np.array: stitched stack
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
+    ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
+    shifts = np.load(processed_path / data_path / "reg" / f"{ref_prefix}_shifts.npz")
+    tile_shape = shifts["tile_shape"]
+    tile_origins, _ = calculate_tile_positions(
+        shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
+    )
+    tile_origins = tile_origins.astype(int)
+    max_origin = np.max(tile_origins, axis=(0, 1))
+    stitched_stack = np.zeros(max_origin + tile_shape)
+    for ix in range(ntiles[0]):
+        for iy in range(ntiles[1]):
+            stack = load_tile_ref_coors(
+                data_path=data_path,
+                tile_coors=(roi, ix, iy),
+                prefix=prefix,
+                filter_r=filter_r,
+            )
+            stack = stack[:, :, ich, 0]  # only one channel, unique round
+            stitched_stack[
+                tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
+                tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
+            ] = stack
+    return stitched_stack
+
+
 def merge_roi_spots(
     data_path, shift_right, shift_down, tile_shape, iroi=1, prefix="genes_round"
 ):
