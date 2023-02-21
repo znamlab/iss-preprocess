@@ -67,7 +67,7 @@ def reg_to_ref_estimation(data_path, prefix):
     ops = load_ops(data_path)
     if "use_rois" in ops:
         ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
-
+    figs = {}
     for roi, *ntiles in ndims:
         raw = np.zeros([3, *ntiles])
         corrected = np.zeros([3, *ntiles])
@@ -82,11 +82,14 @@ def reg_to_ref_estimation(data_path, prefix):
                 corrected[:2, ix, iy] = data["shifts"]
                 corrected[2, ix, iy] = data["angles"]
         fig = plot_matrix_difference(
-            fig=fig,
             raw=raw,
             corrected=corrected,
             col_labels=["Shift x", "Shift y", "Angle"],
             line_labels=["Raw", "Corrected", "Difference"],
         )
-
-        fig.savefig(figure_folder / "registration_to_ref_estimation_{prefix}.png")
+        fig.suptitle(f"Registration to reference. {prefix} ROI {roi}")
+        fig.savefig(
+            figure_folder / f"registration_to_ref_estimation_{prefix}_roi{roi}.png"
+        )
+        figs[roi] = fig
+    return fig
