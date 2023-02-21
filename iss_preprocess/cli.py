@@ -311,7 +311,7 @@ def segment_all(path, prefix, use_gpu=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
-    "-g",
+    "-n",
     "--reg_prefix",
     default="barcode_round",
     help="Directory prefix to registration target.",

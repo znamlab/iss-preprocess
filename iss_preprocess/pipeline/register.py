@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from sklearn.linear_model import RANSACRegressor
 from flexiznam.config import PARAMETERS
 from pathlib import Path
@@ -7,6 +8,7 @@ from ..reg import (
     estimate_shifts_for_tile,
     estimate_shifts_and_angles_for_tile,
     estimate_rotation_translation,
+    make_transform,
 )
 from . import pipeline
 from .sequencing import load_sequencing_rounds
@@ -382,7 +384,7 @@ def register_tile_to_ref(
     reg_prefix,
     ref_prefix="genes_round",
     binarise_quantile=0.7,
-    max_shift=300,
+    max_shift=None,
 ):
     """Register a single tile to the corresponding reference tile
 
@@ -393,6 +395,8 @@ def register_tile_to_ref(
         ref_prefix (str, optional): Reference prefix. Defaults to "genes_round".
         binarise_quantile (float, optional): Quantile to binarise images before
         registration. Defaults to 0.7.
+        max_shift (int, optional): Maximum shift allowed. None for no max. Defaults to
+            None
 
     Returns:
         angle (float): Rotation angle
@@ -443,3 +447,50 @@ def register_tile_to_ref(
         scales=np.array([[1]]),
     )
     return angles, shifts
+
+
+def registered_spots(data_path, tile_coors, prefix, ref_prefix='genes_round_1_1'):
+    """Return spots in reference coordinates
+
+    Args:
+        data_path (str): Relative path to data
+        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates)
+        prefix (str): Prefix of spots to load
+
+    Returns:
+        pd.DataFrame: The spot dataframe with x and y registered to reference tile.
+    """
+    roi, tilex, tiley = tile_coors
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    spots = pd.read_pickle(
+        processed_path
+        / data_path
+        / "spots"
+        / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
+    )
+    if ref_prefix.startswith(prefix):
+        # it is the ref, no need to register
+        return spots
+    
+    tform2ref = np.load(
+        processed_path
+        / data_path
+        / "reg"
+        / f"tforms_corrected_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
+    )
+    # always get tile shape for genes_round_1_1
+    tile_shape = np.load(
+        processed_path / data_path / "reg" / f"{ref_prefix}_shifts.npz"
+    )["tile_shape"]
+    spots_tform = make_transform(
+        tform2ref["scales"][0][0],
+        tform2ref["angles"][0][0],
+        tform2ref["shifts"][0],
+        tile_shape,
+    )
+    transformed_coors = spots_tform @ np.stack(
+        [spots["x"], spots["y"], np.ones(len(spots))]
+    )
+    spots["x"] = [x for x in transformed_coors[0, :]]
+    spots["y"] = [y for y in transformed_coors[1, :]]
+    return spots
