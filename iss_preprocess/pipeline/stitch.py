@@ -353,7 +353,6 @@ def stitch_registered(
     """Load registered stack and stitch them
 
     The output is in the reference coordinate.
-    #TODO handle bad pixels at borders better for fusing tiles properly
 
     Args:
         data_path (str): Relative path to data
@@ -387,10 +386,11 @@ def stitch_registered(
                 filter_r=filter_r,
             )
             stack = stack[:, :, ich, 0]  # only one channel, unique round
+            valid = stack != 0  # do not copy 0s over data from previous tile
             stitched_stack[
                 tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
                 tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
-            ] = stack
+            ][valid] = stack[valid]
     return stitched_stack
 
 
