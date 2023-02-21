@@ -50,7 +50,7 @@ def check_illumination_correction(
     )
 
 
-def reg_to_ref_estimation(data_path, prefix):
+def reg_to_ref_estimation(data_path, prefix, rois=None):
     """Plot estimation of shifts/angle for registration to ref
 
     Compare raw measures to ransac
@@ -58,6 +58,8 @@ def reg_to_ref_estimation(data_path, prefix):
     Args:
         data_path (str): Relative path to data
         prefix (str): Acquisition prefix, "barcode_round" for instance.
+        rois (list): List of ROIs to process. If None, will either use ops["use_rois"] 
+            if it is defined, or all ROIs otherwise. Defaults to None
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     reg_dir = processed_path / data_path / "reg"
@@ -65,7 +67,9 @@ def reg_to_ref_estimation(data_path, prefix):
 
     ndims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
-    if "use_rois" in ops:
+    if rois is not None:
+        ndims = ndims[np.in1d(ndims[:, 0], rois)]
+    elif "use_rois" in ops:
         ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
     figs = {}
     for roi, *ntiles in ndims:
