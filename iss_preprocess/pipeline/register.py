@@ -384,7 +384,7 @@ def register_tile_to_ref(
     reg_prefix,
     ref_prefix="genes_round",
     binarise_quantile=0.7,
-    max_shift=300,
+    max_shift=None,
 ):
     """Register a single tile to the corresponding reference tile
 
@@ -395,6 +395,8 @@ def register_tile_to_ref(
         ref_prefix (str, optional): Reference prefix. Defaults to "genes_round".
         binarise_quantile (float, optional): Quantile to binarise images before
         registration. Defaults to 0.7.
+        max_shift (int, optional): Maximum shift allowed. None for no max. Defaults to
+            None
 
     Returns:
         angle (float): Rotation angle
