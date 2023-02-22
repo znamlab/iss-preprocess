@@ -1,32 +1,88 @@
 import numpy as np
+from math import ceil
 from skimage.draw import disk
-from ..segment import ROI
 from sklearn.mixture import GaussianMixture
 from scipy.spatial.distance import hamming
+import matplotlib.pyplot as plt
+from ..coppafish import scaled_k_means
 
-BASES = np.array(['G','T','A','C'])
+# BASES = np.array(['G','T','A','C'])
+# BASES = np.array(["A", "C", "T", "G"])
+BASES = np.array(["G", "T", "A", "C"])
+
+
+def get_cluster_means(spots, vis=False, score_thresh=0.0):
+    """Find the mean of the 4 clusters (one per channel)
+
+    Args:
+        spots (pandas.DataFrame): Dataframe of extracted spot.
+        vis (bool, optional): Plot clusters and means. Defaults to False.
+        score_thresh (float, optional): score_thresh arguments for scaled_k_means. 
+            Scalar between 0 and 1. To give a different score for each cluster, give
+            a list of Nc floats. Only points with dot product to a cluster mean vector 
+            greater than this contribute to new estimate of mean vector. Defaults to 0.
+
+    Returns:
+        cluster_means (list): A list with Nrounds elements. Each a Ncl x Nch (square
+            because N channels is equal to N clusters) array of cluster means
+            
+    """
+    x = np.stack(spots["trace"], axis=2)  # round x channels x spots
+    nrounds = x.shape[0]
+    nch = x.shape[1]
+    if vis:
+        _, ax1 = plt.subplots(nrows=1, ncols=nch)
+        _, ax2 = plt.subplots(nrows=2, ncols=ceil(nrounds / 2))
+
+    cluster_means = []
+    for iround in range(nrounds):
+        _, _, cluster_ind, _, _, _ = scaled_k_means(
+            x[iround, :, :].T, np.eye(nch), score_thresh=score_thresh
+        )
+        cluster_mean = np.zeros((nch, nch))
+        for icluster in range(nch):
+            cluster_mean[icluster, :] = np.mean(
+                x[iround, :, cluster_ind == icluster], axis=0
+            )
+        cluster_means.append(cluster_mean)
+        if vis:
+            plt.sca(ax2.flatten()[iround])
+            for ich in range(nch):
+                plt.plot(
+                    x[iround, 0, cluster_ind == ich],
+                    x[iround, 1, cluster_ind == ich],
+                    ".",
+                    markersize=1,
+                )
+            plt.title(f"Round {iround}")
+    if vis:
+        for icluster in range(nch):
+            plt.sca(ax1[icluster])
+            plt.imshow(np.stack(cluster_means, axis=2)[icluster, :, :])
+            plt.xlabel("rounds")
+            plt.ylabel("channels")
+            plt.title(f"Cluster {icluster+1}")
+        plt.tight_layout()
+    return cluster_means
 
 
 def extract_spots(spots, stack):
     """
-    Create ROIs based on spot locations and extract their fluorescence traces.
+    Extract fluorescence traces of spots and assign them to a column of the DataFrame.
 
     Args:
         spots (pandas.DataFrame):
-        stack (numpy.ndarray): X x Y x R x C stack.
-
+        stack (numpy.ndarray): X x Y x C x R stack.
+    
     Returns:
-        List of ROI objects.
-
+        spots (pandas.DataFrame): same as input with a new "traces" column containing
+            a R x C array of fluorescence value
     """
-    rois = []
+    traces = []
     for _, spot in spots.iterrows():
-        rr, cc = disk((spot['y'], spot['x']), spot['size'], shape=stack.shape[0:2])
-        roi = ROI(xpix=rr, ypix=cc, shape=stack.shape[0:2])
-        roi.trace = stack[roi.xpix,roi.ypix,:,:].mean(axis=0)
-        rois.append(roi)
-
-    return rois
+        rr, cc = disk((spot["y"], spot["x"]), spot["size"], shape=stack.shape[0:2])
+        traces.append(stack[rr, cc, :, :].mean(axis=0).T)
+    spots["trace"] = traces
 
 
 def rois_to_array(rois, normalize=True):
@@ -34,16 +90,18 @@ def rois_to_array(rois, normalize=True):
     x = np.stack([roi.trace for roi in rois], axis=2)
     invalid_rois = np.any(np.mean(x, axis=1) == 0, axis=0)
     if np.any(invalid_rois):
-        print('''
+        print(
+            """
             WARNING: Zeros encountered for all channels in some ROIs.
             This normally occurs when an ROI is not imaged on all rounds.
             Corresponding values of the fluorescence matrix will be set to NaN.
-            ''')
+            """
+        )
         x[:, :, invalid_rois] = np.nan
     # normalize by mean intensity
     if normalize:
         valid_rois = np.logical_not(invalid_rois)
-        x[:, :, valid_rois] /= np.mean(x[:, :, valid_rois], axis=1)[:,np.newaxis,:]
+        x[:, :, valid_rois] /= np.mean(x[:, :, valid_rois], axis=1)[:, np.newaxis, :]
     return x
 
 
@@ -63,37 +121,42 @@ def basecall_rois(rois, separate_rounds=True, rounds=(), nsamples=None):
         ROIs x rounds of base IDs.
 
     """
+
     def predict_bases(data_, nsamples_):
         if nsamples_ and nsamples_ < data.shape[0]:
             data_idx = np.random.choice(data_.shape[0], nsamples_, replace=False)
-            gmm = GaussianMixture(n_components=4, random_state=0).fit(data_[data_idx, :])
+            gmm = GaussianMixture(n_components=4, random_state=0).fit(
+                data_[data_idx, :]
+            )
         else:
             gmm = GaussianMixture(n_components=4, random_state=0).fit(data_)
         # GMM components are arbitrarily ordered. We assign each component to a
-        # based on its maximum channel.
-        base_id = np.argmax(gmm.means_, axis=1)
+        # base based on its maximum channel.
+        base_id = np.argmax(gmm.means_, axis=1)  # the base id for each component
+        base_means = gmm.means_[np.argsort(base_id), :]
         labels = gmm.predict(data_)
-        return base_id[labels]
+        return base_id[labels], base_means
 
     x = rois_to_array(rois)
     if rounds:
-        x = x[rounds,:,:]
+        x = x[rounds, :, :]
     if separate_rounds:
         bases = np.empty((x.shape[2], x.shape[0]), dtype=int)
+        base_means = np.empty((x.shape[1], x.shape[1], x.shape[0]))
         for round in range(x.shape[0]):
-            data = x[round,:,:].transpose()
-            bases[:, round] = predict_bases(data, nsamples)
+            data = x[round, :, :].transpose()
+            bases[:, round], base_means[:, :, round] = predict_bases(data, nsamples)
     else:
-        data = np.moveaxis(x, 0, 2).reshape((4,-1)).transpose()
-        bases = predict_bases(data, nsamples)
-        bases = np.reshape(bases,(x.shape[2], x.shape[0]))
+        data = np.moveaxis(x, 0, 2).reshape((4, -1)).transpose()
+        bases, base_means = predict_bases(data, nsamples)
+        bases = np.reshape(bases, (x.shape[2], x.shape[0]))
 
-    return bases
+    return bases, base_means, x
 
 
 def call_genes(sequences, codebook):
     """
-    Assignes sequences to genes based on the provided codebook.
+    Assigns sequences to genes based on the provided codebook.
 
     Args:
         sequences (numpy.ndarray): ROIs x rounds array of base IDs generated by
@@ -110,8 +173,42 @@ def call_genes(sequences, codebook):
     errors = []
     for s in sequences:
         seq = BASES[s]
-        dist_series = codebook['seq'].apply(lambda x: hamming(list(x), seq)*len(x))
+        dist_series = codebook["seq"].apply(lambda x: hamming(list(x), seq) * len(x))
         dist = dist_series.min()
-        genes.append(codebook.iloc[dist_series.argmin()]['gene'])
+        genes.append(codebook.iloc[dist_series.argmin()]["gene"])
         errors.append(dist)
     return genes, errors
+
+
+def correct_barcode_sequences(spots, max_edit_distance=2):
+    sequences = np.stack(spots["sequence"].to_numpy())
+    unique_sequences, counts = np.unique(sequences, axis=0, return_counts=True)
+    # sort sequences according to abundance
+    order = np.flip(np.argsort(counts))
+    unique_sequences = unique_sequences[order]
+    counts = counts[order]
+
+    corrected_sequences = unique_sequences.copy()
+    reassigned = np.zeros(corrected_sequences.shape[0])
+    for i, sequence in enumerate(unique_sequences):
+        # if within edit distance and lower in the list (i.e. lower abundance),
+        # then update the sequence
+        edit_distance = np.sum((unique_sequences - sequence) != 0, axis=1)
+        sequences_to_correct = np.logical_and(
+            edit_distance <= max_edit_distance, np.logical_not(reassigned)
+        )
+        sequences_to_correct[: i + 1] = False
+        corrected_sequences[sequences_to_correct, :] = sequence
+        reassigned[sequences_to_correct] = True
+
+    for original_sequence, new_sequence in zip(unique_sequences, corrected_sequences):
+        if not np.array_equal(original_sequence, new_sequence):
+            sequences[
+                np.all((sequences - original_sequence) == 0, axis=1), :
+            ] = new_sequence
+
+    spots["corrected_sequence"] = [seq for seq in sequences]
+    spots["corrected_bases"] = [
+        "".join(BASES[seq]) for seq in spots["corrected_sequence"]
+    ]
+    return spots

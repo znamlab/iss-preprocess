@@ -3,3 +3,10 @@ test/*
 .DS_Store
 __pycache__
 .idea
+*.out
+*.ipynb
+.ipynb*
+pkgs
+envs
+.tmp/*
+docs/build/*

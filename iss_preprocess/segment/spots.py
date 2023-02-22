@@ -1,11 +1,24 @@
-import trackpy
 import pandas as pd
 import numpy as np
 from skimage.feature import blob_log
 from scipy.signal import medfilt2d
+from scipy.ndimage import grey_dilation
+import scipy
+from ..coppafish import annulus
 
 
-def detect_gene_spots(im, median_filter=False, min_size=1., max_sigma=4.):
+def detect_isolated_spots(
+    im, detection_threshold=40, isolation_threshold=30, annulus_r=(3, 7)
+):
+    spots = detect_spots(im, threshold=detection_threshold)
+    strel = annulus(annulus_r[0], annulus_r[1])
+    strel = strel / np.sum(strel)
+    annulus_image = scipy.ndimage.correlate(im, strel)
+    isolated = annulus_image[spots["y"], spots["x"]] < isolation_threshold
+    return spots.iloc[isolated]
+
+
+def detect_gene_spots(im, median_filter=False, min_size=1.0, max_sigma=4.0):
     """
     Detect spots corresponding to single rolonies from OMP coefficient images.
 
@@ -26,55 +39,36 @@ def detect_gene_spots(im, median_filter=False, min_size=1., max_sigma=4.):
     spots_array = blob_log(
         im,
         max_sigma=max_sigma,
-        min_sigma=.5,
+        min_sigma=0.5,
         num_sigma=10,
         log_scale=True,
         overlap=0.9,
-        exclude_border=10
+        exclude_border=10,
     )
-    gene_spots = pd.DataFrame(spots_array, columns=['y', 'x', 'size'])
-    gene_spots = gene_spots[gene_spots['size'] >= min_size]
+    gene_spots = pd.DataFrame(spots_array, columns=["y", "x", "size"])
+    gene_spots = gene_spots[gene_spots["size"] >= min_size]
     return gene_spots
 
 
-def detect_spots(stack, method='trackpy', separation=4, diameter=9, threshold=100,
-                 max_sigma=10):
+def detect_spots(im, threshold=100, spot_size=2):
     """
-    Detect spots in a multichannel image based on standard deviation across channels
-    using the selected detection method.
+    Detect peaks in an image.
 
     Args:
         stack (numpy.ndarray): X x Y x C image stack
-        method (str): detection method, either `trackpy` or `skimage`
-        separation: minimum separation for spot detection, only applies to
-            `trackpy` method
-        diameter (int): spot diameter, only applies to `trackpy` method
         threshold (float): spot detection threshold
-        max_sigma (float): maximum spot STD, only applies to `skimage` method
 
     Returns:
         pandas.DataFrame of spot location, including x, y, and size.
 
     """
-    im = np.std(stack, axis=2)
-    if method == 'trackpy':
-        spots = trackpy.locate(
-            im,
-            separation=separation,
-            diameter=diameter,
-            threshold=threshold
-        )
-    elif method == 'skimage':
-        spots_array = blob_log(
-            im,
-            max_sigma=max_sigma,
-            threshold=threshold,
-            min_sigma=1.,
-            num_sigma=20,
-        )
-        spots = pd.DataFrame(spots_array, columns=['y', 'x', 'size'])
-    else:
-        raise(ValueError(f'Unknown spot detection method "{method}"'))
+    dilate = grey_dilation(im, size=(4, 4))
+    small = 1e-6
+    spots = np.logical_and(im + small > dilate, im > threshold)
+    coors = np.where(spots)
+    spots = pd.DataFrame(
+        {"y": coors[0], "x": coors[1], "size": np.ones(len(coors[0])) * spot_size}
+    )
 
     return spots
 
@@ -93,7 +87,7 @@ def filter_spots(spots, min_dist):
     """
     clean_spots = spots.copy()
     for ispot, spot in spots.iterrows():
-        dist = np.sqrt((clean_spots.x - spot.x)**2 + (clean_spots.y - spot.y)**2)
+        dist = np.sqrt((clean_spots.x - spot.x) ** 2 + (clean_spots.y - spot.y) ** 2)
         if np.sum(dist < min_dist) > 1:
             # set x to nan to skip this spot
             clean_spots.iloc[ispot].x = np.nan
