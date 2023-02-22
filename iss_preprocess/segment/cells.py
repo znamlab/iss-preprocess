@@ -76,6 +76,9 @@ def count_rolonies(masks, spots, grouping_column):
 
     # find value of mask for each rolonie
     xy = np.round(spots.loc[:, ["x", "y"]].values).astype(int)
+    # clip values outside of mask. Can happen because of registration shift
+    for i in range(2):
+        xy[:, i] = np.clip(xy[:, i], 0, masks.shape[i] - 1)
     mask_val = masks[xy[:, 1], xy[:, 0]]
     # add that to the spots df
     spots["mask_id"] = mask_val
