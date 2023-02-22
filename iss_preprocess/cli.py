@@ -152,7 +152,10 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix,
+        path,
+        tile_coors=(roi, tilex, tiley),
+        prefix=prefix,
+        suffix=suffix,
     )
 
 
@@ -238,6 +241,17 @@ def correct_hyb_shifts(path, prefix=None):
 
     correct_hyb_shifts(path, prefix)
 
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
+def correct_ref_shifts(path, prefix=None):
+    """
+    Correct X-Y shifts for registration to reference using robust regression
+    across tiles.
+    """
+    from iss_preprocess.pipeline import correct_shifts_to_ref
+    correct_shifts_to_ref(path, prefix)
+
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
@@ -297,6 +311,46 @@ def segment_all(path, prefix, use_gpu=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
+    "-n",
+    "--reg_prefix",
+    default="barcode_round",
+    help="Directory prefix to registration target.",
+)
+@click.option(
+    "-f",
+    "--ref_prefix",
+    default="genes_round",
+    help="Directory prefix to registration reference.",
+)
+@click.option("-r", "--roi", default=None, help="ROI number. None for all.")
+@click.option("-x", "--tilex", default=None, help="Tile X position. None for all.")
+@click.option("-y", "--tiley", default=None, help="Tile Y position. None for all.")
+def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
+    """Register an acquisition to reference tile by tile."""
+    if any([x is None for x in [roi, tilex, tiley]]):
+        print("Batch processing all tiles", flush=True)
+        from iss_preprocess.pipeline import batch_process_tiles
+
+        batch_process_tiles(
+            path,
+            "register_tile_to_ref",
+            f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}",
+        )
+    else:
+        print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
+        from iss_preprocess.pipeline import register
+
+        register.register_tile_to_ref(
+            data_path=path,
+            tile_coors=(roi, tilex, tiley),
+            reg_prefix=reg_prefix,
+            ref_prefix=ref_prefix,
+        )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
     "-s",
     "--spots-prefix",
     default="barcode_round",
@@ -306,13 +360,29 @@ def segment_all(path, prefix, use_gpu=False):
     "-g",
     "--reg_prefix",
     default="barcode_round_1_1",
-    help="Directory prefix to registration.",
+    help="Directory prefix to registration target.",
 )
-def align_spots(path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1"):
-    from iss_preprocess.pipeline import merge_and_align_spots_all_rois
+@click.option(
+    "-r",
+    "--ref_prefix",
+    default="genes_round_1_1",
+    help="Directory prefix to registration reference.",
+)
+def align_spots(
+    path,
+    spots_prefix="barcode_round",
+    reg_prefix="barcode_round_1_1",
+    ref_prefix="genes_round_1_1",
+):
+    from iss_preprocess.pipeline import (
+        merge_and_align_spots_all_rois,
+        register_within_acquisition,
+    )
 
+    register_within_acquisition(path, prefix=reg_prefix, reload=True, save_plot=True)
+    register_within_acquisition(path, prefix=ref_prefix, reload=True, save_plot=True)
     merge_and_align_spots_all_rois(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, ref_prefix=ref_prefix
     )
 
 
@@ -331,13 +401,40 @@ def align_spots(path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_
     help="Directory prefix to registration.",
 )
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
+@click.option(
+    "-f",
+    "--ref_prefix",
+    default="genes_round_1_1",
+    help="Directory prefix to use as a reference for registration.",
+)
 def align_spots_roi(
-    path, spots_prefix="barcode_round", reg_prefix="barcode_round_1_1", roi=1
+    path,
+    spots_prefix="barcode_round",
+    reg_prefix="barcode_round_1_1",
+    roi=1,
+    ref_prefix="genes_round_1_1",
 ):
-    from iss_preprocess.pipeline import merge_and_align_spots
+    from iss_preprocess.pipeline import (
+        merge_and_align_spots,
+        stitch_and_register,
+    )
+
+    stitch_and_register(
+        path,
+        reference_prefix=ref_prefix,
+        target_prefix=reg_prefix,
+        roi=roi,
+        downsample=5,
+        ref_ch=0,
+        target_ch=0,
+        estimate_scale=False,
+    )
 
     merge_and_align_spots(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
+        path,
+        spots_prefix=spots_prefix,
+        reg_prefix=reg_prefix,
+        roi=roi,
     )
 
 
@@ -369,7 +466,8 @@ def create_grand_averages(path):
     from iss_preprocess import pipeline
 
     pipeline.create_grand_averages(
-        path, prefix_todo=("genes_round", "barcode_round"),
+        path,
+        prefix_todo=("genes_round", "barcode_round"),
     )
 
 
@@ -427,7 +525,10 @@ def create_single_average(
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
 @click.option("--sigma", help="Sigma for gaussian blur")
 def overview_for_ara_registration(
-    path, roi, slice_id, sigma=10.0,
+    path,
+    roi,
+    slice_id,
+    sigma=10.0,
 ):
     """Generate the overview of one ROI used for registration
 
