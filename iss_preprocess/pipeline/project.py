@@ -5,8 +5,41 @@ from functools import partial
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from ..image import fstack_channels
-from ..io import get_tile_ome, write_stack, get_roi_dimensions
+from ..io import get_tile_ome, write_stack, get_roi_dimensions, load_ops
 from .pipeline import batch_process_tiles
+
+
+def check_projection(data_path, prefix, suffixes=("max", "fstack")):
+    """Check if all tiles have been projected successfully.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
+        suffixes (tuple, optional): Projection suffixes to check for. 
+            Defaults to ("max", "fstack").
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi_dims = get_roi_dimensions(data_path)
+    ops = load_ops(data_path)
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    all_projected = True
+    for roi in roi_dims[use_rois, :]:
+        nx = roi[1] + 1
+        ny = roi[2] + 1
+        for iy in range(ny):
+            for ix in range(nx):
+                fname = f"{prefix}_MMStack_{roi[0]}-Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}"
+                for suffix in suffixes:
+                    proj_path = (
+                        processed_path / data_path / prefix / f"{fname}_{suffix}.tif"
+                    )
+                    if not proj_path.exists():
+                        print(f"{proj_path} missing!")
+                        all_projected = False
+    if all_projected:
+        print("all tiles projected!")
 
 
 def project_round(data_path, prefix, overwrite=False):
@@ -19,10 +52,10 @@ def project_round(data_path, prefix, overwrite=False):
         overwrite (bool, optional): Whether to re-project if files already exist.
             Defaults to False.
     """
+    additional_args = f",PREFIX={prefix}"
     if overwrite:
-        additional_args = ",OVERWRITE=--overwrite"
-    else:
-        additional_args = ""
+        additional_args += ",OVERWRITE=--overwrite"
+        
     batch_process_tiles(data_path, "project_tile", additional_args=additional_args)
     # copy one of the tiff metadata files
     roi_dims = get_roi_dimensions(data_path)
@@ -32,8 +65,7 @@ def project_round(data_path, prefix, overwrite=False):
     target_path = processed_path / data_path / prefix
     target_path.mkdir(parents=True, exist_ok=True)
     shutil.copy(
-        raw_path / data_path / prefix / metadata_fname,
-        target_path / metadata_fname,
+        raw_path / data_path / prefix / metadata_fname, target_path / metadata_fname,
     )
 
 

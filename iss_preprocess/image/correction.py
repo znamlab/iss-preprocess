@@ -91,7 +91,7 @@ def analyze_dark_frames(fname=None):
     Get statistics of dark frames to use for black level correction
 
     Args:
-        fname (str): path to dark frame TIFF file. If not provided,
+        fname (str, optional): path to dark frame TIFF file. If not provided,
             defaults to setting in config.
 
     Returns:

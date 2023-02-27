@@ -3,7 +3,7 @@ import numpy as np
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from ..segment import cellpose_segmentation
-from .stitch import stitch_and_register
+from .stitch import stitch_registered
 from ..io import get_roi_dimensions, load_ops
 
 
@@ -23,7 +23,7 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
     for roi in roi_dims:
         args = f"--export=DATAPATH={data_path},ROI={roi[0]},PREFIX={prefix}"
         if use_gpu:
-            args = args + ",USE_GPU=--use_gpu --partition=gpu"
+            args = args + ",USE_GPU=--use-gpu --partition=gpu --gpus-per-node=1"
         else:
             args = args + " --partition=cpu"
         args = args + f" --output={Path.home()}/slurm_logs/iss_segment_%j.out"
@@ -52,12 +52,12 @@ def segment_roi(
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     print(f"stitching {prefix} and aligning to {reference}", flush=True)
-    stitched_stack, _, _, _, _ = stitch_and_register(
-        data_path, reference, prefix, roi=iroi
+    stitched_stack = stitch_registered(
+        data_path, ref_prefix=reference, prefix=prefix, roi=iroi
     )
     print("starting segmentation", flush=True)
     masks = cellpose_segmentation(
-        stitched_stack,
+        stitched_stack[..., 0],
         channels=(0, 0),
         flow_threshold=ops["cellpose_flow_threshold"],
         min_pix=0,

@@ -1,6 +1,7 @@
 from natsort import natsorted
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 import cv2
 from pathlib import Path
 from flexiznam import PARAMETERS
@@ -126,9 +127,47 @@ def _plot_channels_intensity(
             )
         if chan_names is not None:
             ax.set_ylabel(chan_names[i])
-        plt.colorbar(img)
+        plt.colorbar(img, ax=ax)
         ax.set_xticks([])
         ax.set_yticks([])
+
+
+def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
+    """Save figure of tile registration for within acquisition stitching
+
+    see pipeline.stitch.register_within_acquisition for usage.
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of acquisition
+        saved_shifts (np.array): vector of shifts right and shifts down concatenated
+        bytile_shifts (np.array): (tilex x tiley x 4) vector of shifts per tile
+    """
+    fig, axes = plt.subplots(2, 4)
+    fig.set_size_inches(9, 3)
+    labels = ["shift right x", "shift right y", "shift down x", "shift down y"]
+    for i in range(4):
+        ax = axes.flatten()[i]
+        img = ax.imshow(
+            bytile_shifts[..., i].T,
+            vmin=saved_shifts[i] - 10,
+            vmax=saved_shifts[i] + 10,
+        )
+        ax.set_title(labels[i])
+        plt.colorbar(img, ax=ax)
+        ax = axes.flatten()[i + 4]
+        img = ax.imshow(
+            bytile_shifts[..., i].T - saved_shifts[i], vmin=-5, vmax=5, cmap="RdBu_r"
+        )
+        ax.set_title(rf"$\Delta$ {labels[i]}")
+        plt.colorbar(img, ax=ax)
+    fig.tight_layout()
+    fig.suptitle(prefix)
+    processed = Path(PARAMETERS["data_root"]["processed"])
+    fig_file = processed / data_path / "figures" / f"adjacent_tile_reg_{prefix}.png"
+    fig.savefig(fig_file, dpi=300)
+    print(f"Saving {fig_file}")
+    return fig
 
 
 def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
@@ -215,12 +254,13 @@ def plot_tilestats_distributions(
     ops = load_ops(data_path)
     camera_order = ops["camera_order"]
     distri = distributions.copy()
-    fig = plt.figure(figsize=(10, 20))
+    fig = plt.figure(figsize=(10, 20), facecolor="white")
     colors = ["blue", "green", "red", "purple"]
     # TODO: adapt to varying number of rounds
+    nrounds = [np.sum([k.startswith(p) for k in distri]) for p in grand_averages]
     for ip, prefix in enumerate(grand_averages):
         grand_data = distri.pop(prefix)
-        ax = fig.add_subplot(11, 2, 1 + ip)
+        ax = fig.add_subplot(np.max(nrounds), 2, 1 + ip)
         ax.set_title(prefix)
         for c, i in enumerate(np.argsort(camera_order)):
             ax.plot(
@@ -245,7 +285,7 @@ def plot_tilestats_distributions(
                     label=f"Channel {c}",
                     color=colors[c],
                 )
-            ax.set_ylim(-0.3, 0.3)
+            ax.set_ylim(-0.4, 0.4)
 
     for ax in fig.axes:
         ax.axvline(2**12, color="k", zorder=-10)
@@ -255,3 +295,61 @@ def plot_tilestats_distributions(
         ax.semilogx()
     ax.legend()
     fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)
+
+
+def plot_matrix_difference(
+    raw, corrected, col_labels=None, line_labels=("Raw", "Corrected", "Difference")
+):
+    """Plot the raw, corrected matrices and their difference
+
+    Args:
+        raw (np.array): n feature x tilex x tiley array of raw estimates
+        corrected (np.array): n feature x tilex x tiley array of corrected estimates
+        col_labels (list, optional): List of feature names for axes titles. Defaults to
+            None.
+        line_labels (list, optional): List of names for ylabel of leftmost plots.
+            Defaults to ('Raw', 'Corrected', 'Difference').
+
+    Returns:
+        plt.Figure: Figure instance
+    """
+    ncols = raw.shape[0]
+    fig, axes = plt.subplots(3, ncols)
+    fig.set_size_inches((ncols * 3.5, 6))
+
+    for col in range(ncols):
+        vmin = corrected[col].min()
+        vmax = corrected[col].max()
+        rng = vmax - vmin
+        if rng == 0:
+            rng = 0.1
+            vmin = vmin - rng
+            vmax = vmax + rng
+        im = axes[0, col].imshow(raw[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5)
+        ax_divider = make_axes_locatable(axes[0, col])
+        cax = ax_divider.append_axes("right", size="7%", pad="2%")
+        cb = fig.colorbar(im, cax=cax)
+        im = axes[1, col].imshow(
+            corrected[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5
+        )
+        ax_divider = make_axes_locatable(axes[1, col])
+        cax = ax_divider.append_axes("right", size="7%", pad="2%")
+        cb = fig.colorbar(im, cax=cax)
+        im = axes[2, col].imshow(
+            (raw[col] - corrected[col]).T, cmap="RdBu_r", vmin=-rng, vmax=rng
+        )
+        ax_divider = make_axes_locatable(axes[2, col])
+        cax = ax_divider.append_axes("right", size="7%", pad="2%")
+        cb = fig.colorbar(im, cax=cax)
+
+    for x in axes.flatten():
+        x.set_xticks([])
+        x.set_yticks([])
+    if col_labels is not None:
+        for il, label in enumerate(col_labels):
+            axes[0, il].set_title(label, fontsize=11)
+    if line_labels is not None:
+        for il, label in enumerate(line_labels):
+            axes[il, 0].set_ylabel(label, fontsize=11)
+    fig.subplots_adjust(top=0.9, wspace=0.15, hspace=0)
+    return fig

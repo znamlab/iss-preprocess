@@ -107,7 +107,7 @@ def plot_gene_matrix(gene_df, cmap="inferno", vmax=2):
     gene_mat_reordered = gene_mat_reordered[:, gene_order]
     ax = plt.subplot(1, 1, 1)
     plt.imshow(gene_mat_reordered, cmap=cmap, vmax=vmax, interpolation="nearest")
-    plt.xticks(range(gene_mat.shape[1]), gene_df.columns[gene_order], rotation=45)
+    plt.xticks(range(gene_mat.shape[1]), gene_df.columns[gene_order], rotation=45, horizontalalignment='right')
     ax.set_aspect("auto")
 
 

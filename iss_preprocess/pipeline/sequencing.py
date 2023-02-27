@@ -28,6 +28,8 @@ from ..call import (
     barcode_spots_dot_product,
     BASES,
 )
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.linear_model import LinearRegression
 
 
 # AB: LGTM 10/03/23
@@ -90,6 +92,7 @@ def setup_barcode_calling(
             because N channels is equal to N clusters) array of cluster means,
             normalised by round 0 intensity
         all_spots (pandas.DataFrame): All detected spots.
+
     """
     ops = load_ops(data_path)
     all_spots = []
@@ -117,6 +120,10 @@ def setup_barcode_calling(
         all_spots.append(spots)
     all_spots = pd.concat(all_spots, ignore_index=True)
     cluster_means = get_cluster_means(all_spots, vis=True, score_thresh=score_thresh)
+
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    save_path = processed_path / data_path / "barcode_cluster_means.npy"
+    np.save(save_path, cluster_means)
     return cluster_means, all_spots
 
 
@@ -190,23 +197,15 @@ def basecall_tile(data_path, tile_coors):
     )
 
 
-def setup_omp(
-    stack,
-    codebook_name="codebook_83gene_pool.csv",
-    detection_threshold=40,
-    isolation_threshold=30,
-):
+def setup_omp(data_path, score_thresh=0, correct_channels=True):
     """Prepare variables required to run the OMP algorithm. Finds isolated spots using
     STD across rounds and channels. Detected spots are then used to determine the
     bleedthrough matrix using scaled k-means.
 
     Args:
-        stack (numpy.ndarray): X x Y x C x R image stack.
-        codebook_name (str): filename of the codebook to use.
-        detection_threshold (float): spot detection threshold to find spots for
-            training the bleedthrough matrix.
-        isolation_threshold (float): threshold used to selected isolated spots
-            based on average values in the annulus around each spot.
+        data_path (str): Relative path to data.
+        score_thresh (float): Dot product threshold to include spots in cluster
+            mean calculation. Defaults to 0.
 
     Returns:
         numpy.ndarray: N x M dictionary, where N = R * C and M is the
@@ -215,27 +214,48 @@ def setup_omp(
         float: norm shift for the OMP algorithm, estimated as median norm of all pixels.
 
     """
-    spots = detect_isolated_spots(
-        np.std(stack, axis=(2, 3)),
-        detection_threshold=detection_threshold,
-        isolation_threshold=isolation_threshold,
-    )
+    ops = load_ops(data_path)
+    all_spots = []
+    for ref_tile in ops["barcode_ref_tiles"]:
+        print(f"detecting spots in tile {ref_tile}")
+        stack, _ = load_and_register_tile(
+            data_path,
+            ref_tile,
+            filter_r=ops["filter_r"],
+            prefix="genes_round",
+            suffix=ops["projection"],
+            correct_channels=correct_channels,
+        )
+        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+        spots = detect_isolated_spots(
+            np.std(stack, axis=(2, 3)),
+            detection_threshold=ops["detection_threshold"],
+            isolation_threshold=ops["isolation_threshold"],
+        )
 
-    extract_spots(spots, stack)
-    cluster_means = get_cluster_means(spots, vis=True)
+        extract_spots(spots, stack)
+        all_spots.append(spots)
+    all_spots = pd.concat(all_spots, ignore_index=True)
+    cluster_means = get_cluster_means(all_spots, vis=True, score_thresh=score_thresh)
     codebook = pd.read_csv(
-        Path(__file__).parent.parent / "call" / codebook_name,
+        Path(__file__).parent.parent / "call" / ops["codebook"],
         header=None,
         names=["gii", "seq", "gene"],
     )
-    gene_dict, unique_genes = make_gene_templates(cluster_means, codebook, vis=True)
+    gene_dict, gene_names = make_gene_templates(cluster_means, codebook, vis=True)
 
-    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
-    return gene_dict, unique_genes, norm_shift
+    norm_shift = np.sqrt(np.median(np.sum(stack ** 2, axis=(2, 3))))
+    save_path = Path(PARAMETERS["data_root"]["processed"]) / data_path / "gene_dict.npz"
+    np.savez(
+        save_path, gene_dict=gene_dict, gene_names=gene_names, norm_shift=norm_shift
+    )
+    return gene_dict, gene_names, norm_shift
 
 
 # AB: LGTM
-def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
+def estimate_channel_correction(
+    data_path, prefix="genes_round", nrounds=7, fit_norm_factors=False
+):
     """Compute grayscale value distribution and normalisation factors
 
     Each `correction_tiles` of `ops` is filtered before being used to compute the
@@ -253,6 +273,7 @@ def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
         pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values
             for filtered stacks
         norm_factors (np.array) A Nch x Nround array of normalisation factors
+        
     """
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
@@ -281,13 +302,38 @@ def estimate_channel_correction(data_path, prefix="genes_round", nrounds=7):
 
     cumulative_pixel_dist = np.cumsum(pixel_dist, axis=0)
     cumulative_pixel_dist = cumulative_pixel_dist / cumulative_pixel_dist[-1, :, :]
-    norm_factors = np.zeros((nch, nrounds))
+    norm_factors_raw = np.zeros((nch, nrounds))
     for iround in range(nrounds):
         for ich in range(nch):
-            norm_factors[ich, iround] = np.argmax(
+            norm_factors_raw[ich, iround] = np.argmax(
                 cumulative_pixel_dist[:, ich, iround] > ops["correction_quantile"]
             )
-    return pixel_dist, norm_factors
+
+    if fit_norm_factors:
+        x_ch = np.repeat(np.arange(nch)[:, np.newaxis], nrounds, axis=1)
+        x_round = np.repeat(np.arange(nrounds)[np.newaxis, :], nch, axis=0)
+        channels_encoding = (
+            OneHotEncoder().fit_transform(x_ch.flatten()[:, np.newaxis]).todense()
+        )
+        x = np.hstack((x_round.flatten()[:, np.newaxis], channels_encoding))
+
+        mdl = LinearRegression(fit_intercept=False).fit(
+            x, np.log(norm_factors_raw.flatten()[:, np.newaxis])
+        )
+        norm_factors_fit = np.exp(mdl.predict(x))
+        norm_factors_fit = np.reshape(norm_factors_fit, norm_factors_raw.shape)
+    else:
+        norm_factors_fit = norm_factors_raw
+
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    save_path = processed_path / data_path / f"correction_{prefix}.npz"
+    np.savez(
+        save_path,
+        pixel_dist=pixel_dist,
+        norm_factors=norm_factors_fit,
+        norm_factors_raw=norm_factors_raw,
+    )
+    return pixel_dist, norm_factors_fit, norm_factors_raw
 
 
 def load_and_register_sequencing_tile(
@@ -331,6 +377,7 @@ def load_and_register_sequencing_tile(
         numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged
             for all channels and rounds (due to registration offsets) and should be discarded
             during analysis.
+
     """
     if specific_rounds is None:
         specific_rounds = np.arange(nrounds) + 1
@@ -399,6 +446,7 @@ def load_spot_sign_image(data_path, threshold):
 
     Returns:
         numpy.ndarray: Spot sign image after thresholding, containing -1, 0, or 1s.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     spot_image_path = processed_path / data_path / "spot_sign_image.npy"
@@ -414,11 +462,7 @@ def load_spot_sign_image(data_path, threshold):
 
 
 def run_omp_on_tile(
-    data_path,
-    tile_coors,
-    save_stack=False,
-    correct_channels=False,
-    prefix="genes_round",
+    data_path, tile_coors, save_stack=False, prefix="genes_round",
 ):
     """Apply the OMP algorithm to unmix spots in a given tile using the saved
     gene dictionary and settings saved in `ops.npy`. Then detect gene spots in
@@ -433,6 +477,7 @@ def run_omp_on_tile(
             If not False, can specify normalization method, e.g. "round1_only". Defaults to False.
         prefix (str, optional): Prefix of the sequencing read to analyse.
             Defaults to "genes_round".
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
@@ -441,7 +486,7 @@ def run_omp_on_tile(
         data_path,
         tile_coors,
         suffix=ops["projection"],
-        correct_channels=correct_channels,
+        correct_channels=ops["genes_correct_channels"],
         prefix=prefix,
         nrounds=ops["genes_rounds"],
     )
