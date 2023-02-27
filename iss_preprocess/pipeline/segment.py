@@ -57,7 +57,7 @@ def segment_roi(
     )
     print("starting segmentation", flush=True)
     masks = cellpose_segmentation(
-        stitched_stack,
+        stitched_stack[..., 0],
         channels=(0, 0),
         flow_threshold=ops["cellpose_flow_threshold"],
         min_pix=0,

@@ -349,7 +349,7 @@ def stitch_tiles(
 
 
 def stitch_registered(
-    data_path, prefix, roi, ich=0, ref_prefix="genes_round_1_1", filter_r=False
+    data_path, prefix, roi, channels=0, ref_prefix="genes_round_1_1", filter_r=False
 ):
     """Load registered stack and stitch them
 
@@ -359,7 +359,7 @@ def stitch_registered(
         data_path (str): Relative path to data
         prefix (str): Prefix of acquisition to stitch
         roi (int): Roi ID
-        ich (int, optional): Channel id. Defaults to 0.
+        channels (list or int, optional): Channel id(s). Defaults to 0.
         ref_prefix (str, optional): Prefix of reference acquisition to load shifts.
             Defaults to "genes_round".
         filter_r (bool, optional): Filter image before stitching? Defaults to False.
@@ -367,6 +367,10 @@ def stitch_registered(
     Returns:
         np.array: stitched stack
     """
+    if isinstance(channels, int):
+        channels = [channels]
+    else:
+        channels = list(channels)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
@@ -377,7 +381,7 @@ def stitch_registered(
     )
     tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
-    stitched_stack = np.zeros(max_origin + tile_shape)
+    stitched_stack = np.zeros((*(max_origin + tile_shape), len(channels)))
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_tile_ref_coors(
@@ -386,11 +390,12 @@ def stitch_registered(
                 prefix=prefix,
                 filter_r=filter_r,
             )
-            stack = stack[:, :, ich, 0]  # only one channel, unique round
+            stack = stack[:, :, channels, 0]  # unique round
             valid = stack != 0  # do not copy 0s over data from previous tile
             stitched_stack[
                 tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
                 tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
+                :
             ][valid] = stack[valid]
     return stitched_stack
 
