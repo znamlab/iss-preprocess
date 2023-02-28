@@ -167,7 +167,7 @@ def cell_of_spots(
     # get the spots dataframes
     spots_dict = dict()
     for prefix in spot_acquisitions:
-        print(f"Doing {prefix}", flush=True)
+        print(f"Loading {prefix}", flush=True)
         spot_df = pd.read_pickle(
             processed_path / data_path / f"{prefix}_spots_{roi}.pkl"
         )
