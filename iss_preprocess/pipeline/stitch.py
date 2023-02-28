@@ -318,7 +318,21 @@ def stitch_tiles(
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     if not shifts_prefix:
         shifts_prefix = prefix
-    shifts = np.load(processed_path / data_path / "reg" / f"{shifts_prefix}_shifts.npz")
+    shift_file = processed_path / data_path / "reg" / f"{shifts_prefix}_shifts.npz"
+    if shift_file.exists():
+        shifts = np.load(shift_file)
+    else:
+        warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
+        ops = load_ops(data_path)
+        shifts = register_adjacent_tiles(
+        data_path,
+        ref_coors=ops["ref_tile"],
+        reg_fraction=0.1,
+        ref_ch=0,
+        suffix="fstack",
+        prefix=prefix,
+        )
+        shifts = {key:shifts[i] for i, key in enumerate(["shift_right", "shift_down", "tile_shape"])}
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
