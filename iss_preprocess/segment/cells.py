@@ -59,35 +59,52 @@ def cellpose_segmentation(
     return masks
 
 
-def count_rolonies(masks, spots, grouping_column):
+def rolonie_mask_value(masks, spots):
+    """Find the mask value of each spot
+
+    Args:
+        masks (numpy.array): cell masks. Must be positive integers
+        spots (pandas.DataFrame): table of spot locations. Must have a x and y columns
+
+    Returns:
+        pandas.DataFrame: spots, modfied inplace to add a "mask_id" column
+    """
+    xy = np.round(spots.loc[:, ["x", "y"]].values).astype(int)
+    # clip values outside of mask. Can happen because of registration shift
+    for i in range(2):
+        xy[:, i] = np.clip(xy[:, i], 0, masks.shape[::-1][i] - 1)
+    mask_val = masks[xy[:, 1], xy[:, 0]]
+    # add that to the spots df
+    spots["mask_id"] = mask_val
+    return spots
+
+
+def count_rolonies(spots, grouping_column, masks=None):
     """
     Count number of rolonies within each mask and return a DataFrame of counts.
 
     Args:
-        masks (numpy.ndarray): cell masks. Must be positive integers
         spots (pandas.DataFrame): table of spot locations for each group
         grouping_column (str): name of the column to group counts, usually 'gene' or
             'bases'
+        masks (numpy.ndarray, optional): cell masks. Must be positive integers. Can be 
+            None If spots already includes a "mask_id" columns. Defaults to None.
 
     Returns:
         A DataFrame of counts by unique values of `grouping_column`.
 
     """
-
-    # find value of mask for each rolonie
-    xy = np.round(spots.loc[:, ["x", "y"]].values).astype(int)
-    # clip values outside of mask. Can happen because of registration shift
-    for i in range(2):
-        xy[:, i] = np.clip(xy[:, i], 0, masks.shape[i] - 1)
-    mask_val = masks[xy[:, 1], xy[:, 0]]
-    # add that to the spots df
-    spots["mask_id"] = mask_val
+    if masks is None:
+        assert "mask_id" in spots.columns
+    else:
+        spots = rolonie_mask_value(masks, spots)
     # count the number of occurence of each ("mask_id", genes or barcode) pair
     cell_df = pd.DataFrame(
         spots.loc[:, ["mask_id", grouping_column]]
         .groupby(["mask_id", grouping_column])
         .aggregate(len)
     )
+    
     # formating
     cell_df = cell_df.unstack(grouping_column)
     cell_df[np.isnan(cell_df)] = 0
