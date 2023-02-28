@@ -137,7 +137,7 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False):
     Args:
         data_path (str): Relative path to data
         roi (int): Roi number to generate
-        atlas_size (int, optional): Pixel size of the atlas used to find area if.
+        atlas_size (int, optional): Pixel size of the atlas used to find area id.
             Defaults to 10.
         full_scale (bool, optional): If true, returns the full scale image, otherwise
             the downsample version used for registration. Defaults to False.
@@ -159,13 +159,16 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False):
     return area_id
 
 
-def spots_ara_infos(data_path, spots, roi, atlas_size, inplace=True):
+def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplace=True):
     """Add ARA coordinates and area ID to spots dataframe
 
     Args:
         data_path (str): Relative path to data
         spots (pd.DataFrame): Spots dataframe
-        atlas_size (int): Atlas size (10, 25 or 50) for find areas borders
+        atlas_size (int, optional): Atlas size (10, 25 or 50) for find areas borders.
+            Defaults to 10
+        acronyms (bool, optional): Add an acronym column with area name. Defaults to 
+            False.
         inplace (bool, optional): add the column to spots inplace or return a copy.
             Defaults to True
 
@@ -185,6 +188,15 @@ def spots_ara_infos(data_path, spots, roi, atlas_size, inplace=True):
     area_map = make_area_image(data_path, roi, atlas_size=atlas_size)
     spot_area = area_map[spot_xy[:, 1], spot_xy[:, 0]]
     spots["area_id"] = spot_area
+
+    if acronyms:
+        atlas_name = "allen_mouse_%dum" % atlas_size
+        bg_atlas = bga.bg_atlas.BrainGlobeAtlas(atlas_name)
+        labels = bg_atlas.lookup_df.set_index('id')
+        spots['area_acronym'] = "outside"
+        valid = spots.area_id != 0
+        spots.loc[valid, 'area_acronym'] = labels.loc[spots.area_id[valid], 'acronym'].values
+        
     return spots
 
 
