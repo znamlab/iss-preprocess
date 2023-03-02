@@ -241,6 +241,7 @@ def correct_hyb_shifts(path, prefix=None):
 
     correct_hyb_shifts(path, prefix)
 
+
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
@@ -250,6 +251,7 @@ def correct_ref_shifts(path, prefix=None):
     across tiles.
     """
     from iss_preprocess.pipeline import correct_shifts_to_ref
+
     correct_shifts_to_ref(path, prefix)
 
 
@@ -380,7 +382,10 @@ def align_spots(
     )
 
     register_within_acquisition(path, prefix=reg_prefix, reload=True, save_plot=True)
-    register_within_acquisition(path, prefix=ref_prefix, reload=True, save_plot=True)
+    if reg_prefix != ref_prefix:
+        register_within_acquisition(
+            path, prefix=ref_prefix, reload=True, save_plot=True
+        )
     merge_and_align_spots_all_rois(
         path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, ref_prefix=ref_prefix
     )
@@ -419,16 +424,17 @@ def align_spots_roi(
         stitch_and_register,
     )
 
-    stitch_and_register(
-        path,
-        reference_prefix=ref_prefix,
-        target_prefix=reg_prefix,
-        roi=roi,
-        downsample=5,
-        ref_ch=0,
-        target_ch=0,
-        estimate_scale=False,
-    )
+    if ref_prefix != reg_prefix:
+        stitch_and_register(
+            path,
+            reference_prefix=ref_prefix,
+            target_prefix=reg_prefix,
+            roi=roi,
+            downsample=5,
+            ref_ch=0,
+            target_ch=0,
+            estimate_scale=False,
+        )
 
     merge_and_align_spots(
         path,
