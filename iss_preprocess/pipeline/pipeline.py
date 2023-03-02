@@ -70,7 +70,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             filter_r=filter_r,
             correct_illumination=True,
             correct_channels=True,
-        )        
+        )
     else:
         stack = load_tile_by_coors(
             data_path,
@@ -89,17 +89,20 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     return stack
 
 
-def batch_process_tiles(data_path, script, additional_args=""):
+def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     """Start sbatch scripts for all tiles across all rois.
 
     Args:
         data_path (str): Relative path to data.
         script (str): Filename stem of the sbatch script, e.g. `extract_tile`.
+        roi_dims (numpy.array, optional): Nx3 array of roi dimensions. If None, will
+            load `genes_round_1_1` dimensions
         additional_args (str, optional): Additional environment variable to export
             to pass to the sbatch job. Should start with a leading comma.
             Defaults to "".
     """
-    roi_dims = get_roi_dimensions(data_path)
+    if roi_dims is None:
+        roi_dims = get_roi_dimensions(data_path)
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
     ops = load_ops(data_path)
     if "use_rois" not in ops.keys():
@@ -335,7 +338,6 @@ def overview_for_ara_registration(
     )
 
     for roi in rois_to_do:
-
         export_args = dict(
             DATAPATH=data_path,
             ROI=roi,

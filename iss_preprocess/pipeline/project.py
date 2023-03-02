@@ -15,7 +15,7 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
     Args:
         data_path (str): Relative path to data.
         prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
-        suffixes (tuple, optional): Projection suffixes to check for. 
+        suffixes (tuple, optional): Projection suffixes to check for.
             Defaults to ("max", "fstack").
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -55,17 +55,20 @@ def project_round(data_path, prefix, overwrite=False):
     additional_args = f",PREFIX={prefix}"
     if overwrite:
         additional_args += ",OVERWRITE=--overwrite"
-        
-    batch_process_tiles(data_path, "project_tile", additional_args=additional_args)
+
+    roi_dims = get_roi_dimensions(data_path, prefix)
+    batch_process_tiles(
+        data_path, "project_tile", roi_dims=roi_dims, additional_args=additional_args
+    )
     # copy one of the tiff metadata files
-    roi_dims = get_roi_dimensions(data_path)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     raw_path = Path(PARAMETERS["data_root"]["raw"])
     metadata_fname = f"{prefix}_MMStack_{roi_dims[0][0]}-Pos000_000_metadata.txt"
     target_path = processed_path / data_path / prefix
     target_path.mkdir(parents=True, exist_ok=True)
     shutil.copy(
-        raw_path / data_path / prefix / metadata_fname, target_path / metadata_fname,
+        raw_path / data_path / prefix / metadata_fname,
+        target_path / metadata_fname,
     )
 
 
