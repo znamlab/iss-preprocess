@@ -298,7 +298,11 @@ def plot_tilestats_distributions(
 
 
 def plot_matrix_difference(
-    raw, corrected, col_labels=None, line_labels=("Raw", "Corrected", "Difference")
+    raw,
+    corrected,
+    col_labels=None,
+    line_labels=("Raw", "Corrected", "Difference"),
+    range_min=(5, 5, 0.1),
 ):
     """Plot the raw, corrected matrices and their difference
 
@@ -309,6 +313,8 @@ def plot_matrix_difference(
             None.
         line_labels (list, optional): List of names for ylabel of leftmost plots.
             Defaults to ('Raw', 'Corrected', 'Difference').
+        range_min (tuple, optional): N features long tuple of minimal range for color
+            bars. Defaults to (5,5,0.1)
 
     Returns:
         plt.Figure: Figure instance
@@ -321,8 +327,8 @@ def plot_matrix_difference(
         vmin = corrected[col].min()
         vmax = corrected[col].max()
         rng = vmax - vmin
-        if rng == 0:
-            rng = 0.1
+        if rng < range_min[col]:
+            rng = range_min[col]
             vmin = vmin - rng
             vmax = vmax + rng
         im = axes[0, col].imshow(raw[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5)
