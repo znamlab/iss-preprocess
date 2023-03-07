@@ -59,7 +59,7 @@ def cellpose_segmentation(
     return masks
 
 
-def rolonie_mask_value(masks, spots):
+def rolony_mask_value(masks, spots):
     """Find the mask value of each spot
 
     Args:
@@ -68,6 +68,7 @@ def rolonie_mask_value(masks, spots):
 
     Returns:
         pandas.DataFrame: spots, modfied inplace to add a "mask_id" column
+
     """
     xy = np.round(spots.loc[:, ["x", "y"]].values).astype(int)
     # clip values outside of mask. Can happen because of registration shift
@@ -87,7 +88,7 @@ def count_rolonies(spots, grouping_column, masks=None):
         spots (pandas.DataFrame): table of spot locations for each group
         grouping_column (str): name of the column to group counts, usually 'gene' or
             'bases'
-        masks (numpy.ndarray, optional): cell masks. Must be positive integers. Can be 
+        masks (numpy.ndarray, optional): cell masks. Must be positive integers. Can be
             None If spots already includes a "mask_id" columns. Defaults to None.
 
     Returns:
@@ -97,14 +98,14 @@ def count_rolonies(spots, grouping_column, masks=None):
     if masks is None:
         assert "mask_id" in spots.columns
     else:
-        spots = rolonie_mask_value(masks, spots)
+        spots = rolony_mask_value(masks, spots)
     # count the number of occurence of each ("mask_id", genes or barcode) pair
     cell_df = pd.DataFrame(
         spots.loc[:, ["mask_id", grouping_column]]
         .groupby(["mask_id", grouping_column])
         .aggregate(len)
     )
-    
+
     # formating
     cell_df = cell_df.unstack(grouping_column)
     cell_df[np.isnan(cell_df)] = 0

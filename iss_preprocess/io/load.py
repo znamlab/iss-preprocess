@@ -61,6 +61,19 @@ def load_metadata(data_path):
     return metadata
 
 
+def get_pixel_size(data_path, prefix="genes_round_1_1"):
+    """Get pixel size from MicroManager metadata.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): Which acquisition prefix to use. Defaults to "genes_round_1_1".
+
+    """
+    acq_data = load_single_acq_metdata(data_path, prefix=prefix)
+    pixel_size = acq_data["FrameKey-0-0-0"]["PixelSizeUm"]
+    return pixel_size
+
+
 def load_single_acq_metdata(data_path, prefix):
     """Load the metadata.txt of a single acquisition round
 

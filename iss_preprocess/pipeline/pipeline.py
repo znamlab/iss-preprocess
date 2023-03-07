@@ -31,7 +31,9 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             from `ops`. Default to True
 
     Returns:
-        np.array: A (X x Y x Nchannels x Nrounds) registered stack
+        numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
+        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after registration
+
     """
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
@@ -70,7 +72,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             filter_r=filter_r,
             correct_illumination=True,
             correct_channels=True,
-        )        
+        )
     else:
         stack = load_tile_by_coors(
             data_path,
@@ -86,7 +88,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     if stack.ndim == 3:
         stack = stack[..., np.newaxis]
 
-    return stack
+    return stack, bad_pixels
 
 
 def batch_process_tiles(data_path, script, additional_args=""):
@@ -332,7 +334,6 @@ def overview_for_ara_registration(
     )
 
     for roi in rois_to_do:
-
         export_args = dict(
             DATAPATH=data_path,
             ROI=roi,

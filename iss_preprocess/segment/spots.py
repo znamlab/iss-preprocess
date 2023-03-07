@@ -102,14 +102,15 @@ def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None)
     an amplitude of 1
 
     Args:
-        spots (pd.DataFrame): Spots dataframe. Must have a `x` and a `y` column
+        spots (pandas.DataFrame): Spots DataFrame. Must have `x` and `y` columns
         gaussian_width (int, optional): Width of the gaussian in pixels. Defaults to 30.
         dtype (str, optional): Datatype for computation. Defaults to "single".
         output_shape (tuple, optional): Shape of the output image. If None, the smallest
             shape fitting all spots + kernel will be used. Defaults to None.
 
     Returns:
-        np.array: Convolution results
+        numpy.ndarray: Convolution results
+        
     """
     kernel_size = gaussian_width * 8
     kernel_size += 1 - kernel_size % 2  # kernel shape must be odd

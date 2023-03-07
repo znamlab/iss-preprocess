@@ -6,7 +6,7 @@ from flexiznam import PARAMETERS
 from skimage.morphology import binary_dilation
 from .roi import ROI
 from .spots import make_spot_image
-from ..io import load_single_acq_metdata
+from ..io import get_pixel_size
 
 
 def convolve_spots(data_path, roi, kernel_um, dot_threshold, output_shape=None):
@@ -23,9 +23,9 @@ def convolve_spots(data_path, roi, kernel_um, dot_threshold, output_shape=None):
             None.
 
     Returns:
-        np.array: 2D image of roi density
-    """
+        numpy.ndarray: 2D image of roi density
 
+    """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     all_spots = pd.read_pickle(
         processed_path / data_path / f"barcode_round_spots_{roi}.pkl"
@@ -33,9 +33,7 @@ def convolve_spots(data_path, roi, kernel_um, dot_threshold, output_shape=None):
     spots = all_spots[all_spots.dot_product_score > dot_threshold]
 
     # load barcode_round_1_1 but anything should work
-    acq_data = load_single_acq_metdata(data_path, prefix="barcode_round_1_1")
-
-    pixel_size = acq_data["FrameKey-0-0-0"]["PixelSizeUm"]
+    pixel_size = get_pixel_size(data_path, prefix="barcode_round_1_1")
     kernel_size = int(kernel_um / pixel_size)
 
     return make_spot_image(
@@ -49,17 +47,18 @@ def segment_spot_image(
     """Segment a spot image using opencv
 
     Args:
-        spot_image (np.array): 2D image to segment
+        spot_image (numpy.ndarray): 2D image to segment
         binarise_threshold (float, optional): Threshold for initial binarisation. Will
             cut isolated rolonies. Defaults to 5.
         distance_threshold (float, optional): Distance threshold for initial
             segmentation. Defaults to 10.
-        debug (bool, optional): Return intermediary steps if True. Defaults to False.
+        debug (bool, optional): Return intermediate results if True. Defaults to False.
 
     Returns:
-        np.array or dict: Segmented image. Background is 0, borders -1, other numbers
+        numpy.ndarray or dict: Segmented image. Background is 0, borders -1, other numbers
             label individual cells. If debug is True, return a dictionary with
-            intermediary steps
+            intermediate results
+
     """
     # binarise
     mask = 255 * (spot_image > binarise_threshold).astype("uint8")

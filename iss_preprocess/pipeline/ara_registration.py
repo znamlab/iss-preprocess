@@ -11,7 +11,7 @@ from ..io import (
     load_section_position,
     load_metadata,
     load_stack,
-    load_single_acq_metdata,
+    get_pixel_size,
     save_ome_tiff_pyramid,
 )
 
@@ -167,7 +167,7 @@ def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplac
         spots (pd.DataFrame): Spots dataframe
         atlas_size (int, optional): Atlas size (10, 25 or 50) for find areas borders.
             Defaults to 10
-        acronyms (bool, optional): Add an acronym column with area name. Defaults to 
+        acronyms (bool, optional): Add an acronym column with area name. Defaults to
             False.
         inplace (bool, optional): add the column to spots inplace or return a copy.
             Defaults to True
@@ -192,11 +192,13 @@ def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplac
     if acronyms:
         atlas_name = "allen_mouse_%dum" % atlas_size
         bg_atlas = bga.bg_atlas.BrainGlobeAtlas(atlas_name)
-        labels = bg_atlas.lookup_df.set_index('id')
-        spots['area_acronym'] = "outside"
+        labels = bg_atlas.lookup_df.set_index("id")
+        spots["area_acronym"] = "outside"
         valid = spots.area_id != 0
-        spots.loc[valid, 'area_acronym'] = labels.loc[spots.area_id[valid], 'acronym'].values
-        
+        spots.loc[valid, "area_acronym"] = labels.loc[
+            spots.area_id[valid], "acronym"
+        ].values
+
     return spots
 
 
@@ -224,8 +226,7 @@ def overview_single_roi(
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
 
     print("Finding pixel size")
-    acq_metadata = load_single_acq_metdata(data_path, reference_prefix)
-    pixel_size = acq_metadata["FrameKey-0-0-0"]["PixelSizeUm"]
+    pixel_size = get_pixel_size(data_path, reference_prefix)
 
     if chan2use is None:
         chan2use = [ops["ref_ch"]]
@@ -270,11 +271,8 @@ def overview_single_roi(
     )
 
     print(f"   ..... filtering", flush=True)
-    
-    stitched_stack = gaussian_filter(
-            stitched_stack, sigma_blur
-        )
 
+    stitched_stack = gaussian_filter(stitched_stack, sigma_blur)
 
     target = registration_folder / f"{chamber}_r{roi}_sl{slice_id:03d}.ome.tif"
     logfile = Path(target).with_suffix(".yml")

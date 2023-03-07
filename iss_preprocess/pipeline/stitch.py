@@ -40,7 +40,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
     """
-    stack = pipeline.load_and_register_tile(
+    stack, bad_pixels = pipeline.load_and_register_tile(
         data_path, tile_coors, prefix, filter_r=filter_r
     )
 
@@ -60,13 +60,16 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     else:
         reg_prefix = prefix
 
+    stack[bad_pixels] = np.nan
     reg2ref = np.load(
         processed_path
         / data_path
         / "reg"
         / f"tforms_corrected_to_ref_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
-
+    # TODO: we are warping the image twice - in `load_and_register_tile` and here
+    # if we ever use this function for downstream analyses (e.g. detecting spots)
+    # we should make sure to warp once
     # apply the same registration to all channels and rounds
     for ir in range(stack.shape[3]):
         for ic in range(stack.shape[2]):
@@ -75,8 +78,11 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
                 scale=reg2ref["scales"][0][0],  # same reg for all round and channels
                 angle=reg2ref["angles"][0][0],
                 shift=reg2ref["shifts"][0],
+                cval=np.nan,
             )
-    return stack
+    bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
+    stack[bad_pixels] = 0
+    return stack, bad_pixels
 
 
 def register_within_acquisition(
@@ -325,15 +331,19 @@ def stitch_tiles(
     else:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
         ops = load_ops(data_path)
-        shifts = register_adjacent_tiles(
-        data_path,
-        ref_coors=ops["ref_tile"],
-        reg_fraction=0.1,
-        ref_ch=0,
-        suffix="fstack",
-        prefix=prefix,
+        shifts = {}
+        (
+            shifts["shift_right"],
+            shifts["shift_down"],
+            shifts["tile_shape"],
+        ) = register_adjacent_tiles(
+            data_path,
+            ref_coors=ops["ref_tile"],
+            reg_fraction=0.1,
+            ref_ch=0,
+            suffix="fstack",
+            prefix=prefix,
         )
-        shifts = {key:shifts[i] for i, key in enumerate(["shift_right", "shift_down", "tile_shape"])}
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
@@ -398,18 +408,19 @@ def stitch_registered(
     stitched_stack = np.zeros((*(max_origin + tile_shape), len(channels)))
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
-            stack = load_tile_ref_coors(
+            stack, bad_pixels = load_tile_ref_coors(
                 data_path=data_path,
                 tile_coors=(roi, ix, iy),
                 prefix=prefix,
                 filter_r=filter_r,
             )
             stack = stack[:, :, channels, 0]  # unique round
-            valid = stack != 0  # do not copy 0s over data from previous tile
+            # do not copy 0s over data from previous tile
+            valid = np.logical_not(bad_pixels)
             stitched_stack[
                 tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
                 tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
-                :
+                :,
             ][valid] = stack[valid]
     return stitched_stack
 

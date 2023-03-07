@@ -402,14 +402,14 @@ def register_tile_to_ref(
         angle (float): Rotation angle
         shifts (np.array): X and Y shifts
     """
-    ref_all_channels = pipeline.load_and_register_tile(
+    ref_all_channels, _ = pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=tile_coors,
         prefix=ref_prefix,
         filter_r=False,
     )
 
-    target_all_channels = pipeline.load_and_register_tile(
+    target_all_channels, _ = pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=tile_coors,
         prefix=reg_prefix,
@@ -449,7 +449,7 @@ def register_tile_to_ref(
     return angles, shifts
 
 
-def registered_spots(data_path, tile_coors, prefix, ref_prefix='genes_round_1_1'):
+def registered_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
     """Return spots in reference coordinates
 
     Args:
@@ -471,7 +471,7 @@ def registered_spots(data_path, tile_coors, prefix, ref_prefix='genes_round_1_1'
     if ref_prefix.startswith(prefix):
         # it is the ref, no need to register
         return spots
-    
+
     tform2ref = np.load(
         processed_path
         / data_path

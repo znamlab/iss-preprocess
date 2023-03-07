@@ -5,10 +5,11 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.measure import regionprops_table
 from skimage.segmentation import expand_labels
-from ..segment import cellpose_segmentation, count_rolonies, rolonie_mask_value
+from ..segment import cellpose_segmentation, count_rolonies, rolony_mask_value
 from .stitch import stitch_registered
-from ..io import get_roi_dimensions, load_ops, load_single_acq_metdata, load_metadata
+from ..io import get_roi_dimensions, load_ops, get_pixel_size, load_metadata
 from . import ara_registration as ara_reg
+import warnings
 
 
 def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
@@ -19,6 +20,7 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
         prefix (str, optional): acquisition prefix to use for segmentation.
             Defaults to "DAPI_1".
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
+
     """
     roi_dims = get_roi_dimensions(data_path)
     script_path = str(
@@ -51,6 +53,7 @@ def segment_roi(
         reference (str, optional): Acquisition prefix to align the stitched image to.
             Defaults to "genes_round_1_1".
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
+
     """
     print(f"running segmentation on roi {iroi} from {data_path} using {prefix}")
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -90,6 +93,7 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
             rolonies per cells. None for no expansion. Defaults to 5.
         atlas_size (int, optional): Size of the atlas to use to load ARA information.
             If None, will not get area information. Defaults to 10.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     big_masks = _get_big_masks(data_path, roi, masks, mask_expansion)
@@ -123,13 +127,13 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
     return cell_df
 
 
-def cell_of_spots(
+def add_mask_id(
     data_path,
     roi,
     mask_expansion=5.0,
     masks=None,
     barcode_dot_threshold=0.15,
-    omp_score_threshold=0.1,
+    spot_score_threshold=0.1,
     hyb_score_threshold=0.8,
 ):
     """Add a mask_id column to spots dataframe
@@ -143,13 +147,14 @@ def cell_of_spots(
              Defaults to None.
         barcode_dot_threshold (float, optional): Threshold for the barcode dot product.
             Only spots above the threshold will be counted. Defaults to 0.15.
-        omp_score_threshold (float, optional): Threshold for the OMP score. Only spots
+        spot_score_threshold (float, optional): Threshold for the OMP score. Only spots
             above the threshold will be counted. Defaults to 0.1.
         hyb_score_threshold (float, optional): Threshold for hybridisation spots. Only
             spots above the threshold will be counted. Defaults to 0.8.
 
     Returns:
         dict: Dictionary of spots dataframes
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     big_masks = _get_big_masks(data_path, roi, masks, mask_expansion)
@@ -157,7 +162,7 @@ def cell_of_spots(
     metadata = load_metadata(data_path=data_path)
     spot_acquisitions = ["genes_round", "barcode_round"]
     thresholds = dict(
-        genes_round=("spot_score", omp_score_threshold),
+        genes_round=("spot_score", spot_score_threshold),
         barcode_round=("dot_product_score", barcode_dot_threshold),
     )
     for hyb in metadata["hybridisation"]:
@@ -174,7 +179,7 @@ def cell_of_spots(
         filt_col, threshold = thresholds[prefix]
         spot_df = spot_df[spot_df[filt_col] > threshold]
         # modify spots in place
-        spots_dict[prefix] = rolonie_mask_value(big_masks, spot_df)
+        spots_dict[prefix] = rolony_mask_value(big_masks, spot_df)
     return spots_dict
 
 
@@ -184,13 +189,13 @@ def segment_rolonies(
     mask_expansion=5.0,
     masks=None,
     barcode_dot_threshold=0.15,
-    omp_score_threshold=0.1,
+    spot_score_threshold=0.1,
     hyb_score_threshold=0.8,
 ):
-    """Count number of rolonies per cells for barcodes and genes.
+    """Count number of rolonies per cell for barcodes and genes.
 
     Only rolonies above the relevant threshold will be counted. (Note that genes
-    rolonies are already thresholded once during OMP)
+    rolonies are already thresholded once after OMP).
 
     Hybridisation and sequencing datasets will be fused.
 
@@ -206,7 +211,7 @@ def segment_rolonies(
              Defaults to None.
         barcode_dot_threshold (float, optional): Threshold for the barcode dot product.
             Only spots above the threshold will be counted. Defaults to 0.15.
-        omp_score_threshold (float, optional): Threshold for the OMP score. Only spots
+        spot_score_threshold (float, optional): Threshold for the OMP score. Only spots
             above the threshold will be counted. Defaults to 0.1.
         hyb_score_threshold (float, optional): Threshold for hybridisation spots. Only
             spots above the threshold will be counted. Defaults to 0.8.
@@ -216,23 +221,24 @@ def segment_rolonies(
             Index is the mask ID of the cell
         fused_df (pd.DataFrame): Count of rolonies per genes or hybridisation probe per
             cell. Index is the mask ID of the cell
+
     """
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
 
     # add the mask_id column to spots_df
-    spots_dict = cell_of_spots(
+    spots_dict = add_mask_id(
         data_path,
         roi=roi,
         mask_expansion=mask_expansion,
         masks=masks,
         barcode_dot_threshold=barcode_dot_threshold,
-        omp_score_threshold=omp_score_threshold,
+        spot_score_threshold=spot_score_threshold,
         hyb_score_threshold=hyb_score_threshold,
     )
 
     thresholds = dict(
-        genes_round=("spot_score", omp_score_threshold),
+        genes_round=("spot_score", spot_score_threshold),
         barcode_round=("dot_product_score", barcode_dot_threshold),
     )
     for hyb in spots_dict:
@@ -249,7 +255,7 @@ def segment_rolonies(
         cell_df = count_rolonies(spots=spot_df, grouping_column=grouping_column)
         spots_in_cells[prefix] = cell_df
 
-    # Save barcode
+    # Save barcodes
     barcode_df = spots_in_cells.pop("barcode_round")
     cell_folder = processed_path / data_path / "cells"
     cell_folder.mkdir(exist_ok=True)
@@ -260,7 +266,7 @@ def segment_rolonies(
     for hyb, hyb_df in spots_in_cells.items():
         for gene in hyb_df.columns:
             if gene in fused_df.columns:
-                print(f"Replacing {gene} with hybridisation")
+                warnings.warn(f"Replacing {gene} with hybridisation")
                 fused_df.pop(gene)
         fused_df = fused_df.join(hyb_df, how="outer")
     fused_df[np.isnan(fused_df)] = 0
@@ -284,7 +290,8 @@ def _get_big_masks(data_path, roi, masks, mask_expansion):
              Defaults to None.
 
     Returns:
-        numpy.array: masks expanded
+        numpy.ndarray: masks expanded
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     if masks is None:
@@ -293,7 +300,6 @@ def _get_big_masks(data_path, roi, masks, mask_expansion):
     if mask_expansion is None:
         big_masks = masks
     else:
-        metadata = load_single_acq_metdata(data_path, prefix="genes_round_1_1")
-        pixel_size = metadata["FrameKey-0-0-0"]["PixelSizeUm"]
+        pixel_size = get_pixel_size(data_path, prefix="genes_round_1_1")
         big_masks = expand_labels(masks, distance=int(mask_expansion / pixel_size))
     return big_masks
