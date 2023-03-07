@@ -12,6 +12,7 @@ def cellpose_segmentation(
     rescale=0.55,
     model_type="cyto",
     use_gpu=False,
+    **kwargs
 ):
     """Segment cells using Cellpose.
 
@@ -26,6 +27,7 @@ def cellpose_segmentation(
         rescale (float, optional): rescale factor for cellpose model. Defaults to 0.55.
         model_type (str, optional): Cellpose mode to use. Defaults to "cyto".
         use_gpu (bool, optional): Defaults to False.
+        **kwargs (optional): Other kwargs are forwarded to CellposeModel.eval
 
     Returns:
         numpy.ndarray of masks
@@ -40,6 +42,7 @@ def cellpose_segmentation(
         channels=channels,
         flow_threshold=flow_threshold,
         tile=True,
+        **kwargs
     )
     if min_pix > 0:
         nmasks = np.max(masks)
@@ -56,28 +59,55 @@ def cellpose_segmentation(
     return masks
 
 
-def count_rolonies(masks, spots):
-    """
-    Count number of rolonies within each mask and return a DataFrame of gene counts.
+def rolony_mask_value(masks, spots):
+    """Find the mask value of each spot
 
     Args:
-        masks (numpy.ndarray): cell masks
-        spots (pandas.DataFrame): table of spot locations for each gene
+        masks (numpy.array): cell masks. Must be positive integers
+        spots (pandas.DataFrame): table of spot locations. Must have a x and y columns
 
     Returns:
-        A DataFrame of gene counts.
+        pandas.DataFrame: spots, modfied inplace to add a "mask_id" column
 
     """
-    gene_names = spots["gene"].unique()
-    nmasks = np.max(masks)
-    gene_matrix = np.zeros((nmasks + 1, len(gene_names)))
-    gene_df = pd.DataFrame(gene_matrix, columns=gene_names)
-    for gene in gene_names:
-        this_gene = spots[spots["gene"] == gene]
-        mask_ids = masks[
-            this_gene["y"].round().to_numpy().astype(int),
-            this_gene["x"].round().to_numpy().astype(int),
-        ]
-        for mask in mask_ids:
-            gene_df.loc[mask, gene] += 1
-    return gene_df
+    xy = np.round(spots.loc[:, ["x", "y"]].values).astype(int)
+    # clip values outside of mask. Can happen because of registration shift
+    for i in range(2):
+        xy[:, i] = np.clip(xy[:, i], 0, masks.shape[::-1][i] - 1)
+    mask_val = masks[xy[:, 1], xy[:, 0]]
+    # add that to the spots df
+    spots["mask_id"] = mask_val
+    return spots
+
+
+def count_rolonies(spots, grouping_column, masks=None):
+    """
+    Count number of rolonies within each mask and return a DataFrame of counts.
+
+    Args:
+        spots (pandas.DataFrame): table of spot locations for each group
+        grouping_column (str): name of the column to group counts, usually 'gene' or
+            'bases'
+        masks (numpy.ndarray, optional): cell masks. Must be positive integers. Can be
+            None If spots already includes a "mask_id" columns. Defaults to None.
+
+    Returns:
+        A DataFrame of counts by unique values of `grouping_column`.
+
+    """
+    if masks is None:
+        assert "mask_id" in spots.columns
+    else:
+        spots = rolony_mask_value(masks, spots)
+    # count the number of occurence of each ("mask_id", genes or barcode) pair
+    cell_df = pd.DataFrame(
+        spots.loc[:, ["mask_id", grouping_column]]
+        .groupby(["mask_id", grouping_column])
+        .aggregate(len)
+    )
+
+    # formating
+    cell_df = cell_df.unstack(grouping_column)
+    cell_df[np.isnan(cell_df)] = 0
+
+    return cell_df[0].astype(int)

@@ -31,7 +31,9 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             from `ops`. Default to True
 
     Returns:
-        np.array: A (X x Y x Nchannels x Nrounds) registered stack
+        numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
+        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after registration
+
     """
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
@@ -86,7 +88,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     if stack.ndim == 3:
         stack = stack[..., np.newaxis]
 
-    return stack
+    return stack, bad_pixels
 
 
 def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
@@ -297,7 +299,6 @@ def create_grand_averages(
 def overview_for_ara_registration(
     data_path,
     rois_to_do=None,
-    bulb_first=True,
     sigma_blur=10,
 ):
     """Generate a stitched overview for registering to the ARA
@@ -311,8 +312,6 @@ def overview_for_ara_registration(
             ROIs
         max_pixel_size (float, optional): Pixel size in um for the highest level of the
             pyramid. None to keep original size. Defaults to 1
-        bulb_first (bool, optional): Was the first slice closer to the olfactory
-            bulb than the last? Defaults to True.
         sigma_blur (float, optional): sigma of the gaussian filter, in downsampled
             pixel size. Defaults to 10
     """
@@ -328,7 +327,7 @@ def overview_for_ara_registration(
     if rois_to_do is None:
         rois_to_do = metadata["ROI"].keys()
     roi_slice_pos_um, min_step = ara_reg.find_roi_position_on_cryostat(
-        data_path=data_path, bulb_first=bulb_first
+        data_path=data_path
     )
     roi2section_order = {
         roi: int(pos / min_step) for roi, pos in roi_slice_pos_um.items()

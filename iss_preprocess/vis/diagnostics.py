@@ -5,7 +5,7 @@ from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 import cv2
 from pathlib import Path
 from flexiznam import PARAMETERS
-from iss_preprocess.pipeline import stitch_tiles, register_adjacent_tiles
+from iss_preprocess.pipeline import stitch_registered
 from iss_preprocess.pipeline import ara_registration as ara_reg
 from iss_preprocess.io.load import load_ops
 
@@ -197,19 +197,12 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    shift_right, shift_down, tile_shape = register_adjacent_tiles(
-        data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
-    )
 
-    stitched_stack = stitch_tiles(
+    stitched_stack = stitch_registered(
         data_path,
         reference_prefix,
-        shift_right,
-        shift_down,
-        suffix=ops["projection"],
         roi=roi,
-        ich=ops["ref_ch"],
-        correct_illumination=True,
+        channels=ops["ref_ch"],
     ).astype(np.single)
 
     fig = plt.figure()
