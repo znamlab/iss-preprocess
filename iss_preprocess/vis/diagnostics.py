@@ -165,6 +165,8 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
     fig.suptitle(prefix)
     processed = Path(PARAMETERS["data_root"]["processed"])
     fig_file = processed / data_path / "figures" / f"adjacent_tile_reg_{prefix}.png"
+    if not fig_file.parent.exists():
+        fig_file.parent.mkdir()
     fig.savefig(fig_file, dpi=300)
     print(f"Saving {fig_file}")
     return fig
