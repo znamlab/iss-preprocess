@@ -7,7 +7,7 @@ from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from . import pipeline
-from ..vis import diagnostics
+from .. import vis
 from ..io import (
     load_tile_by_coors,
     load_stack,
@@ -146,7 +146,7 @@ def register_within_acquisition(
     shifts = np.nanmedian(output, axis=(0, 1))
 
     if save_plot:
-        diagnostics.adjacent_tiles_registration(
+        vis.diagnostics.adjacent_tiles_registration(
             data_path, prefix, saved_shifts=shifts, bytile_shifts=output
         )
 
