@@ -134,9 +134,11 @@ def create_single_average(
     data_path,
     subfolder,
     subtract_black,
+    n_batch,
     prefix_filter=None,
     suffix=None,
     combine_tilestats=False,
+    exclude_tiffs=None
 ):
     """Create normalised average of all tifs in a single folder.
 
@@ -151,12 +153,14 @@ def create_single_average(
         data_path (str): Path to the acquisition folder, relative to `projects` folder
         subfolder (str): subfolder in folder_path containing the tifs to average.
         subtract_black (bool): Subtract black level (read from `ops`)
+        n_batch (int): Number of batch to average before taking their median.
         prefix_filter (str, optional): prefix name to filter tifs. Only file starting
             with `prefix` will be averaged. Defaults to None.
         suffix (str, optional): suffix to filter tifs. Defaults to None
         combine_tilestats (bool, optional): Compute new tilestats distribution of
             averaged images if True, combine pre-existing tilestats into one otherwise.
             Defaults to False
+        exclude_tiffs (list, optional): List of str filter to exclude tiffs from average
 
     Returns:
         np.array: Average image
@@ -170,10 +174,16 @@ def create_single_average(
     print(f"    subtract_black={subtract_black}")
     print(f"    prefix_filter={prefix_filter}")
     print(f"    suffix={suffix}")
-    print(f"    combine_tilestats={combine_tilestats}", flush=True)
+    print(f"    n_batch={n_batch}")
+    print(f"    combine_tilestats={combine_tilestats}")
+    print("\nArgs read from ops file")
+    ops = load_ops(data_path)
+    for ops_values in ["average_clip_value", "average_median_filter", "black_level"]:
+        print(f"    {ops_values}={ops[ops_values]}")
+    print("", flush=True)
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = load_ops(data_path)
+
     if prefix_filter is None:
         target_file = f"{subfolder}_average.tif"
     else:
@@ -190,12 +200,14 @@ def create_single_average(
         processed_path / data_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
+        n_batch=n_batch,
         max_value=ops["average_clip_value"],
         verbose=True,
         median_filter=ops["average_median_filter"],
         normalise=True,
         suffix=suffix,
         combine_tilestats=combine_tilestats,
+        exclude_tiffs=exclude_tiffs
     )
     write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
     np.save(target_stats, tilestats)
@@ -205,6 +217,7 @@ def create_single_average(
 
 def create_all_single_averages(
     data_path,
+    n_batch,
     todo=("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"),
 ):
     """Average all tiffs in each folder and then all folders by acquisition type
@@ -244,6 +257,7 @@ def create_all_single_averages(
             DATAPATH=data_path,
             SUBFOLDER=folder,
             SUFFIX=ops["projection"],
+            N_BATCH=n_batch,
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (

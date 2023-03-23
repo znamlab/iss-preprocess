@@ -479,11 +479,17 @@ def create_grand_averages(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def create_all_single_averages(path):
+@click.option(
+    "--n-batch",
+    help="Number of average batches to compute before taking their median.",
+    type=int,
+    default=None,
+)
+def create_all_single_averages(path, n_batch):
     """Average all tiffs in all acquisition folders"""
     from iss_preprocess import pipeline
 
-    pipeline.create_all_single_averages(path)
+    pipeline.create_all_single_averages(path, n_batch=n_batch)
 
 
 @cli.command()
@@ -509,8 +515,14 @@ def create_all_single_averages(path):
     help="Combine pre-existing statistics into one instead of computing from images",
     default=False,
 )
+@click.option(
+    "--n-batch",
+    help="Number of average batches to compute before taking their median.",
+    type=int,
+    default=None,
+)
 def create_single_average(
-    path, subtract_black, subfolder, prefix_filter, suffix, combine_stats
+    path, subtract_black, subfolder, prefix_filter, suffix, combine_stats, n_batch
 ):
     """Average all tiffs in an acquisition folder"""
     from iss_preprocess import pipeline
@@ -522,6 +534,7 @@ def create_single_average(
         prefix_filter=prefix_filter,
         suffix=suffix,
         combine_tilestats=combine_stats,
+        n_batch=n_batch,
     )
 
 

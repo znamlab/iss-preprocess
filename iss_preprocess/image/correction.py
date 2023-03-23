@@ -110,12 +110,14 @@ def tilestats_and_mean_image(
     data_folder,
     prefix="",
     suffix="",
+    n_batch=None,
     black_level=0,
     max_value=10000,
     verbose=False,
     median_filter=None,
     normalise=False,
     combine_tilestats=False,
+    exclude_tiffs=None,
 ):
     """
     Compute tile statistics and mean image to use for illumination correction.
@@ -126,6 +128,9 @@ def tilestats_and_mean_image(
             filter
         suffix (str, optional): suffix to filter images to average. Defaults to "", no
             filter
+        n_batch (int, optional): If None average everything, otherwise makes `n_batch`
+            averages and take the median of those. All averages must fit in RAM.
+            Defaults to None
         black_level (float, optional): image black level to subtract before calculating
             each mean image. Defaults to 0
         max_value (float, optional): image values are clipped to this value *after*
@@ -138,6 +143,7 @@ def tilestats_and_mean_image(
             False
         combine_tilestats (bool, optional): If False, compute tilestats, if True, load
             already created tilestats for each tif and sum them.
+        exclude_tiffs (list, optional): List of str filter to exclude tiffs from average
 
     Returns:
         numpy.ndarray: correction image
@@ -152,17 +158,70 @@ def tilestats_and_mean_image(
     im_name = data_folder.name
     filt = f"{prefix}*{suffix}.tif"
     tiffs = list(data_folder.glob(filt))
+    if exclude_tiffs is not None:
+        tiffs = [t for t in tiffs if not any([f in t.name for f in exclude_tiffs])]
     if not len(tiffs):
         raise IOError(f"NO valid tifs in folder {data_folder}", flush=True)
 
+    black_level = np.asarray(black_level)  # in case we have just a float
     if verbose:
         print(f"Averaging {len(tiffs)} tifs in {im_name}.", flush=True)
 
-    data = load_stack(tiffs[0])
+    if n_batch is None:
+        mean_image, tilestats = _mean_tiffs(
+            tiffs,
+            black_level,
+            max_value,
+            verbose,
+            median_filter,
+            normalise,
+            combine_tilestats,
+        )
+    else:
+        means = []
+        tilestats = None
+        n_by_batch = int(np.floor(len(tiffs) / n_batch))
+        if verbose:
+            print(
+                f"Averaging {n_batch} batch of {n_by_batch} tifs in {im_name}.",
+                flush=True,
+            )
+        for ib in range(n_batch):
+            batch = tiffs[n_by_batch * ib : min(n_by_batch * (ib + 1), len(tiffs))]
+            batch_mean, batch_stats = _mean_tiffs(
+                batch,
+                black_level,
+                max_value,
+                verbose,
+                median_filter,
+                normalise,
+                combine_tilestats,
+            )
+            if tilestats is None:
+                tilestats = batch_stats
+            else:
+                tilestats += batch_stats
+            means.append(batch_mean)
+        means = np.stack(means, axis=3)
+        mean_image = np.nanmedian(means, axis=3)
+    return mean_image, tilestats
+
+
+def _mean_tiffs(
+    tiff_list,
+    black_level,
+    max_value,
+    verbose,
+    median_filter,
+    normalise,
+    combine_tilestats,
+):
+    """Inner funtion of tilestats_and_mean_image. See parent functions for docstring"""
+    data = load_stack(tiff_list[0])
     assert data.ndim == 3
     if combine_tilestats:
-        stats = tiffs[0].with_name(
-            tiffs[0].name.replace("_average.tif", "_tilestats.npy")
+        stats = tiff_list[0].with_name(
+            tiff_list[0].name.replace("_average.tif", "_tilestats.npy")
         )
         if not stats.exists():
             raise IOError(
@@ -173,16 +232,14 @@ def tilestats_and_mean_image(
     else:
         tilestats = compute_distribution(data)
 
-    black_level = np.asarray(black_level)  # in case we have just a float
-
     # initialise folder mean with first frame
     mean_image = np.array(data, dtype=float)
     mean_image = np.clip(mean_image - black_level.reshape(1, 1, -1), 0, max_value)
-    mean_image /= len(tiffs)
+    mean_image /= len(tiff_list)
 
-    for itile, tile in enumerate(tiffs[1:]):  # processing the rest of the tiffs
+    for itile, tile in enumerate(tiff_list[1:]):  # processing the rest of the tiffs
         if verbose and not (itile % 10):
-            print(f"   ...{itile + 1}/{len(tiffs)}.", flush=True)
+            print(f"   ...{itile + 1}/{len(tiff_list)}.", flush=True)
 
         data = load_stack(tile)
         if combine_tilestats:
@@ -192,7 +249,7 @@ def tilestats_and_mean_image(
             tilestats += compute_distribution(data)
 
         data = np.clip(data.astype(float) - black_level.reshape(1, 1, -1), 0, max_value)
-        mean_image += data / len(tiffs)
+        mean_image += data / len(tiff_list)
 
     if median_filter is not None:
         for ic in range(mean_image.shape[2]):
@@ -201,7 +258,6 @@ def tilestats_and_mean_image(
     if normalise:
         max_by_chan = np.nanmax(mean_image.reshape((-1, mean_image.shape[-1])), axis=0)
         mean_image /= max_by_chan.reshape((1, 1, -1))
-
     return mean_image, tilestats
 
 
