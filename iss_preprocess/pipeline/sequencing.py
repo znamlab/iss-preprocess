@@ -218,7 +218,7 @@ def setup_omp(data_path, score_thresh=0, correct_channels=True):
     all_spots = []
     for ref_tile in ops["barcode_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
-        stack, _ = load_and_register_tile(
+        stack, _ = load_and_register_sequencing_tile(
             data_path,
             ref_tile,
             filter_r=ops["filter_r"],
