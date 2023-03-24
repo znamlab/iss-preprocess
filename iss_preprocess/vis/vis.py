@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.cluster import hierarchy
+import iss_preprocess as iss
 
 
 def to_rgb(stack, colors, vmax=None, vmin=None):
@@ -107,7 +108,12 @@ def plot_gene_matrix(gene_df, cmap="inferno", vmax=2):
     gene_mat_reordered = gene_mat_reordered[:, gene_order]
     ax = plt.subplot(1, 1, 1)
     plt.imshow(gene_mat_reordered, cmap=cmap, vmax=vmax, interpolation="nearest")
-    plt.xticks(range(gene_mat.shape[1]), gene_df.columns[gene_order], rotation=45, horizontalalignment='right')
+    plt.xticks(
+        range(gene_mat.shape[1]),
+        gene_df.columns[gene_order],
+        rotation=45,
+        horizontalalignment="right",
+    )
     ax.set_aspect("auto")
 
 
@@ -118,4 +124,53 @@ def plot_gene_templates(gene_dict, unique_genes, BASES):
         plt.imshow(np.reshape(gene_dict[:, igene], (7, 4)), cmap="gray")
         plt.title(gene)
         plt.xticks(np.arange(4), BASES)
+    plt.tight_layout()
+
+
+def plot_sequencing_rounds(
+    data_path, tile_coors, prefix="barcode_round", vmax=0.5, extent=((0, 2000), (0, 2000))
+):
+    ops = iss.io.load_ops(data_path)
+    stack, _ = iss.pipeline.load_and_register_sequencing_tile(
+        data_path,
+        tile_coors,
+        filter_r=ops["filter_r"],
+        prefix=prefix,
+        suffix=ops["projection"],
+        nrounds=ops["barcode_rounds"],
+        correct_channels=True,
+        corrected_shifts=True,
+        correct_illumination=True,
+    )
+    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+    nrounds = stack.shape[3]
+    channel_colors = [[1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]]
+
+    fig = plt.figure(figsize=(20, 10))
+    fig.patch.set_facecolor("black")
+    for iround in range(nrounds):
+        plt.subplot(2, 5, iround + 1)
+        plt.imshow(
+            to_rgb(
+                stack[
+                    extent[0][0] : extent[0][1], extent[1][0] : extent[1][1], :, iround
+                ],
+                channel_colors,
+                vmin=np.array([0, 0, 0, 0]),
+                vmax=np.array([1, 1, 1, 1]) * vmax,
+            )
+        )
+        plt.axis("off")
+        plt.title(f"Round {iround+1}", color="white")
+    xrange = extent[0][1] - extent[0][0]
+    yrange = extent[1][1] - extent[1][0]
+    for i, (color, base) in enumerate(zip(channel_colors, iss.call.BASES)):
+        plt.text(
+            xrange * 0.6 + i * xrange * 0.1,
+            yrange * 0.95,
+            base,
+            color=color,
+            fontweight="bold",
+            fontsize=32,
+        )
     plt.tight_layout()
