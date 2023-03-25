@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 from scipy.cluster import hierarchy
 import iss_preprocess as iss
 
@@ -131,41 +132,7 @@ def plot_gene_templates(gene_dict, unique_genes, BASES):
     plt.tight_layout()
 
 
-def plot_sequencing_rounds(
-    data_path, tile_coors, prefix="barcode_round", vmax=0.5, extent=((0, 2000), (0, 2000))
-):
-    ops = iss.io.load_ops(data_path)
-    stack, _ = iss.pipeline.load_and_register_sequencing_tile(
-        data_path,
-        tile_coors,
-        filter_r=ops["filter_r"],
-        prefix=prefix,
-        suffix=ops["projection"],
-        nrounds=ops["barcode_rounds"],
-        correct_channels=True,
-        corrected_shifts=True,
-        correct_illumination=True,
-    )
-    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
-    nrounds = stack.shape[3]
-    channel_colors = [[1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]]
-
-    fig = plt.figure(figsize=(20, 10))
-    fig.patch.set_facecolor("black")
-    for iround in range(nrounds):
-        plt.subplot(2, 5, iround + 1)
-        plt.imshow(
-            to_rgb(
-                stack[
-                    extent[0][0] : extent[0][1], extent[1][0] : extent[1][1], :, iround
-                ],
-                channel_colors,
-                vmin=np.array([0, 0, 0, 0]),
-                vmax=np.array([1, 1, 1, 1]) * vmax,
-            )
-        )
-        plt.axis("off")
-        plt.title(f"Round {iround+1}", color="white")
+def add_bases_legend(extent, channel_colors):
     xrange = extent[0][1] - extent[0][0]
     yrange = extent[1][1] - extent[1][0]
     for i, (color, base) in enumerate(zip(channel_colors, iss.call.BASES)):
@@ -177,4 +144,55 @@ def plot_sequencing_rounds(
             fontweight="bold",
             fontsize=32,
         )
+
+
+def round_to_rgb(stack, iround, extent, channel_colors, vmax):
+    return to_rgb(
+        stack[extent[0][0] : extent[0][1], extent[1][0] : extent[1][1], :, iround],
+        channel_colors,
+        vmin=np.array([0, 0, 0, 0]),
+        vmax=np.array([1, 1, 1, 1]) * vmax,
+    )
+
+
+def plot_sequencing_rounds(
+    stack,
+    vmax=0.5,
+    extent=((0, 2000), (0, 2000)),
+    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+):
+    nrounds = stack.shape[3]
+
+    fig = plt.figure(figsize=(20, 10))
+    fig.patch.set_facecolor("black")
+    for iround in range(nrounds):
+        plt.subplot(2, 5, iround + 1)
+        plt.imshow(round_to_rgb(stack, iround, extent, channel_colors, vmax))
+        plt.axis("off")
+        plt.title(f"Round {iround+1}", color="white")
+    add_bases_legend(extent, channel_colors)
     plt.tight_layout()
+
+
+def animate_sequencing_rounds(
+    stack,
+    savefname,
+    vmax=0.5,
+    extent=((0, 2000), (0, 2000)),
+    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+):
+    fig = plt.figure(figsize=(10, 10))
+    fig.patch.set_facecolor("black")
+    nrounds = stack.shape[3]
+    im = plt.imshow(round_to_rgb(stack, 0, extent, channel_colors, vmax))
+    add_bases_legend(extent, channel_colors)
+
+    plt.axis("off")
+
+    def animate(iround):
+        im.set_data(round_to_rgb(stack, iround, extent, channel_colors, vmax))
+
+    anim = FuncAnimation(fig, animate, frames=nrounds, interval=200)
+    plt.show()
+    anim.save(savefname, writer=FFMpegWriter(fps=2))
+
