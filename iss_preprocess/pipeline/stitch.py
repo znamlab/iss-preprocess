@@ -497,11 +497,15 @@ def stitch_and_register(
     ref_ch=0,
     target_ch=0,
     estimate_scale=False,
+    target_suffix=None,
 ):
     """Stitch target and reference stacks and align target to reference
 
     To speed up registration, images are downsampled before estimating registration
     parameters. These parameters are then applied to the full scale image.
+
+    The reference stack always use `ops["projection"]` as suffix. The target uses the 
+    same by default but that can be specified with `target_suffix`
 
     Args:
         data_path (str): Relative path to data.
@@ -518,6 +522,8 @@ def stitch_and_register(
             Defaults to 0.
         estimate_scale (bool, optional): Whether to estimate scaling between target
             and reference images. Defaults to False.
+        target_suffix (str, optional): Suffix to use for target stack. If None, will use
+            the same as reference stack (`ops["projection"]`). Defaults to None.
 
     Returns:
         numpy.ndarray: Stitched target image after registration.
@@ -526,11 +532,12 @@ def stitch_and_register(
         tuple: Estimated X and Y shifts.
     """
     ops = load_ops(data_path)
-
+    if target_suffix is None:
+        target_suffix = ops["projection"]
     stitched_stack_target = stitch_tiles(
         data_path,
         target_prefix,
-        suffix=ops["projection"],
+        suffix=target_suffix,
         roi=roi,
         ich=target_ch,
         correct_illumination=True,
