@@ -26,8 +26,7 @@ from ..reg import (
 def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     """Load one single tile in the reference coordinates
 
-    This load a tile of `prefix` with channels/rounds registered if `coordinate_frame`
-    is "local". If `coordinate_frame` is "global" also register to reference acquisition
+    This load a tile of `prefix` with channels/rounds registered
 
     Args:
         data_path (str): Relative path to data
@@ -94,8 +93,9 @@ def register_within_acquisition(
     suffix="fstack",
     reload=True,
     save_plot=False,
+    dimension_prefix='genes_round_1_1'
 ):
-    """Estimate shifts between all adjacent tiles of all rois of an acquisition
+    """Estimate shifts between all adjacent tiles of a rois
 
     Saves the median shifts in `"reg" / f"{prefix}_shifts.npz"`.
 
@@ -113,6 +113,8 @@ def register_within_acquisition(
         reload (bool, optional): If target file already exists, reload instead of
             recomputing. Defaults to True
         save_plot (bool, optional): If True save diagnostic plot. Defaults to False
+        dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used 
+            only if the acquisition is an overview. Defaults to 'genes_round_1_1'
 
     Returns:
         numpy.array: `shift_right`, X and Y shifts between different columns
@@ -128,7 +130,7 @@ def register_within_acquisition(
     if ref_roi is None:
         ops = load_ops(data_path)
         ref_roi = ops["ref_tile"][0]
-    ndim = get_roi_dimensions(data_path)
+    ndim = get_roi_dimensions(data_path, dimension_prefix)
 
     ntiles = ndim[ndim[:, 0] == ref_roi][0][1:]
     output = np.zeros((ntiles[0], ntiles[1], 4))
@@ -301,7 +303,7 @@ def stitch_tiles(
     correct_illumination=False,
     shifts_prefix=None,
 ):
-    """Load and stitch tile images using provided tile shifts.
+    """Load and stitch tile images using saved tile shifts.
 
     This will load the tile shifts saved by `register_within_acquisition`
 

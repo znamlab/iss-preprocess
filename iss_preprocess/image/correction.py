@@ -161,7 +161,7 @@ def tilestats_and_mean_image(
     if exclude_tiffs is not None:
         tiffs = [t for t in tiffs if not any([f in t.name for f in exclude_tiffs])]
     if not len(tiffs):
-        raise IOError(f"NO valid tifs in folder {data_folder}", flush=True)
+        raise IOError(f"NO valid tifs in folder {data_folder}")
 
     black_level = np.asarray(black_level)  # in case we have just a float
     if verbose:
@@ -187,6 +187,7 @@ def tilestats_and_mean_image(
                 flush=True,
             )
         for ib in range(n_batch):
+            print(f'Batch {ib+1} / {n_batch}', flush=True)
             batch = tiffs[n_by_batch * ib : min(n_by_batch * (ib + 1), len(tiffs))]
             batch_mean, batch_stats = _mean_tiffs(
                 batch,

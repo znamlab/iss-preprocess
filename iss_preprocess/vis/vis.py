@@ -23,8 +23,12 @@ def to_rgb(stack, colors, vmax=None, vmin=None):
 
     if vmax is None:
         vmax = np.max(stack, axis=(0, 1))
+    else:
+        vmax = np.asarray(vmax)
     if vmin is None:
         vmin = np.min(stack, axis=(0, 1))
+    else:
+        vmin = np.asarray(vmin)
 
     scale = vmax - vmin
 
