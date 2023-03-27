@@ -2,13 +2,13 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.vis package" href="iss_preprocess.vis.html" /><link rel="prev" title="iss_preprocess.reg package" href="iss_preprocess.reg.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
+    <!-- Generated with Sphinx 6.1.3 and Furo 2023.03.27 -->
         <title>iss_preprocess.segment package - iss-preprocess 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=fad236701ea90a88636c2a8c73b44ae642ed2a53" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
     
@@ -219,6 +219,32 @@
 <section id="module-iss_preprocess.segment.barcodes">
 <span id="iss-preprocess-segment-barcodes-module"></span><h2>iss_preprocess.segment.barcodes module<a class="headerlink" href="#module-iss_preprocess.segment.barcodes" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.convolve_spots">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">convolve_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kernel_um</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dot_threshold</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.convolve_spots" title="Permalink to this definition">#</a></dt>
+<dd><p>Generate an image of spot density by convolution</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>roi</strong> (<em>int</em>) – Roi ID</p></li>
+<li><p><strong>kernel_um</strong> (<em>float</em>) – Width of the kernel for convolution in microns</p></li>
+<li><p><strong>dot_threshold</strong> (<em>float</em>) – Threshold on the barcode dot_product_score to select
+spots to use.</p></li>
+<li><p><strong>output_shape</strong> (<em>tuple</em><em>, </em><em>optional</em>) – Shape of the output image. If not provided will
+return the smallest shape that includes (0,0) and all spots. Defaults to
+None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>2D image of roi density</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.corrcoef">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">corrcoef</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.corrcoef" title="Permalink to this definition">#</a></dt>
 <dd></dd></dl>
@@ -350,12 +376,41 @@ numpy.ndarray: the provided map with pixels in the ROI set to 0 so that</p>
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.segment_spot_image">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">segment_spot_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spot_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binarise_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distance_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.segment_spot_image" title="Permalink to this definition">#</a></dt>
+<dd><p>Segment a spot image using opencv</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spot_image</strong> (<em>numpy.ndarray</em>) – 2D image to segment</p></li>
+<li><p><strong>binarise_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Threshold for initial binarisation. Will
+cut isolated rolonies. Defaults to 5.</p></li>
+<li><p><strong>distance_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Distance threshold for initial
+segmentation. Defaults to 10.</p></li>
+<li><p><strong>debug</strong> (<em>bool</em><em>, </em><em>optional</em>) – Return intermediate results if True. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Segmented image. Background is 0, borders -1, other numbers</dt><dd><p>label individual cells. If debug is True, return a dictionary with
+intermediate results</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray or dict</p>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 <section id="module-iss_preprocess.segment.cells">
 <span id="iss-preprocess-segment-cells-module"></span><h2>iss_preprocess.segment.cells module<a class="headerlink" href="#module-iss_preprocess.segment.cells" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.segment.cells.cellpose_segmentation">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.cells.</span></span><span class="sig-name descname"><span class="pre">cellpose_segmentation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">img</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flow_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_pix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dilate_pix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rescale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.55</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cyto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_gpu</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.cells.cellpose_segmentation" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.cells.</span></span><span class="sig-name descname"><span class="pre">cellpose_segmentation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">img</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flow_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_pix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dilate_pix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rescale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.55</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cyto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_gpu</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.cells.cellpose_segmentation" title="Permalink to this definition">#</a></dt>
 <dd><p>Segment cells using Cellpose.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -370,6 +425,7 @@ Defaults to 0.</p></li>
 <li><p><strong>rescale</strong> (<em>float</em><em>, </em><em>optional</em>) – rescale factor for cellpose model. Defaults to 0.55.</p></li>
 <li><p><strong>model_type</strong> (<em>str</em><em>, </em><em>optional</em>) – Cellpose mode to use. Defaults to “cyto”.</p></li>
 <li><p><strong>use_gpu</strong> (<em>bool</em><em>, </em><em>optional</em>) – Defaults to False.</p></li>
+<li><p><strong>**kwargs</strong> (<em>optional</em>) – Other kwargs are forwarded to CellposeModel.eval</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -380,17 +436,40 @@ Defaults to 0.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.segment.cells.count_rolonies">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.cells.</span></span><span class="sig-name descname"><span class="pre">count_rolonies</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">masks</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.cells.count_rolonies" title="Permalink to this definition">#</a></dt>
-<dd><p>Count number of rolonies within each mask and return a DataFrame of gene counts.</p>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.cells.</span></span><span class="sig-name descname"><span class="pre">count_rolonies</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grouping_column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">masks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.cells.count_rolonies" title="Permalink to this definition">#</a></dt>
+<dd><p>Count number of rolonies within each mask and return a DataFrame of counts.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>masks</strong> (<em>numpy.ndarray</em>) – cell masks</p></li>
-<li><p><strong>spots</strong> (<em>pandas.DataFrame</em>) – table of spot locations for each gene</p></li>
+<li><p><strong>spots</strong> (<em>pandas.DataFrame</em>) – table of spot locations for each group</p></li>
+<li><p><strong>grouping_column</strong> (<em>str</em>) – name of the column to group counts, usually ‘gene’ or
+‘bases’</p></li>
+<li><p><strong>masks</strong> (<em>numpy.ndarray</em><em>, </em><em>optional</em>) – cell masks. Must be positive integers. Can be
+None If spots already includes a “mask_id” columns. Defaults to None.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A DataFrame of gene counts.</p>
+<dd class="field-even"><p>A DataFrame of counts by unique values of <cite>grouping_column</cite>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.segment.cells.rolony_mask_value">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.cells.</span></span><span class="sig-name descname"><span class="pre">rolony_mask_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">masks</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.cells.rolony_mask_value" title="Permalink to this definition">#</a></dt>
+<dd><p>Find the mask value of each spot</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>masks</strong> (<em>numpy.array</em>) – cell masks. Must be positive integers</p></li>
+<li><p><strong>spots</strong> (<em>pandas.DataFrame</em>) – table of spot locations. Must have a x and y columns</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>spots, modfied inplace to add a “mask_id” column</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame</p>
 </dd>
 </dl>
 </dd></dl>
@@ -482,6 +561,31 @@ mini-spots next to real ones.</p></li>
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.segment.spots.make_spot_image">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.spots.</span></span><span class="sig-name descname"><span class="pre">make_spot_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gaussian_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'single'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.spots.make_spot_image" title="Permalink to this definition">#</a></dt>
+<dd><p>Make an image by convolving spots with a gaussian</p>
+<p>A single isolated rolony results in a gaussian with sd about <cite>kernel_size / 3</cite> and
+an amplitude of 1</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spots</strong> (<em>pandas.DataFrame</em>) – Spots DataFrame. Must have <cite>x</cite> and <cite>y</cite> columns</p></li>
+<li><p><strong>gaussian_width</strong> (<em>int</em><em>, </em><em>optional</em>) – Width of the gaussian in pixels. Defaults to 30.</p></li>
+<li><p><strong>dtype</strong> (<em>str</em><em>, </em><em>optional</em>) – Datatype for computation. Defaults to “single”.</p></li>
+<li><p><strong>output_shape</strong> (<em>tuple</em><em>, </em><em>optional</em>) – Shape of the output image. If None, the smallest
+shape fitting all spots + kernel will be used. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Convolution results</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 <section id="module-iss_preprocess.segment">
 <span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-iss_preprocess.segment" title="Permalink to this heading">#</a></h2>
@@ -546,6 +650,7 @@ mini-spots next to real ones.</p></li>
 <li><a class="reference internal" href="#">iss_preprocess.segment package</a><ul>
 <li><a class="reference internal" href="#submodules">Submodules</a></li>
 <li><a class="reference internal" href="#module-iss_preprocess.segment.barcodes">iss_preprocess.segment.barcodes module</a><ul>
+<li><a class="reference internal" href="#iss_preprocess.segment.barcodes.convolve_spots"><code class="docutils literal notranslate"><span class="pre">convolve_spots()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.barcodes.corrcoef"><code class="docutils literal notranslate"><span class="pre">corrcoef()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.barcodes.correlation_map"><code class="docutils literal notranslate"><span class="pre">correlation_map()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.barcodes.create_overlap_map"><code class="docutils literal notranslate"><span class="pre">create_overlap_map()</span></code></a></li>
@@ -553,11 +658,13 @@ mini-spots next to real ones.</p></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.barcodes.extract_roi"><code class="docutils literal notranslate"><span class="pre">extract_roi()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.barcodes.find_overlappers"><code class="docutils literal notranslate"><span class="pre">find_overlappers()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.barcodes.remove_overlaps"><code class="docutils literal notranslate"><span class="pre">remove_overlaps()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.segment.barcodes.segment_spot_image"><code class="docutils literal notranslate"><span class="pre">segment_spot_image()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.segment.cells">iss_preprocess.segment.cells module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.segment.cells.cellpose_segmentation"><code class="docutils literal notranslate"><span class="pre">cellpose_segmentation()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.cells.count_rolonies"><code class="docutils literal notranslate"><span class="pre">count_rolonies()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.segment.cells.rolony_mask_value"><code class="docutils literal notranslate"><span class="pre">rolony_mask_value()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.segment.roi">iss_preprocess.segment.roi module</a><ul>
@@ -573,6 +680,7 @@ mini-spots next to real ones.</p></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.spots.detect_isolated_spots"><code class="docutils literal notranslate"><span class="pre">detect_isolated_spots()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.spots.detect_spots"><code class="docutils literal notranslate"><span class="pre">detect_spots()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.spots.filter_spots"><code class="docutils literal notranslate"><span class="pre">filter_spots()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.segment.spots.make_spot_image"><code class="docutils literal notranslate"><span class="pre">make_spot_image()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.segment">Module contents</a></li>

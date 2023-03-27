@@ -2,13 +2,13 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.pipeline package" href="iss_preprocess.pipeline.html" /><link rel="prev" title="iss_preprocess.image package" href="iss_preprocess.image.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
+    <!-- Generated with Sphinx 6.1.3 and Furo 2023.03.27 -->
         <title>iss_preprocess.io package - iss-preprocess 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=fad236701ea90a88636c2a8c73b44ae642ed2a53" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
     
@@ -218,6 +218,20 @@
 </section>
 <section id="module-iss_preprocess.io.load">
 <span id="iss-preprocess-io-load-module"></span><h2>iss_preprocess.io.load module<a class="headerlink" href="#module-iss_preprocess.io.load" title="Permalink to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.get_pixel_size">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_pixel_size</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_pixel_size" title="Permalink to this definition">#</a></dt>
+<dd><p>Get pixel size from MicroManager metadata.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Which acquisition prefix to use. Defaults to “genes_round_1_1”.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.get_roi_dimensions">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_roi_dimensions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_roi_dimensions" title="Permalink to this definition">#</a></dt>
@@ -532,6 +546,7 @@ zplanes, etc.)</p></li>
 <li><a class="reference internal" href="#">iss_preprocess.io package</a><ul>
 <li><a class="reference internal" href="#submodules">Submodules</a></li>
 <li><a class="reference internal" href="#module-iss_preprocess.io.load">iss_preprocess.io.load module</a><ul>
+<li><a class="reference internal" href="#iss_preprocess.io.load.get_pixel_size"><code class="docutils literal notranslate"><span class="pre">get_pixel_size()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.get_roi_dimensions"><code class="docutils literal notranslate"><span class="pre">get_roi_dimensions()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.get_tile_ome"><code class="docutils literal notranslate"><span class="pre">get_tile_ome()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.get_tiles"><code class="docutils literal notranslate"><span class="pre">get_tiles()</span></code></a></li>

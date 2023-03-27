@@ -2,13 +2,13 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.reg package" href="iss_preprocess.reg.html" /><link rel="prev" title="iss_preprocess.io package" href="iss_preprocess.io.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
+    <!-- Generated with Sphinx 6.1.3 and Furo 2023.03.27 -->
         <title>iss_preprocess.pipeline package - iss-preprocess 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=fad236701ea90a88636c2a8c73b44ae642ed2a53" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
     
@@ -290,7 +290,7 @@ shape and downsampling info.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
 <li><p><strong>roi</strong> (<em>int</em>) – Roi number to generate</p></li>
-<li><p><strong>atlas_size</strong> (<em>int</em><em>, </em><em>optional</em>) – Pixel size of the atlas used to find area if.
+<li><p><strong>atlas_size</strong> (<em>int</em><em>, </em><em>optional</em>) – Pixel size of the atlas used to find area id.
 Defaults to 10.</p></li>
 <li><p><strong>full_scale</strong> (<em>bool</em><em>, </em><em>optional</em>) – If true, returns the full scale image, otherwise
 the downsample version used for registration. Defaults to False.</p></li>
@@ -312,14 +312,17 @@ the downsample version used for registration. Defaults to False.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.ara_registration.spots_ara_infos">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.ara_registration.</span></span><span class="sig-name descname"><span class="pre">spots_ara_infos</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atlas_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inplace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.ara_registration.spots_ara_infos" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.ara_registration.</span></span><span class="sig-name descname"><span class="pre">spots_ara_infos</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atlas_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">acronyms</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inplace</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.ara_registration.spots_ara_infos" title="Permalink to this definition">#</a></dt>
 <dd><p>Add ARA coordinates and area ID to spots dataframe</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
 <li><p><strong>spots</strong> (<em>pd.DataFrame</em>) – Spots dataframe</p></li>
-<li><p><strong>atlas_size</strong> (<em>int</em>) – Atlas size (10, 25 or 50) for find areas borders</p></li>
+<li><p><strong>atlas_size</strong> (<em>int</em><em>, </em><em>optional</em>) – Atlas size (10, 25 or 50) for find areas borders.
+Defaults to 10</p></li>
+<li><p><strong>acronyms</strong> (<em>bool</em><em>, </em><em>optional</em>) – Add an acronym column with area name. Defaults to
+False.</p></li>
 <li><p><strong>inplace</strong> (<em>bool</em><em>, </em><em>optional</em>) – add the column to spots inplace or return a copy.
 Defaults to True</p></li>
 </ul>
@@ -344,15 +347,34 @@ Defaults to True</p></li>
 <p>The functions in here do not compute anything useful, but create figures</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.diagnostics.check_illumination_correction">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.diagnostics.</span></span><span class="sig-name descname"><span class="pre">check_illumination_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grand_averages</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">('barcode_round',</span> <span class="pre">'genes_round')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.diagnostics.check_illumination_correction" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.diagnostics.</span></span><span class="sig-name descname"><span class="pre">check_illumination_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grand_averages</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">('barcode_round',</span> <span class="pre">'genes_round')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_tilestats</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.diagnostics.check_illumination_correction" title="Permalink to this definition">#</a></dt>
 <dd><p>Check if illumination correction average look reasonable</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data folder</p></li>
-<li><p><strong>grand_averages</strong> (<em>list</em>) – List of grand averages to plot.
+<li><p><strong>grand_averages</strong> (<em>list</em><em>, </em><em>optional</em>) – List of grand averages to plot.
 Defaults to (“barcode_round”, “genes_round”)</p></li>
-<li><p><strong>verbose</strong> (<em>bool</em>) – Print info about progress. Defaults to True</p></li>
+<li><p><strong>plot_titlestats</strong> (<em>bool</em><em>, </em><em>optional</em>) – Plot a figure of tilestats change. Defaults
+to True</p></li>
+<li><p><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) – Print info about progress. Defaults to True</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.diagnostics.reg_to_ref_estimation">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.diagnostics.</span></span><span class="sig-name descname"><span class="pre">reg_to_ref_estimation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rois</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.diagnostics.reg_to_ref_estimation" title="Permalink to this definition">#</a></dt>
+<dd><p>Plot estimation of shifts/angle for registration to ref</p>
+<p>Compare raw measures to ransac</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Acquisition prefix, “barcode_round” for instance.</p></li>
+<li><p><strong>rois</strong> (<em>list</em>) – List of ROIs to process. If None, will either use ops[“use_rois”]
+if it is defined, or all ROIs otherwise. Defaults to None</p></li>
 </ul>
 </dd>
 </dl>
@@ -519,13 +541,15 @@ to the estimate of the mean. Defaults to 0.</p></li>
 <span id="iss-preprocess-pipeline-pipeline-module"></span><h2>iss_preprocess.pipeline.pipeline module<a class="headerlink" href="#module-iss_preprocess.pipeline.pipeline" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.pipeline.batch_process_tiles">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.pipeline.</span></span><span class="sig-name descname"><span class="pre">batch_process_tiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">script</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.pipeline.batch_process_tiles" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.pipeline.</span></span><span class="sig-name descname"><span class="pre">batch_process_tiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">script</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.pipeline.batch_process_tiles" title="Permalink to this definition">#</a></dt>
 <dd><p>Start sbatch scripts for all tiles across all rois.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
 <li><p><strong>script</strong> (<em>str</em>) – Filename stem of the sbatch script, e.g. <cite>extract_tile</cite>.</p></li>
+<li><p><strong>roi_dims</strong> (<em>numpy.array</em><em>, </em><em>optional</em>) – Nx3 array of roi dimensions. If None, will
+load <cite>genes_round_1_1</cite> dimensions</p></li>
 <li><p><strong>additional_args</strong> (<em>str</em><em>, </em><em>optional</em>) – Additional environment variable to export
 to pass to the sbatch job. Should start with a leading comma.
 Defaults to “”.</p></li>
@@ -536,7 +560,7 @@ Defaults to “”.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.pipeline.create_all_single_averages">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.pipeline.</span></span><span class="sig-name descname"><span class="pre">create_all_single_averages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">todo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">('genes_rounds',</span> <span class="pre">'barcode_rounds',</span> <span class="pre">'fluorescence',</span> <span class="pre">'hybridisation')</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.pipeline.create_all_single_averages" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.pipeline.</span></span><span class="sig-name descname"><span class="pre">create_all_single_averages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_batch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">todo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">('genes_rounds',</span> <span class="pre">'barcode_rounds',</span> <span class="pre">'fluorescence',</span> <span class="pre">'hybridisation')</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.pipeline.create_all_single_averages" title="Permalink to this definition">#</a></dt>
 <dd><p>Average all tiffs in each folder and then all folders by acquisition type</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -566,7 +590,7 @@ Defaults to (“genes_round”, “barcode_round”).</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.pipeline.create_single_average">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.pipeline.</span></span><span class="sig-name descname"><span class="pre">create_single_average</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subfolder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtract_black</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix_filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine_tilestats</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.pipeline.create_single_average" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.pipeline.</span></span><span class="sig-name descname"><span class="pre">create_single_average</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subfolder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtract_black</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_batch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix_filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine_tilestats</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclude_tiffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.pipeline.create_single_average" title="Permalink to this definition">#</a></dt>
 <dd><p>Create normalised average of all tifs in a single folder.</p>
 <p>If prefix_filter is not None, the output will be “{prefix_filter}_average.tif”,
 otherwise it will be “{folder_path.name}_average.tif”</p>
@@ -581,12 +605,14 @@ normalise: Normalise output maximum to one.</p>
 <li><p><strong>data_path</strong> (<em>str</em>) – Path to the acquisition folder, relative to <cite>projects</cite> folder</p></li>
 <li><p><strong>subfolder</strong> (<em>str</em>) – subfolder in folder_path containing the tifs to average.</p></li>
 <li><p><strong>subtract_black</strong> (<em>bool</em>) – Subtract black level (read from <cite>ops</cite>)</p></li>
+<li><p><strong>n_batch</strong> (<em>int</em>) – Number of batch to average before taking their median.</p></li>
 <li><p><strong>prefix_filter</strong> (<em>str</em><em>, </em><em>optional</em>) – prefix name to filter tifs. Only file starting
 with <cite>prefix</cite> will be averaged. Defaults to None.</p></li>
 <li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – suffix to filter tifs. Defaults to None</p></li>
 <li><p><strong>combine_tilestats</strong> (<em>bool</em><em>, </em><em>optional</em>) – Compute new tilestats distribution of
 averaged images if True, combine pre-existing tilestats into one otherwise.
 Defaults to False</p></li>
+<li><p><strong>exclude_tiffs</strong> (<em>list</em><em>, </em><em>optional</em>) – List of str filter to exclude tiffs from average</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -600,8 +626,37 @@ np.array: Distribution of pixel values</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.pipeline.load_and_register_tile">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.pipeline.</span></span><span class="sig-name descname"><span class="pre">load_and_register_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_r</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.pipeline.load_and_register_tile" title="Permalink to this definition">#</a></dt>
+<dd><p>Load one single tile</p>
+<p>Load a tile of <cite>prefix</cite> with channels/rounds registered, apply illumination correction
+and filtering.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>tile_coors</strong> (<em>tuple</em>) – (Roi, tileX, tileY) tuple</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Acquisition to load. If <cite>genes_round</cite> or <cite>barcode_round</cite> will load
+all the rounds.</p></li>
+<li><p><strong>filter_r</strong> (<em>bool</em><em>, </em><em>optional</em>) – Apply filter on rounds data? Parameters will be read
+from <cite>ops</cite>. Default to True</p></li>
+<li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – Suffix to load. If None, try to use relevant <cite>ops</cite>
+projection. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A (X x Y x Nchannels x Nrounds) registered stack
+numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after registration</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.pipeline.overview_for_ara_registration">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.pipeline.</span></span><span class="sig-name descname"><span class="pre">overview_for_ara_registration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rois_to_do</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bulb_first</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma_blur</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.pipeline.overview_for_ara_registration" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.pipeline.</span></span><span class="sig-name descname"><span class="pre">overview_for_ara_registration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rois_to_do</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma_blur</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.pipeline.overview_for_ara_registration" title="Permalink to this definition">#</a></dt>
 <dd><p>Generate a stitched overview for registering to the ARA</p>
 <p>ABBA requires pyramidal OME-TIFF with resolution information. We will generate such
 stitched files and save them with a log yaml file indicating info about downsampling</p>
@@ -613,8 +668,6 @@ stitched files and save them with a log yaml file indicating info about downsamp
 ROIs</p></li>
 <li><p><strong>max_pixel_size</strong> (<em>float</em><em>, </em><em>optional</em>) – Pixel size in um for the highest level of the
 pyramid. None to keep original size. Defaults to 1</p></li>
-<li><p><strong>bulb_first</strong> (<em>bool</em><em>, </em><em>optional</em>) – Was the first slice closer to the olfactory
-bulb than the last? Defaults to True.</p></li>
 <li><p><strong>sigma_blur</strong> (<em>float</em><em>, </em><em>optional</em>) – sigma of the gaussian filter, in downsampled
 pixel size. Defaults to 10</p></li>
 </ul>
@@ -709,29 +762,8 @@ round or all rounds.</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
-<li><p><strong>prefix</strong> (<em>str</em>) – Directory prefix to use, e.g. “genes_round”. If None,
-processes all rounds.</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.pipeline.register.correct_hyb_shifts_roi">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.register.</span></span><span class="sig-name descname"><span class="pre">correct_hyb_shifts_roi</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi_dims</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'hybridisation_1_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.register.correct_hyb_shifts_roi" title="Permalink to this definition">#</a></dt>
-<dd><p>Use robust regression across tiles to correct shifts and angles
-for a single hybridisation round and ROI.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
-<li><p><strong>roi_dims</strong> (<em>tuple</em>) – Dimensions of the ROI to be processed, in (ROI_ID, Xtiles, Ytiles)
-format.</p></li>
-<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of the round to be processed.
-Defaults to “hybridisation_1_1”.</p></li>
-<li><p><strong>max_shift</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum shift to include tiles in RANSAC regression.
-Tiles with larger absolute shifts will not be included in the fit but will
-still have their corrected shifts estimated. Defaults to 500.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Directory prefix to use, e.g. “hybridisation_1_1”. If None,
+processes all hybridisation acquisitions.</p></li>
 </ul>
 </dd>
 </dl>
@@ -768,6 +800,45 @@ format.</p></li>
 <li><p><strong>max_shift</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum shift to include tiles in RANSAC regression.
 Tiles with larger absolute shifts will not be included in the fit but will
 still have their corrected shifts estimated. Defaults to 500.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.register.correct_shifts_single_round_roi">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.register.</span></span><span class="sig-name descname"><span class="pre">correct_shifts_single_round_roi</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi_dims</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'hybridisation_1_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_angle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.register.correct_shifts_single_round_roi" title="Permalink to this definition">#</a></dt>
+<dd><p>Use robust regression across tiles to correct shifts and angles
+for a single hybridisation round and ROI.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
+<li><p><strong>roi_dims</strong> (<em>tuple</em>) – Dimensions of the ROI to be processed, in (ROI_ID, Xtiles, Ytiles)
+format.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of the round to be processed.
+Defaults to “hybridisation_1_1”.</p></li>
+<li><p><strong>max_shift</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum shift to include tiles in RANSAC regression.
+Tiles with larger absolute shifts will not be included in the fit but will
+still have their corrected shifts estimated. Defaults to 500.</p></li>
+<li><p><strong>fit_angle</strong> (<em>bool</em><em>, </em><em>optional</em>) – Fit the angle with robust regression if True,
+otherwise takes the median. Defaults to True</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.register.correct_shifts_to_ref">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.register.</span></span><span class="sig-name descname"><span class="pre">correct_shifts_to_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_angle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.register.correct_shifts_to_ref" title="Permalink to this definition">#</a></dt>
+<dd><p>Use robust regression across tiles to correct shifts to reference acquisition</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Directory prefix to use, e.g. “genes_round”.</p></li>
+<li><p><strong>fit_angle</strong> (<em>bool</em><em>, </em><em>optional</em>) – Fit the angle with robust regression if True,
+otherwise takes the median. Defaults to False</p></li>
 </ul>
 </dd>
 </dl>
@@ -829,9 +900,111 @@ Defaults to “genes_round”.</p></li>
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.register.register_tile_to_ref">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.register.</span></span><span class="sig-name descname"><span class="pre">register_tile_to_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binarise_quantile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.register.register_tile_to_ref" title="Permalink to this definition">#</a></dt>
+<dd><p>Register a single tile to the corresponding reference tile</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>tile_coors</strong> (<em>tuple</em>) – (roi, tilex, tiley) tuple of tile coordinats</p></li>
+<li><p><strong>reg_prefix</strong> (<em>str</em>) – Prefix to register, “barcode_round” for instance</p></li>
+<li><p><strong>ref_prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Reference prefix. Defaults to “genes_round”.</p></li>
+<li><p><strong>binarise_quantile</strong> (<em>float</em><em>, </em><em>optional</em>) – Quantile to binarise images before</p></li>
+<li><p><strong>0.7.</strong> (<em>registration. Defaults to</em>) – </p></li>
+<li><p><strong>max_shift</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum shift allowed. None for no max. Defaults to
+None</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Rotation angle
+shifts (np.array): X and Y shifts</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>angle (float)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.register.registered_spots">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.register.</span></span><span class="sig-name descname"><span class="pre">registered_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.register.registered_spots" title="Permalink to this definition">#</a></dt>
+<dd><p>Return spots in reference coordinates</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>tile_coors</strong> (<em>tuple</em>) – (roi, tilex, tiley) tuple of tile coordinates)</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Prefix of spots to load</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The spot dataframe with x and y registered to reference tile.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 <section id="module-iss_preprocess.pipeline.segment">
 <span id="iss-preprocess-pipeline-segment-module"></span><h2>iss_preprocess.pipeline.segment module<a class="headerlink" href="#module-iss_preprocess.pipeline.segment" title="Permalink to this heading">#</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.segment.add_mask_id">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.segment.</span></span><span class="sig-name descname"><span class="pre">add_mask_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_expansion</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">masks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">barcode_dot_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyb_score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.segment.add_mask_id" title="Permalink to this definition">#</a></dt>
+<dd><p>Add a mask_id column to spots dataframe</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>roi</strong> (<em>int</em>) – ID of the ROI to load</p></li>
+<li><p><strong>mask_expansion</strong> (<em>float</em><em>, </em><em>optional</em>) – Distance in um to expand masks before counting
+rolonies per cells. None for no expansion. Defaults to 5.</p></li>
+<li><p><strong>masks</strong> (<em>np.array</em><em>, </em><em>optional</em>) – Array of labels. If None will load “masks_{roi}”.
+Defaults to None.</p></li>
+<li><p><strong>barcode_dot_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Threshold for the barcode dot product.
+Only spots above the threshold will be counted. Defaults to 0.15.</p></li>
+<li><p><strong>spot_score_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Threshold for the OMP score. Only spots
+above the threshold will be counted. Defaults to 0.1.</p></li>
+<li><p><strong>hyb_score_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Threshold for hybridisation spots. Only
+spots above the threshold will be counted. Defaults to 0.8.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dictionary of spots dataframes</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.segment.make_cell_dataframe">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.segment.</span></span><span class="sig-name descname"><span class="pre">make_cell_dataframe</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">masks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_expansion</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atlas_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.segment.make_cell_dataframe" title="Permalink to this definition">#</a></dt>
+<dd><p>Make cell dataframe</p>
+<p>The index will be the mask ID.
+The dataframe will include, for each cell, their centroid, bounding box, and area.
+If atlas_size is not None, it will also include the ID and acronym of the atlas
+area where their centroid is located.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>roi</strong> (<em>int</em>) – Number of the ROI to process</p></li>
+<li><p><strong>masks</strong> (<em>np.array</em><em>, </em><em>optional</em>) – Array of labels, if None will load <cite>masks_{roi}.npy</cite>
+from the reg folder. Defaults to None.</p></li>
+<li><p><strong>mask_expansion</strong> (<em>float</em><em>, </em><em>optional</em>) – Distance in um to expand masks before counting
+rolonies per cells. None for no expansion. Defaults to 5.</p></li>
+<li><p><strong>atlas_size</strong> (<em>int</em><em>, </em><em>optional</em>) – Size of the atlas to use to load ARA information.
+If None, will not get area information. Defaults to 10.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.segment.segment_all_rois">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.segment.</span></span><span class="sig-name descname"><span class="pre">segment_all_rois</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'DAPI_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_gpu</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.segment.segment_all_rois" title="Permalink to this definition">#</a></dt>
@@ -863,6 +1036,47 @@ Defaults to “DAPI_1”.</p></li>
 Defaults to “genes_round_1_1”.</p></li>
 <li><p><strong>use_gpu</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to use GPU. Defaults to False.</p></li>
 </ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.segment.segment_rolonies">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.segment.</span></span><span class="sig-name descname"><span class="pre">segment_rolonies</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_expansion</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">masks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">barcode_dot_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hyb_score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.segment.segment_rolonies" title="Permalink to this definition">#</a></dt>
+<dd><p>Count number of rolonies per cell for barcodes and genes.</p>
+<p>Only rolonies above the relevant threshold will be counted. (Note that genes
+rolonies are already thresholded once after OMP).</p>
+<p>Hybridisation and sequencing datasets will be fused.</p>
+<p>Outputs are saved in the <cite>cells</cite> folder as f”genes_df_roi{roi}.pkl” and
+f”barcode_df_roi{roi}.pkl”</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>roi</strong> (<em>int</em>) – ID of the ROI to load</p></li>
+<li><p><strong>mask_expansion</strong> (<em>float</em><em>, </em><em>optional</em>) – Distance in um to expand masks before counting
+rolonies per cells. None for no expansion. Defaults to 5.</p></li>
+<li><p><strong>masks</strong> (<em>np.array</em><em>, </em><em>optional</em>) – Array of labels. If None will load “masks_{roi}”.
+Defaults to None.</p></li>
+<li><p><strong>barcode_dot_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Threshold for the barcode dot product.
+Only spots above the threshold will be counted. Defaults to 0.15.</p></li>
+<li><p><strong>spot_score_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Threshold for the OMP score. Only spots
+above the threshold will be counted. Defaults to 0.1.</p></li>
+<li><p><strong>hyb_score_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Threshold for hybridisation spots. Only
+spots above the threshold will be counted. Defaults to 0.8.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Count of rolonies per barcode sequence per cell.</dt><dd><p>Index is the mask ID of the cell</p>
+</dd>
+<dt>fused_df (pd.DataFrame): Count of rolonies per genes or hybridisation probe per</dt><dd><p>cell. Index is the mask ID of the cell</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>barcode_df (pd.DataFrame)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -916,8 +1130,8 @@ to “round”.</p></li>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.load_and_register_tile">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">load_and_register_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_r</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(2,</span> <span class="pre">4)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corrected_shifts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_illumination</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.load_and_register_tile" title="Permalink to this definition">#</a></dt>
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.load_and_register_sequencing_tile">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">load_and_register_sequencing_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_r</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(2,</span> <span class="pre">4)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corrected_shifts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_illumination</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">specific_rounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.load_and_register_sequencing_tile" title="Permalink to this definition">#</a></dt>
 <dd><p>Load sequencing tile and align channels. Optionally, filter, correct
 illumination and channel brightness.</p>
 <dl class="field-list simple">
@@ -938,11 +1152,14 @@ Defaults to False.</p></li>
 by robust regression across tiles. Defaults to True.</p></li>
 <li><p><strong>correct_illumination</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to correct vignetting.
 Defaults to False.</p></li>
-<li><p><strong>nrounds</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of sequencing rounds to load. Defaults to 7.</p></li>
+<li><p><strong>nrounds</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of sequencing rounds to load. Used only if
+specific_rounds is None. Defaults to 7.</p></li>
+<li><p><strong>specific_rounds</strong> (<em>list</em><em>, </em><em>optional</em>) – if not None, specifies which rounds must be
+loaded and ignores <cite>nrounds</cite>. Defaults to None</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><p>X x Y x Nch x Nrounds image stack.
+<dd class="field-even"><p><p>X x Y x Nch x len(specific_rounds) or Nrounds image stack.
 numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged</p>
 <blockquote>
 <div><p>for all channels and rounds (due to registration offsets) and should be discarded
@@ -958,7 +1175,7 @@ during analysis.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.load_sequencing_rounds">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">load_sequencing_rounds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'round'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.load_sequencing_rounds" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">load_sequencing_rounds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">specific_rounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.load_sequencing_rounds" title="Permalink to this definition">#</a></dt>
 <dd><p>Load processed tile images across rounds</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -966,10 +1183,13 @@ during analysis.</p>
 <li><p><strong>data_path</strong> (<em>str</em>) – relative path to dataset.</p></li>
 <li><p><strong>tile_coors</strong> (<em>tuple</em><em>, </em><em>optional</em>) – Coordinates of tile to load: ROI, Xpos, Ypos.
 Defaults to (1,0,0).</p></li>
-<li><p><strong>nrounds</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of rounds to load. Defaults to 7.</p></li>
+<li><p><strong>nrounds</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of rounds to load. Used only if
+<cite>specific_rounds</cite> is None. Defaults to 7.</p></li>
 <li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – File name suffix. Defaults to ‘fstack’.</p></li>
 <li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – the folder name prefix, before round number. Defaults
 to “round”</p></li>
+<li><p><strong>specific_round</strong> (<em>list</em><em>, </em><em>optional</em>) – if not None, specify which rounds must be
+loaded and ignores <cite>nrounds</cite>. Defaults to None</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1103,8 +1323,13 @@ float: norm shift for the OMP algorithm, estimated as median norm of all pixels.
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><cite>tile_origins</cite>, ntiles[0] x ntiles[1] x 2 matrix of tile origin coordinates
-numpy.ndarray: <cite>tile_centers</cite>, ntiles[0] x ntiles[1] x 2 matrix of tile center coordinates</p>
+<dd class="field-even"><p><dl class="simple">
+<dt><cite>tile_origins</cite>, ntiles[0] x ntiles[1] x 2 matrix of tile origin</dt><dd><p>coordinates</p>
+</dd>
+<dt>numpy.ndarray: <cite>tile_centers</cite>, ntiles[0] x ntiles[1] x 2 matrix of tile center</dt><dd><p>coordinates</p>
+</dd>
+</dl>
+</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>numpy.ndarray</p>
@@ -1113,8 +1338,69 @@ numpy.ndarray: <cite>tile_centers</cite>, ntiles[0] x ntiles[1] x 2 matrix of ti
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.get_tile_corners">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">get_tile_corners</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coordinate_frame</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'local'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi_dimension_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.get_tile_corners" title="Permalink to this definition">#</a></dt>
+<dd><p>Find the corners of all tiles for a roi</p>
+<p>Get the tile corners of the stitch acquisition if <cite>coordinate_frame</cite> is “local” or
+in the global reference frame if <cite>coordinate_frame</cite> is “global”.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Acquisition prefix. For round-based acquisition, round 1 will be
+used</p></li>
+<li><p><strong>roi</strong> (<em>int</em>) – Roi ID</p></li>
+<li><p><strong>coordinate_frame</strong> (<em>str</em><em>, </em><em>optional</em>) – Either “local” or “global”. Coordinate frame
+of corners. Defaults to local.</p></li>
+<li><p><strong>ref_prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Reference prefix for transformation to global
+coordinates. Defaults to ‘genes_round_1_1’.</p></li>
+<li><p><strong>roi_dimension_prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix to use to load ROI dimension file.
+Use reference if the shape does not match reference stack. Defaults to
+“genes_round_1_1”</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt><cite>tile_corners</cite>, ntiles[0] x ntiles[1] x 2 x 4 matrix of tile</dt><dd><p>corners coordinates. Corners are in this order:
+[(origin), (0, 1), (1, 1), (1, 0)]</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.load_tile_ref_coors">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">load_tile_ref_coors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_r</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.load_tile_ref_coors" title="Permalink to this definition">#</a></dt>
+<dd><p>Load one single tile in the reference coordinates</p>
+<p>This load a tile of <cite>prefix</cite> with channels/rounds registered</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>tile_coordinates</strong> (<em>tuple</em>) – (Roi, tileX, tileY) tuple</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Acquisition to load. If <cite>genes_round</cite> or <cite>barcode_round</cite> will load
+all the rounds.</p></li>
+<li><p><strong>filter_r</strong> (<em>bool</em><em>, </em><em>optional</em>) – Apply filter on rounds data? Parameters will be read
+from <cite>ops</cite>. Default to True</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A (X x Y x Nchannels x Nrounds) registered stack</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.merge_and_align_spots">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">merge_and_align_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'barcode_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'barcode_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.merge_and_align_spots" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">merge_and_align_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'barcode_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'barcode_round_1_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.merge_and_align_spots" title="Permalink to this definition">#</a></dt>
 <dd><p>Combine spots across tiles and align to reference coordinates for a single ROI.</p>
 <p>We first generate a DataFrame containing all spots in global coordinates
 of the acquisition they were detected in using <cite>merge_roi_spots</cite>. We then
@@ -1128,7 +1414,7 @@ using the transformation estimated by <cite>stitch_and_register</cite>.</p>
 <li><p><strong>spots_prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Filename prefix of the spot files to combine.
 Defaults to “barcode_round”.</p></li>
 <li><p><strong>reg_prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Acquisition prefix of the image files to use to
-estimate the tranformation to reference image. Defaults to “barcode_round_1_1”.</p></li>
+estimate the transformation to reference image. Defaults to “barcode_round_1_1”.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1136,7 +1422,7 @@ estimate the tranformation to reference image. Defaults to “barcode_round_1_1�
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.merge_and_align_spots_all_rois">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">merge_and_align_spots_all_rois</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'barcode_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'barcode_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.merge_and_align_spots_all_rois" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">merge_and_align_spots_all_rois</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'barcode_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'barcode_round_1_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.merge_and_align_spots_all_rois" title="Permalink to this definition">#</a></dt>
 <dd><p>Start batch jobs to combine spots across tiles and align to reference coordinates
 for all ROIs.</p>
 <blockquote>
@@ -1149,6 +1435,8 @@ spots_prefix (str, optional): Filename prefix of the spot files to combine.</p>
 <dl class="simple">
 <dt>reg_prefix (str, optional): Acquisition prefix of the image files to use to</dt><dd><p>estimate the tranformation to reference image. Defaults to “barcode_round_1_1”.</p>
 </dd>
+<dt>ref_prefix (str, optional): Acquisition prefix to use as a reference for</dt><dd><p>registration. Defaults to “genes_round_1_1”.</p>
+</dd>
 </dl>
 </dd>
 </dl>
@@ -1157,18 +1445,21 @@ spots_prefix (str, optional): Filename prefix of the spot files to combine.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.merge_roi_spots">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">merge_roi_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shift_right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shift_down</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iroi</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.merge_roi_spots" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">merge_roi_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_origins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_centers</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iroi</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.merge_roi_spots" title="Permalink to this definition">#</a></dt>
 <dd><p>Load and combine spot locations across all tiles for an ROI.</p>
 <p>To avoid duplicate spots from tile overlap, we determine which tile center
 each spot is closest to. We then only keep the spots that are closest to
-the center of the tile they were detected on.</p>
+the center of the tile they were detected on. The tile_centers do not need to be the
+center of the reference tile. For acquisition with a significant shift, it might be
+better to use the center of the acquisition tile registered to the reference.
+See merge_and_align_spots for an example.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – path to pickle files containing spot locations for each tile.</p></li>
-<li><p><strong>shift_right</strong> (<em>numpy.array</em>) – X and Y shifts between different columns</p></li>
-<li><p><strong>shift_down</strong> (<em>numpy.array</em>) – X and Y shifts between different rows</p></li>
-<li><p><strong>tile_shape</strong> (<em>numpy.array</em>) – shape of each tile</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – prefix of the spots to load and register (e.g. barcode_round)</p></li>
+<li><p><strong>tile_origins</strong> (<em>numpy.arry</em>) – origin of each tile</p></li>
+<li><p><strong>tile_centers</strong> (<em>numpy array</em>) – center of each tile for ROI duplication detection.</p></li>
 <li><p><strong>iroi</strong> (<em>int</em><em>, </em><em>optional</em>) – ID of ROI to load. Defaults to 1.</p></li>
 </ul>
 </dd>
@@ -1183,7 +1474,7 @@ the center of the tile they were detected on.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.register_adjacent_tiles">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">register_adjacent_tiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_fraction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_ch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.register_adjacent_tiles" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">register_adjacent_tiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_fraction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_ch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.register_adjacent_tiles" title="Permalink to this definition">#</a></dt>
 <dd><p>Estimate shift between adjacent imaging tiles using phase correlation.</p>
 <p>Shifts are typically very similar between different tiles, using shifts
 estimated using a reference tile for the whole acquisition works well.</p>
@@ -1192,13 +1483,51 @@ estimated using a reference tile for the whole acquisition works well.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – path to image stacks.</p></li>
 <li><p><strong>ref_coors</strong> (<em>tuple</em><em>, </em><em>optional</em>) – coordinates of the reference tile to use for
-registration. Must not be along the bottom or right edge of image. Defaults to (1,0,0).</p></li>
-<li><p><strong>reg_fraction</strong> (<em>float</em><em>, </em><em>optional</em>) – overlap fraction used for registration. Defaults to 0.1.</p></li>
+registration. Must not be along the bottom or right edge of image. If <cite>None</cite>
+use <cite>ops[‘ref_tile’]</cite>. Defaults to None.</p></li>
+<li><p><strong>reg_fraction</strong> (<em>float</em><em>, </em><em>optional</em>) – overlap fraction used for registration.
+Defaults to 0.1.</p></li>
 <li><p><strong>ref_ch</strong> (<em>int</em><em>, </em><em>optional</em>) – reference channel used for registration. Defaults to 0.</p></li>
 <li><p><strong>ref_round</strong> (<em>int</em><em>, </em><em>optional</em>) – reference round used for registration. Defaults to 0.</p></li>
 <li><p><strong>nrounds</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of rounds to load. Defaults to 7.</p></li>
 <li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – File name suffix. Defaults to ‘proj’.</p></li>
-<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – the folder name prefix, before round number. Defaults to “round”</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Full name of the acquisition folder</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><cite>shift_right</cite>, X and Y shifts between different columns
+numpy.array: <cite>shift_down</cite>, X and Y shifts between different rows
+numpy.array: shape of the tile</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.register_within_acquisition">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">register_within_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_roi</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_fraction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_ch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reload</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_plot</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dimension_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.register_within_acquisition" title="Permalink to this definition">#</a></dt>
+<dd><p>Estimate shifts between all adjacent tiles of a rois</p>
+<p>Saves the median shifts in <cite>“reg” / f”{prefix}_shifts.npz”</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – path to image stacks.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Full name of the acquisition folder.</p></li>
+<li><p><strong>ref_roi</strong> (<em>int</em><em>, </em><em>optional</em>) – ROI to use for registration. If <cite>None</cite> use
+<cite>ops[‘ref_tile’][0]</cite>. Defaults to None.</p></li>
+<li><p><strong>reg_fraction</strong> (<em>float</em><em>, </em><em>optional</em>) – overlap fraction used for registration.
+Defaults to 0.1.</p></li>
+<li><p><strong>ref_ch</strong> (<em>int</em><em>, </em><em>optional</em>) – reference channel used for registration. Defaults to 0.</p></li>
+<li><p><strong>ref_round</strong> (<em>int</em><em>, </em><em>optional</em>) – reference round used for registration. Defaults to 0.</p></li>
+<li><p><strong>nrounds</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of rounds to load. Defaults to 7.</p></li>
+<li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – File name suffix. Defaults to ‘proj’.</p></li>
+<li><p><strong>reload</strong> (<em>bool</em><em>, </em><em>optional</em>) – If target file already exists, reload instead of
+recomputing. Defaults to True</p></li>
+<li><p><strong>save_plot</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True save diagnostic plot. Defaults to False</p></li>
+<li><p><strong>dimension_prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix to use to find ROI dimension. Used
+only if the acquisition is an overview. Defaults to ‘genes_round_1_1’</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1214,10 +1543,12 @@ numpy.array: shape of the tile</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.stitch_and_register">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">stitch_and_register</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reference_prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">downsample</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_ch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_ch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">estimate_scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.stitch_and_register" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">stitch_and_register</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reference_prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">downsample</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_ch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_ch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">estimate_scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.stitch_and_register" title="Permalink to this definition">#</a></dt>
 <dd><p>Stitch target and reference stacks and align target to reference</p>
 <p>To speed up registration, images are downsampled before estimating registration
 parameters. These parameters are then applied to the full scale image.</p>
+<p>The reference stack always use <cite>ops[“projection”]</cite> as suffix. The target uses the
+same by default but that can be specified with <cite>target_suffix</cite></p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1235,6 +1566,8 @@ Defaults to 0.</p></li>
 Defaults to 0.</p></li>
 <li><p><strong>estimate_scale</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to estimate scaling between target
 and reference images. Defaults to False.</p></li>
+<li><p><strong>target_suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – Suffix to use for target stack. If None, will use
+the same as reference stack (<cite>ops[“projection”]</cite>). Defaults to None.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1250,21 +1583,48 @@ tuple: Estimated X and Y shifts.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.stitch_registered">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">stitch_registered</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filter_r</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.stitch_registered" title="Permalink to this definition">#</a></dt>
+<dd><p>Load registered stack and stitch them</p>
+<p>The output is in the reference coordinate.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Prefix of acquisition to stitch</p></li>
+<li><p><strong>roi</strong> (<em>int</em>) – Roi ID</p></li>
+<li><p><strong>channels</strong> (<em>list</em><em> or </em><em>int</em><em>, </em><em>optional</em>) – Channel id(s). Defaults to 0.</p></li>
+<li><p><strong>ref_prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of reference acquisition to load shifts.
+Defaults to “genes_round”.</p></li>
+<li><p><strong>filter_r</strong> (<em>bool</em><em>, </em><em>optional</em>) – Filter image before stitching? Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>stitched stack</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.stitch.stitch_tiles">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">stitch_tiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shift_right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shift_down</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ich</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_illumination</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.stitch_tiles" title="Permalink to this definition">#</a></dt>
-<dd><p>Load and stitch tile images using provided tile shifts.</p>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.stitch.</span></span><span class="sig-name descname"><span class="pre">stitch_tiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ich</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_illumination</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shifts_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.stitch.stitch_tiles" title="Permalink to this definition">#</a></dt>
+<dd><p>Load and stitch tile images using saved tile shifts.</p>
+<p>This will load the tile shifts saved by <cite>register_within_acquisition</cite></p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – path to image stacks.</p></li>
 <li><p><strong>prefix</strong> (<em>str</em>) – prefix specifying which images to load, e.g. ‘round_01_1’</p></li>
-<li><p><strong>shift_right</strong> (<em>tuple</em>) – x and y shift between tiles along a row</p></li>
-<li><p><strong>shift_down</strong> (<em>tuple</em>) – x and y shift between tiles along a column</p></li>
 <li><p><strong>roi</strong> (<em>int</em><em>, </em><em>optional</em>) – id of ROI to load. Defaults to 1.</p></li>
-<li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – filename suffix. Defaults to ‘proj’.</p></li>
+<li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – filename suffix. Defaults to ‘fstack’.</p></li>
 <li><p><strong>ich</strong> (<em>int</em><em>, </em><em>optional</em>) – index of the channel to stitch. Defaults to 0.</p></li>
 <li><p><strong>correct_illumination</strong> (<em>bool</em><em>, </em><em>optional</em>) – Remove black levels and correct
 illumination if True, return raw data otherwise. Default to False</p></li>
+<li><p><strong>shifts_prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – prefix to use to load tile shifts. If not
+provided, use <cite>prefix</cite>. Defaults to None.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1350,6 +1710,7 @@ illumination if True, return raw data otherwise. Default to False</p></li>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.pipeline.diagnostics">iss_preprocess.pipeline.diagnostics module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.diagnostics.check_illumination_correction"><code class="docutils literal notranslate"><span class="pre">check_illumination_correction()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.diagnostics.reg_to_ref_estimation"><code class="docutils literal notranslate"><span class="pre">reg_to_ref_estimation()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.pipeline.hybridisation">iss_preprocess.pipeline.hybridisation module</a><ul>
@@ -1367,6 +1728,7 @@ illumination if True, return raw data otherwise. Default to False</p></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.pipeline.create_all_single_averages"><code class="docutils literal notranslate"><span class="pre">create_all_single_averages()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.pipeline.create_grand_averages"><code class="docutils literal notranslate"><span class="pre">create_grand_averages()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.pipeline.create_single_average"><code class="docutils literal notranslate"><span class="pre">create_single_average()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.pipeline.load_and_register_tile"><code class="docutils literal notranslate"><span class="pre">load_and_register_tile()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.pipeline.overview_for_ara_registration"><code class="docutils literal notranslate"><span class="pre">overview_for_ara_registration()</span></code></a></li>
 </ul>
 </li>
@@ -1380,23 +1742,29 @@ illumination if True, return raw data otherwise. Default to False</p></li>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.pipeline.register">iss_preprocess.pipeline.register module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.register.correct_hyb_shifts"><code class="docutils literal notranslate"><span class="pre">correct_hyb_shifts()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.pipeline.register.correct_hyb_shifts_roi"><code class="docutils literal notranslate"><span class="pre">correct_hyb_shifts_roi()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.register.correct_shifts"><code class="docutils literal notranslate"><span class="pre">correct_shifts()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.register.correct_shifts_roi"><code class="docutils literal notranslate"><span class="pre">correct_shifts_roi()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.register.correct_shifts_single_round_roi"><code class="docutils literal notranslate"><span class="pre">correct_shifts_single_round_roi()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.register.correct_shifts_to_ref"><code class="docutils literal notranslate"><span class="pre">correct_shifts_to_ref()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.register.estimate_shifts_and_angles_by_coors"><code class="docutils literal notranslate"><span class="pre">estimate_shifts_and_angles_by_coors()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.register.estimate_shifts_by_coors"><code class="docutils literal notranslate"><span class="pre">estimate_shifts_by_coors()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.register.register_reference_tile"><code class="docutils literal notranslate"><span class="pre">register_reference_tile()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.register.register_tile_to_ref"><code class="docutils literal notranslate"><span class="pre">register_tile_to_ref()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.register.registered_spots"><code class="docutils literal notranslate"><span class="pre">registered_spots()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.pipeline.segment">iss_preprocess.pipeline.segment module</a><ul>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.segment.add_mask_id"><code class="docutils literal notranslate"><span class="pre">add_mask_id()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.segment.make_cell_dataframe"><code class="docutils literal notranslate"><span class="pre">make_cell_dataframe()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.segment.segment_all_rois"><code class="docutils literal notranslate"><span class="pre">segment_all_rois()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.segment.segment_roi"><code class="docutils literal notranslate"><span class="pre">segment_roi()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.segment.segment_rolonies"><code class="docutils literal notranslate"><span class="pre">segment_rolonies()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.pipeline.sequencing">iss_preprocess.pipeline.sequencing module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.basecall_tile"><code class="docutils literal notranslate"><span class="pre">basecall_tile()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.estimate_channel_correction"><code class="docutils literal notranslate"><span class="pre">estimate_channel_correction()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.load_and_register_tile"><code class="docutils literal notranslate"><span class="pre">load_and_register_tile()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.load_and_register_sequencing_tile"><code class="docutils literal notranslate"><span class="pre">load_and_register_sequencing_tile()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.load_sequencing_rounds"><code class="docutils literal notranslate"><span class="pre">load_sequencing_rounds()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.load_spot_sign_image"><code class="docutils literal notranslate"><span class="pre">load_spot_sign_image()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.run_omp_on_tile"><code class="docutils literal notranslate"><span class="pre">run_omp_on_tile()</span></code></a></li>
@@ -1406,11 +1774,15 @@ illumination if True, return raw data otherwise. Default to False</p></li>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.pipeline.stitch">iss_preprocess.pipeline.stitch module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.calculate_tile_positions"><code class="docutils literal notranslate"><span class="pre">calculate_tile_positions()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.get_tile_corners"><code class="docutils literal notranslate"><span class="pre">get_tile_corners()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.load_tile_ref_coors"><code class="docutils literal notranslate"><span class="pre">load_tile_ref_coors()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.merge_and_align_spots"><code class="docutils literal notranslate"><span class="pre">merge_and_align_spots()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.merge_and_align_spots_all_rois"><code class="docutils literal notranslate"><span class="pre">merge_and_align_spots_all_rois()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.merge_roi_spots"><code class="docutils literal notranslate"><span class="pre">merge_roi_spots()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.register_adjacent_tiles"><code class="docutils literal notranslate"><span class="pre">register_adjacent_tiles()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.register_within_acquisition"><code class="docutils literal notranslate"><span class="pre">register_within_acquisition()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.stitch_and_register"><code class="docutils literal notranslate"><span class="pre">stitch_and_register()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.stitch_registered"><code class="docutils literal notranslate"><span class="pre">stitch_registered()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.stitch.stitch_tiles"><code class="docutils literal notranslate"><span class="pre">stitch_tiles()</span></code></a></li>
 </ul>
 </li>
