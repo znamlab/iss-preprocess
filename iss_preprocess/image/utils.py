@@ -58,7 +58,7 @@ def flip_all_tiffs(
         file_filter (str, optional): Filter to select tiff (will be passed to glob).
             Defaults to "*.tif".
         suffix (str, optional): Suffix to add to file name. Defaults to "_flipped".
-        target_folder (str, optional): Path to folder where to save tiffs. If None, 
+        target_folder (str, optional): Path to folder where to save tiffs. If None,
             saves in folder Defaults to None.
         overwrite (bool, optional): Overwrite existing tifs? Defaults to False.
     """

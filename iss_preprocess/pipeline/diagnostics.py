@@ -15,15 +15,20 @@ from ..vis import (
 
 
 def check_illumination_correction(
-    data_path, grand_averages=("barcode_round", "genes_round"), verbose=True
+    data_path,
+    grand_averages=("barcode_round", "genes_round"),
+    plot_tilestats=True,
+    verbose=True,
 ):
     """Check if illumination correction average look reasonable
 
     Args:
         data_path (str): Relative path to data folder
-        grand_averages (list): List of grand averages to plot.
+        grand_averages (list, optional): List of grand averages to plot.
             Defaults to ("barcode_round", "genes_round")
-        verbose (bool): Print info about progress. Defaults to True
+        plot_titlestats (bool, optional): Plot a figure of tilestats change. Defaults
+            to True
+        verbose (bool, optional): Print info about progress. Defaults to True
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     average_dir = processed_path / data_path / "averages"
@@ -45,9 +50,10 @@ def check_illumination_correction(
     plot_correction_images(
         correction_images, grand_averages, figure_folder, verbose=True
     )
-    plot_tilestats_distributions(
-        data_path, distributions, grand_averages, figure_folder
-    )
+    if plot_tilestats:
+        plot_tilestats_distributions(
+            data_path, distributions, grand_averages, figure_folder
+        )
 
 
 def reg_to_ref_estimation(data_path, prefix, rois=None):
@@ -58,7 +64,7 @@ def reg_to_ref_estimation(data_path, prefix, rois=None):
     Args:
         data_path (str): Relative path to data
         prefix (str): Acquisition prefix, "barcode_round" for instance.
-        rois (list): List of ROIs to process. If None, will either use ops["use_rois"] 
+        rois (list): List of ROIs to process. If None, will either use ops["use_rois"]
             if it is defined, or all ROIs otherwise. Defaults to None
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
