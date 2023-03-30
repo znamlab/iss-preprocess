@@ -56,7 +56,9 @@ def check_illumination_correction(
         )
 
 
-def reg_to_ref_estimation(data_path, prefix, rois=None):
+def reg_to_ref_estimation(
+    data_path, prefix, rois=None, roi_dimension_prefix="genes_round_1_1"
+):
     """Plot estimation of shifts/angle for registration to ref
 
     Compare raw measures to ransac
@@ -66,12 +68,14 @@ def reg_to_ref_estimation(data_path, prefix, rois=None):
         prefix (str): Acquisition prefix, "barcode_round" for instance.
         rois (list): List of ROIs to process. If None, will either use ops["use_rois"]
             if it is defined, or all ROIs otherwise. Defaults to None
+        roi_dimension_prefix (str, optional): prefix to load roi dimension. Defaults to
+            "genes_round_1_1"
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     reg_dir = processed_path / data_path / "reg"
     figure_folder = processed_path / data_path / "figures"
 
-    ndims = get_roi_dimensions(data_path)
+    ndims = get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = load_ops(data_path)
     if rois is not None:
         ndims = ndims[np.in1d(ndims[:, 0], rois)]
@@ -79,13 +83,18 @@ def reg_to_ref_estimation(data_path, prefix, rois=None):
         ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
     figs = {}
     for roi, *ntiles in ndims:
-        raw = np.zeros([3, *ntiles])
-        corrected = np.zeros([3, *ntiles])
+        raw = np.zeros([3, *ntiles]) + np.nan
+        corrected = np.zeros([3, *ntiles]) + np.nan
         for ix in range(ntiles[0]):
             for iy in range(ntiles[1]):
-                data = np.load(reg_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz")
-                raw[:2, ix, iy] = data["shifts"]
-                raw[2, ix, iy] = data["angles"]
+                try:
+                    data = np.load(
+                        reg_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                    )
+                    raw[:2, ix, iy] = data["shifts"]
+                    raw[2, ix, iy] = data["angles"]
+                except FileNotFoundError:
+                    pass
                 data = np.load(
                     reg_dir / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
