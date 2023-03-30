@@ -45,7 +45,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
 
     if prefix == "genes_round_1_1":
         # No need to register to ref
-        return stack
+        return stack, bad_pixels
 
     # we have data with channels/rounds registered
     # Now find how much the acquisition stitching is shifting the data compared to
