@@ -328,10 +328,13 @@ def correct_shifts_single_round_roi(
                     / "reg"
                     / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
+                shifts.append(tforms["shifts"])
+                angles.append(tforms["angles"])
             except:
                 print(f"couldn't load tile {roi} {ix} {iy}")
-            shifts.append(tforms["shifts"])
-            angles.append(tforms["angles"])
+                shifts.append(np.array([[np.nan, np.nan]]))
+                angles.append(np.array(np.nan, ndmin=2))
+
     shifts = np.stack(shifts, axis=2)
     angles = np.stack(angles, axis=1)
 
