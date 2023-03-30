@@ -388,6 +388,9 @@ def register_tile_to_ref(
     ref_prefix="genes_round",
     binarise_quantile=0.7,
     max_shift=None,
+    ref_tile_coors=None,
+    target_channels=None,
+    ref_channels=None,
 ):
     """Register a single tile to the corresponding reference tile
 
@@ -400,14 +403,24 @@ def register_tile_to_ref(
         registration. Defaults to 0.7.
         max_shift (int, optional): Maximum shift allowed. None for no max. Defaults to
             None
+        ref_tile_coors (tuple, optional): Tile coordinates of the reference tile.
+            Usually not needed as it is assumed to be the same as the tile to register.
+            Defaults to None.
+        target_channels (list, optional): Channels to use for registration. If None
+            will use all channels. Defaults to None
+        ref_channels (list, optional): Channels to use for registration. If None will
+            use all channels. Defaults to None
 
     Returns:
         angle (float): Rotation angle
         shifts (np.array): X and Y shifts
     """
+    if ref_tile_coors is None:
+        ref_tile_coors = tile_coors
+
     ref_all_channels, _ = pipeline.load_and_register_tile(
         data_path=data_path,
-        tile_coors=tile_coors,
+        tile_coors=ref_tile_coors,
         prefix=ref_prefix,
         filter_r=False,
     )
@@ -418,6 +431,10 @@ def register_tile_to_ref(
         prefix=reg_prefix,
         filter_r=False,
     )
+    if ref_channels is not None:
+        ref_all_channels = ref_all_channels[:, :, ref_channels]
+    if target_channels is not None:
+        target_all_channels = target_all_channels[:, :, target_channels]
     ref = np.nanmean(ref_all_channels, axis=(2, 3))
     target = np.nanmean(target_all_channels, axis=(2, 3))
     ref = ref > np.quantile(ref, binarise_quantile)
