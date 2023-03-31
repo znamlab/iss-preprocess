@@ -18,6 +18,14 @@ conda activate iss-preprocess
 pip install -e .
 ```
 
+### Documentation
+
+To build the documentation you also need to install 
+```
+Sphinx
+furo
+```
+
 ### Atlas cache
 
 The registration to the allen reference atlas uses `bg_atlasapi` from brainglobe. This
