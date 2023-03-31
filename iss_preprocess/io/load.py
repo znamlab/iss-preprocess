@@ -319,7 +319,12 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
     matcher = re.compile(pattern=pattern)
     matches = [matcher.match(fname) for fname in fnames]  # non match will be None
-    tile_coors = np.stack([np.array(m.groups(), dtype=int) for m in matches if m])
+    try:
+        tile_coors = np.stack([np.array(m.groups(), dtype=int) for m in matches if m])
+    except ValueError:
+        raise ValueError(
+            "Could not find any files matching the pattern " f"{pattern} in {data_dir}"
+        )
 
     rois = np.unique(tile_coors[:, 0])
     roi_list = np.empty((len(rois), 3), dtype=int)
