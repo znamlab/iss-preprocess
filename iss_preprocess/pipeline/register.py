@@ -389,7 +389,7 @@ def register_tile_to_ref(
     binarise_quantile=0.7,
     max_shift=None,
     ref_tile_coors=None,
-    target_channels=None,
+    reg_channels=None,
     ref_channels=None,
 ):
     """Register a single tile to the corresponding reference tile
@@ -406,7 +406,7 @@ def register_tile_to_ref(
         ref_tile_coors (tuple, optional): Tile coordinates of the reference tile.
             Usually not needed as it is assumed to be the same as the tile to register.
             Defaults to None.
-        target_channels (list, optional): Channels to use for registration. If None
+        reg_channels (list, optional): Channels to use for registration. If None
             will use all channels. Defaults to None
         ref_channels (list, optional): Channels to use for registration. If None will
             use all channels. Defaults to None
@@ -417,6 +417,8 @@ def register_tile_to_ref(
     """
     if ref_tile_coors is None:
         ref_tile_coors = tile_coors
+    else:
+        print(f"Register to {ref_tile_coors}", flush=True)
 
     ref_all_channels, _ = pipeline.load_and_register_tile(
         data_path=data_path,
@@ -424,24 +426,26 @@ def register_tile_to_ref(
         prefix=ref_prefix,
         filter_r=False,
     )
-
-    target_all_channels, _ = pipeline.load_and_register_tile(
+    reg_all_channels, _ = pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=tile_coors,
         prefix=reg_prefix,
         filter_r=False,
     )
+
     if ref_channels is not None:
         ref_all_channels = ref_all_channels[:, :, ref_channels]
-    if target_channels is not None:
-        target_all_channels = target_all_channels[:, :, target_channels]
     ref = np.nanmean(ref_all_channels, axis=(2, 3))
-    target = np.nanmean(target_all_channels, axis=(2, 3))
     ref = ref > np.quantile(ref, binarise_quantile)
-    target = target > np.quantile(target, binarise_quantile)
+
+    if reg_channels is not None:
+        reg_all_channels = reg_all_channels[:, :, reg_channels]
+    reg = np.nanmean(reg_all_channels, axis=(2, 3))
+    reg = reg > np.quantile(reg, binarise_quantile)
+
     angles, shifts = estimate_rotation_translation(
         ref,
-        target,
+        reg,
         angle_range=1.0,
         niter=3,
         nangles=15,
@@ -451,17 +455,17 @@ def register_tile_to_ref(
     print(f"Angle: {angles}, Shifts: {shifts}")
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     r, x, y = tile_coors
-    target = (
+    reg = (
         processed_path
         / data_path
         / "reg"
         / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
     )
-    print(f"Saving results to {target}")
+    print(f"Saving results to {reg}")
     # save also scale and make sure that all have the proper shape to match
     # multi-channel registrations and reuse the ransac function
     np.savez(
-        target,
+        reg,
         angles=np.array([[angles]]),
         shifts=np.array([shifts]),
         scales=np.array([[1]]),
