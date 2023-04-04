@@ -1,19 +1,86 @@
-import subprocess, shlex
+import functools
+import shlex
+import subprocess
 import warnings
-import numpy as np
-from flexiznam.config import PARAMETERS
+from datetime import datetime
 from pathlib import Path
-from . import ara_registration as ara_reg
+
+import numpy as np
+import flexiznam as flz
+from flexiznam.config import PARAMETERS
+
+from ..image import apply_illumination_correction, tilestats_and_mean_image
 from ..io import (
-    write_stack,
-    load_metadata,
     get_roi_dimensions,
+    load_metadata,
     load_ops,
     load_tile_by_coors,
+    write_stack,
 )
-from ..image import tilestats_and_mean_image, apply_illumination_correction
-from .sequencing import load_and_register_sequencing_tile
+from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
+from .sequencing import load_and_register_sequencing_tile
+
+
+def updates_flexilims(func):
+    """Update flexilims when running the function"""
+
+    @functools.wraps(func)
+    def wrapper_flm(*args, **kwargs):
+        # get data_path from args or kwargs
+        if "data_path" in kwargs:
+            data_path = kwargs["data_path"]
+        else:
+            data_path = args[0]
+
+        # find if we should use flexilims
+        ops = load_ops(data_path)
+        if ("use_flexilims" in ops) and ops["use_flexilims"]:
+            # get parent from flexilims, must exist
+            data_path = Path(data_path)
+            flm_session = flz.get_flexilims_session(project_id=data_path.parts[0])
+            parent_name = "_".join(data_path.parts[1:])
+            parent = flz.get_entity(
+                name=parent_name, datatype="sample", flexilims_session=flm_session
+            )
+            if parent is None:
+                raise ValueError(f"Could not find parent {parent_name} in flexilims")
+        else:
+            parent = None
+            print("Not using flexilims")
+
+        # print function call (can be removed if too verbose)
+        args_repr = [repr(a) for a in args]
+        kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
+        signature = ", ".join(args_repr + kwargs_repr)
+        print(f"Calling {func.__name__}({signature})")
+
+        # Actually run the function
+        value = func(*args, **kwargs)
+
+        # update flexilims if needed
+        if parent is not None:
+            func_name = func.__name__
+            dataset_name = f"{parent_name}_{func_name}"
+            flm_attr = dict(ops)
+            flm_attr["function_call"] = signature
+            flz.utils.clean_dictionary_recursively(flm_attr)
+
+            flz.add_dataset(
+                parent_id=parent["id"],
+                dataset_type="iss_preprocessing",
+                created=datetime.now().strftime("%Y-%m-%d " "%H:%M:%S"),
+                path=str(data_path),
+                genealogy=list(parent["genealogy"]) + [func_name],
+                is_raw="no",
+                dataset_name=dataset_name,
+                attributes=flm_attr,
+                flexilims_session=flm_session,
+                conflicts="overwrite",
+            )
+        return value
+
+    return wrapper_flm
 
 
 def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
@@ -91,6 +158,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     return stack, bad_pixels
 
 
+@updates_flexilims  ## for test. to remove after
 def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     """Start sbatch scripts for all tiles across all rois.
 
@@ -138,7 +206,7 @@ def create_single_average(
     prefix_filter=None,
     suffix=None,
     combine_tilestats=False,
-    exclude_tiffs=None
+    exclude_tiffs=None,
 ):
     """Create normalised average of all tifs in a single folder.
 
@@ -207,7 +275,7 @@ def create_single_average(
         normalise=True,
         suffix=suffix,
         combine_tilestats=combine_tilestats,
-        exclude_tiffs=exclude_tiffs
+        exclude_tiffs=exclude_tiffs,
     )
     write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
     np.save(target_stats, tilestats)
