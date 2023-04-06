@@ -110,7 +110,7 @@ def tilestats_and_mean_image(
     data_folder,
     prefix="",
     suffix="",
-    n_batch=None,
+    n_batch=1,
     black_level=0,
     max_value=10000,
     verbose=False,
@@ -128,7 +128,7 @@ def tilestats_and_mean_image(
             filter
         suffix (str, optional): suffix to filter images to average. Defaults to "", no
             filter
-        n_batch (int, optional): If None average everything, otherwise makes `n_batch`
+        n_batch (int, optional): If 1 average everything, otherwise makes `n_batch`
             averages and take the median of those. All averages must fit in RAM.
             Defaults to None
         black_level (float, optional): image black level to subtract before calculating
@@ -167,7 +167,7 @@ def tilestats_and_mean_image(
     if verbose:
         print(f"Averaging {len(tiffs)} tifs in {im_name}.", flush=True)
 
-    if n_batch is None:
+    if n_batch == 1:
         mean_image, tilestats = _mean_tiffs(
             tiffs,
             black_level,
@@ -187,7 +187,7 @@ def tilestats_and_mean_image(
                 flush=True,
             )
         for ib in range(n_batch):
-            print(f'Batch {ib+1} / {n_batch}', flush=True)
+            print(f"Batch {ib+1} / {n_batch}", flush=True)
             batch = tiffs[n_by_batch * ib : min(n_by_batch * (ib + 1), len(tiffs))]
             batch_mean, batch_stats = _mean_tiffs(
                 batch,

@@ -482,8 +482,7 @@ def create_grand_averages(path):
 @click.option(
     "--n-batch",
     help="Number of average batches to compute before taking their median.",
-    type=int,
-    default=None,
+    default=1,
 )
 def create_all_single_averages(path, n_batch):
     """Average all tiffs in all acquisition folders"""
@@ -518,8 +517,7 @@ def create_all_single_averages(path, n_batch):
 @click.option(
     "--n-batch",
     help="Number of average batches to compute before taking their median.",
-    type=int,
-    default=None,
+    default=1,
 )
 def create_single_average(
     path, subtract_black, subfolder, prefix_filter, suffix, combine_stats, n_batch
