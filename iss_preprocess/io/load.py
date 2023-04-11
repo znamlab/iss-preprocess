@@ -9,10 +9,15 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 import yaml
 import re
-from ..config import DEFAULT_OPS
 
 
 def load_hyb_probes_metadata():
+    """Load the hybridisation probes metadata.
+    
+    Returns:
+        dict: Contents of `hybridisation_probes.yml`
+        
+    """
     fname = Path(__file__).parent.parent / "call" / "hybridisation_probes.yml"
     with open(fname, "r") as f:
         hyb_probes = yaml.safe_load(f)
@@ -20,23 +25,52 @@ def load_hyb_probes_metadata():
 
 
 def load_ops(data_path):
-    """Load the ops.npy file.
+    """Load the ops.yaml file.
 
-    This must be manually generated first (see pipeline.ipynb example)
+    This must be manually generated first. If it is not found, the default
+    options are used.
 
     Args:
         data_path (str): Relative path to data
 
     Returns:
-        dict: Options, see config.defaults_ops.py for description
+        dict: Options, see config/defaults_ops.yaml for description
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops_fname = processed_path / data_path / "ops.npy"
-    if ops_fname.exists():
-        ops = np.load(ops_fname, allow_pickle=True).item()
+    ops_fname = processed_path / data_path / "ops.yml"
+    if not ops_fname.exists():
+        print("ops.yml not found, using defaults")
+        ops_fname = Path(__file__).parent.parent / "config" / "default_ops.yml"
+    with open(ops_fname, "r") as f:
+        ops = yaml.safe_load(f)
+    flattened_ops = {}
+    for key, value in ops.items():
+        if isinstance(value, dict):
+            for subkey, subvalue in value.items():
+                flattened_ops[subkey] = subvalue
+        else:
+            flattened_ops[key] = value
+    ops = flattened_ops
+
+    black_level_fname = processed_path / data_path / "black_level.npy"
+    if black_level_fname.exists():
+        ops["black_level"] = np.load(black_level_fname)
     else:
-        print("ops.npy not found, using defaults")
-        ops = DEFAULT_OPS.copy()
+        print("black level not found, computing from dark frame")
+        dark_fname = processed_path / flattened_ops["dark_frame_path"]
+        dark_frames = load_stack(dark_fname)
+        ops["black_level"] = dark_frames.mean(axis=(0, 1))
+        np.save(black_level_fname, ops["black_level"])
+
+    metadata = load_metadata(data_path)
+    ops.update(
+        {
+            "camera_order": metadata["camera_order"],
+            "genes_rounds": metadata["genes_rounds"],
+            "barcode_rounds": metadata["barcode_rounds"],
+        }
+    )
     return ops
 
 
@@ -51,6 +85,7 @@ def load_metadata(data_path):
 
     Returns:
         dict: Content of `{chamber}_metadata.yml`
+
     """
     raw_path = Path(PARAMETERS["data_root"]["raw"])
     metadata_fname = raw_path / data_path / (Path(data_path).name + "_metadata.yml")
@@ -85,6 +120,7 @@ def load_single_acq_metdata(data_path, prefix):
 
     Returns:
         metadata (dict): Content of the metadata file
+
     """
 
     acq_folder = Path(PARAMETERS["data_root"]["processed"]) / data_path / prefix
@@ -108,7 +144,8 @@ def load_section_position(data_path):
         data_path (str): Relative path to dataset
 
     Returns:
-        pd.DataFrame: Slice position info
+        pandas.DataFrame: Slice position info
+
     """
     raw_path = Path(PARAMETERS["data_root"]["raw"])
     mouse_path = (raw_path / data_path).parent
@@ -267,6 +304,7 @@ def reorder_channels(stack, metadata):
 
     Returns:
         Stack after sorting the channels.
+
     """
     channels_metadata = metadata.findall(
         "./Metadata/Information/Image/Dimensions/Channels/Channel"
@@ -294,7 +332,8 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
             on disk. Default to True
 
     Returns:
-        np.array: Nroi x 3 array of containing (roi_id, NtilesX, NtilesY) for each roi
+        numpy.ndarray: Nroi x 3 array of containing (roi_id, NtilesX, NtilesY) for each roi
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims_file = processed_path / data_path / f"{prefix}_roi_dims.npy"
