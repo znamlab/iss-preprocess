@@ -89,3 +89,7 @@ cellpose:
   cellpose_flow_threshold: 0.4
   cellpose_model: cyto
   cellpose_rescale: 0.55
+
+# Database integration. 
+# If true will upload ops to flexilims when performing a batch operation
+use_flexilims: true
