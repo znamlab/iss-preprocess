@@ -12,11 +12,16 @@ def register_channels_and_rounds(stack, ref_ch=0, ref_round=0):
     Estimate transformation matrices for alignment across channels and rounds.
 
     Args:
-        stack:
+        stack: X x Y x Nchannels x Nrounds images stack
         ref_ch (int): channel to align to
         ref_round (int): round to align to
 
     Returns:
+        angles_within_channels (np.array): Nchannels x Nrounds array of angles
+        shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
+        scales_between_channels (np.array): Nchannels array of scales
+        angles_between_channels (np.array): Nchannels array of angles
+        shifts_between_channels (np.array): Nchannels x 2 array of shifts
 
     """
     # first register images across rounds within each channel
@@ -50,6 +55,20 @@ def generate_channel_round_transforms(
     shifts_between_channels,
     stack_shape,
 ):
+    """Generate transformation matrices for each channel and round.
+
+    Args:
+        angles_within_channels (np.array): Nchannels x Nrounds array of angles
+        shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
+        scales_between_channels (np.array): Nchannels array of scales
+        angles_between_channels (np.array): Nchannels array of angles
+        shifts_between_channels (np.array): Nchannels x 2 array of shifts
+        stack_shape (tuple): shape of the stack
+
+    Returns:
+        np.array: Nch x Nrounds array of transformation matrices (each 3x3)
+
+    """
     nrounds = len(angles_within_channels[0])
     nchannels = len(angles_within_channels)
     tforms = np.empty((nchannels, nrounds), dtype=object)
@@ -80,6 +99,7 @@ def align_channels_and_rounds(stack, tforms):
 
     Returns:
         np.array: Aligned stack with NaN for missing pixels. Same shape as input stack
+
     """
     nchannels, nrounds = stack.shape[2:]
     reg_stack = np.empty((stack.shape))
@@ -105,6 +125,24 @@ def align_within_channels(
     nangles=15,
     min_shift=2,
 ):
+    """Align images within each channel.
+
+    Args:
+        stack (np.array): X x Y x Nchannels x Nrounds images stack
+        upsample (bool, or int): whether to use subpixel registration, and if so, how much
+            to upsample
+        ref_round (int): round to align to
+        angle_range (float): range of angles to search for each round
+        niter (int): number of iterations to run
+        nangles (int): number of angles to search for each iteration
+        min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
+            for images acquired from the same camera
+        
+    Returns:
+        angles (np.array): Nchannels x Nrounds array of angles
+        shifts (np.array): Nchannels x Nrounds x 2 array of shifts
+
+    """
     # align rounds to each other for each channel
     nchannels, nrounds = stack.shape[2:]
     angles_channels = []
@@ -141,9 +179,15 @@ def estimate_shifts_and_angles_for_tile(
     using the provided quantile threshold.
 
     Args:
-        stack (_type_): _description_
-        scales (_type_): _description_
-        ref_ch (int, optional): _description_. Defaults to 0.
+        stack (np.array): X x Y x Nchannels images stack
+        scales (np.array): Nchannels array of scales
+        ref_ch (int): reference channel
+        threshold_quantile (float): quantile to use for thresholding
+
+    Returns:
+        angles (np.array): Nchannels array of angles
+        shifts (np.array): Nchannels x 2 array of shifts
+
     """
 
     nch = stack.shape[2]
@@ -179,15 +223,17 @@ def estimate_shifts_for_tile(
     """Use precomputed rotations and scale factors to re-estimate shifts for every round and between channels.
 
     Args:
-        stack (_type_): _description_
-        angles_within_channels (_type_): _description_
-        scales_between_channels (_type_): _description_
-        angles_between_channels (_type_): _description_
-        ref_ch (int, optional): _description_. Defaults to 0.
-        ref_round (int, optional): _description_. Defaults to 0.
+        stack (np.array): X x Y x Nchannels x Nrounds images stack
+        angles_within_channels (np.array): Nchannels x Nrounds array of angles
+        scales_between_channels (np.array): Nchannels x Nchannels array of scale factors
+        angles_between_channels (np.array): Nchannels x Nchannels array of angles
+        ref_ch (int): reference channel
+        ref_round (int): reference round
 
     Returns:
-        _type_: _description_
+        shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
+        shifts_between_channels (np.array): Nchannels x Nchannels x 2 array of shifts
+
     """
     nchannels, nrounds = stack.shape[2:]
     shifts_within_channels = []
@@ -237,6 +283,18 @@ def estimate_shifts_for_tile(
 
 
 def get_channel_reference_images(stack, angles_channels, shifts_channels):
+    """Get reference images for each channel from STD or mean projection after registration.
+
+    Args:
+        stack (np.array): X x Y x Nchannels x Nrounds images stack
+        angles_channels (np.array): Nchannels x Nrounds array of angles
+        shifts_channels (np.array): Nchannels x Nrounds x 2 array of shifts
+
+    Returns:
+        std_stack (np.array): X x Y x Nchannels std projections
+        mean_stack (np.array): X x Y x Nchannels mean projections
+
+    """
     nchannels, nrounds = stack.shape[2:]
 
     # get a good reference image for each channel
@@ -266,6 +324,19 @@ def get_channel_reference_images(stack, angles_channels, shifts_channels):
 
 
 def apply_corrections(im, scales, angles, shifts, cval=0.0):
+    """Apply scale, rotation and shift corrections to a multichannel image.
+
+    Args:
+        im (np.array): X x Y x Nchannels image
+        scales (np.array): Nchannels array of scale factors
+        angles (np.array): Nchannels array of angles
+        shifts (np.array): Nchannels x 2 array of shifts
+        cval (float): value to fill empty pixels
+
+    Returns:
+        im_reg (np.array): X x Y x Nchannels registered image
+
+    """
     nchannels = im.shape[2]
     im_reg = np.zeros(im.shape)
     for channel, scale, angle, shift in zip(range(nchannels), scales, angles, shifts):
@@ -286,12 +357,21 @@ def estimate_correction(
     angle_range=1.0,
 ):
     """
+    Estimate scale, rotation and translation corrections for each channel of a multichannel image.
 
     Args:
-        im:
-        ch_to_align:
+        im (np.array): X x Y x Nchannels image
+        ch_to_align (int): channel to align to
+        upsample (bool, or int): whether to upsample the image, and if so but what factor
+        scale_range (float): range of scale factors to search through
+        nangles (int): number of angles to search through
+        niter (int): number of iterations to run
+        angle_range (float): range of angles to search through
 
     Returns:
+        scales (np.array): Nchannels array of scale factors
+        angles (np.array): Nchannels array of angles
+        shifts (np.array): Nchannels x 2 array of shifts
 
     """
     nchannels = im.shape[2]
@@ -393,6 +473,22 @@ def estimate_rotation_angle(
     min_shift=None,
     max_shift=None,
 ):
+    """
+    Estimate rotation angle that maximizes phase correlation between the target and the
+    reference image.
+
+    Args:
+        reference_fft (numpy.ndarray): X x Y reference image in Fourier domain
+        target (numpy.ndarray): X x Y target image
+        angle_range (float): range of angles in degrees to search over
+        best_angle (float): initial angle in degrees
+        nangles (int): number of angles to try
+
+    Returns:
+        best_angle (float) in degrees
+        max_cc (float) maximum cross correlation
+        
+    """
     angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
     max_cc = np.empty(angles.shape)
     shifts = np.empty((nangles, 2))

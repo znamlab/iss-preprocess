@@ -51,6 +51,7 @@ def load_and_register_hyb_tile(
         numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged
             for all channels (due to registration offsets) and should be discarded
             during analysis.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     tforms_fname = (
@@ -96,6 +97,7 @@ def estimate_channel_correction_hybridisation(data_path):
         pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values
             for filtered stacks
         norm_factors (np.array) A Nch x Nround array of normalisation factors
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
@@ -113,7 +115,7 @@ def estimate_channel_correction_hybridisation(data_path):
                 load_tile_by_coors(
                     data_path,
                     tile_coors=tile,
-                    suffix=ops["projection"],
+                    suffix=ops["hybridisation_projection"],
                     prefix=hyb_round,
                 ),
                 r1=ops["filter_r"][0],
@@ -143,6 +145,7 @@ def setup_hyb_spot_calling(data_path, score_thresh=0, vis=True):
             Spots, whose dot product is below this threshold, will be not contribute
             to the estimate of the mean. Defaults to 0.
         vis (bool, optional): Whether to generate diagnostic plots. Defaults to True.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     metadata = load_metadata(data_path)
@@ -160,9 +163,7 @@ def setup_hyb_spot_calling(data_path, score_thresh=0, vis=True):
 
 
 def hyb_spot_cluster_means(
-    data_path,
-    prefix,
-    score_thresh=0,
+    data_path, prefix, score_thresh=0,
 ):
     """Estimate bleedthrough matrices for hybridisation spots. Spot
     colors for each dye are initialized based on the metadata in the
@@ -181,6 +182,7 @@ def hyb_spot_cluster_means(
         numpy.ndarray: Nprobes x Nch bleedthrough matrix.
         pandas.DataFrame: DataFrame of all detected spots across all tiles.
         list: list of gene names based on probe metadata.
+
     """
     ops = load_ops(data_path)
 
@@ -203,10 +205,11 @@ def hyb_spot_cluster_means(
             data_path,
             tile_coors=ref_tile,
             prefix=prefix,
+            suffix=ops["hybridisation_projection"],
             correct_channels=ops["hybridisation_correct_channels"],
         )
         spots = detect_spots(
-            np.max(stack, axis=2), threshold=ops["hyb_spot_detection_threshold"]
+            np.max(stack, axis=2), threshold=ops["hybridisation_detection_threshold"]
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
         spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
@@ -228,6 +231,7 @@ def extract_hyb_spots_all(data_path):
 
     Args:
         data_path (str): Relative path to data.
+
     """
     roi_dims = get_roi_dimensions(data_path)
 
@@ -259,6 +263,7 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
         prefix (str): Prefix of the hybridisation round, e.g. "hybridisation_1_1".
         roi (int): ID of the ROI to process, as specified in MicroManager
             (i.e. 1-based)
+
     """
     roi_dims = get_roi_dimensions(data_path)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
@@ -274,6 +279,7 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
         data_path (str): Relative path to data.
         tile_coors (tuple): Coordinates of tile to load: ROI, Xpos, Ypos.
         prefix (str): Prefix of the hybridisation round, e.g. "hybridisation_1_1".
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
@@ -290,7 +296,7 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
         correct_channels=ops["hybridisation_correct_channels"],
     )
     spots = detect_spots(
-        np.max(stack, axis=2), threshold=ops["hyb_spot_detection_threshold"]
+        np.max(stack, axis=2), threshold=ops["hybridisation_detection_threshold"]
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
     spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]

@@ -5,11 +5,38 @@ from skimage.transform import SimilarityTransform, warp
 
 
 def transform_image(im, scale=1, angle=0, shift=(0, 0), cval=0.0):
+    """
+    Transform an image using provided scale, rotation angle, and shift.
+
+    Args:
+        im (numpy.ndarray): image to transform
+        scale (float): scale factor
+        angle (float): rotation angle in degrees
+        shift (tuple): shift in x and y
+        cval (float): value to fill in for pixels outside of the image
+
+    Returns:
+        numpy.ndarray: transformed image
+
+    """
     tform = SimilarityTransform(matrix=make_transform(scale, angle, shift, im.shape))
     return warp(im, tform.inverse, preserve_range=True, cval=cval)
 
 
 def make_transform(s, angle, shift, shape):
+    """
+    Make a transformation matrix using provided scale, rotation angle, and shift.
+
+    Args:
+        s (float): scale factor
+        angle (float): rotation angle in degrees
+        shift (tuple): shift in x and y
+        shape (tuple): shape of the image
+
+    Returns:
+        numpy.ndarray: transformation matrix
+        
+    """
     angle = -radians(angle)
     center_x = float(shape[1]) / 2 - 0.5
     center_y = float(shape[0]) / 2 - 0.5
