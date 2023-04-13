@@ -7,7 +7,6 @@ from ..io.load import load_stack, load_ops
 from ..coppafish import hanning_diff
 from flexiznam.config import PARAMETERS
 from pathlib import Path
-from iss_preprocess.config import dark_frame_path
 
 
 def apply_illumination_correction(data_path, stack, prefix, dtype=float):
@@ -83,27 +82,6 @@ def filter_stack(stack, r1=2, r2=4, dtype=float):
                 borderType=cv2.BORDER_REPLICATE,
             )
     return stack_filt
-
-
-# AB: Reviewed 10/01/23
-def analyze_dark_frames(fname=None):
-    """
-    Get statistics of dark frames to use for black level correction
-
-    Args:
-        fname (str, optional): path to dark frame TIFF file. If not provided,
-            defaults to setting in config.
-
-    Returns:
-        numpy.array: Average black level per channel
-        numpy.array: Readout noise per channel
-
-    """
-    if not fname:
-        processed_path = Path(PARAMETERS["data_root"]["processed"])
-        fname = processed_path / dark_frame_path
-    dark_frames = load_stack(fname)
-    return dark_frames.mean(axis=(0, 1)), dark_frames.std(axis=(0, 1))
 
 
 def tilestats_and_mean_image(

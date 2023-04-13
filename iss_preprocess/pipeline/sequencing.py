@@ -103,7 +103,7 @@ def setup_barcode_calling(
             ref_tile,
             filter_r=ops["filter_r"],
             prefix="barcode_round",
-            suffix=ops["projection"],
+            suffix=ops["barcode_projection"],
             nrounds=ops["barcode_rounds"],
             correct_channels=correct_channels,
             corrected_shifts=True,
@@ -144,7 +144,7 @@ def basecall_tile(data_path, tile_coors):
         tile_coors,
         filter_r=ops["filter_r"],
         prefix="barcode_round",
-        suffix=ops["projection"],
+        suffix=ops["barcode_projection"],
         nrounds=nrounds,
         correct_channels=ops["barcode_correct_channels"],
         corrected_shifts=True,
@@ -152,7 +152,7 @@ def basecall_tile(data_path, tile_coors):
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
     stack[bad_pixels, :, :] = 0
-    spot_sign_image = load_spot_sign_image(data_path, ops["spot_threshold"])
+    spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
     spots = detect_spots_by_shape(
         np.mean(stack, axis=(2, 3)),
         spot_sign_image,
@@ -223,14 +223,14 @@ def setup_omp(data_path, score_thresh=0, correct_channels=True):
             ref_tile,
             filter_r=ops["filter_r"],
             prefix="genes_round",
-            suffix=ops["projection"],
+            suffix=ops["genes_projection"],
             correct_channels=correct_channels,
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
         spots = detect_isolated_spots(
             np.std(stack, axis=(2, 3)),
-            detection_threshold=ops["detection_threshold"],
-            isolation_threshold=ops["isolation_threshold"],
+            detection_threshold=ops["genes_detection_threshold"],
+            isolation_threshold=ops["genes_isolation_threshold"],
         )
 
         extract_spots(spots, stack)
@@ -280,16 +280,15 @@ def estimate_channel_correction(
 
     max_val = 65535
     pixel_dist = np.zeros((max_val + 1, nch, nrounds))
-
+    if prefix == "genes_round":
+        projection = ops["genes_projection"]
+    else:
+        projection = ops["barcode_projection"]
     for tile in ops["correction_tiles"]:
         print(f"counting pixel values for roi {tile[0]}, tile {tile[1]}, {tile[2]}")
         stack = filter_stack(
             load_sequencing_rounds(
-                data_path,
-                tile,
-                suffix=ops["projection"],
-                prefix=prefix,
-                nrounds=nrounds,
+                data_path, tile, suffix=projection, prefix=prefix, nrounds=nrounds,
             ),
             r1=ops["filter_r"][0],
             r2=ops["filter_r"][1],
@@ -485,7 +484,7 @@ def run_omp_on_tile(
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
-        suffix=ops["projection"],
+        suffix=ops["genes_projection"],
         correct_channels=ops["genes_correct_channels"],
         prefix=prefix,
         nrounds=ops["genes_rounds"],
@@ -508,6 +507,7 @@ def run_omp_on_tile(
         weighted=True,
         refit_background=True,
         alpha=ops["omp_alpha"],
+        beta_squared=ops["omp_beta_squared"],
         norm_shift=omp_stat["norm_shift"],
         max_comp=ops["omp_max_genes"],
         min_intensity=ops["omp_min_intensity"],
@@ -516,12 +516,12 @@ def run_omp_on_tile(
     for igene in range(g.shape[2]):
         g[bad_pixels, igene] = 0
 
-    spot_sign_image = load_spot_sign_image(data_path, ops["spot_threshold"])
+    spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
     gene_spots = find_gene_spots(
         g,
         spot_sign_image,
-        rho=ops["spot_rho"],
-        spot_score_threshold=ops["spot_threshold"],
+        rho=ops["genes_spot_rho"],
+        spot_score_threshold=ops["genes_spot_score_threshold"],
     )
 
     for df, gene in zip(gene_spots, omp_stat["gene_names"]):
