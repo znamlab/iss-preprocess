@@ -75,10 +75,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
         )
     else:
         stack = load_tile_by_coors(
-            data_path,
-            tile_coors=tile_coors,
-            suffix=projection,
-            prefix=prefix,
+            data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
         )
         bad_pixels = np.zeros(stack.shape, dtype=bool)
         stack = apply_illumination_correction(data_path, stack, prefix)
@@ -258,10 +255,7 @@ def create_all_single_averages(
             continue
         projection = ops[f"{folder.split('_')[0].lower()}_projection"]
         export_args = dict(
-            DATAPATH=data_path,
-            SUBFOLDER=folder,
-            SUFFIX=projection,
-            N_BATCH=n_batch,
+            DATAPATH=data_path, SUBFOLDER=folder, SUFFIX=projection, N_BATCH=n_batch
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (
@@ -272,9 +266,7 @@ def create_all_single_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-            shlex.split(command),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
+            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
 
 
@@ -295,11 +287,7 @@ def create_grand_averages(
         Path(__file__).parent.parent.parent / "scripts" / "create_grand_average.sh"
     )
     for kind in prefix_todo:
-        export_args = dict(
-            DATAPATH=data_path,
-            SUBFOLDER=subfolder,
-            PREFIX=kind,
-        )
+        export_args = dict(DATAPATH=data_path, SUBFOLDER=subfolder, PREFIX=kind)
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (
             args
@@ -309,9 +297,7 @@ def create_grand_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-            shlex.split(command),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
+            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
 
 
@@ -372,7 +358,5 @@ def overview_for_ara_registration(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-            shlex.split(command),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
+            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )

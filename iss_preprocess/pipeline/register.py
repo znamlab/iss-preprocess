@@ -35,11 +35,7 @@ def register_reference_tile(data_path, prefix="genes_round"):
     nrounds = ops[prefix + "s"]
     projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     stack = load_sequencing_rounds(
-        data_path,
-        ops["ref_tile"],
-        prefix=prefix,
-        suffix=projection,
-        nrounds=nrounds,
+        data_path, ops["ref_tile"], prefix=prefix, suffix=projection, nrounds=nrounds
     )
     (
         angles_within_channels,
@@ -127,7 +123,7 @@ def estimate_shifts_by_coors(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
-    (_, shifts_within_channels, shifts_between_channels,) = estimate_shifts_for_tile(
+    (_, shifts_within_channels, shifts_between_channels) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
         reference_tforms["scales_between_channels"],
@@ -347,16 +343,7 @@ def correct_shifts_single_round_roi(
     shifts_corrected = np.zeros(shifts.shape)
     angles_corrected = np.zeros(angles.shape)
 
-    X = np.stack(
-        [
-            ys.flatten(),
-            xs.flatten(),
-            np.ones(
-                nx * ny,
-            ),
-        ],
-        axis=1,
-    )
+    X = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
 
     for ich in range(shifts.shape[0]):
         for idim in range(2):

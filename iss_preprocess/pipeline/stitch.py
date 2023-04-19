@@ -8,12 +8,7 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 from . import pipeline
 from .. import vis
-from ..io import (
-    load_tile_by_coors,
-    load_stack,
-    load_ops,
-    get_roi_dimensions,
-)
+from ..io import load_tile_by_coors, load_stack, load_ops, get_roi_dimensions
 from .register import align_spots
 from ..reg import (
     estimate_rotation_translation,
@@ -157,10 +152,7 @@ def register_within_acquisition(
         )
 
     np.savez(
-        target,
-        shift_right=shifts[:2],
-        shift_down=shifts[2:],
-        tile_shape=tile_shape,
+        target, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape
     )
     return shifts[:2], shifts[2:], tile_shape
 
@@ -434,13 +426,7 @@ def stitch_registered(
     return stitched_stack
 
 
-def merge_roi_spots(
-    data_path,
-    prefix,
-    tile_origins,
-    tile_centers,
-    iroi=1,
-):
+def merge_roi_spots(data_path, prefix, tile_origins, tile_centers, iroi=1):
     """Load and combine spot locations across all tiles for an ROI.
 
     To avoid duplicate spots from tile overlap, we determine which tile center
@@ -618,13 +604,7 @@ def stitch_and_register(
         stitched_stack_shape=final_shape,
     )
 
-    return (
-        stitched_stack_target,
-        stitched_stack_reference,
-        angle,
-        shift,
-        scale,
-    )
+    return (stitched_stack_target, stitched_stack_reference, angle, shift, scale)
 
 
 def merge_and_align_spots(
