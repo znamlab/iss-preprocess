@@ -127,11 +127,7 @@ def estimate_shifts_by_coors(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
-    (
-        _,
-        shifts_within_channels,
-        shifts_between_channels,
-    ) = estimate_shifts_for_tile(
+    (_, shifts_within_channels, shifts_between_channels,) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
         reference_tforms["scales_between_channels"],

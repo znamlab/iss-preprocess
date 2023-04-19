@@ -116,7 +116,7 @@ def register_within_acquisition(
         reload (bool, optional): If target file already exists, reload instead of
             recomputing. Defaults to True
         save_plot (bool, optional): If True save diagnostic plot. Defaults to False
-        dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used 
+        dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
             only if the acquisition is an overview. Defaults to 'genes_round_1_1'
 
     Returns:
@@ -157,7 +157,10 @@ def register_within_acquisition(
         )
 
     np.savez(
-        target, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape,
+        target,
+        shift_right=shifts[:2],
+        shift_down=shifts[2:],
+        tile_shape=tile_shape,
     )
     return shifts[:2], shifts[2:], tile_shape
 
@@ -432,7 +435,11 @@ def stitch_registered(
 
 
 def merge_roi_spots(
-    data_path, prefix, tile_origins, tile_centers, iroi=1,
+    data_path,
+    prefix,
+    tile_origins,
+    tile_centers,
+    iroi=1,
 ):
     """Load and combine spot locations across all tiles for an ROI.
 
@@ -469,17 +476,12 @@ def merge_roi_spots(
                 spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
                 spot_dist = (
-                    (
-                        spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 1]
-                    )
-                    ** 2
-                    + (
-                        spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 0]
-                    )
-                    ** 2
-                )
+                    spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 1]
+                ) ** 2 + (
+                    spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 0]
+                ) ** 2
                 home_tile_dist = (spot_dist[:, ix, iy]).copy()
                 spot_dist[:, ix, iy] = np.inf
                 min_spot_dist = np.min(spot_dist, axis=(1, 2))
@@ -508,7 +510,7 @@ def stitch_and_register(
     To speed up registration, images are downsampled before estimating registration
     parameters. These parameters are then applied to the full scale image.
 
-    The reference stack always use the "projection" from ops as suffix. The target uses 
+    The reference stack always use the "projection" from ops as suffix. The target uses
     the same by default but that can be specified with `target_suffix`
 
     Args:
@@ -708,7 +710,7 @@ def merge_and_align_spots_all_rois(
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
         ref_prefix (str, optional): Acquisition prefix to use as a reference for
             registration. Defaults to "genes_round_1_1".
-            
+
     """
     ops = load_ops(data_path)
     roi_dims = get_roi_dimensions(data_path)
