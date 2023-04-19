@@ -17,6 +17,7 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
         prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
         suffixes (tuple, optional): Projection suffixes to check for.
             Defaults to ("max", "fstack").
+            
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = get_roi_dimensions(data_path)
@@ -51,6 +52,7 @@ def project_round(data_path, prefix, overwrite=False):
         prefix (str):  Full folder name prefix, including round number.
         overwrite (bool, optional): Whether to re-project if files already exist.
             Defaults to False.
+
     """
     additional_args = f",PREFIX={prefix}"
     if overwrite:
@@ -67,12 +69,21 @@ def project_round(data_path, prefix, overwrite=False):
     target_path = processed_path / data_path / prefix
     target_path.mkdir(parents=True, exist_ok=True)
     shutil.copy(
-        raw_path / data_path / prefix / metadata_fname,
-        target_path / metadata_fname,
+        raw_path / data_path / prefix / metadata_fname, target_path / metadata_fname,
     )
 
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
+    """Project a single tile by its coordinates.
+    
+    Args:
+        tile_coors (tuple): (roi, x, y) coordinates of the tile.
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
+        overwrite (bool, optional): Whether to re-project if files already exist.
+            Defaults to False.
+            
+    """
     fname = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
     tile_path = str(Path(data_path) / prefix / fname)
     project_tile(tile_path, overwrite=overwrite)
@@ -116,6 +127,7 @@ def project_tile_row(data_path, prefix, tile_roi, tile_row, max_col, overwrite=F
         max_col (int): maximum columns index. Will project tiles from column 0 to max_col
         overwrite (bool, optional): whether to redo projection if files already exist.
             Defaults to False.
+
     """
     n_workers = np.min((mp.cpu_count(), max_col + 1))
     print(f"Starting a pool with {n_workers} workers on {mp.cpu_count()} CPUs.")

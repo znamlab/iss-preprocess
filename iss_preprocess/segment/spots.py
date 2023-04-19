@@ -12,43 +12,43 @@ def detect_isolated_spots(
     im, detection_threshold=40, isolation_threshold=30, annulus_r=(3, 7)
 ):
     """
-    Detect spots corresponding to single rolonies from OMP coefficient images.
-
+    Detect spots that are isolated from their neighbors.
+    
+    For each spot, we compute the average intensity in a circular annulus around
+    the spot. If the average intensity is below a threshold, we consider the spot
+    to be isolated.
+    
     Args:
-        im (numpy.ndarray): X x Y image of OMP coefficients for a single gene.
-        median_filter (bool): whether to apply a 3x3 median filter before spot
-            detection. Can be helpful to deal with single noise pixels.
-        min_size (float): minimum size threshold for spots. Helps avoid spurious
-            mini-spots next to real ones.
-        max_sigma (float): maximum sigma for the spot detection algorithm.
+        im (numpy.ndarray): X x Y image
+        detection_threshold (float): threshold for initial spot detection
+        isolation_threshold (float): threshold for spot isolation. Lower values
+            in fewer spots considered isolated.
+        annulus_r (tuple): inner and outer radii of the annulus used to compute
+            the average intensity around each spot.
 
     Returns:
-        pandas.DataFrame of spots containing 'x', 'y', and 'size' columns.
-
+        pandas.DataFrame of spots
+    
     """
-    if median_filter:
-        im = medfilt2d(im, kernel_size=3)
-    spots_array = blob_log(
-        im,
-        max_sigma=max_sigma,
-        min_sigma=0.5,
-        num_sigma=10,
-        log_scale=True,
-        overlap=0.9,
-        exclude_border=10,
-    )
-    gene_spots = pd.DataFrame(spots_array, columns=["y", "x", "size"])
-    gene_spots = gene_spots[gene_spots["size"] >= min_size]
-    return gene_spots
+    spots = detect_spots(im, threshold=detection_threshold)
+    strel = annulus(annulus_r[0], annulus_r[1])
+    strel = strel / np.sum(strel)
+    annulus_image = scipy.ndimage.correlate(im, strel)
+    isolated = annulus_image[spots["y"], spots["x"]] < isolation_threshold
+    return spots.iloc[isolated]
 
 
 def detect_spots(im, threshold=100, spot_size=2):
     """
     Detect peaks in an image.
 
+    TODO: no point assigning size here.
+
     Args:
         stack (numpy.ndarray): X x Y x C image stack
         threshold (float): spot detection threshold
+        spot_size (float): spot size in pixels. This value is simply assigned to
+            the "size" column of the output DataFrame.
 
     Returns:
         pandas.DataFrame of spot location, including x, y, and size.

@@ -29,6 +29,7 @@ def find_roi_position_on_cryostat(data_path):
         roi_slice_pos_um (dict): For each ROI, the slice depth in um relative to the
             first collected slice
         min_step (float): Minimum thickness between two slices
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     metadata = load_metadata(data_path)
@@ -78,6 +79,7 @@ def load_registration_reference_metadata(data_path, roi):
 
     Returns:
         metadata (dict): Content of the metadata yml file
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     reg_folder = processed_path / data_path / "register_to_ara"
@@ -104,6 +106,10 @@ def load_coordinate_image(data_path, roi, full_scale=False):
         roi (int): Number of the ROI
         full_scale (bool, optional): If true, returns the full scale image, otherwise
             the downsample version used for registration. Defaults to False.
+
+    Returns:
+        coords (np.ndarray): 3 channel image of ARA coordinates
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     reg_folder = processed_path / data_path / "register_to_ara"
@@ -142,9 +148,9 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False):
         full_scale (bool, optional): If true, returns the full scale image, otherwise
             the downsample version used for registration. Defaults to False.
 
-
     Returns:
         area_id (np.array): Image with area id of each pixel
+
     """
     coord = np.clip(
         load_coordinate_image(data_path, roi, full_scale=full_scale), 0, None
@@ -175,6 +181,7 @@ def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplac
     Returns:
         spots (pd.DataFrame): reference or copy of spots dataframe with four more
             columns: `ara_x`, `ara_y`, `ara_z`, and `area_id`
+
     """
     if not inplace:
         spots = spots.copy()

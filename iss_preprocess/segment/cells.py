@@ -59,7 +59,7 @@ def cellpose_segmentation(
     return masks
 
 
-def rolony_mask_value(masks, spots):
+def spot_mask_value(masks, spots):
     """Find the mask value of each spot
 
     Args:
@@ -80,7 +80,7 @@ def rolony_mask_value(masks, spots):
     return spots
 
 
-def count_rolonies(spots, grouping_column, masks=None):
+def count_spots(spots, grouping_column, masks=None):
     """
     Count number of rolonies within each mask and return a DataFrame of counts.
 
@@ -98,7 +98,7 @@ def count_rolonies(spots, grouping_column, masks=None):
     if masks is None:
         assert "mask_id" in spots.columns
     else:
-        spots = rolony_mask_value(masks, spots)
+        spots = spot_mask_value(masks, spots)
     # count the number of occurence of each ("mask_id", genes or barcode) pair
     cell_df = pd.DataFrame(
         spots.loc[:, ["mask_id", grouping_column]]
