@@ -2,13 +2,13 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.segment package" href="iss_preprocess.segment.html" /><link rel="prev" title="iss_preprocess.pipeline package" href="iss_preprocess.pipeline.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2023.03.27 -->
+    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
         <title>iss_preprocess.reg package - iss-preprocess 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=fad236701ea90a88636c2a8c73b44ae642ed2a53" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
     
@@ -241,31 +241,102 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.rounds_and_channels.align_within_channels">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.reg.rounds_and_channels.</span></span><span class="sig-name descname"><span class="pre">align_within_channels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">upsample</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ref_round</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">niter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nangles</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.reg.rounds_and_channels.align_within_channels" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Align images within each channel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>stack</strong> (<em>np.array</em>) – X x Y x Nchannels x Nrounds images stack</p></li>
+<li><p><strong>upsample</strong> (<em>bool</em><em>, or </em><em>int</em>) – whether to use subpixel registration, and if so, how much
+to upsample</p></li>
+<li><p><strong>ref_round</strong> (<em>int</em>) – round to align to</p></li>
+<li><p><strong>angle_range</strong> (<em>float</em>) – range of angles to search for each round</p></li>
+<li><p><strong>niter</strong> (<em>int</em>) – number of iterations to run</p></li>
+<li><p><strong>nangles</strong> (<em>int</em>) – number of angles to search for each iteration</p></li>
+<li><p><strong>min_shift</strong> (<em>int</em>) – minimum shift. Necessary to avoid spurious cross-correlations
+for images acquired from the same camera</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Nchannels x Nrounds array of angles
+shifts (np.array): Nchannels x Nrounds x 2 array of shifts</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>angles (np.array)</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.rounds_and_channels.apply_corrections">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.reg.rounds_and_channels.</span></span><span class="sig-name descname"><span class="pre">apply_corrections</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scales</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shifts</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cval</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.reg.rounds_and_channels.apply_corrections" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Apply scale, rotation and shift corrections to a multichannel image.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>im</strong> (<em>np.array</em>) – X x Y x Nchannels image</p></li>
+<li><p><strong>scales</strong> (<em>np.array</em>) – Nchannels array of scale factors</p></li>
+<li><p><strong>angles</strong> (<em>np.array</em>) – Nchannels array of angles</p></li>
+<li><p><strong>shifts</strong> (<em>np.array</em>) – Nchannels x 2 array of shifts</p></li>
+<li><p><strong>cval</strong> (<em>float</em>) – value to fill empty pixels</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>X x Y x Nchannels registered image</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>im_reg (np.array)</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.rounds_and_channels.estimate_correction">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.reg.rounds_and_channels.</span></span><span class="sig-name descname"><span class="pre">estimate_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ch_to_align</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">upsample</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nangles</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">niter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.reg.rounds_and_channels.estimate_correction" title="Permalink to this definition">#</a></dt>
-<dd><dl class="field-list simple">
+<dd><p>Estimate scale, rotation and translation corrections for each channel of a multichannel image.</p>
+<dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>im</strong> – </p></li>
-<li><p><strong>ch_to_align</strong> – </p></li>
+<li><p><strong>im</strong> (<em>np.array</em>) – X x Y x Nchannels image</p></li>
+<li><p><strong>ch_to_align</strong> (<em>int</em>) – channel to align to</p></li>
+<li><p><strong>upsample</strong> (<em>bool</em><em>, or </em><em>int</em>) – whether to upsample the image, and if so but what factor</p></li>
+<li><p><strong>scale_range</strong> (<em>float</em>) – range of scale factors to search through</p></li>
+<li><p><strong>nangles</strong> (<em>int</em>) – number of angles to search through</p></li>
+<li><p><strong>niter</strong> (<em>int</em>) – number of iterations to run</p></li>
+<li><p><strong>angle_range</strong> (<em>float</em>) – range of angles to search through</p></li>
 </ul>
 </dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Nchannels array of scale factors
+angles (np.array): Nchannels array of angles
+shifts (np.array): Nchannels x 2 array of shifts</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>scales (np.array)</p>
+</dd>
 </dl>
-<p>Returns:</p>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.rounds_and_channels.estimate_rotation_angle">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.reg.rounds_and_channels.</span></span><span class="sig-name descname"><span class="pre">estimate_rotation_angle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">reference_fft</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle_range</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">best_angle</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nangles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.reg.rounds_and_channels.estimate_rotation_angle" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Estimate rotation angle that maximizes phase correlation between the target and the
+reference image.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>reference_fft</strong> (<em>numpy.ndarray</em>) – X x Y reference image in Fourier domain</p></li>
+<li><p><strong>target</strong> (<em>numpy.ndarray</em>) – X x Y target image</p></li>
+<li><p><strong>angle_range</strong> (<em>float</em>) – range of angles in degrees to search over</p></li>
+<li><p><strong>best_angle</strong> (<em>float</em>) – initial angle in degrees</p></li>
+<li><p><strong>nangles</strong> (<em>int</em>) – number of angles to try</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>best_angle (float) in degrees
+max_cc (float) maximum cross correlation</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.rounds_and_channels.estimate_rotation_translation">
@@ -326,10 +397,18 @@ using the provided quantile threshold.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>stack</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>scales</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>ref_ch</strong> (<em>int</em><em>, </em><em>optional</em>) – _description_. Defaults to 0.</p></li>
+<li><p><strong>stack</strong> (<em>np.array</em>) – X x Y x Nchannels images stack</p></li>
+<li><p><strong>scales</strong> (<em>np.array</em>) – Nchannels array of scales</p></li>
+<li><p><strong>ref_ch</strong> (<em>int</em>) – reference channel</p></li>
+<li><p><strong>threshold_quantile</strong> (<em>float</em>) – quantile to use for thresholding</p></li>
 </ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Nchannels array of angles
+shifts (np.array): Nchannels x 2 array of shifts</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>angles (np.array)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -341,19 +420,20 @@ using the provided quantile threshold.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>stack</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>angles_within_channels</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>scales_between_channels</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>angles_between_channels</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>ref_ch</strong> (<em>int</em><em>, </em><em>optional</em>) – _description_. Defaults to 0.</p></li>
-<li><p><strong>ref_round</strong> (<em>int</em><em>, </em><em>optional</em>) – _description_. Defaults to 0.</p></li>
+<li><p><strong>stack</strong> (<em>np.array</em>) – X x Y x Nchannels x Nrounds images stack</p></li>
+<li><p><strong>angles_within_channels</strong> (<em>np.array</em>) – Nchannels x Nrounds array of angles</p></li>
+<li><p><strong>scales_between_channels</strong> (<em>np.array</em>) – Nchannels x Nchannels array of scale factors</p></li>
+<li><p><strong>angles_between_channels</strong> (<em>np.array</em>) – Nchannels x Nchannels array of angles</p></li>
+<li><p><strong>ref_ch</strong> (<em>int</em>) – reference channel</p></li>
+<li><p><strong>ref_round</strong> (<em>int</em>) – reference round</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>_description_</p>
+<dd class="field-even"><p>Nchannels x Nrounds x 2 array of shifts
+shifts_between_channels (np.array): Nchannels x Nchannels x 2 array of shifts</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>_type_</p>
+<dd class="field-odd"><p>shifts_within_channels (np.array)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -361,12 +441,48 @@ using the provided quantile threshold.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.rounds_and_channels.generate_channel_round_transforms">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.reg.rounds_and_channels.</span></span><span class="sig-name descname"><span class="pre">generate_channel_round_transforms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">angles_within_channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shifts_within_channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scales_between_channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angles_between_channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shifts_between_channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stack_shape</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.reg.rounds_and_channels.generate_channel_round_transforms" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Generate transformation matrices for each channel and round.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>angles_within_channels</strong> (<em>np.array</em>) – Nchannels x Nrounds array of angles</p></li>
+<li><p><strong>shifts_within_channels</strong> (<em>np.array</em>) – Nchannels x Nrounds x 2 array of shifts</p></li>
+<li><p><strong>scales_between_channels</strong> (<em>np.array</em>) – Nchannels array of scales</p></li>
+<li><p><strong>angles_between_channels</strong> (<em>np.array</em>) – Nchannels array of angles</p></li>
+<li><p><strong>shifts_between_channels</strong> (<em>np.array</em>) – Nchannels x 2 array of shifts</p></li>
+<li><p><strong>stack_shape</strong> (<em>tuple</em>) – shape of the stack</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Nch x Nrounds array of transformation matrices (each 3x3)</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.array</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.rounds_and_channels.get_channel_reference_images">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.reg.rounds_and_channels.</span></span><span class="sig-name descname"><span class="pre">get_channel_reference_images</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angles_channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shifts_channels</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.reg.rounds_and_channels.get_channel_reference_images" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Get reference images for each channel from STD or mean projection after registration.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>stack</strong> (<em>np.array</em>) – X x Y x Nchannels x Nrounds images stack</p></li>
+<li><p><strong>angles_channels</strong> (<em>np.array</em>) – Nchannels x Nrounds array of angles</p></li>
+<li><p><strong>shifts_channels</strong> (<em>np.array</em>) – Nchannels x Nrounds x 2 array of shifts</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>X x Y x Nchannels std projections
+mean_stack (np.array): X x Y x Nchannels mean projections</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>std_stack (np.array)</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.rounds_and_channels.register_channels_and_rounds">
@@ -375,13 +491,22 @@ using the provided quantile threshold.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>stack</strong> – </p></li>
+<li><p><strong>stack</strong> – X x Y x Nchannels x Nrounds images stack</p></li>
 <li><p><strong>ref_ch</strong> (<em>int</em>) – channel to align to</p></li>
 <li><p><strong>ref_round</strong> (<em>int</em>) – round to align to</p></li>
 </ul>
 </dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Nchannels x Nrounds array of angles
+shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
+scales_between_channels (np.array): Nchannels array of scales
+angles_between_channels (np.array): Nchannels array of angles
+shifts_between_channels (np.array): Nchannels x 2 array of shifts</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>angles_within_channels (np.array)</p>
+</dd>
 </dl>
-<p>Returns:</p>
 </dd></dl>
 
 </section>
@@ -390,7 +515,24 @@ using the provided quantile threshold.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.util.make_transform">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.reg.util.</span></span><span class="sig-name descname"><span class="pre">make_transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shift</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shape</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.reg.util.make_transform" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Make a transformation matrix using provided scale, rotation angle, and shift.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>s</strong> (<em>float</em>) – scale factor</p></li>
+<li><p><strong>angle</strong> (<em>float</em>) – rotation angle in degrees</p></li>
+<li><p><strong>shift</strong> (<em>tuple</em>) – shift in x and y</p></li>
+<li><p><strong>shape</strong> (<em>tuple</em>) – shape of the image</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>transformation matrix</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.util.phase_corr">
@@ -421,7 +563,25 @@ cc: numpy.ndarray of the cross-correlagram itself.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.reg.util.transform_image">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.reg.util.</span></span><span class="sig-name descname"><span class="pre">transform_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cval</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.reg.util.transform_image" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Transform an image using provided scale, rotation angle, and shift.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>im</strong> (<em>numpy.ndarray</em>) – image to transform</p></li>
+<li><p><strong>scale</strong> (<em>float</em>) – scale factor</p></li>
+<li><p><strong>angle</strong> (<em>float</em>) – rotation angle in degrees</p></li>
+<li><p><strong>shift</strong> (<em>tuple</em>) – shift in x and y</p></li>
+<li><p><strong>cval</strong> (<em>float</em>) – value to fill in for pixels outside of the image</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>transformed image</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
 
 </section>
 <section id="module-iss_preprocess.reg">

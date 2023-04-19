@@ -2,13 +2,13 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.config package" href="iss_preprocess.config.html" /><link rel="prev" title="iss_preprocess package" href="iss_preprocess.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2023.03.27 -->
+    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
         <title>iss_preprocess.call package - iss-preprocess 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=fad236701ea90a88636c2a8c73b44ae642ed2a53" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
     
@@ -327,7 +327,28 @@ greater than this contribute to new estimate of mean vector. Defaults to 0.</p><
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.barcode_spots_dot_product">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">barcode_spots_dot_product</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cluster_means</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'sequence'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.barcode_spots_dot_product" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Compute dot product between synthetic trace and observed trace for each spot.</p>
+<p>The synthetic trace is estimated using the provided bleeedthrough matrix.
+The observed trace is first background subtracted using the same approach as
+used in the OMP algorithm.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spots</strong> (<em>pandas.DataFrame</em>) – barcode spot table containing ‘trace’ column
+with fluorescence values.</p></li>
+<li><p><strong>cluster_means</strong> (<em>numpy.ndarray</em>) – Nrounds x Nchannels x Nclusters bleedthrough
+matrix of fluorescence values for each cluster (i.e. base).</p></li>
+<li><p><strong>norm_shift</strong> (<em>float</em>) – small value added to the norm of the observed trace. This
+penalizes the dot product score for spots with very low signal.</p></li>
+<li><p><strong>sequence_column</strong> (<em>str</em>) – name of column in spots table containing the sequence.
+Default is ‘sequence’, but could also be ‘corrected_sequence’.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of dot product scores for each spot.</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.make_background_vectors">
@@ -427,6 +448,13 @@ components reaches <cite>max_comp</cite>.</p>
 <li><p><strong>max_comp</strong> (<em>int</em>) – maximum number of components to include.</p></li>
 <li><p><strong>tol</strong> (<em>float</em>) – tolerance threshold that determines the minimum fraction of
 the residual norm to retain a component.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em>) – parameter for weighted OMP.</p></li>
+<li><p><strong>beta_squared</strong> (<em>float</em>) – parameter for weighted OMP.</p></li>
+<li><p><strong>weighted</strong> (<em>bool</em>) – whether to use weighted OMP. Default is True.</p></li>
+<li><p><strong>refit_background</strong> (<em>bool</em>) – whether to refit background coefficients on every iteration.
+Default is True.</p></li>
+<li><p><strong>norm_shift</strong> (<em>float</em>) – additional shift to add to the norm of the pixel trace. Larger values
+reduce false positive gene calls in dim pixels. Default is 0.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -439,7 +467,31 @@ Length N array of residuals</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.refine_gene_templates">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">refine_gene_templates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unique_genes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.refine_gene_templates" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Refine gene templates by finding spots that match the template and averaging
+their fluorescence values.</p>
+<p>TODO: This function is currently unused. Needs to be updated to work with
+new data structures.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rois</strong> (<em>list</em>) – list of ROI objects containing fluorescence traces</p></li>
+<li><p><strong>gene_dict</strong> (<em>N x genes numpy.ndarray</em>) – dictionary of fluorescence values for
+each gene.</p></li>
+<li><p><strong>unique_genes</strong> (<em>list</em>) – list of gene names.</p></li>
+<li><p><strong>thresh</strong> (<em>float</em>) – threshold for matching spots to gene template.
+Default: 0.8.</p></li>
+<li><p><strong>vis</strong> (<em>bool</em>) – whether to visualize gene templates. Default: False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>N x genes numpy.ndarray containing dictionary of fluorescence values for</dt><dd><p>each gene.</p>
+</dd>
+</dl>
+</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.run_omp">
@@ -452,6 +504,17 @@ Length N array of residuals</p>
 <li><p><strong>gene_dict</strong> (<em>numpy.ndarray</em>) – N x M dictionary, where N = R * C and M is the
 number of genes.</p></li>
 <li><p><strong>tol</strong> (<em>float</em>) – tolerance threshold for OMP algorithm.</p></li>
+<li><p><strong>weighted</strong> (<em>bool</em>) – whether to use weighted OMP. Default is True.</p></li>
+<li><p><strong>refit_background</strong> (<em>bool</em>) – whether to refit background coefficients on every iteration.
+Default is True.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em>) – parameter for weighted OMP.</p></li>
+<li><p><strong>beta_squared</strong> (<em>float</em>) – parameter for weighted OMP.</p></li>
+<li><p><strong>norm_shift</strong> (<em>float</em>) – additional shift to add to the norm of the pixel trace. Larger values
+reduce false positive gene calls in dim pixels. Default is 0.</p></li>
+<li><p><strong>max_comp</strong> (<em>int</em>) – maximum number of components to use in OMP. Default is None, in which case
+OMP proceeds until the tolerance threshold is reached.</p></li>
+<li><p><strong>min_intensity</strong> (<em>float</em>) – minimum intensity for a pixel to be considered. Calculated as
+the mean absolute value of the pixel trace. Default is 0.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -473,15 +536,37 @@ Residual stack, shape X x Y x (R * C)</p>
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>spot_sign_image</strong> (<em>numpy.ndarray</em>) – inputs spot image</p>
 </dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>circularly symmetric spot image</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
 </dl>
-<p>Returns:
-numpy.ndarray: circularly s</p>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.spot_shape.detect_spots_by_shape">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.spot_shape.</span></span><span class="sig-name descname"><span class="pre">detect_spots_by_shape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_sign_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.spot_shape.detect_spots_by_shape" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
+<dd><p>Detect spots in an image based on similarity to a spot sign image.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>im</strong> (<em>numpy.ndarray</em>) – input image</p></li>
+<li><p><strong>spot_sign_image</strong> (<em>numpy.ndarray</em>) – average spot sign image to use as a template in filtering spots</p></li>
+<li><p><strong>threshold</strong> (<em>float</em>) – threshold for initial spot detection. Default: 0.</p></li>
+<li><p><strong>rho</strong> (<em>float</em>) – multiplier that defines the relative weight assigned to positive spot pixels.
+Default: 2.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>spot coordinates and scores</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pandas.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.spot_shape.find_gene_spots">
@@ -504,8 +589,13 @@ Default: 2.</p></li>
 Default: 0.05</p></li>
 </ul>
 </dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>list of pandas.DataFrame with spot coordinates and scores for each gene.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
 </dl>
-<p>Returns:</p>
 </dd></dl>
 
 <dl class="py function">
@@ -521,9 +611,13 @@ Default: 0.05</p></li>
 <li><p><strong>neighbor_threshold</strong> (<em>int</em>) – minimum number of positive pixels for a spot to be included in the average</p></li>
 </ul>
 </dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>(spot_xy + 1) x (spot_xy+1) mean spot image.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
 </dl>
-<p>Returns:
-numpy.ndarray: (spot_xy + 1) x (spot_xy+1) mean spot image.</p>
 </dd></dl>
 
 </section>

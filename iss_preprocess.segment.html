@@ -2,13 +2,13 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.vis package" href="iss_preprocess.vis.html" /><link rel="prev" title="iss_preprocess.reg package" href="iss_preprocess.reg.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2023.03.27 -->
+    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
         <title>iss_preprocess.segment package - iss-preprocess 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=fad236701ea90a88636c2a8c73b44ae642ed2a53" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
     
@@ -245,138 +245,6 @@ None.</p></li>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.corrcoef">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">corrcoef</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.corrcoef" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.correlation_map">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">correlation_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.correlation_map" title="Permalink to this definition">#</a></dt>
-<dd><p>Compute the correlation map based on the provided fluorescence stack.</p>
-<p>The correlation map value for each pixel is defined as its Pearson
-correlation coefficient with the sum of surrounding pixels.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>frames</strong> (<em>numpy.ndarray</em>) – Z x X x Y stack. For the puposes of ROI detection
-both the channels and rounds dimensions of the stack can be collapsed
-into one.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>X x Y correlation map.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.create_overlap_map">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">create_overlap_map</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.create_overlap_map" title="Permalink to this definition">#</a></dt>
-<dd><p>Create an overlap map counting the number of ROIs that include each pixel.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>rois</strong> (<em>list</em>) – list of ROI object</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>numpy.ndarray</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.detect_rois">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">detect_rois</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stackmap</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">500</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nsteps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.detect_rois" title="Permalink to this definition">#</a></dt>
-<dd><p>Iteratively detect ROIs using the <cite>extract_roi</cite> function.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>stack</strong> (<em>numpy.ndarray</em>) – Z x X x Y image stack. For the puposes of ROI detection
-both the channels and rounds dimensions of the stack can be collapsed
-into one.</p></li>
-<li><p><strong>stackmap</strong> (<em>numpy.ndarray</em>) – X x Y map image, such as a correlation or
-variance map, used to seed ROI detection.</p></li>
-<li><p><strong>min_size</strong> (<em>int</em>) – minimum number of pixels per ROI. Smaller ROIs are
-discarded.</p></li>
-<li><p><strong>max_size</strong> (<em>int</em>) – maximum number of pixels per ROI. The ROI detection
-algorithm stops growing ROIs when this number is reached.</p></li>
-<li><p><strong>nsteps</strong> (<em>int</em>) – number of times to call the <cite>extract_roi</cite> function.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>list of ROI objects
-numpy.ndarray: X x Y sum of all ROI masks.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>list</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.extract_roi">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">extract_roi</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stackmap</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">200</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.extract_roi" title="Permalink to this definition">#</a></dt>
-<dd><p>Extract an ROI by iteratively growing it from a seed pixel defined by the
-provided map image.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>stackmap</strong> (<em>numpy.ndarray</em>) – the max value this image is used to select the
-seed pixel.</p></li>
-<li><p><strong>frames</strong> (<em>numpy.ndarray</em>) – Z x X x Y stack.</p></li>
-<li><p><strong>threshold</strong> (<em>float</em>) – threshold for correlation between ROI and surrounding
-pixels used to determine, which pixels to add.</p></li>
-<li><p><strong>max_size</strong> (<em>int</em>) – maximum number of pixels in an ROI.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><p>X x Y binary mask of pixels in the ROI.
-numpy.array: Z timeseries of average fluorescence values in the ROI.
-int: number of pixels in the ROI.
-numpy.ndarray: the provided map with pixels in the ROI set to 0 so that</p>
-<blockquote>
-<div><p>they are not used as seed pixels in the next round.</p>
-</div></blockquote>
-</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.ndarray</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.find_overlappers">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">find_overlappers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_overlap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.find_overlappers" title="Permalink to this definition">#</a></dt>
-<dd><p>Find overlapping ROIs and get rid of them.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>rois</strong> (<em>list</em>) – list of binary ROI masks.</p></li>
-<li><p><strong>max_overlap</strong> (<em>float</em>) – maximum overlap for inclusion.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>list of booleans corresponding to ROIs to keep.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>list</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.remove_overlaps">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">remove_overlaps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.remove_overlaps" title="Permalink to this definition">#</a></dt>
-<dd><p>Get rid of overlaps between roi masks.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>rois</strong> – </p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.segment.barcodes.segment_spot_image">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.barcodes.</span></span><span class="sig-name descname"><span class="pre">segment_spot_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spot_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binarise_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distance_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debug</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.barcodes.segment_spot_image" title="Permalink to this definition">#</a></dt>
 <dd><p>Segment a spot image using opencv</p>
@@ -435,8 +303,8 @@ Defaults to 0.</p></li>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.cells.count_rolonies">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.cells.</span></span><span class="sig-name descname"><span class="pre">count_rolonies</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grouping_column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">masks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.cells.count_rolonies" title="Permalink to this definition">#</a></dt>
+<dt class="sig sig-object py" id="iss_preprocess.segment.cells.count_spots">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.cells.</span></span><span class="sig-name descname"><span class="pre">count_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grouping_column</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">masks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.cells.count_spots" title="Permalink to this definition">#</a></dt>
 <dd><p>Count number of rolonies within each mask and return a DataFrame of counts.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -455,8 +323,8 @@ None If spots already includes a “mask_id” columns. Defaults to None.</p></l
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.cells.rolony_mask_value">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.cells.</span></span><span class="sig-name descname"><span class="pre">rolony_mask_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">masks</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.cells.rolony_mask_value" title="Permalink to this definition">#</a></dt>
+<dt class="sig sig-object py" id="iss_preprocess.segment.cells.spot_mask_value">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.cells.</span></span><span class="sig-name descname"><span class="pre">spot_mask_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">masks</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spots</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.cells.spot_mask_value" title="Permalink to this definition">#</a></dt>
 <dd><p>Find the mask value of each spot</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -502,61 +370,45 @@ efficiency.</p>
 <section id="module-iss_preprocess.segment.spots">
 <span id="iss-preprocess-segment-spots-module"></span><h2>iss_preprocess.segment.spots module<a class="headerlink" href="#module-iss_preprocess.segment.spots" title="Permalink to this heading">#</a></h2>
 <dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.spots.detect_gene_spots">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.spots.</span></span><span class="sig-name descname"><span class="pre">detect_gene_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">median_filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_sigma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.spots.detect_gene_spots" title="Permalink to this definition">#</a></dt>
-<dd><p>Detect spots corresponding to single rolonies from OMP coefficient images.</p>
+<dt class="sig sig-object py" id="iss_preprocess.segment.spots.detect_isolated_spots">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.spots.</span></span><span class="sig-name descname"><span class="pre">detect_isolated_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">detection_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">40</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">isolation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annulus_r</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(3,</span> <span class="pre">7)</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.spots.detect_isolated_spots" title="Permalink to this definition">#</a></dt>
+<dd><p>Detect spots that are isolated from their neighbors.</p>
+<p>For each spot, we compute the average intensity in a circular annulus around
+the spot. If the average intensity is below a threshold, we consider the spot
+to be isolated.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>im</strong> (<em>numpy.ndarray</em>) – X x Y image of OMP coefficients for a single gene.</p></li>
-<li><p><strong>median_filter</strong> (<em>bool</em>) – whether to apply a 3x3 median filter before spot
-detection. Can be helpful to deal with single noise pixels.</p></li>
-<li><p><strong>min_size</strong> (<em>float</em>) – minimum size threshold for spots. Helps avoid spurious
-mini-spots next to real ones.</p></li>
-<li><p><strong>max_sigma</strong> (<em>float</em>) – maximum sigma for the spot detection algorithm.</p></li>
+<li><p><strong>im</strong> (<em>numpy.ndarray</em>) – X x Y image</p></li>
+<li><p><strong>detection_threshold</strong> (<em>float</em>) – threshold for initial spot detection</p></li>
+<li><p><strong>isolation_threshold</strong> (<em>float</em>) – threshold for spot isolation. Lower values
+in fewer spots considered isolated.</p></li>
+<li><p><strong>annulus_r</strong> (<em>tuple</em>) – inner and outer radii of the annulus used to compute
+the average intensity around each spot.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>pandas.DataFrame of spots containing ‘x’, ‘y’, and ‘size’ columns.</p>
+<dd class="field-even"><p>pandas.DataFrame of spots</p>
 </dd>
 </dl>
 </dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.spots.detect_isolated_spots">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.spots.</span></span><span class="sig-name descname"><span class="pre">detect_isolated_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">detection_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">40</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">isolation_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">30</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annulus_r</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(3,</span> <span class="pre">7)</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.spots.detect_isolated_spots" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.segment.spots.detect_spots">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.spots.</span></span><span class="sig-name descname"><span class="pre">detect_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.spots.detect_spots" title="Permalink to this definition">#</a></dt>
 <dd><p>Detect peaks in an image.</p>
+<p>TODO: no point assigning size here.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>stack</strong> (<em>numpy.ndarray</em>) – X x Y x C image stack</p></li>
 <li><p><strong>threshold</strong> (<em>float</em>) – spot detection threshold</p></li>
+<li><p><strong>spot_size</strong> (<em>float</em>) – spot size in pixels. This value is simply assigned to
+the “size” column of the output DataFrame.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>pandas.DataFrame of spot location, including x, y, and size.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.segment.spots.filter_spots">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.segment.spots.</span></span><span class="sig-name descname"><span class="pre">filter_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_dist</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.segment.spots.filter_spots" title="Permalink to this definition">#</a></dt>
-<dd><p>Eliminate duplicate spots closer than a distance threshold.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>spots</strong> – pandas.DataFrame containing spot coordinates</p></li>
-<li><p><strong>min_dist</strong> – minimum distance threshold</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>pandas.DataFrame after filtering.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -651,20 +503,13 @@ shape fitting all spots + kernel will be used. Defaults to None.</p></li>
 <li><a class="reference internal" href="#submodules">Submodules</a></li>
 <li><a class="reference internal" href="#module-iss_preprocess.segment.barcodes">iss_preprocess.segment.barcodes module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.segment.barcodes.convolve_spots"><code class="docutils literal notranslate"><span class="pre">convolve_spots()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.barcodes.corrcoef"><code class="docutils literal notranslate"><span class="pre">corrcoef()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.barcodes.correlation_map"><code class="docutils literal notranslate"><span class="pre">correlation_map()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.barcodes.create_overlap_map"><code class="docutils literal notranslate"><span class="pre">create_overlap_map()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.barcodes.detect_rois"><code class="docutils literal notranslate"><span class="pre">detect_rois()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.barcodes.extract_roi"><code class="docutils literal notranslate"><span class="pre">extract_roi()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.barcodes.find_overlappers"><code class="docutils literal notranslate"><span class="pre">find_overlappers()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.barcodes.remove_overlaps"><code class="docutils literal notranslate"><span class="pre">remove_overlaps()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.barcodes.segment_spot_image"><code class="docutils literal notranslate"><span class="pre">segment_spot_image()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.segment.cells">iss_preprocess.segment.cells module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.segment.cells.cellpose_segmentation"><code class="docutils literal notranslate"><span class="pre">cellpose_segmentation()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.cells.count_rolonies"><code class="docutils literal notranslate"><span class="pre">count_rolonies()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.cells.rolony_mask_value"><code class="docutils literal notranslate"><span class="pre">rolony_mask_value()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.segment.cells.count_spots"><code class="docutils literal notranslate"><span class="pre">count_spots()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.segment.cells.spot_mask_value"><code class="docutils literal notranslate"><span class="pre">spot_mask_value()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.segment.roi">iss_preprocess.segment.roi module</a><ul>
@@ -676,10 +521,8 @@ shape fitting all spots + kernel will be used. Defaults to None.</p></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.segment.spots">iss_preprocess.segment.spots module</a><ul>
-<li><a class="reference internal" href="#iss_preprocess.segment.spots.detect_gene_spots"><code class="docutils literal notranslate"><span class="pre">detect_gene_spots()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.spots.detect_isolated_spots"><code class="docutils literal notranslate"><span class="pre">detect_isolated_spots()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.spots.detect_spots"><code class="docutils literal notranslate"><span class="pre">detect_spots()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.segment.spots.filter_spots"><code class="docutils literal notranslate"><span class="pre">filter_spots()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.segment.spots.make_spot_image"><code class="docutils literal notranslate"><span class="pre">make_spot_image()</span></code></a></li>
 </ul>
 </li>
