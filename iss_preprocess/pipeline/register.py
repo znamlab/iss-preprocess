@@ -33,11 +33,12 @@ def register_reference_tile(data_path, prefix="genes_round"):
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
     nrounds = ops[prefix + "s"]
+    projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     stack = load_sequencing_rounds(
         data_path,
         ops["ref_tile"],
         prefix=prefix,
-        suffix=ops["projection"],
+        suffix=projection,
         nrounds=nrounds,
     )
     (
@@ -77,7 +78,7 @@ def estimate_shifts_and_angles_by_coors(
         prefix (str, optional): Prefix of the hybridisation round. Defaults to "hybridisation_1_1".
         reference_prefix (str, optional): Prefix to use for loading precomputed
             scale factors between channels. Defaults to "barcode_round".
-            
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
@@ -126,7 +127,11 @@ def estimate_shifts_by_coors(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
-    (_, shifts_within_channels, shifts_between_channels,) = estimate_shifts_for_tile(
+    (
+        _,
+        shifts_within_channels,
+        shifts_between_channels,
+    ) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
         reference_tforms["scales_between_channels"],
@@ -204,7 +209,16 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
     shifts_within_channels_corrected = np.zeros(shifts_within_channels.shape)
     shifts_between_channels_corrected = np.zeros(shifts_between_channels.shape)
     # TODO: maybe make X in the loop above?
-    X = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny,),], axis=1,)
+    X = np.stack(
+        [
+            ys.flatten(),
+            xs.flatten(),
+            np.ones(
+                nx * ny,
+            ),
+        ],
+        axis=1,
+    )
 
     for ich in range(shifts_within_channels.shape[0]):
         for iround in range(shifts_within_channels.shape[1]):
@@ -337,7 +351,16 @@ def correct_shifts_single_round_roi(
     shifts_corrected = np.zeros(shifts.shape)
     angles_corrected = np.zeros(angles.shape)
 
-    X = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny,),], axis=1,)
+    X = np.stack(
+        [
+            ys.flatten(),
+            xs.flatten(),
+            np.ones(
+                nx * ny,
+            ),
+        ],
+        axis=1,
+    )
 
     for ich in range(shifts.shape[0]):
         for idim in range(2):
@@ -414,7 +437,10 @@ def register_tile_to_ref(
         filter_r=False,
     )
     reg_all_channels, _ = pipeline.load_and_register_tile(
-        data_path=data_path, tile_coors=tile_coors, prefix=reg_prefix, filter_r=False,
+        data_path=data_path,
+        tile_coors=tile_coors,
+        prefix=reg_prefix,
+        filter_r=False,
     )
 
     if ref_channels is not None:
