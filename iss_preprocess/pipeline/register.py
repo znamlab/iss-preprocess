@@ -201,16 +201,7 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
     shifts_within_channels_corrected = np.zeros(shifts_within_channels.shape)
     shifts_between_channels_corrected = np.zeros(shifts_between_channels.shape)
     # TODO: maybe make X in the loop above?
-    X = np.stack(
-        [
-            ys.flatten(),
-            xs.flatten(),
-            np.ones(
-                nx * ny,
-            ),
-        ],
-        axis=1,
-    )
+    X = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
 
     for ich in range(shifts_within_channels.shape[0]):
         for iround in range(shifts_within_channels.shape[1]):
@@ -420,10 +411,7 @@ def register_tile_to_ref(
         filter_r=False,
     )
     reg_all_channels, _ = pipeline.load_and_register_tile(
-        data_path=data_path,
-        tile_coors=tile_coors,
-        prefix=reg_prefix,
-        filter_r=False,
+        data_path=data_path, tile_coors=tile_coors, prefix=reg_prefix, filter_r=False
     )
 
     if ref_channels is not None:
@@ -437,13 +425,7 @@ def register_tile_to_ref(
     reg = reg > np.quantile(reg, binarise_quantile)
 
     angles, shifts = estimate_rotation_translation(
-        ref,
-        reg,
-        angle_range=1.0,
-        niter=3,
-        nangles=15,
-        min_shift=2,
-        max_shift=max_shift,
+        ref, reg, angle_range=1.0, niter=3, nangles=15, min_shift=2, max_shift=max_shift
     )
     print(f"Angle: {angles}, Shifts: {shifts}")
     processed_path = Path(PARAMETERS["data_root"]["processed"])

@@ -270,10 +270,7 @@ def create_all_single_averages(
         )
 
 
-def create_grand_averages(
-    data_path,
-    prefix_todo=("genes_round", "barcode_round"),
-):
+def create_grand_averages(data_path, prefix_todo=("genes_round", "barcode_round")):
     """Average single acquisition averages into grand average
 
     Args:
@@ -301,11 +298,7 @@ def create_grand_averages(
         )
 
 
-def overview_for_ara_registration(
-    data_path,
-    rois_to_do=None,
-    sigma_blur=10,
-):
+def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
     """Generate a stitched overview for registering to the ARA
 
     ABBA requires pyramidal OME-TIFF with resolution information. We will generate such
