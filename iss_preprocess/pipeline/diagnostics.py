@@ -29,6 +29,7 @@ def check_illumination_correction(
         plot_titlestats (bool, optional): Plot a figure of tilestats change. Defaults
             to True
         verbose (bool, optional): Print info about progress. Defaults to True
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     average_dir = processed_path / data_path / "averages"
@@ -70,6 +71,7 @@ def reg_to_ref_estimation(
             if it is defined, or all ROIs otherwise. Defaults to None
         roi_dimension_prefix (str, optional): prefix to load roi dimension. Defaults to
             "genes_round_1_1"
+            
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     reg_dir = processed_path / data_path / "reg"

@@ -14,7 +14,6 @@ setup(
         "numpy",
         "matplotlib",
         "scikit-image",
-        "czifile",
         "scikit-learn",
         "flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git",
         "opencv-python",
@@ -22,7 +21,7 @@ setup(
         "cellpose",
         "Click",
         "bg_atlasapi",
-        "natsort",        
+        "natsort",
     ],
     entry_points="""
         [console_scripts]

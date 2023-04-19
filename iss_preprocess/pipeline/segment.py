@@ -5,7 +5,7 @@ from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.measure import regionprops_table
 from skimage.segmentation import expand_labels
-from ..segment import cellpose_segmentation, count_rolonies, rolony_mask_value
+from ..segment import cellpose_segmentation, count_spots, spot_mask_value
 from .stitch import stitch_registered
 from ..io import get_roi_dimensions, load_ops, get_pixel_size, load_metadata
 from . import ara_registration as ara_reg
@@ -136,7 +136,7 @@ def add_mask_id(
     spot_score_threshold=0.1,
     hyb_score_threshold=0.8,
 ):
-    """Add a mask_id column to spots dataframe
+    """Load gene, barcode, and hybridisation spots and add a mask_id column to each spots dataframe
 
     Args:
         data_path (str): Relative path to data
@@ -179,11 +179,11 @@ def add_mask_id(
         filt_col, threshold = thresholds[prefix]
         spot_df = spot_df[spot_df[filt_col] > threshold]
         # modify spots in place
-        spots_dict[prefix] = rolony_mask_value(big_masks, spot_df)
+        spots_dict[prefix] = spot_mask_value(big_masks, spot_df)
     return spots_dict
 
 
-def segment_rolonies(
+def segment_spots(
     data_path,
     roi,
     mask_expansion=5.0,
@@ -252,7 +252,7 @@ def segment_rolonies(
     for prefix, spot_df in spots_dict.items():
         print(f"Doing {prefix}", flush=True)
         grouping_column = "bases" if prefix.startswith("barcode") else "gene"
-        cell_df = count_rolonies(spots=spot_df, grouping_column=grouping_column)
+        cell_df = count_spots(spots=spot_df, grouping_column=grouping_column)
         spots_in_cells[prefix] = cell_df
 
     # Save barcodes

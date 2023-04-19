@@ -14,7 +14,7 @@ from ..io import (
     load_ops,
     get_roi_dimensions,
 )
-from .register import registered_spots
+from .register import align_spots
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
@@ -38,6 +38,9 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
+        np.array: A (X x Y) boolean array of bad pixels that fall outside image after
+            registration
+
     """
     stack, bad_pixels = pipeline.load_and_register_tile(
         data_path, tile_coors, prefix, filter_r=filter_r
@@ -93,7 +96,7 @@ def register_within_acquisition(
     suffix="fstack",
     reload=True,
     save_plot=False,
-    dimension_prefix='genes_round_1_1'
+    dimension_prefix="genes_round_1_1",
 ):
     """Estimate shifts between all adjacent tiles of a rois
 
@@ -120,6 +123,7 @@ def register_within_acquisition(
         numpy.array: `shift_right`, X and Y shifts between different columns
         numpy.array: `shift_down`, X and Y shifts between different rows
         numpy.array: shape of the tile
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     target = processed_path / data_path / "reg" / f"{prefix}_shifts.npz"
@@ -153,10 +157,7 @@ def register_within_acquisition(
         )
 
     np.savez(
-        target,
-        shift_right=shifts[:2],
-        shift_down=shifts[2:],
-        tile_shape=tile_shape,
+        target, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape,
     )
     return shifts[:2], shifts[2:], tile_shape
 
@@ -242,6 +243,7 @@ def get_tile_corners(data_path, prefix, roi):
         numpy.ndarray: `tile_corners`, ntiles[0] x ntiles[1] x 2 x 4 matrix of tile
             corners coordinates. Corners are in this order:
             [(origin), (0, 1), (1, 1), (1, 0)]
+
     """
     roi_dims = get_roi_dimensions(data_path)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
@@ -279,6 +281,7 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
             coordinates
         numpy.ndarray: `tile_centers`, ntiles[0] x ntiles[1] x 2 matrix of tile center
             coordinates
+
     """
 
     yy, xx = np.meshgrid(np.arange(ntiles[1]), np.arange(ntiles[0]))
@@ -392,6 +395,7 @@ def stitch_registered(
 
     Returns:
         np.array: stitched stack
+
     """
     if isinstance(channels, int):
         channels = [channels]
@@ -428,11 +432,7 @@ def stitch_registered(
 
 
 def merge_roi_spots(
-    data_path,
-    prefix,
-    tile_origins,
-    tile_centers,
-    iroi=1,
+    data_path, prefix, tile_origins, tile_centers, iroi=1,
 ):
     """Load and combine spot locations across all tiles for an ROI.
 
@@ -453,6 +453,7 @@ def merge_roi_spots(
 
     Returns:
         pandas.DataFrame: table containing spot locations across all tiles.
+
     """
     roi_dims = get_roi_dimensions(data_path)
     all_spots = []
@@ -461,21 +462,24 @@ def merge_roi_spots(
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             try:
-                spots = registered_spots(
-                    data_path, tile_coors=(iroi, ix, iy), prefix=prefix
-                )
+                spots = align_spots(data_path, tile_coors=(iroi, ix, iy), prefix=prefix)
                 # calculate distance to tile centers
 
                 spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
                 spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
                 spot_dist = (
-                    spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
-                    - tile_centers[np.newaxis, :, :, 1]
-                ) ** 2 + (
-                    spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
-                    - tile_centers[np.newaxis, :, :, 0]
-                ) ** 2
+                    (
+                        spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
+                        - tile_centers[np.newaxis, :, :, 1]
+                    )
+                    ** 2
+                    + (
+                        spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
+                        - tile_centers[np.newaxis, :, :, 0]
+                    )
+                    ** 2
+                )
                 home_tile_dist = (spot_dist[:, ix, iy]).copy()
                 spot_dist[:, ix, iy] = np.inf
                 min_spot_dist = np.min(spot_dist, axis=(1, 2))
@@ -530,6 +534,8 @@ def stitch_and_register(
         numpy.ndarray: Stitched reference image.
         float: Estimate rotation angle.
         tuple: Estimated X and Y shifts.
+        float: Estimated scaling factor.
+
     """
     ops = load_ops(data_path)
     if target_suffix is None:
@@ -638,6 +644,12 @@ def merge_and_align_spots(
             Defaults to "barcode_round".
         reg_prefix (str, optional): Acquisition prefix of the image files to use to
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
+        ref_prefix (str, optional): Acquisition prefix of the reference acquistion
+            to transform spot coordinates to. Defaults to "genes_round_1_1".
+
+    Returns:
+        pandas.DataFrame: DataFrame containing all spots in reference coordinates.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     reg_path = processed_path / data_path / "reg"
@@ -694,6 +706,7 @@ def merge_and_align_spots_all_rois(
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
         ref_prefix (str, optional): Acquisition prefix to use as a reference for
             registration. Defaults to "genes_round_1_1".
+            
     """
     ops = load_ops(data_path)
     roi_dims = get_roi_dimensions(data_path)

@@ -17,6 +17,7 @@ def flip_channels(im, channels_to_flip, flip_vertical=False, flip_horizontal=Fal
 
     Returns:
         numpy.array: Same shape as input, with some channels flipped
+
     """
     if not flip_horizontal and not flip_vertical:
         print("Nothing to do")
@@ -61,6 +62,7 @@ def flip_all_tiffs(
         target_folder (str, optional): Path to folder where to save tiffs. If None,
             saves in folder Defaults to None.
         overwrite (bool, optional): Overwrite existing tifs? Defaults to False.
+        
     """
     folder = Path(folder)
     if target_folder is None:

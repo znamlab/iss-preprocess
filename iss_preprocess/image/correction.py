@@ -23,9 +23,9 @@ def apply_illumination_correction(data_path, stack, prefix, dtype=float):
         dtype (str or type, optional): data type of the ouput. Division is always
             performed as float
 
-
     Returns:
         stack (np.array): Normalised stack. Same shape as input.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
@@ -59,6 +59,7 @@ def filter_stack(stack, r1=2, r2=4, dtype=float):
 
     Returns:
         np.array: Filtered stack.
+
     """
     nchannels = stack.shape[2]
     h = hanning_diff(r1, r2).astype(dtype)
@@ -240,7 +241,7 @@ def _mean_tiffs(
     return mean_image, tilestats
 
 
-def compute_distribution(stack, max_value=int(2**12 + 1)):
+def compute_distribution(stack, max_value=int(2 ** 12 + 1)):
     """Compute simple tile statistics for one multichannel image
 
     Args:
@@ -249,11 +250,11 @@ def compute_distribution(stack, max_value=int(2**12 + 1)):
 
     Returns:
         np.array: Distribution of pixel values by channel. Shape (max_value + 1 , Nch)
+
     """
     distribution = np.zeros((max_value + 1, stack.shape[2]))
     for ich in range(stack.shape[2]):
         distribution[:, ich] = np.bincount(
-            stack[:, :, ich].flatten().astype(np.uint16),
-            minlength=max_value + 1,
+            stack[:, :, ich].flatten().astype(np.uint16), minlength=max_value + 1,
         )
     return distribution

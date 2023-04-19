@@ -122,17 +122,36 @@ def plot_gene_matrix(gene_df, cmap="inferno", vmax=2):
     ax.set_aspect("auto")
 
 
-def plot_gene_templates(gene_dict, unique_genes, BASES):
+def plot_gene_templates(gene_dict, gene_names, BASES, nrounds=7, nchannels=4):
+    """
+    Plot gene templates.
+    
+    Args:
+        gene_dict (ndarray): X x G matrix of gene templates. X = nrounds * nchannels
+        gene_names (list): list of gene names
+        BASES (list): list of base names
+        nrounds (int): number of rounds. Default: 7
+        nchannels (int): number of channels. Default: 4
+        
+    """
     plt.figure(figsize=(10, 20))
-    for igene, gene in enumerate(unique_genes):
+    for igene, gene in enumerate(gene_names):
         plt.subplot(10, 9, igene + 1)
-        plt.imshow(np.reshape(gene_dict[:, igene], (7, 4)), cmap="gray")
+        plt.imshow(np.reshape(gene_dict[:, igene], (nrounds, nchannels)), cmap="gray")
         plt.title(gene)
         plt.xticks(np.arange(4), BASES)
     plt.tight_layout()
 
 
 def add_bases_legend(extent, channel_colors):
+    """
+    Add legend for base colors to a plot.
+
+    Args:
+        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
+        channel_colors (list): list of colors for each channel.
+
+    """
     xrange = extent[0][1] - extent[0][0]
     yrange = extent[1][1] - extent[1][0]
     for i, (color, base) in enumerate(zip(channel_colors, iss.call.BASES)):
@@ -147,6 +166,19 @@ def add_bases_legend(extent, channel_colors):
 
 
 def round_to_rgb(stack, iround, extent, channel_colors, vmax):
+    """
+    Convert a single sequencing round to RGB image.
+    
+    Args:
+        stack (ndarray): X x Y x C x R stack
+        iround (int): sequencing round to visualize
+        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
+        channel_colors (list): list of colors for each channel.
+        vmax (float): maximum value for each channel.
+        
+    Returns:
+        RGB image.
+    """
     return to_rgb(
         stack[extent[0][0] : extent[0][1], extent[1][0] : extent[1][1], :, iround],
         channel_colors,
@@ -161,6 +193,17 @@ def plot_sequencing_rounds(
     extent=((0, 2000), (0, 2000)),
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
 ):
+    """
+    Plot sequencing rounds as RGB images.
+    
+    Args:
+        stack (ndarray): X x Y x C x R stack
+        vmax (float): maximum value for each channel.
+        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
+        channel_colors (list): list of colors for each channel. 
+            Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+        
+    """
     nrounds = stack.shape[3]
 
     fig = plt.figure(figsize=(20, 10))
@@ -181,6 +224,18 @@ def animate_sequencing_rounds(
     extent=((0, 2000), (0, 2000)),
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
 ):
+    """
+    Animate sequencing rounds as RGB images amd save as an MPEG file.
+    
+    Args:
+        stack (ndarray): X x Y x C x R stack
+        savefname (str): filename to save animation
+        vmax (float): maximum value for each channel.
+        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
+        channel_colors (list): list of colors for each channel.
+            Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+    
+    """
     fig = plt.figure(figsize=(10, 10))
     fig.patch.set_facecolor("black")
     nrounds = stack.shape[3]

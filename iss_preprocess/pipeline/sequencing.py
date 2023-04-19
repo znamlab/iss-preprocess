@@ -32,7 +32,6 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.linear_model import LinearRegression
 
 
-# AB: LGTM 10/03/23
 def load_sequencing_rounds(
     data_path,
     tile_coors=(1, 0, 0),
@@ -76,7 +75,7 @@ def load_sequencing_rounds(
 def setup_barcode_calling(
     data_path, score_thresh=0.5, spot_size=2, correct_channels=False
 ):
-    """Detect spot and compute cluster means
+    """Detect spots and compute cluster means
 
     Args:
         data_path (str): Relative path to data
@@ -133,6 +132,7 @@ def basecall_tile(data_path, tile_coors):
     Args:
         data_path (str): Relative path to data.
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
@@ -252,7 +252,6 @@ def setup_omp(data_path, score_thresh=0, correct_channels=True):
     return gene_dict, gene_names, norm_shift
 
 
-# AB: LGTM
 def estimate_channel_correction(
     data_path, prefix="genes_round", nrounds=7, fit_norm_factors=False
 ):
