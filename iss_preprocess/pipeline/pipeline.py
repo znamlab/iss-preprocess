@@ -41,7 +41,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     """
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
-
+    projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     if filter_r and isinstance(filter_r, bool):
         filter_r = ops["filter_r"]
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
@@ -56,7 +56,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
         stack, bad_pixels = load_and_register_sequencing_tile(
             data_path,
             tile_coors=tile_coors,
-            suffix=ops["projection"],
+            suffix=projection,
             prefix=acq_type,
             filter_r=filter_r,
             correct_channels=True,
@@ -72,14 +72,14 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             data_path,
             tile_coors=tile_coors,
             prefix=prefix,
-            suffix=ops["hybridisation_projection"],
+            suffix=projection,
             filter_r=filter_r,
             correct_illumination=True,
             correct_channels=True,
         )
     else:
         stack = load_tile_by_coors(
-            data_path, tile_coors=tile_coors, suffix=ops["projection"], prefix=prefix,
+            data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
         )
         bad_pixels = np.zeros(stack.shape, dtype=bool)
         stack = apply_illumination_correction(data_path, stack, prefix)
@@ -104,7 +104,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
         additional_args (str, optional): Additional environment variable to export
             to pass to the sbatch job. Should start with a leading comma.
             Defaults to "".
-            
+
     """
     if roi_dims is None:
         roi_dims = get_roi_dimensions(data_path)
@@ -259,11 +259,9 @@ def create_all_single_averages(
         if not data_folder.is_dir():
             warnings.warn("{0} does not exists. Skipping".format(data_folder / folder))
             continue
+        projection = ops[f"{folder.split('_')[0].lower()}_projection"]
         export_args = dict(
-            DATAPATH=data_path,
-            SUBFOLDER=folder,
-            SUFFIX=ops["projection"],
-            N_BATCH=n_batch,
+            DATAPATH=data_path, SUBFOLDER=folder, SUFFIX=projection, N_BATCH=n_batch
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (
@@ -274,7 +272,7 @@ def create_all_single_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
 
 
@@ -295,7 +293,7 @@ def create_grand_averages(
         Path(__file__).parent.parent.parent / "scripts" / "create_grand_average.sh"
     )
     for kind in prefix_todo:
-        export_args = dict(DATAPATH=data_path, SUBFOLDER=subfolder, PREFIX=kind,)
+        export_args = dict(DATAPATH=data_path, SUBFOLDER=subfolder, PREFIX=kind)
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (
             args
@@ -305,13 +303,11 @@ def create_grand_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
 
 
-def overview_for_ara_registration(
-    data_path, rois_to_do=None, sigma_blur=10,
-):
+def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
     """Generate a stitched overview for registering to the ARA
 
     ABBA requires pyramidal OME-TIFF with resolution information. We will generate such
@@ -325,7 +321,7 @@ def overview_for_ara_registration(
             pyramid. None to keep original size. Defaults to 1
         sigma_blur (float, optional): sigma of the gaussian filter, in downsampled
             pixel size. Defaults to 10
-            
+
     """
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -364,6 +360,5 @@ def overview_for_ara_registration(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
-

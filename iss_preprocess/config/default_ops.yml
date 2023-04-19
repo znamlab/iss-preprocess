@@ -74,6 +74,10 @@ hybridisation:
 mcherry:
   mcherry_projection: max
 
+# projection for other acquisitions
+dapi_projection: max
+anchor_projection: fstack
+
 # Barcode basecalling
 barcode:
   barcode_projection: fstack
