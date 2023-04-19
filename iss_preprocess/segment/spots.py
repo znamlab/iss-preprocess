@@ -11,15 +11,6 @@ from ..coppafish import annulus
 def detect_isolated_spots(
     im, detection_threshold=40, isolation_threshold=30, annulus_r=(3, 7)
 ):
-    spots = detect_spots(im, threshold=detection_threshold)
-    strel = annulus(annulus_r[0], annulus_r[1])
-    strel = strel / np.sum(strel)
-    annulus_image = scipy.ndimage.correlate(im, strel)
-    isolated = annulus_image[spots["y"], spots["x"]] < isolation_threshold
-    return spots.iloc[isolated]
-
-
-def detect_gene_spots(im, median_filter=False, min_size=1.0, max_sigma=4.0):
     """
     Detect spots corresponding to single rolonies from OMP coefficient images.
 
@@ -72,28 +63,6 @@ def detect_spots(im, threshold=100, spot_size=2):
     )
 
     return spots
-
-
-def filter_spots(spots, min_dist):
-    """
-    Eliminate duplicate spots closer than a distance threshold.
-
-    Args:
-        spots: pandas.DataFrame containing spot coordinates
-        min_dist: minimum distance threshold
-
-    Returns:
-        pandas.DataFrame after filtering.
-
-    """
-    clean_spots = spots.copy()
-    for ispot, spot in spots.iterrows():
-        dist = np.sqrt((clean_spots.x - spot.x) ** 2 + (clean_spots.y - spot.y) ** 2)
-        if np.sum(dist < min_dist) > 1:
-            # set x to nan to skip this spot
-            clean_spots.iloc[ispot].x = np.nan
-    return clean_spots[clean_spots.x.notna()]
-
 
 def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None):
     """Make an image by convolving spots with a gaussian
