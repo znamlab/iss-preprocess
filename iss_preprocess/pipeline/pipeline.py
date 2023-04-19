@@ -48,7 +48,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
         else:
             acq_type = prefix
             rounds = np.arange(ops[f"{acq_type}s"]) + 1
-        
+
         stack, bad_pixels = load_and_register_sequencing_tile(
             data_path,
             tile_coors=tile_coors,
