@@ -1,21 +1,20 @@
-import functools
 from datetime import datetime
 from pathlib import Path
-import inspect
 from decorator import decorator
-import flexiznam as flz
 
 from .io import load_ops
 
 
 @decorator
 def updates_flexilims(func, name_source=None, *args, **kwargs):
-    """Update flexilims when running the function"""
+    """Updates flexilims when running the function"""
     # find if we should use flexilims
     data_path = args[0]  # decorator ensures all arguments are passed as positional
     ops = load_ops(data_path)
     if ("use_flexilims" in ops) and ops["use_flexilims"]:
         # get parent from flexilims, must exist
+        import flexiznam as flz
+
         data_path = Path(data_path)
         flm_session = flz.get_flexilims_session(project_id=data_path.parts[0])
         parent_name = "_".join(data_path.parts[1:])
@@ -24,6 +23,7 @@ def updates_flexilims(func, name_source=None, *args, **kwargs):
         )
         if parent is None:
             raise ValueError(f"Could not find parent {parent_name} in flexilims")
+        print(f'Using flexilims.\n Parent: {parent["name"]}')
     else:
         parent = None
         print("Not using flexilims")
@@ -42,8 +42,8 @@ def updates_flexilims(func, name_source=None, *args, **kwargs):
         dataset_name = f"{parent_name}_{func_name}"
         flm_attr = dict(ops)
         flz.utils.clean_dictionary_recursively(flm_attr)
-
-        flz.add_dataset(
+        print("Adding dataset to flexilims")
+        rep = flz.add_dataset(
             parent_id=parent["id"],
             dataset_type="iss_preprocessing",
             created=datetime.now().strftime("%Y-%m-%d " "%H:%M:%S"),
@@ -55,4 +55,5 @@ def updates_flexilims(func, name_source=None, *args, **kwargs):
             flexilims_session=flm_session,
             conflicts="overwrite",
         )
+        print(f"Dataset {rep['name']} added to flexilims with id {rep['id']}")
     return value
