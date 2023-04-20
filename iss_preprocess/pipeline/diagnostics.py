@@ -5,13 +5,24 @@ The functions in here do not compute anything useful, but create figures
 """
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
 from flexiznam.config import PARAMETERS
-from ..io import load_stack, get_roi_dimensions, load_ops
-from ..vis import (
-    plot_correction_images,
-    plot_tilestats_distributions,
-    plot_matrix_difference,
-)
+import iss_preprocess as iss
+
+
+def check_spot_sign_image(data_path):
+    """Plot the average spot sign image and save it in the figures folder
+
+    Args:
+        data_path (str): Relative path to data folder
+
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    figure_folder = processed_path / data_path / "figures"
+    figure_folder.mkdir(exist_ok=True)
+    spot_image = np.load(processed_path / data_path / "spot_sign_image.npy")
+    iss.vis.plot_spot_sign_image(spot_image)
+    plt.savefig(figure_folder / "spot_sign_image.png")
 
 
 def check_illumination_correction(
@@ -39,7 +50,9 @@ def check_illumination_correction(
     distributions = dict()
 
     for fname in average_dir.glob("*average.tif"):
-        correction_images[fname.name.replace("_average.tif", "")] = load_stack(fname)
+        correction_images[fname.name.replace("_average.tif", "")] = iss.io.load_stack(
+            fname
+        )
     for fname in average_dir.glob("*_tilestats.npy"):
         distributions[fname.name.replace("_tilestats.npy", "")] = np.load(fname)
     if verbose:
@@ -48,11 +61,11 @@ def check_illumination_correction(
             + f" and {len(distributions)} tilestats"
         )
 
-    plot_correction_images(
+    iss.vis.plot_correction_images(
         correction_images, grand_averages, figure_folder, verbose=True
     )
     if plot_tilestats:
-        plot_tilestats_distributions(
+        iss.vis.plot_tilestats_distributions(
             data_path, distributions, grand_averages, figure_folder
         )
 
@@ -77,8 +90,8 @@ def reg_to_ref_estimation(
     reg_dir = processed_path / data_path / "reg"
     figure_folder = processed_path / data_path / "figures"
 
-    ndims = get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
-    ops = load_ops(data_path)
+    ndims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
+    ops = iss.io.load_ops(data_path)
     if rois is not None:
         ndims = ndims[np.in1d(ndims[:, 0], rois)]
     elif "use_rois" in ops:
@@ -102,7 +115,7 @@ def reg_to_ref_estimation(
                 )
                 corrected[:2, ix, iy] = data["shifts"]
                 corrected[2, ix, iy] = data["angles"]
-        fig = plot_matrix_difference(
+        fig = iss.vis.plot_matrix_difference(
             raw=raw,
             corrected=corrected,
             col_labels=["Shift x", "Shift y", "Angle"],

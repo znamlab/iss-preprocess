@@ -3,6 +3,7 @@ import pandas as pd
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
+import iss_preprocess as iss
 from ..image import (
     filter_stack,
     apply_illumination_correction,
@@ -26,6 +27,8 @@ from ..call import (
     detect_spots_by_shape,
     get_cluster_means,
     barcode_spots_dot_product,
+    get_spot_shape,
+    apply_symmetry,
     BASES,
 )
 from sklearn.preprocessing import OneHotEncoder
@@ -432,6 +435,30 @@ def load_and_register_sequencing_tile(
     return stack, bad_pixels
 
 
+def compute_spot_sign_image(data_path, prefix="genes_round"):
+    """Compute the reference spot sign image to use in spot calling. Save it to
+    the processed data folder.
+    
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional):  Prefix of the sequencing read to use.
+            Defaults to "genes_round".
+        
+    """
+    ops = load_ops(data_path)
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    g, _ = run_omp_on_tile(
+        data_path, ops["ref_tile"], ops, save_stack=False, prefix=prefix
+    )
+
+    spot_sign_image = get_spot_shape(
+        g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15
+    )
+    spot_sign_image = apply_symmetry(spot_sign_image)
+    np.save(processed_path / data_path / "spot_sign_image.npy", spot_sign_image)
+    iss.pipeline.check_spot_sign_image(data_path)
+
+
 def load_spot_sign_image(data_path, threshold):
     """Load the reference spot sign image to use in spot calling. First, check
     if the spot sign image has been computed for the current dataset and use it
@@ -453,32 +480,31 @@ def load_spot_sign_image(data_path, threshold):
     else:
         print("No spot sign image for this dataset - using default.")
         spot_sign_image = np.load(
-            Path(__file__).parent.parent / "call/spot_signimage.npy"
+            Path(__file__).parent.parent / "call/spot_sign_image.npy"
         )
     spot_sign_image[np.abs(spot_sign_image) < threshold] = 0
     return spot_sign_image
 
 
-def run_omp_on_tile(
-    data_path, tile_coors, save_stack=False, prefix="genes_round",
-):
-    """Apply the OMP algorithm to unmix spots in a given tile using the saved
-    gene dictionary and settings saved in `ops.npy`. Then detect gene spots in
-    the resulting gene maps.
-
+def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_round"):
+    """
+    Run OMP on a tile and return the results.
+    
     Args:
         data_path (str): Relative path to data.
-        tile_coors (tuple): Coordinates of tile to load: ROI, Xpos, Ypos.
-        save_stack (bool, optional): Whether to save registered and preprocessed images.
+        tile_coors (tuple): Coordinates of the tile to process.
+        ops (dict): Dictionary of parameters.
+        save_stack (bool, optional): Whether to save the registered stack.
             Defaults to False.
-        correct_channels (bool or str, optional): Whether to apply channel normalization.
-            If not False, can specify normalization method, e.g. "round1_only". Defaults to False.
-        prefix (str, optional): Prefix of the sequencing read to analyse.
+        prefix (str, optional): Prefix of the sequencing read to use. 
             Defaults to "genes_round".
-
+        
+    Returns:
+        numpy.ndarray: OMP results.
+        dict: Dictionary of OMP parameters.
+        
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = load_ops(data_path)
 
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
@@ -514,6 +540,33 @@ def run_omp_on_tile(
 
     for igene in range(g.shape[2]):
         g[bad_pixels, igene] = 0
+
+    return g, omp_stat
+
+
+def detect_genes_on_tile(
+    data_path, tile_coors, save_stack=False, prefix="genes_round",
+):
+    """Apply the OMP algorithm to unmix spots in a given tile using the saved
+    gene dictionary and settings saved in `ops.yml`. Then detect gene spots in
+    the resulting gene maps.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple): Coordinates of tile to load: ROI, Xpos, Ypos.
+        save_stack (bool, optional): Whether to save registered and preprocessed images.
+            Defaults to False.
+        correct_channels (bool or str, optional): Whether to apply channel normalization.
+            If not False, can specify normalization method, e.g. "round1_only". Defaults to False.
+        prefix (str, optional): Prefix of the sequencing read to analyse.
+            Defaults to "genes_round".
+
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    ops = load_ops(data_path)
+    g, omp_stat = run_omp_on_tile(
+        data_path, tile_coors, ops, save_stack=save_stack, prefix=prefix
+    )
 
     spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
     gene_spots = find_gene_spots(

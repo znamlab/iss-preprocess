@@ -277,9 +277,7 @@ def create_all_single_averages(
 
 
 @updates_flexilims
-def create_grand_averages(
-    data_path, prefix_todo=("genes_round", "barcode_round"),
-):
+def create_grand_averages(data_path, prefix_todo=("genes_round", "barcode_round")):
     """Average single acquisition averages into grand average
 
     Args:
