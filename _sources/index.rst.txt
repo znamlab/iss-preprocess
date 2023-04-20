@@ -24,6 +24,8 @@ Welcome to iss-preprocess's documentation!
    iss_preprocess
 
 
+.. mdinclude:: ../../README.md
+
 Indices and tables
 ==================
 

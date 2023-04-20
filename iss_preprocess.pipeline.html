@@ -2,7 +2,7 @@
 <html class="no-js" lang="en">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.reg package" href="iss_preprocess.reg.html" /><link rel="prev" title="iss_preprocess.io package" href="iss_preprocess.io.html" />
 
     <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
@@ -365,6 +365,17 @@ Defaults to (“barcode_round”, “genes_round”)</p></li>
 to True</p></li>
 <li><p><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) – Print info about progress. Defaults to True</p></li>
 </ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.diagnostics.check_spot_sign_image">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.diagnostics.</span></span><span class="sig-name descname"><span class="pre">check_spot_sign_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.diagnostics.check_spot_sign_image" title="Permalink to this definition">#</a></dt>
+<dd><p>Plot the average spot sign image and save it in the figures folder</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data_path</strong> (<em>str</em>) – Relative path to data folder</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1124,6 +1135,44 @@ spots above the threshold will be counted. Defaults to 0.8.</p></li>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.compute_spot_sign_image">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">compute_spot_sign_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.compute_spot_sign_image" title="Permalink to this definition">#</a></dt>
+<dd><p>Compute the reference spot sign image to use in spot calling. Save it to
+the processed data folder.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of the sequencing read to use.
+Defaults to “genes_round”.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.detect_genes_on_tile">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">detect_genes_on_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_stack</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.detect_genes_on_tile" title="Permalink to this definition">#</a></dt>
+<dd><p>Apply the OMP algorithm to unmix spots in a given tile using the saved
+gene dictionary and settings saved in <cite>ops.yml</cite>. Then detect gene spots in
+the resulting gene maps.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
+<li><p><strong>tile_coors</strong> (<em>tuple</em>) – Coordinates of tile to load: ROI, Xpos, Ypos.</p></li>
+<li><p><strong>save_stack</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to save registered and preprocessed images.
+Defaults to False.</p></li>
+<li><p><strong>correct_channels</strong> (<em>bool</em><em> or </em><em>str</em><em>, </em><em>optional</em>) – Whether to apply channel normalization.
+If not False, can specify normalization method, e.g. “round1_only”. Defaults to False.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of the sequencing read to analyse.
+Defaults to “genes_round”.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.estimate_channel_correction">
 <span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">estimate_channel_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_norm_factors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.estimate_channel_correction" title="Permalink to this definition">#</a></dt>
 <dd><p>Compute grayscale value distribution and normalisation factors</p>
@@ -1251,22 +1300,26 @@ sign image.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.pipeline.sequencing.run_omp_on_tile">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">run_omp_on_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_stack</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.run_omp_on_tile" title="Permalink to this definition">#</a></dt>
-<dd><p>Apply the OMP algorithm to unmix spots in a given tile using the saved
-gene dictionary and settings saved in <cite>ops.npy</cite>. Then detect gene spots in
-the resulting gene maps.</p>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.pipeline.sequencing.</span></span><span class="sig-name descname"><span class="pre">run_omp_on_tile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ops</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_stack</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.pipeline.sequencing.run_omp_on_tile" title="Permalink to this definition">#</a></dt>
+<dd><p>Run OMP on a tile and return the results.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
-<li><p><strong>tile_coors</strong> (<em>tuple</em>) – Coordinates of tile to load: ROI, Xpos, Ypos.</p></li>
-<li><p><strong>save_stack</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to save registered and preprocessed images.
+<li><p><strong>tile_coors</strong> (<em>tuple</em>) – Coordinates of the tile to process.</p></li>
+<li><p><strong>ops</strong> (<em>dict</em>) – Dictionary of parameters.</p></li>
+<li><p><strong>save_stack</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to save the registered stack.
 Defaults to False.</p></li>
-<li><p><strong>correct_channels</strong> (<em>bool</em><em> or </em><em>str</em><em>, </em><em>optional</em>) – Whether to apply channel normalization.
-If not False, can specify normalization method, e.g. “round1_only”. Defaults to False.</p></li>
-<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of the sequencing read to analyse.
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of the sequencing read to use.
 Defaults to “genes_round”.</p></li>
 </ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>OMP results.
+dict: Dictionary of OMP parameters.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1576,8 +1629,8 @@ numpy.array: shape of the tile</p>
 <dd><p>Stitch target and reference stacks and align target to reference</p>
 <p>To speed up registration, images are downsampled before estimating registration
 parameters. These parameters are then applied to the full scale image.</p>
-<p>The reference stack always use <cite>ops[“projection”]</cite> as suffix. The target uses the
-same by default but that can be specified with <cite>target_suffix</cite></p>
+<p>The reference stack always use the “projection” from ops as suffix. The target uses
+the same by default but that can be specified with <cite>target_suffix</cite></p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -1596,7 +1649,7 @@ Defaults to 0.</p></li>
 <li><p><strong>estimate_scale</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to estimate scaling between target
 and reference images. Defaults to False.</p></li>
 <li><p><strong>target_suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – Suffix to use for target stack. If None, will use
-the same as reference stack (<cite>ops[“projection”]</cite>). Defaults to None.</p></li>
+the value from ops. Defaults to None.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1740,6 +1793,7 @@ provided, use <cite>prefix</cite>. Defaults to None.</p></li>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.pipeline.diagnostics">iss_preprocess.pipeline.diagnostics module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.diagnostics.check_illumination_correction"><code class="docutils literal notranslate"><span class="pre">check_illumination_correction()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.diagnostics.check_spot_sign_image"><code class="docutils literal notranslate"><span class="pre">check_spot_sign_image()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.diagnostics.reg_to_ref_estimation"><code class="docutils literal notranslate"><span class="pre">reg_to_ref_estimation()</span></code></a></li>
 </ul>
 </li>
@@ -1793,6 +1847,8 @@ provided, use <cite>prefix</cite>. Defaults to None.</p></li>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.pipeline.sequencing">iss_preprocess.pipeline.sequencing module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.basecall_tile"><code class="docutils literal notranslate"><span class="pre">basecall_tile()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.compute_spot_sign_image"><code class="docutils literal notranslate"><span class="pre">compute_spot_sign_image()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.detect_genes_on_tile"><code class="docutils literal notranslate"><span class="pre">detect_genes_on_tile()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.estimate_channel_correction"><code class="docutils literal notranslate"><span class="pre">estimate_channel_correction()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.load_and_register_sequencing_tile"><code class="docutils literal notranslate"><span class="pre">load_and_register_sequencing_tile()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.pipeline.sequencing.load_sequencing_rounds"><code class="docutils literal notranslate"><span class="pre">load_sequencing_rounds()</span></code></a></li>
