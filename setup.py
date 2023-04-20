@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="iss_preprocess",
-    version="v0.1",
+    version="v0.2",
     url="https://github.com/znamlab/iss-preprocess",
     license="MIT",
     author="Znamenskiy lab",
