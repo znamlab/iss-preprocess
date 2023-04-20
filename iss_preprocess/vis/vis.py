@@ -5,6 +5,24 @@ from scipy.cluster import hierarchy
 import iss_preprocess as iss
 
 
+def plot_spot_sign_image(spot_image):
+    """
+    Plot the average spot sign image.
+    
+    Args:
+        spot_image: X x Y array of average spot sign values.
+    
+    """
+    plt.figure(figsize=(5, 5), facecolor="white")
+    plt.pcolormesh(spot_image, cmap="bwr", vmin=-1, vmax=1, edgecolors="white", linewidths=1)
+    image_size = spot_image.shape[0]
+    ticks_labels = np.arange(image_size) - int(image_size / 2)
+    plt.xticks(np.arange(image_size) + 0.5, ticks_labels)
+    plt.yticks(np.arange(image_size) + 0.5, ticks_labels)
+    plt.colorbar()
+    plt.gca().set_aspect('equal')    
+
+
 def to_rgb(stack, colors, vmax=None, vmin=None):
     """
     Convert multichannel stack to RGB image.

@@ -22,10 +22,10 @@ def cli():
 )
 def extract_tile(path, roi=1, x=0, y=0, save=False):
     """Run OMP and a single tile and detect gene spots."""
-    from iss_preprocess.pipeline import run_omp_on_tile
+    from iss_preprocess.pipeline import detect_genes_on_tile
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
-    run_omp_on_tile(path, (roi, x, y), save_stack=save)
+    detect_genes_on_tile(path, (roi, x, y), save_stack=save)
 
 
 @cli.command()
@@ -152,10 +152,7 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path,
-        tile_coors=(roi, tilex, tiley),
-        prefix=prefix,
-        suffix=suffix,
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix,
     )
 
 
@@ -253,6 +250,18 @@ def correct_ref_shifts(path, prefix=None):
     from iss_preprocess.pipeline import correct_shifts_to_ref
 
     correct_shifts_to_ref(path, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", default="genes_round", help="Path prefix, e.g. 'genes_round'"
+)
+def spot_sign_image(path, prefix="genes_round"):
+    """Compute average spot image."""
+    from iss_preprocess.pipeline import compute_spot_sign_image
+
+    compute_spot_sign_image(path, prefix)
 
 
 @cli.command()
@@ -437,10 +446,7 @@ def align_spots_roi(
         )
 
     merge_and_align_spots(
-        path,
-        spots_prefix=spots_prefix,
-        reg_prefix=reg_prefix,
-        roi=roi,
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi,
     )
 
 
@@ -472,8 +478,7 @@ def create_grand_averages(path):
     from iss_preprocess import pipeline
 
     pipeline.create_grand_averages(
-        path,
-        prefix_todo=("genes_round", "barcode_round"),
+        path, prefix_todo=("genes_round", "barcode_round"),
     )
 
 
@@ -542,10 +547,7 @@ def create_single_average(
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
 @click.option("--sigma", help="Sigma for gaussian blur")
 def overview_for_ara_registration(
-    path,
-    roi,
-    slice_id,
-    sigma=10.0,
+    path, roi, slice_id, sigma=10.0,
 ):
     """Generate the overview of one ROI used for registration
 
