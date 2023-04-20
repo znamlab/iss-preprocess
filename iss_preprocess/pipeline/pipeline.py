@@ -1,19 +1,23 @@
-import subprocess, shlex
+import shlex
+import subprocess
 import warnings
+from pathlib import Path
+
 import numpy as np
 from flexiznam.config import PARAMETERS
-from pathlib import Path
-from . import ara_registration as ara_reg
+
+from ..image import apply_illumination_correction, tilestats_and_mean_image
 from ..io import (
-    write_stack,
-    load_metadata,
     get_roi_dimensions,
+    load_metadata,
     load_ops,
     load_tile_by_coors,
+    write_stack,
 )
-from ..image import tilestats_and_mean_image, apply_illumination_correction
-from .sequencing import load_and_register_sequencing_tile
+from ..decorators import updates_flexilims
+from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
+from .sequencing import load_and_register_sequencing_tile
 
 
 def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
@@ -88,6 +92,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     return stack, bad_pixels
 
 
+@updates_flexilims(name_source="script")
 def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     """Start sbatch scripts for all tiles across all rois.
 
@@ -214,6 +219,7 @@ def create_single_average(
     return av_image, tilestats
 
 
+@updates_flexilims
 def create_all_single_averages(
     data_path,
     n_batch,
@@ -270,6 +276,7 @@ def create_all_single_averages(
         )
 
 
+@updates_flexilims
 def create_grand_averages(data_path, prefix_todo=("genes_round", "barcode_round")):
     """Average single acquisition averages into grand average
 
