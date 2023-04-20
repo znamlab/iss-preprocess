@@ -31,10 +31,11 @@ release = "0.1"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx.ext.autodoc", 
-    "sphinx.ext.autosummary", 
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
-    "sphinx.ext.githubpages"
+    "sphinx.ext.githubpages",
+    "m2r2",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
