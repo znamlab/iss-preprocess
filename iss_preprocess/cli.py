@@ -137,6 +137,24 @@ def register_ref_tile(path, prefix):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def setup_omp(path):
+    """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
+    from iss_preprocess.pipeline import setup_omp
+
+    setup_omp(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def setup_barcodes(path):
+    """Estimate bleedthrough matrices for barcode calling."""
+    from iss_preprocess.pipeline import setup_barcode_calling
+
+    setup_barcode_calling(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."

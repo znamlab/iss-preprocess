@@ -39,10 +39,14 @@ genes:
   # latter case all channels are normalized to 1 on round 1 and decrease in brightness across rounds is 
   # not corrected for.
   genes_correct_channels: round1_only
-  # Detection threshold used to identify spots to train the bleedthrough matrix for genes
+  # tiles used to train the bleedthrough matrix for genes
+  genes_ref_tiles: [ [ 1, 0, 0 ], ]
+  # Cluster score threshold used to identify spots to estimate the bleedthrough matrix for genes
+  genes_cluster_score_thresh: 0.9
+  # Detection threshold used to identify spots to estimate the bleedthrough matrix for genes
   genes_detection_threshold: 0.15 
   # Isolation threshold to select well-isolated spots. Lower values = more stringent
-  genes_isolation_threshold: 0.05 
+  genes_isolation_threshold: 0.05
   # Coefficient used to weight positive pixels when computing spot scores
   genes_spot_rho: 2 
   # Spot score threshold determines which spots get saved to pkl
@@ -82,6 +86,7 @@ anchor_projection: fstack
 barcode:
   barcode_projection: fstack
   barcode_correct_channels: round1_only
+  barcode_cluster_score_thresh: 0.9
   barcode_detection_threshold: 0.3
   barcode_isolation_threshold: 0.3
   barcode_detection_threshold_basecalling: 0.1

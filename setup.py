@@ -22,6 +22,7 @@ setup(
         "Click",
         "bg_atlasapi",
         "natsort",
+        "seaborn",
     ],
     entry_points="""
         [console_scripts]

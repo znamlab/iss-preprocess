@@ -75,19 +75,11 @@ def load_sequencing_rounds(
     return np.stack(ims, axis=3)
 
 
-def setup_barcode_calling(
-    data_path, score_thresh=0.5, spot_size=2, correct_channels=False
-):
+def setup_barcode_calling(data_path):
     """Detect spots and compute cluster means
 
     Args:
         data_path (str): Relative path to data
-        score_thresh (float, optional): score_thresh argument for get_cluster_mean.
-            Defaults to 0.5.
-        spot_size (int, optional): Size of the spots in pixels. Defaults to 2.
-        correct_channels (bool, optional): Correct intensity difference across channel.
-            True to normalise all rounds individually. `round1_only` to normalise all
-            rounds to round1 correction. False to remove correction. Defaults to False.
 
     Returns:
         cluster_means (list): A list with Nrounds elements. Each a Nch x Ncl (square
@@ -107,7 +99,7 @@ def setup_barcode_calling(
             prefix="barcode_round",
             suffix=ops["barcode_projection"],
             nrounds=ops["barcode_rounds"],
-            correct_channels=correct_channels,
+            correct_channels=ops["barcode_correct_channels"],
             corrected_shifts=True,
             correct_illumination=False,
         )
@@ -117,15 +109,21 @@ def setup_barcode_calling(
             detection_threshold=ops["barcode_detection_threshold"],
             isolation_threshold=ops["barcode_isolation_threshold"],
         )
-        spots["size"] = np.ones(len(spots)) * spot_size
-        extract_spots(spots, stack)
+        extract_spots(spots, stack, ops["spot_extraction_radius"])
         all_spots.append(spots)
     all_spots = pd.concat(all_spots, ignore_index=True)
-    cluster_means = get_cluster_means(all_spots, vis=True, score_thresh=score_thresh)
-
+    cluster_means, spot_colors, cluster_inds = get_cluster_means(
+        all_spots, score_thresh=ops["barcode_cluster_score_thresh"]
+    )
     processed_path = Path(PARAMETERS["data_root"]["processed"])
+    np.savez(
+        processed_path / data_path / "reference_barcode_spots.npz",
+        spot_colors=spot_colors,
+        cluster_inds=cluster_inds,
+    )
     save_path = processed_path / data_path / "barcode_cluster_means.npy"
     np.save(save_path, cluster_means)
+    iss.pipeline.check_barcode_calling(data_path)
     return cluster_means, all_spots
 
 
@@ -163,8 +161,7 @@ def basecall_tile(data_path, tile_coors):
         rho=ops["barcode_spot_rho"],
     )
     # TODO: size should probably be set inside detect spots?
-    spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
-    extract_spots(spots, stack)
+    extract_spots(spots, stack, ops["spot_extraction_radius"])
     x = np.stack(spots["trace"], axis=2)
     cluster_inds = []
     top_score = []
@@ -200,15 +197,13 @@ def basecall_tile(data_path, tile_coors):
     )
 
 
-def setup_omp(data_path, score_thresh=0, correct_channels=True):
+def setup_omp(data_path):
     """Prepare variables required to run the OMP algorithm. Finds isolated spots using
     STD across rounds and channels. Detected spots are then used to determine the
     bleedthrough matrix using scaled k-means.
 
     Args:
         data_path (str): Relative path to data.
-        score_thresh (float): Dot product threshold to include spots in cluster
-            mean calculation. Defaults to 0.
 
     Returns:
         numpy.ndarray: N x M dictionary, where N = R * C and M is the
@@ -218,40 +213,54 @@ def setup_omp(data_path, score_thresh=0, correct_channels=True):
 
     """
     ops = load_ops(data_path)
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
     all_spots = []
-    for ref_tile in ops["barcode_ref_tiles"]:
+    for ref_tile in ops["genes_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
-        stack, _ = load_and_register_sequencing_tile(
+        stack, bad_pixels = load_and_register_sequencing_tile(
             data_path,
             ref_tile,
             filter_r=ops["filter_r"],
             prefix="genes_round",
             suffix=ops["genes_projection"],
-            correct_channels=correct_channels,
+            correct_channels=ops["genes_correct_channels"],
         )
+        stack[bad_pixels, :, :] = 0
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
         spots = detect_isolated_spots(
-            np.std(stack, axis=(2, 3)),
+            np.mean(stack, axis=(2, 3)),
             detection_threshold=ops["genes_detection_threshold"],
             isolation_threshold=ops["genes_isolation_threshold"],
         )
 
-        extract_spots(spots, stack)
+        extract_spots(spots, stack, ops["spot_extraction_radius"])
         all_spots.append(spots)
     all_spots = pd.concat(all_spots, ignore_index=True)
-    cluster_means = get_cluster_means(all_spots, vis=True, score_thresh=score_thresh)
+    cluster_means, spot_colors, cluster_inds = get_cluster_means(
+        all_spots, score_thresh=ops["genes_cluster_score_thresh"]
+    )
+    np.savez(
+        processed_path / data_path / "reference_gene_spots.npz",
+        spot_colors=spot_colors,
+        cluster_inds=cluster_inds,
+    )
+
     codebook = pd.read_csv(
         Path(__file__).parent.parent / "call" / ops["codebook"],
         header=None,
         names=["gii", "seq", "gene"],
     )
-    gene_dict, gene_names = make_gene_templates(cluster_means, codebook, vis=True)
+    gene_dict, gene_names = make_gene_templates(cluster_means, codebook)
 
     norm_shift = np.sqrt(np.median(np.sum(stack ** 2, axis=(2, 3))))
-    save_path = Path(PARAMETERS["data_root"]["processed"]) / data_path / "gene_dict.npz"
     np.savez(
-        save_path, gene_dict=gene_dict, gene_names=gene_names, norm_shift=norm_shift
+        processed_path / data_path / "gene_dict.npz",
+        gene_dict=gene_dict,
+        gene_names=gene_names,
+        norm_shift=norm_shift,
+        cluster_means=cluster_means,
     )
+    iss.pipeline.check_omp_setup(data_path)
     return gene_dict, gene_names, norm_shift
 
 

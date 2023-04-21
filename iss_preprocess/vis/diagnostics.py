@@ -5,9 +5,8 @@ from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 import cv2
 from pathlib import Path
 from flexiznam import PARAMETERS
-from iss_preprocess.pipeline import stitch_registered
+import iss_preprocess as iss
 from iss_preprocess.pipeline import ara_registration as ara_reg
-from iss_preprocess.io.load import load_ops
 
 
 def plot_correction_images(
@@ -191,7 +190,6 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         from cricksaw_analysis import atlas_utils
     except ImportError:
         raise ImportError("`plot_registration requires `cricksaw_analysis")
-
     area_ids = ara_reg.make_area_image(
         data_path=data_path, roi=roi, atlas_size=10, full_scale=False
     )
@@ -200,7 +198,7 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
 
-    stitched_stack = stitch_registered(
+    stitched_stack = iss.pipeline.stitch_registered(
         data_path, reference_prefix, roi=roi, channels=ops["ref_ch"],
     ).astype(np.single)
 
@@ -241,7 +239,7 @@ def plot_tilestats_distributions(
         figure_folder (pathlib.Path): Path where to save the figures.
         camera_order (list): Order list of camera as in ops['camera_order']
     """
-    ops = load_ops(data_path)
+    ops = iss.io.load_ops(data_path)
     camera_order = ops["camera_order"]
     distri = distributions.copy()
     fig = plt.figure(figsize=(10, 20), facecolor="white")

@@ -3,6 +3,51 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 from scipy.cluster import hierarchy
 import iss_preprocess as iss
+import seaborn as sns
+import pandas as pd
+
+
+def plot_clusters(cluster_means, spot_colors, cluster_inds):
+    """
+    Plot the cluster means and the spot colors.
+    
+    Args:
+        cluster_means: list of nch x nclusters cluster means.
+        spot_colors: round x channels x spots array of spot colors.
+        cluster_inds: list of arrays of cluster indices for each round.
+
+    Returns:
+        figs: list of figures
+    
+    """
+    nch = cluster_means[0].shape[0]
+    nrounds = len(cluster_means)
+
+    figs = []
+    for iround in range(nrounds):
+        df = pd.DataFrame(
+            np.hstack((spot_colors[iround].T, cluster_inds[iround][:, np.newaxis])),
+            columns=[f"ch{i}" for i in range(nch)] + ["cluster"],
+        )
+        g = sns.PairGrid(df, hue="cluster", palette="tab10")
+        g.map_diag(sns.histplot, bins=20)
+        g.map_offdiag(sns.scatterplot, size=1, alpha=0.25, edgecolor=None)
+        g.add_legend()
+        g.figure.set_label(f"clusters_round_{iround}")
+        g.figure.set_facecolor("w")
+        figs.append(g.figure)
+
+    fig, ax = plt.subplots(nrows=1, ncols=nch, facecolor="w", label="cluster_means")
+    for icluster in range(nch):
+        plt.sca(ax[icluster])
+        plt.imshow(np.stack(cluster_means, axis=2)[icluster, :, :])
+        plt.xlabel("rounds")
+        plt.ylabel("channels")
+        plt.title(f"Cluster {icluster+1}")
+    plt.tight_layout()
+    figs.append(fig)
+
+    return figs
 
 
 def plot_spot_sign_image(spot_image):
@@ -14,13 +59,15 @@ def plot_spot_sign_image(spot_image):
     
     """
     plt.figure(figsize=(5, 5), facecolor="white")
-    plt.pcolormesh(spot_image, cmap="bwr", vmin=-1, vmax=1, edgecolors="white", linewidths=1)
+    plt.pcolormesh(
+        spot_image, cmap="bwr", vmin=-1, vmax=1, edgecolors="white", linewidths=1
+    )
     image_size = spot_image.shape[0]
     ticks_labels = np.arange(image_size) - int(image_size / 2)
     plt.xticks(np.arange(image_size) + 0.5, ticks_labels)
     plt.yticks(np.arange(image_size) + 0.5, ticks_labels)
     plt.colorbar()
-    plt.gca().set_aspect('equal')    
+    plt.gca().set_aspect("equal")
 
 
 def to_rgb(stack, colors, vmax=None, vmin=None):
@@ -152,13 +199,14 @@ def plot_gene_templates(gene_dict, gene_names, BASES, nrounds=7, nchannels=4):
         nchannels (int): number of channels. Default: 4
         
     """
-    plt.figure(figsize=(10, 20))
+    fig = plt.figure(figsize=(10, 20), facecolor="w", label="gene_templates")
     for igene, gene in enumerate(gene_names):
         plt.subplot(10, 9, igene + 1)
         plt.imshow(np.reshape(gene_dict[:, igene], (nrounds, nchannels)), cmap="gray")
         plt.title(gene)
         plt.xticks(np.arange(4), BASES)
     plt.tight_layout()
+    return fig
 
 
 def add_bases_legend(extent, channel_colors):

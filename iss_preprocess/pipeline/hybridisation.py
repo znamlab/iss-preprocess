@@ -213,7 +213,7 @@ def hyb_spot_cluster_means(
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
         spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
-        extract_spots(spots, stack)
+        extract_spots(spots, stack, ops["spot_extraction_radius"])
         all_spots.append(spots)
 
     all_spots = pd.concat(all_spots, ignore_index=True)
@@ -300,7 +300,7 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
     spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
-    extract_spots(spots, stack)
+    extract_spots(spots, stack, ops["spot_extraction_radius"])
     x = np.stack(spots["trace"], axis=2)
     x_norm = x[0, :, :].T / np.linalg.norm(x[0, :, :].T, axis=1)[:, np.newaxis]
     score = x_norm @ clusters["cluster_means"].T

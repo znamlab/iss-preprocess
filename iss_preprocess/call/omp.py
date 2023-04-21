@@ -1,10 +1,9 @@
 import numba
 import numpy as np
 from . import rois_to_array, BASES
-from ..vis import plot_gene_templates
 
 
-def make_gene_templates(cluster_means, codebook, vis=False):
+def make_gene_templates(cluster_means, codebook):
     """
     Make dictionary of fluorescence values for each gene by finding well-matching
     spots.
@@ -30,9 +29,6 @@ def make_gene_templates(cluster_means, codebook, vis=False):
     gene_dict = np.stack(gene_dict, axis=1)
     gene_dict /= np.linalg.norm(gene_dict, axis=0)
     unique_genes = codebook["gene"]
-
-    if vis:
-        plot_gene_templates(gene_dict, unique_genes, BASES)
 
     return gene_dict, unique_genes
 
