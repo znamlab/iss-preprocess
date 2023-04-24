@@ -23,6 +23,7 @@ setup(
         "bg_atlasapi",
         "natsort",
         "seaborn",
+        "decorator",
     ],
     entry_points="""
         [console_scripts]
