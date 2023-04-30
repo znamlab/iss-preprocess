@@ -5,18 +5,18 @@ from sklearn.mixture import GaussianMixture
 from scipy.spatial.distance import hamming
 import matplotlib.pyplot as plt
 from ..coppafish import scaled_k_means
+import seaborn as sns
 
 # BASES = np.array(['G','T','A','C'])
 # BASES = np.array(["A", "C", "T", "G"])
 BASES = np.array(["G", "T", "A", "C"])
 
 
-def get_cluster_means(spots, vis=False, score_thresh=0.0):
+def get_cluster_means(spots, score_thresh=0.0):
     """Find the mean of the 4 clusters (one per channel)
 
     Args:
         spots (pandas.DataFrame): Dataframe of extracted spot.
-        vis (bool, optional): Plot clusters and means. Defaults to False.
         score_thresh (float, optional): score_thresh arguments for scaled_k_means. 
             Scalar between 0 and 1. To give a different score for each cluster, give
             a list of Nc floats. Only points with dot product to a cluster mean vector 
@@ -27,60 +27,44 @@ def get_cluster_means(spots, vis=False, score_thresh=0.0):
             because N channels is equal to N clusters) array of cluster means
             
     """
-    x = np.stack(spots["trace"], axis=2)  # round x channels x spots
-    nrounds = x.shape[0]
-    nch = x.shape[1]
-    if vis:
-        _, ax1 = plt.subplots(nrows=1, ncols=nch)
-        _, ax2 = plt.subplots(nrows=2, ncols=ceil(nrounds / 2))
+    spot_colors = np.stack(spots["trace"], axis=2)  # round x channels x spots
+    nrounds = spot_colors.shape[0]
+    nch = spot_colors.shape[1]
 
     cluster_means = []
+    cluster_inds = []
     for iround in range(nrounds):
         _, _, cluster_ind, _, _, _ = scaled_k_means(
-            x[iround, :, :].T, np.eye(nch), score_thresh=score_thresh
+            spot_colors[iround, :, :].T, np.eye(nch), score_thresh=score_thresh
         )
         cluster_mean = np.zeros((nch, nch))
         for icluster in range(nch):
             cluster_mean[icluster, :] = np.mean(
-                x[iround, :, cluster_ind == icluster], axis=0
+                spot_colors[iround, :, cluster_ind == icluster], axis=0
             )
         cluster_means.append(cluster_mean)
-        if vis:
-            plt.sca(ax2.flatten()[iround])
-            for ich in range(nch):
-                plt.plot(
-                    x[iround, 0, cluster_ind == ich],
-                    x[iround, 1, cluster_ind == ich],
-                    ".",
-                    markersize=1,
-                )
-            plt.title(f"Round {iround}")
-    if vis:
-        for icluster in range(nch):
-            plt.sca(ax1[icluster])
-            plt.imshow(np.stack(cluster_means, axis=2)[icluster, :, :])
-            plt.xlabel("rounds")
-            plt.ylabel("channels")
-            plt.title(f"Cluster {icluster+1}")
-        plt.tight_layout()
-    return cluster_means
+        cluster_inds.append(cluster_ind)
+
+    return cluster_means, spot_colors, cluster_inds
 
 
-def extract_spots(spots, stack):
+def extract_spots(spots, stack, spot_radius=2):
     """
     Extract fluorescence traces of spots and assign them to a column of the DataFrame.
 
     Args:
         spots (pandas.DataFrame):
         stack (numpy.ndarray): X x Y x C x R stack.
+        spot_radius (int, optional): Radius of the spot. Defaults to 2.
     
     Returns:
         spots (pandas.DataFrame): same as input with a new "traces" column containing
             a R x C array of fluorescence value
+            
     """
     traces = []
     for _, spot in spots.iterrows():
-        rr, cc = disk((spot["y"], spot["x"]), spot["size"], shape=stack.shape[0:2])
+        rr, cc = disk((spot["y"], spot["x"]), spot_radius, shape=stack.shape[0:2])
         traces.append(stack[rr, cc, :, :].mean(axis=0).T)
     spots["trace"] = traces
 

@@ -9,13 +9,22 @@ git clone git@github.com:znamlab/iss-preprocess.git
 
 Next, navigate to the repo directory and create a conda environment and install dependencies by running:
 ```
-conda env create --file environment.yml
+conda env create --name iss-preprocess python=3.10
 ```
 
 Finally, activate the new environment and install the package itself:
 ```
 conda activate iss-preprocess
 pip install -e .
+```
+
+### Documentation
+
+To build the documentation you also need to install 
+```
+Sphinx
+furo
+m2r2
 ```
 
 ### Atlas cache
@@ -35,19 +44,26 @@ The purpose of this repo is to house scripts that will be used to preprocess ima
 
 The broad strokes of the pipeline are:
 
-1. Stitching of individual round images, Z-projection and histogram matching
-2. Registration of X-Y images between rounds of sequencing
-3. Localisation of spots/cell soma across rounds
-4. Base-calling for each spot
-5. Construction of a cell-barcode matrix
+* Estimation of illumination and channel brightness correction
+* Registration of images between rounds of sequencing
+* Estimation of bleedthrough matrices for sequencing and hybridisation rounds
+* Localisation of spots across rounds
+* Base-calling for each spot
+* Alignment of spots across tiles and acquisitions (genes, hybridisation rounds, barcodes) into a global coordinate system
+* Cell segmentation based on DAPI images
+* Construction of a cell-barcode matrix
 
 ## Subpackages
 
-1. `io` directory - houses code for input and saving of image data
-2. `reg` directory - houses code for stitching and registering images between rounds of sequencing
-3. `image` directory - image processing and correction routines
-4. `segment` directory - houses code for detecting ROIs and rolonies
-5. `call` directory - houses code for base-calling across rounds and constructing the cell/genes/barcode matrix output
+* `io` - input and saving of image data and related metadata
+* `reg` - code for stitching and registering images between rounds of sequencing
+* `image` - image processing and correction routines
+* `segment` - detecting ROIs and rolonies
+* `call` - base-calling across rounds and constructing the cell/genes/barcode matrix output
+* `config` - contains default pipeline settings
+* `coppafish` - utilities adapted from coppafish codebase: hanning window, annulus for isolated
+spot detection, and scaled k-means for bleedthrough estimation
+* `pipeline` - high level routines for batch processing 
 
 ## OMP pipeline
 
@@ -76,4 +92,4 @@ for each gene. We can now detect peaks in these images to find the location of
 individual gene rolonies.
 
 ## Examples
-Examples can be found in the `examples` subdirectory.
+Examples can be found in the `notebooks` subdirectory.

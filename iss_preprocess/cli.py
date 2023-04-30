@@ -22,10 +22,10 @@ def cli():
 )
 def extract_tile(path, roi=1, x=0, y=0, save=False):
     """Run OMP and a single tile and detect gene spots."""
-    from iss_preprocess.pipeline import run_omp_on_tile
+    from iss_preprocess.pipeline import detect_genes_on_tile
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
-    run_omp_on_tile(path, (roi, x, y), save_stack=save)
+    detect_genes_on_tile(path, (roi, x, y), save_stack=save)
 
 
 @cli.command()
@@ -137,6 +137,24 @@ def register_ref_tile(path, prefix):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def setup_omp(path):
+    """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
+    from iss_preprocess.pipeline import setup_omp
+
+    setup_omp(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def setup_barcodes(path):
+    """Estimate bleedthrough matrices for barcode calling."""
+    from iss_preprocess.pipeline import setup_barcode_calling
+
+    setup_barcode_calling(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
@@ -152,10 +170,7 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path,
-        tile_coors=(roi, tilex, tiley),
-        prefix=prefix,
-        suffix=suffix,
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix,
     )
 
 
@@ -253,6 +268,18 @@ def correct_ref_shifts(path, prefix=None):
     from iss_preprocess.pipeline import correct_shifts_to_ref
 
     correct_shifts_to_ref(path, prefix)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", default="genes_round", help="Path prefix, e.g. 'genes_round'"
+)
+def spot_sign_image(path, prefix="genes_round"):
+    """Compute average spot image."""
+    from iss_preprocess.pipeline import compute_spot_sign_image
+
+    compute_spot_sign_image(path, prefix)
 
 
 @cli.command()
@@ -437,10 +464,7 @@ def align_spots_roi(
         )
 
     merge_and_align_spots(
-        path,
-        spots_prefix=spots_prefix,
-        reg_prefix=reg_prefix,
-        roi=roi,
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi,
     )
 
 
@@ -472,18 +496,22 @@ def create_grand_averages(path):
     from iss_preprocess import pipeline
 
     pipeline.create_grand_averages(
-        path,
-        prefix_todo=("genes_round", "barcode_round"),
+        path, prefix_todo=("genes_round", "barcode_round"),
     )
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def create_all_single_averages(path):
+@click.option(
+    "--n-batch",
+    help="Number of average batches to compute before taking their median.",
+    default=1,
+)
+def create_all_single_averages(path, n_batch):
     """Average all tiffs in all acquisition folders"""
     from iss_preprocess import pipeline
 
-    pipeline.create_all_single_averages(path)
+    pipeline.create_all_single_averages(path, n_batch=n_batch)
 
 
 @cli.command()
@@ -509,8 +537,13 @@ def create_all_single_averages(path):
     help="Combine pre-existing statistics into one instead of computing from images",
     default=False,
 )
+@click.option(
+    "--n-batch",
+    help="Number of average batches to compute before taking their median.",
+    default=1,
+)
 def create_single_average(
-    path, subtract_black, subfolder, prefix_filter, suffix, combine_stats
+    path, subtract_black, subfolder, prefix_filter, suffix, combine_stats, n_batch
 ):
     """Average all tiffs in an acquisition folder"""
     from iss_preprocess import pipeline
@@ -522,6 +555,7 @@ def create_single_average(
         prefix_filter=prefix_filter,
         suffix=suffix,
         combine_tilestats=combine_stats,
+        n_batch=n_batch,
     )
 
 
@@ -531,10 +565,7 @@ def create_single_average(
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
 @click.option("--sigma", help="Sigma for gaussian blur")
 def overview_for_ara_registration(
-    path,
-    roi,
-    slice_id,
-    sigma=10.0,
+    path, roi, slice_id, sigma=10.0,
 ):
     """Generate the overview of one ROI used for registration
 
@@ -548,3 +579,31 @@ def overview_for_ara_registration(
 
     print("Calling")
     overview_single_roi(data_path=path, roi=roi, slice_id=slice_id, sigma_blur=sigma)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def setup_flexilims(path):
+    """Setup the flexilims database"""
+    import flexiznam as flz
+    from pathlib import Path
+
+    data_path = Path(path)
+    flm_session = flz.get_flexilims_session(project_id=data_path.parts[0])
+    # first level, which is the mouse, must exist
+    mouse = flz.get_entity(
+        name=data_path.parts[1], datatype="mouse", flexilims_session=flm_session
+    )
+    if mouse is None:
+        raise ValueError(f"Mouse {data_path.parts[1]} does not exist in flexilims")
+    parent_id = mouse["id"]
+    for sample_name in data_path.parts[2:]:
+        sample = flz.add_sample(
+            parent_id,
+            attributes=None,
+            sample_name=sample_name,
+            conflicts="skip",
+            other_relations=None,
+            flexilims_session=flm_session,
+        )
+        parent_id = sample["id"]

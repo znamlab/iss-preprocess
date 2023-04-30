@@ -5,9 +5,8 @@ from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 import cv2
 from pathlib import Path
 from flexiznam import PARAMETERS
-from iss_preprocess.pipeline import stitch_tiles, register_adjacent_tiles
+import iss_preprocess as iss
 from iss_preprocess.pipeline import ara_registration as ara_reg
-from iss_preprocess.io.load import load_ops
 
 
 def plot_correction_images(
@@ -165,6 +164,8 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
     fig.suptitle(prefix)
     processed = Path(PARAMETERS["data_root"]["processed"])
     fig_file = processed / data_path / "figures" / f"adjacent_tile_reg_{prefix}.png"
+    if not fig_file.parent.exists():
+        fig_file.parent.mkdir()
     fig.savefig(fig_file, dpi=300)
     print(f"Saving {fig_file}")
     return fig
@@ -189,7 +190,6 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         from cricksaw_analysis import atlas_utils
     except ImportError:
         raise ImportError("`plot_registration requires `cricksaw_analysis")
-
     area_ids = ara_reg.make_area_image(
         data_path=data_path, roi=roi, atlas_size=10, full_scale=False
     )
@@ -197,19 +197,9 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
-    shift_right, shift_down, tile_shape = register_adjacent_tiles(
-        data_path, ref_coors=ops["ref_tile"], prefix=reference_prefix
-    )
 
-    stitched_stack = stitch_tiles(
-        data_path,
-        reference_prefix,
-        shift_right,
-        shift_down,
-        suffix=ops["projection"],
-        roi=roi,
-        ich=ops["ref_ch"],
-        correct_illumination=True,
+    stitched_stack = iss.pipeline.stitch_registered(
+        data_path, reference_prefix, roi=roi, channels=ops["ref_ch"],
     ).astype(np.single)
 
     fig = plt.figure()
@@ -226,9 +216,7 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     )
 
     atlas_utils.plot_borders_and_areas(
-        ax,
-        area_ids,
-        border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
+        ax, area_ids, border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
     )
 
     ax.set_ylim(ax.get_ylim()[::-1])
@@ -251,7 +239,7 @@ def plot_tilestats_distributions(
         figure_folder (pathlib.Path): Path where to save the figures.
         camera_order (list): Order list of camera as in ops['camera_order']
     """
-    ops = load_ops(data_path)
+    ops = iss.io.load_ops(data_path)
     camera_order = ops["camera_order"]
     distri = distributions.copy()
     fig = plt.figure(figsize=(10, 20), facecolor="white")
@@ -288,10 +276,10 @@ def plot_tilestats_distributions(
             ax.set_ylim(-0.4, 0.4)
 
     for ax in fig.axes:
-        ax.axvline(2**12, color="k", zorder=-10)
+        ax.axvline(2 ** 12, color="k", zorder=-10)
         for c, i in enumerate(np.argsort(camera_order)):
             ax.axvline(ops["black_level"][i], color=colors[c], zorder=-10)
-        ax.set_xlim(np.min(ops["black_level"]) - 2, 2**12)
+        ax.set_xlim(np.min(ops["black_level"]) - 2, 2 ** 12)
         ax.semilogx()
     ax.legend()
     fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)

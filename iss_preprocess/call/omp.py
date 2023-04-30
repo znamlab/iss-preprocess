@@ -1,10 +1,9 @@
 import numba
 import numpy as np
 from . import rois_to_array, BASES
-from ..vis import plot_gene_templates
 
 
-def make_gene_templates(cluster_means, codebook, vis=False):
+def make_gene_templates(cluster_means, codebook):
     """
     Make dictionary of fluorescence values for each gene by finding well-matching
     spots.
@@ -31,13 +30,31 @@ def make_gene_templates(cluster_means, codebook, vis=False):
     gene_dict /= np.linalg.norm(gene_dict, axis=0)
     unique_genes = codebook["gene"]
 
-    if vis:
-        plot_gene_templates(gene_dict, unique_genes, BASES)
-
     return gene_dict, unique_genes
 
 
 def refine_gene_templates(rois, gene_dict, unique_genes, thresh=0.8, vis=False):
+    """
+    Refine gene templates by finding spots that match the template and averaging
+    their fluorescence values.
+
+    TODO: This function is currently unused. Needs to be updated to work with
+    new data structures.
+
+    Args:
+        rois (list): list of ROI objects containing fluorescence traces
+        gene_dict (N x genes numpy.ndarray): dictionary of fluorescence values for
+            each gene.
+        unique_genes (list): list of gene names.
+        thresh (float): threshold for matching spots to gene template.
+            Default: 0.8.
+        vis (bool): whether to visualize gene templates. Default: False.
+
+    Returns:
+        N x genes numpy.ndarray containing dictionary of fluorescence values for
+            each gene.
+
+    """
     x = rois_to_array(rois, normalize=False)
     x_ = np.reshape(x, (28, -1))
     x_ /= np.linalg.norm(x_, axis=0)
@@ -84,6 +101,27 @@ def make_background_vectors(nrounds=7, nchannels=4):
 def barcode_spots_dot_product(
     spots, cluster_means, norm_shift=0, sequence_column="sequence"
 ):
+    """
+    Compute dot product between synthetic trace and observed trace for each spot.
+    
+    The synthetic trace is estimated using the provided bleeedthrough matrix.
+    The observed trace is first background subtracted using the same approach as 
+    used in the OMP algorithm.
+
+    Args:
+        spots (pandas.DataFrame): barcode spot table containing 'trace' column
+            with fluorescence values.
+        cluster_means (numpy.ndarray): Nrounds x Nchannels x Nclusters bleedthrough
+            matrix of fluorescence values for each cluster (i.e. base).
+        norm_shift (float): small value added to the norm of the observed trace. This
+            penalizes the dot product score for spots with very low signal.
+        sequence_column (str): name of column in spots table containing the sequence.
+            Default is 'sequence', but could also be 'corrected_sequence'.
+    
+    Returns:
+        List of dot product scores for each spot.
+    
+    """
     nrounds = cluster_means.shape[0]
     nchannels = cluster_means.shape[1]
     background_vectors = make_background_vectors(nrounds=nrounds, nchannels=nchannels)
@@ -213,6 +251,13 @@ def omp_weighted(
         max_comp (int): maximum number of components to include.
         tol (float): tolerance threshold that determines the minimum fraction of
             the residual norm to retain a component.
+        alpha (float): parameter for weighted OMP.
+        beta_squared (float): parameter for weighted OMP.
+        weighted (bool): whether to use weighted OMP. Default is True.
+        refit_background (bool): whether to refit background coefficients on every iteration.
+            Default is True.        
+        norm_shift (float): additional shift to add to the norm of the pixel trace. Larger values
+            reduce false positive gene calls in dim pixels. Default is 0.
 
     Returns:
         Length M + O array of component coefficients
@@ -254,7 +299,7 @@ def omp_weighted(
         not_chosen = np.nonzero(np.logical_not(ichosen))[0]
         if weighted:
             sigma_squared = beta_squared + alpha * np.sum(
-                Xfull[:, ichosen] ** 2 * coefs**2, axis=1
+                Xfull[:, ichosen] ** 2 * coefs ** 2, axis=1
             )
             weights_sq = (1 / sigma_squared) / np.mean(1 / sigma_squared)
             dot_product = np.abs(
@@ -321,6 +366,17 @@ def run_omp(
         gene_dict (numpy.ndarray): N x M dictionary, where N = R * C and M is the
             number of genes.
         tol (float): tolerance threshold for OMP algorithm.
+        weighted (bool): whether to use weighted OMP. Default is True.
+        refit_background (bool): whether to refit background coefficients on every iteration.
+            Default is True.
+        alpha (float): parameter for weighted OMP.
+        beta_squared (float): parameter for weighted OMP.
+        norm_shift (float): additional shift to add to the norm of the pixel trace. Larger values
+            reduce false positive gene calls in dim pixels. Default is 0.
+        max_comp (int): maximum number of components to use in OMP. Default is None, in which case
+            OMP proceeds until the tolerance threshold is reached.
+        min_intensity (float): minimum intensity for a pixel to be considered. Calculated as
+            the mean absolute value of the pixel trace. Default is 0.
 
     Returns:
         Gene coefficient matrix of shape X x Y x M

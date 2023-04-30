@@ -27,17 +27,15 @@ def register_reference_tile(data_path, prefix="genes_round"):
         data_path (str): Relative path to data.
         prefix (str, optional): Directory prefix to register.
             Defaults to "genes_round".
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
     ops = np.load(ops_path, allow_pickle=True).item()
     nrounds = ops[prefix + "s"]
+    projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     stack = load_sequencing_rounds(
-        data_path,
-        ops["ref_tile"],
-        prefix=prefix,
-        suffix=ops["projection"],
-        nrounds=nrounds,
+        data_path, ops["ref_tile"], prefix=prefix, suffix=projection, nrounds=nrounds
     )
     (
         angles_within_channels,
@@ -76,6 +74,7 @@ def estimate_shifts_and_angles_by_coors(
         prefix (str, optional): Prefix of the hybridisation round. Defaults to "hybridisation_1_1".
         reference_prefix (str, optional): Prefix to use for loading precomputed
             scale factors between channels. Defaults to "barcode_round".
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
@@ -113,6 +112,7 @@ def estimate_shifts_by_coors(
         prefix (str, optional): Directory prefix to register. Defaults to "genes_round".
         suffix (str, optional): Filename suffix specifying which z-projection to use.
             Defaults to "fstack".
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_path = processed_path / data_path / "ops.npy"
@@ -123,11 +123,7 @@ def estimate_shifts_by_coors(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
-    (
-        _,
-        shifts_within_channels,
-        shifts_between_channels,
-    ) = estimate_shifts_for_tile(
+    (_, shifts_within_channels, shifts_between_channels) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
         reference_tforms["scales_between_channels"],
@@ -156,6 +152,7 @@ def correct_shifts(data_path, prefix):
     Args:
         data_path (str): Relative path to data.
         prefix (str): Directory prefix to use, e.g. "genes_round".
+
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
@@ -178,6 +175,7 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
         max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
             Tiles with larger absolute shifts will not be included in the fit but will
             still have their corrected shifts estimated. Defaults to 500.
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi = roi_dims[0]
@@ -203,16 +201,7 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
     shifts_within_channels_corrected = np.zeros(shifts_within_channels.shape)
     shifts_between_channels_corrected = np.zeros(shifts_between_channels.shape)
     # TODO: maybe make X in the loop above?
-    X = np.stack(
-        [
-            ys.flatten(),
-            xs.flatten(),
-            np.ones(
-                nx * ny,
-            ),
-        ],
-        axis=1,
-    )
+    X = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
 
     for ich in range(shifts_within_channels.shape[0]):
         for iround in range(shifts_within_channels.shape[1]):
@@ -258,6 +247,7 @@ def correct_hyb_shifts(data_path, prefix=None):
         data_path (str): Relative path to data.
         prefix (str): Directory prefix to use, e.g. "hybridisation_1_1". If None,
             processes all hybridisation acquisitions.
+
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
@@ -282,6 +272,7 @@ def correct_shifts_to_ref(data_path, prefix, fit_angle=False):
         prefix (str): Directory prefix to use, e.g. "genes_round".
         fit_angle (bool, optional): Fit the angle with robust regression if True,
             otherwise takes the median. Defaults to False
+
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
@@ -311,6 +302,7 @@ def correct_shifts_single_round_roi(
             still have their corrected shifts estimated. Defaults to 500.
         fit_angle (bool, optional): Fit the angle with robust regression if True,
             otherwise takes the median. Defaults to True
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
 
@@ -328,10 +320,13 @@ def correct_shifts_single_round_roi(
                     / "reg"
                     / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
+                shifts.append(tforms["shifts"])
+                angles.append(tforms["angles"])
             except:
                 print(f"couldn't load tile {roi} {ix} {iy}")
-            shifts.append(tforms["shifts"])
-            angles.append(tforms["angles"])
+                shifts.append(np.array([[np.nan, np.nan]]))
+                angles.append(np.array(np.nan, ndmin=2))
+
     shifts = np.stack(shifts, axis=2)
     angles = np.stack(angles, axis=1)
 
@@ -339,16 +334,7 @@ def correct_shifts_single_round_roi(
     shifts_corrected = np.zeros(shifts.shape)
     angles_corrected = np.zeros(angles.shape)
 
-    X = np.stack(
-        [
-            ys.flatten(),
-            xs.flatten(),
-            np.ones(
-                nx * ny,
-            ),
-        ],
-        axis=1,
-    )
+    X = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
 
     for ich in range(shifts.shape[0]):
         for idim in range(2):
@@ -385,6 +371,9 @@ def register_tile_to_ref(
     ref_prefix="genes_round",
     binarise_quantile=0.7,
     max_shift=None,
+    ref_tile_coors=None,
+    reg_channels=None,
+    ref_channels=None,
 ):
     """Register a single tile to the corresponding reference tile
 
@@ -397,51 +386,61 @@ def register_tile_to_ref(
         registration. Defaults to 0.7.
         max_shift (int, optional): Maximum shift allowed. None for no max. Defaults to
             None
+        ref_tile_coors (tuple, optional): Tile coordinates of the reference tile.
+            Usually not needed as it is assumed to be the same as the tile to register.
+            Defaults to None.
+        reg_channels (list, optional): Channels to use for registration. If None
+            will use all channels. Defaults to None
+        ref_channels (list, optional): Channels to use for registration. If None will
+            use all channels. Defaults to None
 
     Returns:
         angle (float): Rotation angle
         shifts (np.array): X and Y shifts
+
     """
-    ref_all_channels = pipeline.load_and_register_tile(
+    if ref_tile_coors is None:
+        ref_tile_coors = tile_coors
+    else:
+        print(f"Register to {ref_tile_coors}", flush=True)
+
+    ref_all_channels, _ = pipeline.load_and_register_tile(
         data_path=data_path,
-        tile_coors=tile_coors,
+        tile_coors=ref_tile_coors,
         prefix=ref_prefix,
         filter_r=False,
     )
-
-    target_all_channels = pipeline.load_and_register_tile(
-        data_path=data_path,
-        tile_coors=tile_coors,
-        prefix=reg_prefix,
-        filter_r=False,
+    reg_all_channels, _ = pipeline.load_and_register_tile(
+        data_path=data_path, tile_coors=tile_coors, prefix=reg_prefix, filter_r=False
     )
+
+    if ref_channels is not None:
+        ref_all_channels = ref_all_channels[:, :, ref_channels]
     ref = np.nanmean(ref_all_channels, axis=(2, 3))
-    target = np.nanmean(target_all_channels, axis=(2, 3))
     ref = ref > np.quantile(ref, binarise_quantile)
-    target = target > np.quantile(target, binarise_quantile)
+
+    if reg_channels is not None:
+        reg_all_channels = reg_all_channels[:, :, reg_channels]
+    reg = np.nanmean(reg_all_channels, axis=(2, 3))
+    reg = reg > np.quantile(reg, binarise_quantile)
+
     angles, shifts = estimate_rotation_translation(
-        ref,
-        target,
-        angle_range=1.0,
-        niter=3,
-        nangles=15,
-        min_shift=2,
-        max_shift=max_shift,
+        ref, reg, angle_range=1.0, niter=3, nangles=15, min_shift=2, max_shift=max_shift
     )
     print(f"Angle: {angles}, Shifts: {shifts}")
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     r, x, y = tile_coors
-    target = (
+    reg = (
         processed_path
         / data_path
         / "reg"
         / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
     )
-    print(f"Saving results to {target}")
+    print(f"Saving results to {reg}")
     # save also scale and make sure that all have the proper shape to match
     # multi-channel registrations and reuse the ransac function
     np.savez(
-        target,
+        reg,
         angles=np.array([[angles]]),
         shifts=np.array([shifts]),
         scales=np.array([[1]]),
@@ -449,16 +448,17 @@ def register_tile_to_ref(
     return angles, shifts
 
 
-def registered_spots(data_path, tile_coors, prefix, ref_prefix='genes_round_1_1'):
-    """Return spots in reference coordinates
+def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
+    """Use previously computed transformation matrices to align spots to reference coordinates.
 
     Args:
         data_path (str): Relative path to data
-        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates)
+        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates
         prefix (str): Prefix of spots to load
 
     Returns:
         pd.DataFrame: The spot dataframe with x and y registered to reference tile.
+
     """
     roi, tilex, tiley = tile_coors
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -471,7 +471,7 @@ def registered_spots(data_path, tile_coors, prefix, ref_prefix='genes_round_1_1'
     if ref_prefix.startswith(prefix):
         # it is the ref, no need to register
         return spots
-    
+
     tform2ref = np.load(
         processed_path
         / data_path

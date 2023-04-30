@@ -15,6 +15,7 @@ def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True):
         fname (str): save path for the TIFF
         dtype (str): datatype of the output image. Default to 'uint16'
         clip (bool): clip negative values before convertion
+
     """
     stack = stack.reshape((stack.shape[0], stack.shape[1], -1))
     if clip:
@@ -32,7 +33,7 @@ def save_ome_tiff_pyramid(
     subresolutions=3,
     dtype="uint16",
     verbose=True,
-    save_thumbnail=False
+    save_thumbnail=False,
 ):
     """Write single image plane as pyramidal ome-tiff
 
@@ -48,12 +49,13 @@ def save_ome_tiff_pyramid(
 
     Returns:
         np.array: Last level of the pyramid, most downsampled image
+        
     """
 
     if dtype not in ["uint8", "uint16"]:
         raise NotImplementedError("`dtype` must be uint8 or uint16")
     nbits = int(dtype[4:])
-    max_val = 2**nbits - 1
+    max_val = 2 ** nbits - 1
     if verbose:
         print("... Clipping array")
     image = np.clip(image, 0, max_val).astype(dtype)  # clip to avoid overflow

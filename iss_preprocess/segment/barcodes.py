@@ -1,185 +1,87 @@
 import numpy as np
-from skimage.morphology import binary_dilation
-from .roi import ROI
+import pandas as pd
+import cv2
+from pathlib import Path
+from flexiznam import PARAMETERS
+from .spots import make_spot_image
+from ..io import get_pixel_size
 
 
-def correlation_map(frames):
-    """
-    Compute the correlation map based on the provided fluorescence stack.
-
-    The correlation map value for each pixel is defined as its Pearson
-    correlation coefficient with the sum of surrounding pixels.
-
-    Args:
-        frames (numpy.ndarray): Z x X x Y stack. For the puposes of ROI detection
-            both the channels and rounds dimensions of the stack can be collapsed
-            into one.
-
-    Returns:
-        numpy.ndarray: X x Y correlation map.
-
-    """
-    cmap = np.zeros(frames.shape[1:])
-    for i in range(frames.shape[1]):
-        if 0 < i < (frames.shape[1] - 1):
-            for j in range(frames.shape[2]):
-                if 0 < j < (frames.shape[2] - 1):
-                    # centre pixel trace
-                    this_pixel = np.squeeze(frames[:, i, j])
-                    # trace of sum of surround pixels
-                    surr_pixels = np.squeeze(
-                        np.sum(np.sum(np.squeeze(
-                            frames[:, i - 1:i + 1, j - 1:j + 1]), 2), 1)) - this_pixel
-                    C = corrcoef(this_pixel, surr_pixels)
-                    cmap[i, j] = C
-    return cmap
-
-
-def corrcoef(x, y):
-    meanx = np.mean(x)
-    meany = np.mean(y)
-    x = x - meanx
-    y = y - meany
-    return np.sum(x * y) / np.sqrt(np.sum(x ** 2) * np.sum(y ** 2))
-
-
-def extract_roi(stackmap, frames, threshold=0.8, max_size=200):
-    """
-    Extract an ROI by iteratively growing it from a seed pixel defined by the
-    provided map image.
+def convolve_spots(data_path, roi, kernel_um, dot_threshold, output_shape=None):
+    """Generate an image of spot density by convolution
 
     Args:
-        stackmap (numpy.ndarray): the max value this image is used to select the
-            seed pixel.
-        frames (numpy.ndarray): Z x X x Y stack.
-        threshold (float): threshold for correlation between ROI and surrounding
-            pixels used to determine, which pixels to add.
-        max_size (int): maximum number of pixels in an ROI.
+        data_path (str): Relative path to data
+        roi (int): Roi ID
+        kernel_um (float): Width of the kernel for convolution in microns
+        dot_threshold (float): Threshold on the barcode dot_product_score to select
+            spots to use.
+        output_shape (tuple, optional): Shape of the output image. If not provided will
+            return the smallest shape that includes (0,0) and all spots. Defaults to
+            None.
 
     Returns:
-        numpy.ndarray: X x Y binary mask of pixels in the ROI.
-        numpy.array: Z timeseries of average fluorescence values in the ROI.
-        int: number of pixels in the ROI.
-        numpy.ndarray: the provided map with pixels in the ROI set to 0 so that
-            they are not used as seed pixels in the next round.
+        numpy.ndarray: 2D image of roi density
 
     """
-    roi = np.zeros(stackmap.shape, dtype=bool)
-    # position of pixel with highest value in the input map
-    seed_pixel = np.unravel_index(np.argmax(stackmap), shape=stackmap.shape)
-    # seed pixel is always included
-    roi[seed_pixel[0], seed_pixel[1]] = True
-    npix = 1
-    # repeat cycles of growing the ROI until either the maximum number of pixels
-    # is reached or no more pixels are added on a given cycle
-    pixels_added = True
-    while pixels_added and npix <= max_size:
-        # get the fluorescence trace of pixels currently included
-        roi_trace = np.mean(frames[:, roi], axis=1)
-        # select candidate pixels by dilating the ROI
-        candidate_pixels = np.bitwise_and(binary_dilation(roi), np.invert(roi))
-        pixels_added = False
-        # for each candidate pixel, check if it passes the threshold for inclusion
-        for candidate_pixel in np.argwhere(candidate_pixels):
-            this_pixel = np.squeeze(frames[:, candidate_pixel[0], candidate_pixel[1]])
-            if corrcoef(this_pixel, roi_trace) > threshold:
-                roi[candidate_pixel[0], candidate_pixel[1]] = True
-                npix += 1
-                pixels_added = True
-    # zero the map values for pixels included in the ROI
-    stackmap[roi] = 0
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    all_spots = pd.read_pickle(
+        processed_path / data_path / f"barcode_round_spots_{roi}.pkl"
+    )
+    spots = all_spots[all_spots.dot_product_score > dot_threshold]
 
-    roi_trace = np.mean(frames[:, roi], axis=1)
-    return (roi, roi_trace, npix)
+    # load barcode_round_1_1 but anything should work
+    pixel_size = get_pixel_size(data_path, prefix="barcode_round_1_1")
+    kernel_size = int(kernel_um / pixel_size)
+
+    return make_spot_image(
+        spots, kernel_size=kernel_size, dtype="single", output_shape=output_shape
+    )
 
 
-def detect_rois(stack, stackmap, min_size=4, max_size=500, threshold=0.5, nsteps=1000):
-    """
-    Iteratively detect ROIs using the `extract_roi` function.
+def segment_spot_image(
+    spot_image, binarise_threshold=5.0, distance_threshold=10.0, debug=False
+):
+    """Segment a spot image using opencv
 
     Args:
-        stack (numpy.ndarray): Z x X x Y image stack. For the puposes of ROI detection
-            both the channels and rounds dimensions of the stack can be collapsed
-            into one.
-        stackmap (numpy.ndarray): X x Y map image, such as a correlation or
-            variance map, used to seed ROI detection.
-        min_size (int): minimum number of pixels per ROI. Smaller ROIs are
-            discarded.
-        max_size (int): maximum number of pixels per ROI. The ROI detection
-            algorithm stops growing ROIs when this number is reached.
-        nsteps (int): number of times to call the `extract_roi` function.
+        spot_image (numpy.ndarray): 2D image to segment
+        binarise_threshold (float, optional): Threshold for initial binarisation. Will
+            cut isolated rolonies. Defaults to 5.
+        distance_threshold (float, optional): Distance threshold for initial
+            segmentation. Defaults to 10.
+        debug (bool, optional): Return intermediate results if True. Defaults to False.
 
     Returns:
-        list: list of ROI objects
-        numpy.ndarray: X x Y sum of all ROI masks.
+        numpy.ndarray or dict: Segmented image. Background is 0, borders -1, other numbers
+            label individual cells. If debug is True, return a dictionary with
+            intermediate results
 
     """
-
-    rois = []
-    for i in range(nsteps):
-        (roi_mask, trace, roi_size) = extract_roi(
-            stackmap,
-            stack,
-            threshold=threshold,
-            max_size=max_size
+    # binarise
+    mask = 255 * (spot_image > binarise_threshold).astype("uint8")
+    kernel = np.ones((5, 5), dtype="uint8") * 255
+    background = cv2.dilate(mask, kernel, iterations=10)
+    dst2nonzero = cv2.distanceTransform(mask, distanceType=cv2.DIST_L2, maskSize=5)
+    is_cell = 255 * (dst2nonzero > distance_threshold).astype("uint8")
+    ret, markers = cv2.connectedComponents(is_cell)
+    # make the background to 1
+    markers += 1
+    # and part to watershed to 0
+    markers[np.bitwise_xor(background, is_cell).astype(bool)] = 0
+    # watershed required a rgb image
+    stack = cv2.normalize(spot_image, None, 255, 0, cv2.NORM_MINMAX, cv2.CV_8U)
+    stack = cv2.cvtColor(stack, cv2.COLOR_GRAY2BGR)
+    water = cv2.watershed(stack, markers)
+    water -= 1  # put the background seed to 0.
+    water[water < 0] = 0  # put borders into background
+    if debug:
+        return dict(
+            binary=mask,
+            background=background,
+            seeds=is_cell,
+            distance=dst2nonzero,
+            initial_labels=markers,
+            watershed=water,
         )
-        if roi_size >= min_size:
-            rois.append(ROI(mask=roi_mask, trace=trace))
-
-    return rois
-
-
-def create_overlap_map(rois):
-    """
-    Create an overlap map counting the number of ROIs that include each pixel.
-
-    Args:
-        rois (list): list of ROI object
-
-    Returns:
-        numpy.ndarray
-
-    """
-    overlap_map = np.zeros(rois[0].shape)
-    for roi in rois:
-        overlap_map += roi.mask
-    return overlap_map
-
-
-def find_overlappers(rois, max_overlap=0.5):
-    """
-    Find overlapping ROIs and get rid of them.
-
-    Args:
-        rois (list): list of binary ROI masks.
-        max_overlap (float): maximum overlap for inclusion.
-
-    Returns:
-        list: list of booleans corresponding to ROIs to keep.
-
-    """
-
-    overlap_map = create_overlap_map(rois)
-    keep_rois = []
-    for roi in reversed(rois):  # start from the end of the list
-        if np.mean(overlap_map[roi.mask] > 1) > max_overlap:
-            keep_rois.append(False)
-            overlap_map[roi.mask] -= 1
-        else:
-            keep_rois.append(True)
-
-    return keep_rois[::-1]
-
-
-def remove_overlaps(rois):
-    """
-
-    Get rid of overlaps between roi masks.
-
-    Args:
-        rois:
-
-    """
-    overlap_map = create_overlap_map(rois)
-    for roi in rois:
-        roi.mask = np.logical_and(roi.mask, np.logical_not(overlap_map>1))
+    return water

@@ -1,19 +1,23 @@
-import subprocess, shlex
+import shlex
+import subprocess
 import warnings
+from pathlib import Path
+
 import numpy as np
 from flexiznam.config import PARAMETERS
-from pathlib import Path
-from . import ara_registration as ara_reg
+
+from ..image import apply_illumination_correction, tilestats_and_mean_image
 from ..io import (
-    write_stack,
-    load_metadata,
     get_roi_dimensions,
+    load_metadata,
     load_ops,
     load_tile_by_coors,
+    write_stack,
 )
-from ..image import tilestats_and_mean_image, apply_illumination_correction
-from .sequencing import load_and_register_sequencing_tile
+from ..decorators import updates_flexilims
+from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
+from .sequencing import load_and_register_sequencing_tile
 
 
 def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
@@ -31,11 +35,13 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             from `ops`. Default to True
 
     Returns:
-        np.array: A (X x Y x Nchannels x Nrounds) registered stack
+        numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
+        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after registration
+
     """
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
-
+    projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     if filter_r and isinstance(filter_r, bool):
         filter_r = ops["filter_r"]
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
@@ -50,7 +56,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
         stack, bad_pixels = load_and_register_sequencing_tile(
             data_path,
             tile_coors=tile_coors,
-            suffix=ops["projection"],
+            suffix=projection,
             prefix=acq_type,
             filter_r=filter_r,
             correct_channels=True,
@@ -66,17 +72,14 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             data_path,
             tile_coors=tile_coors,
             prefix=prefix,
-            suffix=ops["hybridisation_projection"],
+            suffix=projection,
             filter_r=filter_r,
             correct_illumination=True,
             correct_channels=True,
         )
     else:
         stack = load_tile_by_coors(
-            data_path,
-            tile_coors=tile_coors,
-            suffix=ops["projection"],
-            prefix=prefix,
+            data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
         )
         bad_pixels = np.zeros(stack.shape, dtype=bool)
         stack = apply_illumination_correction(data_path, stack, prefix)
@@ -86,9 +89,10 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     if stack.ndim == 3:
         stack = stack[..., np.newaxis]
 
-    return stack
+    return stack, bad_pixels
 
 
+@updates_flexilims(name_source="script")
 def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     """Start sbatch scripts for all tiles across all rois.
 
@@ -100,6 +104,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
         additional_args (str, optional): Additional environment variable to export
             to pass to the sbatch job. Should start with a leading comma.
             Defaults to "".
+
     """
     if roi_dims is None:
         roi_dims = get_roi_dimensions(data_path)
@@ -132,9 +137,11 @@ def create_single_average(
     data_path,
     subfolder,
     subtract_black,
+    n_batch,
     prefix_filter=None,
     suffix=None,
     combine_tilestats=False,
+    exclude_tiffs=None,
 ):
     """Create normalised average of all tifs in a single folder.
 
@@ -149,16 +156,19 @@ def create_single_average(
         data_path (str): Path to the acquisition folder, relative to `projects` folder
         subfolder (str): subfolder in folder_path containing the tifs to average.
         subtract_black (bool): Subtract black level (read from `ops`)
+        n_batch (int): Number of batch to average before taking their median.
         prefix_filter (str, optional): prefix name to filter tifs. Only file starting
             with `prefix` will be averaged. Defaults to None.
         suffix (str, optional): suffix to filter tifs. Defaults to None
         combine_tilestats (bool, optional): Compute new tilestats distribution of
             averaged images if True, combine pre-existing tilestats into one otherwise.
             Defaults to False
+        exclude_tiffs (list, optional): List of str filter to exclude tiffs from average
 
     Returns:
         np.array: Average image
         np.array: Distribution of pixel values
+
     """
 
     print("Creating single average")
@@ -168,10 +178,16 @@ def create_single_average(
     print(f"    subtract_black={subtract_black}")
     print(f"    prefix_filter={prefix_filter}")
     print(f"    suffix={suffix}")
-    print(f"    combine_tilestats={combine_tilestats}", flush=True)
+    print(f"    n_batch={n_batch}")
+    print(f"    combine_tilestats={combine_tilestats}")
+    print("\nArgs read from ops file")
+    ops = load_ops(data_path)
+    for ops_values in ["average_clip_value", "average_median_filter", "black_level"]:
+        print(f"    {ops_values}={ops[ops_values]}")
+    print("", flush=True)
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = load_ops(data_path)
+
     if prefix_filter is None:
         target_file = f"{subfolder}_average.tif"
     else:
@@ -188,12 +204,14 @@ def create_single_average(
         processed_path / data_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
+        n_batch=n_batch,
         max_value=ops["average_clip_value"],
         verbose=True,
         median_filter=ops["average_median_filter"],
         normalise=True,
         suffix=suffix,
         combine_tilestats=combine_tilestats,
+        exclude_tiffs=exclude_tiffs,
     )
     write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
     np.save(target_stats, tilestats)
@@ -201,8 +219,10 @@ def create_single_average(
     return av_image, tilestats
 
 
+@updates_flexilims
 def create_all_single_averages(
     data_path,
+    n_batch,
     todo=("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"),
 ):
     """Average all tiffs in each folder and then all folders by acquisition type
@@ -211,6 +231,7 @@ def create_all_single_averages(
         data_path (str): Path to data, relative to project.
         todo (tuple): type of acquisition to process. Default to `("genes_rounds",
             "barcode_rounds", "fluorescence", "hybridisation")`
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
@@ -238,10 +259,9 @@ def create_all_single_averages(
         if not data_folder.is_dir():
             warnings.warn("{0} does not exists. Skipping".format(data_folder / folder))
             continue
+        projection = ops[f"{folder.split('_')[0].lower()}_projection"]
         export_args = dict(
-            DATAPATH=data_path,
-            SUBFOLDER=folder,
-            SUFFIX=ops["projection"],
+            DATAPATH=data_path, SUBFOLDER=folder, SUFFIX=projection, N_BATCH=n_batch
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (
@@ -252,33 +272,26 @@ def create_all_single_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-            shlex.split(command),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
+            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
 
 
-def create_grand_averages(
-    data_path,
-    prefix_todo=("genes_round", "barcode_round"),
-):
+@updates_flexilims
+def create_grand_averages(data_path, prefix_todo=("genes_round", "barcode_round")):
     """Average single acquisition averages into grand average
 
     Args:
         data_path (str): Path to the folder, relative to `projects` folder
         prefix_todo (tuple, optional): List of str, names of the tifs to average.
             Defaults to ("genes_round", "barcode_round").
+
     """
     subfolder = "averages"
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "create_grand_average.sh"
     )
     for kind in prefix_todo:
-        export_args = dict(
-            DATAPATH=data_path,
-            SUBFOLDER=subfolder,
-            PREFIX=kind,
-        )
+        export_args = dict(DATAPATH=data_path, SUBFOLDER=subfolder, PREFIX=kind)
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (
             args
@@ -288,18 +301,11 @@ def create_grand_averages(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-            shlex.split(command),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
+            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
 
 
-def overview_for_ara_registration(
-    data_path,
-    rois_to_do=None,
-    bulb_first=True,
-    sigma_blur=10,
-):
+def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
     """Generate a stitched overview for registering to the ARA
 
     ABBA requires pyramidal OME-TIFF with resolution information. We will generate such
@@ -311,10 +317,9 @@ def overview_for_ara_registration(
             ROIs
         max_pixel_size (float, optional): Pixel size in um for the highest level of the
             pyramid. None to keep original size. Defaults to 1
-        bulb_first (bool, optional): Was the first slice closer to the olfactory
-            bulb than the last? Defaults to True.
         sigma_blur (float, optional): sigma of the gaussian filter, in downsampled
             pixel size. Defaults to 10
+
     """
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -328,7 +333,7 @@ def overview_for_ara_registration(
     if rois_to_do is None:
         rois_to_do = metadata["ROI"].keys()
     roi_slice_pos_um, min_step = ara_reg.find_roi_position_on_cryostat(
-        data_path=data_path, bulb_first=bulb_first
+        data_path=data_path
     )
     roi2section_order = {
         roi: int(pos / min_step) for roi, pos in roi_slice_pos_um.items()
@@ -353,7 +358,5 @@ def overview_for_ara_registration(
         command = f"sbatch {args} {script_path}"
         print(command)
         subprocess.Popen(
-            shlex.split(command),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
+            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
