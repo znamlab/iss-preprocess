@@ -136,22 +136,19 @@ def estimate_channel_correction_hybridisation(data_path):
         np.savez(save_path, pixel_dist=pixel_dist, norm_factors=norm_factors)
 
 
-def setup_hyb_spot_calling(data_path, score_thresh=0, vis=True):
+def setup_hyb_spot_calling(data_path, vis=True):
     """Prepare and save bleedthrough matrices for hybridisation rounds.
 
     Args:
         data_path (str): Relative path to data
-        score_thresh (int, optional): Threshold to apply during scaled k-means clustering.
-            Spots, whose dot product is below this threshold, will be not contribute
-            to the estimate of the mean. Defaults to 0.
         vis (bool, optional): Whether to generate diagnostic plots. Defaults to True.
 
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     metadata = load_metadata(data_path)
     for hyb_round in metadata["hybridisation"].keys():
-        cluster_means, _, genes = hyb_spot_cluster_means(
-            data_path, hyb_round, score_thresh=score_thresh
+        cluster_means, spot_colors, cluster_inds, genes = hyb_spot_cluster_means(
+            data_path, hyb_round
         )
         if vis:
             plt.figure()
@@ -159,11 +156,18 @@ def setup_hyb_spot_calling(data_path, score_thresh=0, vis=True):
             plt.title(hyb_round)
             plt.yticks(ticks=range(cluster_means.shape[0]), labels=genes)
         save_path = processed_path / data_path / f"{hyb_round}_cluster_means.npz"
-        np.savez(save_path, cluster_means=cluster_means, genes=genes)
+        np.savez(
+            save_path,
+            cluster_means=cluster_means,
+            genes=genes,
+            spot_colors=spot_colors,
+            cluster_inds=cluster_inds,
+        )
 
 
 def hyb_spot_cluster_means(
-    data_path, prefix, score_thresh=0,
+    data_path,
+    prefix,
 ):
     """Estimate bleedthrough matrices for hybridisation spots. Spot
     colors for each dye are initialized based on the metadata in the
@@ -174,9 +178,6 @@ def hyb_spot_cluster_means(
     Args:
         data_path (str): Relative path to data.
         prefix (str): Prefix of hybridisation round, e.g. "hybridisation_1_1".
-        score_thresh (int, optional): Threshold to apply during scaled k-means clustering.
-            Spots, whose dot product is below this threshold, will not contribute
-            to the estimate of the mean. Defaults to 0.
 
     Returns:
         numpy.ndarray: Nprobes x Nch bleedthrough matrix.
@@ -217,12 +218,13 @@ def hyb_spot_cluster_means(
         all_spots.append(spots)
 
     all_spots = pd.concat(all_spots, ignore_index=True)
-    x = np.stack(all_spots["trace"], axis=2)
+    spot_colors = np.stack(all_spots["trace"], axis=2)
 
-    cluster_means, _, _, _, _, _ = scaled_k_means(
-        x[0, :, :].T, init_spot_colors, score_thresh=score_thresh
+    cluster_means, _, cluster_inds, _, _, _ = scaled_k_means(
+        spot_colors[0, :, :].T, init_spot_colors, score_thresh=ops["hybridisation_cluster_score_thresh"]
     )
-    return cluster_means, all_spots, genes
+
+    return cluster_means, spot_colors, cluster_inds, genes
 
 
 def extract_hyb_spots_all(data_path):
