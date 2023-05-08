@@ -607,3 +607,13 @@ def setup_flexilims(path):
             flexilims_session=flm_session,
         )
         parent_id = sample["id"]
+
+
+@click.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def setup_channel_correction(path):
+    """Setup channel correction for barcode, genes and hybridisation rounds"""
+    from iss_preprocess.pipeline import setup_channel_correction
+    setup_channel_correction(path)
+    click.echo("Channel correction setup complete.")
+
