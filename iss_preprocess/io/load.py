@@ -53,10 +53,12 @@ def load_ops(data_path):
         default_ops = flatten_dict(yaml.safe_load(f))
     if not ops_fname.exists():
         print("ops.yml not found, using defaults")
-        ops = default_ops.copy()
+        ops = default_ops
     else:
         with open(ops_fname, "r") as f:
             ops = flatten_dict(yaml.safe_load(f))
+        # for any keys that are not in the ops file, use the defaults
+        ops = dict(default_ops, **ops)
 
     black_level_fname = processed_path / data_path / "black_level.npy"
     if black_level_fname.exists():
@@ -76,10 +78,6 @@ def load_ops(data_path):
             "barcode_rounds": metadata["barcode_rounds"],
         }
     )
-    # for any keys that are not in the ops file, use the defaults
-    for key in default_ops.keys():
-        if key not in ops.keys():
-            ops[key] = default_ops[key]
             
     return ops
 
