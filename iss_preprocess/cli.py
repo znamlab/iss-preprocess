@@ -155,6 +155,15 @@ def setup_barcodes(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def setup_hybridisation(path):
+    """Estimate bleedthrough matrices for hybridisation spots."""
+    from iss_preprocess.pipeline import setup_hyb_spot_calling
+    
+    setup_hyb_spot_calling(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
@@ -607,3 +616,13 @@ def setup_flexilims(path):
             flexilims_session=flm_session,
         )
         parent_id = sample["id"]
+
+
+@click.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def setup_channel_correction(path):
+    """Setup channel correction for barcode, genes and hybridisation rounds"""
+    from iss_preprocess.pipeline import setup_channel_correction
+    setup_channel_correction(path)
+    click.echo("Channel correction setup complete.")
+

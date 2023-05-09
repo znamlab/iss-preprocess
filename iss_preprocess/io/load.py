@@ -35,28 +35,35 @@ def load_ops(data_path):
         dict: Options, see config/defaults_ops.yaml for description
 
     """
+    def flatten_dict(d):
+        flattened_dict = {}
+        for key, value in d.items():
+            if isinstance(value, dict):
+                for subkey, subvalue in value.items():
+                    flattened_dict[subkey] = subvalue
+            else:
+                flattened_dict[key] = value
+        return flattened_dict
+    
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_fname = processed_path / data_path / "ops.yml"
+
+    default_ops_fname = Path(__file__).parent.parent / "config" / "default_ops.yml"
+    with open(default_ops_fname, "r") as f:
+        default_ops = flatten_dict(yaml.safe_load(f))
     if not ops_fname.exists():
         print("ops.yml not found, using defaults")
-        ops_fname = Path(__file__).parent.parent / "config" / "default_ops.yml"
-    with open(ops_fname, "r") as f:
-        ops = yaml.safe_load(f)
-    flattened_ops = {}
-    for key, value in ops.items():
-        if isinstance(value, dict):
-            for subkey, subvalue in value.items():
-                flattened_ops[subkey] = subvalue
-        else:
-            flattened_ops[key] = value
-    ops = flattened_ops
+        ops = default_ops.copy()
+    else:
+        with open(ops_fname, "r") as f:
+            ops = flatten_dict(yaml.safe_load(f))
 
     black_level_fname = processed_path / data_path / "black_level.npy"
     if black_level_fname.exists():
         ops["black_level"] = np.load(black_level_fname)
     else:
         print("black level not found, computing from dark frame")
-        dark_fname = processed_path / flattened_ops["dark_frame_path"]
+        dark_fname = processed_path / ops["dark_frame_path"]
         dark_frames = load_stack(dark_fname)
         ops["black_level"] = dark_frames.mean(axis=(0, 1))
         np.save(black_level_fname, ops["black_level"])
@@ -69,6 +76,11 @@ def load_ops(data_path):
             "barcode_rounds": metadata["barcode_rounds"],
         }
     )
+    # for any keys that are not in the ops file, use the defaults
+    for key in default_ops.keys():
+        if key not in ops.keys():
+            ops[key] = default_ops[key]
+            
     return ops
 
 
