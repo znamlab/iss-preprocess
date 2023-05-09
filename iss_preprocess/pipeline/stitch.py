@@ -151,6 +151,7 @@ def register_within_acquisition(
             data_path, prefix, saved_shifts=shifts, bytile_shifts=output
         )
 
+    target.parent.mkdir(exist_ok=True)
     np.savez(
         target, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape
     )
