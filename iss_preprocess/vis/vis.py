@@ -20,7 +20,7 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         figs: list of figures
     
     """
-    nch = cluster_means[0].shape[0]
+    nclusters, nch = cluster_means[0].shape
     nrounds = len(cluster_means)
 
     figs = []
@@ -37,8 +37,8 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         g.figure.set_facecolor("w")
         figs.append(g.figure)
 
-    fig, ax = plt.subplots(nrows=1, ncols=nch, facecolor="w", label="cluster_means")
-    for icluster in range(nch):
+    fig, ax = plt.subplots(nrows=1, ncols=nclusters, facecolor="w", label="cluster_means")
+    for icluster in range(nclusters):
         plt.sca(ax[icluster])
         plt.imshow(np.stack(cluster_means, axis=2)[icluster, :, :])
         plt.xlabel("rounds")

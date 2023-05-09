@@ -2,6 +2,7 @@ import subprocess, shlex
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import iss_preprocess as iss
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
@@ -163,6 +164,7 @@ def setup_hyb_spot_calling(data_path, vis=True):
             spot_colors=spot_colors,
             cluster_inds=cluster_inds,
         )
+    iss.pipeline.check_hybridisation_setup(data_path)
 
 
 def hyb_spot_cluster_means(
