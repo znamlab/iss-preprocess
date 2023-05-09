@@ -167,10 +167,7 @@ def setup_hyb_spot_calling(data_path, vis=True):
     iss.pipeline.check_hybridisation_setup(data_path)
 
 
-def hyb_spot_cluster_means(
-    data_path,
-    prefix,
-):
+def hyb_spot_cluster_means(data_path, prefix):
     """Estimate bleedthrough matrices for hybridisation spots. Spot
     colors for each dye are initialized based on the metadata in the
     hybridisation probe list.
@@ -223,7 +220,9 @@ def hyb_spot_cluster_means(
     spot_colors = np.stack(all_spots["trace"], axis=2)
 
     cluster_means, _, cluster_inds, _, _, _ = scaled_k_means(
-        spot_colors[0, :, :].T, init_spot_colors, score_thresh=ops["hybridisation_cluster_score_thresh"]
+        spot_colors[0, :, :].T,
+        init_spot_colors,
+        score_thresh=ops["hybridisation_cluster_score_thresh"],
     )
 
     return cluster_means, spot_colors, cluster_inds, genes
