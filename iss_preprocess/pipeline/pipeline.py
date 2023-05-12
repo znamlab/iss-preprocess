@@ -2,10 +2,10 @@ import shlex
 import subprocess
 import warnings
 from pathlib import Path
-
 import numpy as np
 from flexiznam.config import PARAMETERS
 
+import iss_preprocess as iss
 from ..image import apply_illumination_correction, tilestats_and_mean_image
 from ..io import (
     get_roi_dimensions,
@@ -360,3 +360,28 @@ def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
         subprocess.Popen(
             shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
         )
+
+
+def setup_channel_correction(data_path):
+    """Setup channel correction for barcode, genes and hybridisation rounds
+        
+    Args:
+        data_path (str): Relative path to the data folder
+        
+    """
+    ops = load_ops(data_path)
+    iss.pipeline.estimate_channel_correction(
+        data_path,
+        prefix="barcode_round",
+        nrounds=ops["barcode_rounds"],
+        fit_norm_factors=ops["fit_channel_correction"],
+    )
+
+    iss.pipeline.estimate_channel_correction(
+        data_path,
+        prefix="genes_round",
+        nrounds=ops["genes_rounds"],
+        fit_norm_factors=ops["fit_channel_correction"],
+    )
+
+    iss.pipeline.estimate_channel_correction_hybridisation(data_path)

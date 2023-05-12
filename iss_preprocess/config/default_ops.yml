@@ -73,6 +73,8 @@ hybridisation:
   hybridisation_detection_threshold: 0.5 
   hybridisation_correct_channels: true
   hybridisation_projection: max
+  hybridisation_cluster_score_thresh: 0.0
+
 
 # Detection of mCherry+ cells
 mcherry:
