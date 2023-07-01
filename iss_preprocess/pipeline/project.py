@@ -20,7 +20,7 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
             
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = get_roi_dimensions(data_path)
+    roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
