@@ -8,6 +8,7 @@ from flexiznam import PARAMETERS
 from . import stitch
 import cv2
 from ..io import (
+    load_ops,
     load_section_position,
     load_metadata,
     load_stack,
@@ -230,7 +231,7 @@ def overview_single_roi(
     registration_folder = processed_path / data_path / "register_to_ara"
 
     print("Finding shifts")
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
 
     print("Finding pixel size")
     pixel_size = get_pixel_size(data_path, reference_prefix)

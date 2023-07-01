@@ -6,6 +6,7 @@ import cv2
 from pathlib import Path
 from flexiznam import PARAMETERS
 import iss_preprocess as iss
+from ..io import load_ops
 from iss_preprocess.pipeline import ara_registration as ara_reg
 
 
@@ -196,7 +197,7 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     reg_metadata = ara_reg.load_registration_reference_metadata(data_path, roi=roi)
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops = np.load(processed_path / data_path / "ops.npy", allow_pickle=True).item()
+    ops = load_ops(data_path)
 
     stitched_stack = iss.pipeline.stitch_registered(
         data_path, reference_prefix, roi=roi, channels=ops["ref_ch"],

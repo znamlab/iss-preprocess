@@ -8,11 +8,16 @@ from ..reg import (
     estimate_shifts_for_tile,
     estimate_shifts_and_angles_for_tile,
     estimate_rotation_translation,
-    make_transform,
+    make_transform
 )
 from . import pipeline
 from .sequencing import load_sequencing_rounds
-from ..io import load_tile_by_coors, load_metadata, load_ops, get_roi_dimensions
+from ..io import (
+    load_tile_by_coors,
+    load_metadata,
+    load_ops,
+    get_roi_dimensions
+)
 
 
 def register_reference_tile(data_path, prefix="genes_round"):
@@ -30,8 +35,7 @@ def register_reference_tile(data_path, prefix="genes_round"):
 
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops_path = processed_path / data_path / "ops.npy"
-    ops = np.load(ops_path, allow_pickle=True).item()
+    ops = load_ops(data_path)
     nrounds = ops[prefix + "s"]
     projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     stack = load_sequencing_rounds(
@@ -77,8 +81,7 @@ def estimate_shifts_and_angles_by_coors(
 
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops_path = processed_path / data_path / "ops.npy"
-    ops = np.load(ops_path, allow_pickle=True).item()
+    ops = load_ops(data_path)
     tforms_path = processed_path / data_path / f"tforms_{reference_prefix}.npz"
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
@@ -115,8 +118,7 @@ def estimate_shifts_by_coors(
 
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops_path = processed_path / data_path / "ops.npy"
-    ops = np.load(ops_path, allow_pickle=True).item()
+    ops = load_ops(data_path)
     nrounds = ops[prefix + "s"]
     tforms_path = processed_path / data_path / f"tforms_{prefix}.npz"
     stack = load_sequencing_rounds(
