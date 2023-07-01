@@ -368,11 +368,11 @@ def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
     if any([x is None for x in [roi, tilex, tiley]]):
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
-
+        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
         batch_process_tiles(
             path,
             "register_tile_to_ref",
-            f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}",
+            additional_args=additional_args,
         )
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
