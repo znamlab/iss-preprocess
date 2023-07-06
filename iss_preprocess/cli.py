@@ -617,7 +617,7 @@ def setup_flexilims(path):
         parent_id = sample["id"]
 
 
-@click.command()
+@cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def setup_channel_correction(path):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
@@ -627,7 +627,7 @@ def setup_channel_correction(path):
     click.echo("Channel correction setup complete.")
 
 
-@click.command()
+@cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--genes", is_flag=True, help="Whether to call spots for genes.")
 @click.option("--barcodes", is_flag=True, help="Whether to call spots for barcodes.")
