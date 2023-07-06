@@ -301,18 +301,7 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     spots = detect_spots(
         np.max(stack, axis=2), threshold=ops["hybridisation_detection_threshold"]
     )
-    if not spots.shape[0]:
-        print(f"no spots detected in tile {tile_coors}")
-        spots = pd.DataFrame(columns=['y', 'x', 'size',
-                                    'trace', 'cluster',
-                                    'gene', 'score',
-                                    'mean_intensity'])
-        save_dir = processed_path / data_path / "spots"
-        save_dir.mkdir(parents=True, exist_ok=True)
-        spots.to_pickle(
-            save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
-        )
-    else:
+    if spots.shape[0]:
         stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
         spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
         iss.pipeline.extract_spots(spots, stack, ops["spot_extraction_radius"])
@@ -324,8 +313,22 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
         spots["gene"] = clusters["genes"][cluster_ind]
         spots["score"] = np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind])
         spots["mean_intensity"] = [np.max(trace) for trace in spots["trace"]]
-        save_dir = processed_path / data_path / "spots"
-        save_dir.mkdir(parents=True, exist_ok=True)
-        spots.to_pickle(
-            save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+    else:
+        print(f"No spots detected in tile {tile_coors} for round {prefix}")
+        spots = pd.DataFrame(
+            columns=[
+                "y",
+                "x",
+                "size",
+                "trace",
+                "cluster",
+                "gene",
+                "score",
+                "mean_intensity",
+            ]
         )
+    save_dir = processed_path / data_path / "spots"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    spots.to_pickle(
+        save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+    )
