@@ -385,3 +385,30 @@ def setup_channel_correction(data_path):
     )
 
     iss.pipeline.estimate_channel_correction_hybridisation(data_path)
+
+
+def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
+    """Master method to run spot calling. Must be run after `iss estimate-shifts`,
+    `iss estimate-hyb-shifts`, `iss setup-channel-correction`, and `iss create-grand-averages`.
+
+    Args:
+        data_path (str): Relative path to the data folder
+        genes (bool, optional): Run genes spot calling. Defaults to True.
+        barcodes (bool, optional): Run barcode calling. Defaults to True.
+        hybridisation (bool, optional): Run hybridisation spot calling. Defaults to True.
+
+    """
+    if genes:
+        iss.pipeline.correct_shifts(data_path, prefix="genes_round")
+        iss.pipeline.setup_omp(data_path)
+        batch_process_tiles(data_path, "extract_tile")
+
+    if barcodes:
+        iss.pipeline.correct_shifts(data_path, prefix="barcode_round")
+        iss.pipeline.setup_barcode_calling(data_path)
+        batch_process_tiles(data_path, "basecall_tile")
+
+    if hybridisation:
+        iss.pipeline.correct_hyb_shifts(data_path)
+        iss.pipeline.setup_hyb_spot_calling(data_path)
+        iss.pipeline.extract_hyb_spots_all(data_path)
