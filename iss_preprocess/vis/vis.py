@@ -10,7 +10,7 @@ import pandas as pd
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
     """
     Plot the cluster means and the spot colors.
-    
+
     Args:
         cluster_means: list of nch x nclusters cluster means.
         spot_colors: round x channels x spots array of spot colors.
@@ -18,7 +18,7 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
 
     Returns:
         figs: list of figures
-    
+
     """
     nclusters, nch = cluster_means[0].shape
     nrounds = len(cluster_means)
@@ -37,7 +37,9 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         g.figure.set_facecolor("w")
         figs.append(g.figure)
 
-    fig, ax = plt.subplots(nrows=1, ncols=nclusters, facecolor="w", label="cluster_means")
+    fig, ax = plt.subplots(
+        nrows=1, ncols=nclusters, facecolor="w", label="cluster_means"
+    )
     for icluster in range(nclusters):
         plt.sca(ax[icluster])
         plt.imshow(np.stack(cluster_means, axis=2)[icluster, :, :])
@@ -53,10 +55,10 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
 def plot_spot_sign_image(spot_image):
     """
     Plot the average spot sign image.
-    
+
     Args:
         spot_image: X x Y array of average spot sign values.
-    
+
     """
     plt.figure(figsize=(5, 5), facecolor="white")
     plt.pcolormesh(
@@ -190,14 +192,14 @@ def plot_gene_matrix(gene_df, cmap="inferno", vmax=2):
 def plot_gene_templates(gene_dict, gene_names, BASES, nrounds=7, nchannels=4):
     """
     Plot gene templates.
-    
+
     Args:
         gene_dict (ndarray): X x G matrix of gene templates. X = nrounds * nchannels
         gene_names (list): list of gene names
         BASES (list): list of base names
         nrounds (int): number of rounds. Default: 7
         nchannels (int): number of channels. Default: 4
-        
+
     """
     fig = plt.figure(figsize=(10, 20), facecolor="w", label="gene_templates")
     for igene, gene in enumerate(gene_names):
@@ -234,14 +236,14 @@ def add_bases_legend(extent, channel_colors):
 def round_to_rgb(stack, iround, extent, channel_colors, vmax):
     """
     Convert a single sequencing round to RGB image.
-    
+
     Args:
         stack (ndarray): X x Y x C x R stack
         iround (int): sequencing round to visualize
         extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
         channel_colors (list): list of colors for each channel.
         vmax (float): maximum value for each channel.
-        
+
     Returns:
         RGB image.
     """
@@ -261,14 +263,14 @@ def plot_sequencing_rounds(
 ):
     """
     Plot sequencing rounds as RGB images.
-    
+
     Args:
         stack (ndarray): X x Y x C x R stack
         vmax (float): maximum value for each channel.
         extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
-        channel_colors (list): list of colors for each channel. 
+        channel_colors (list): list of colors for each channel.
             Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
-        
+
     """
     nrounds = stack.shape[3]
 
@@ -292,7 +294,7 @@ def animate_sequencing_rounds(
 ):
     """
     Animate sequencing rounds as RGB images amd save as an MPEG file.
-    
+
     Args:
         stack (ndarray): X x Y x C x R stack
         savefname (str): filename to save animation
@@ -300,7 +302,7 @@ def animate_sequencing_rounds(
         extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
         channel_colors (list): list of colors for each channel.
             Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
-    
+
     """
     fig = plt.figure(figsize=(10, 10))
     fig.patch.set_facecolor("black")
@@ -316,4 +318,3 @@ def animate_sequencing_rounds(
     anim = FuncAnimation(fig, animate, frames=nrounds, interval=200)
     plt.show()
     anim.save(savefname, writer=FFMpegWriter(fps=2))
-
