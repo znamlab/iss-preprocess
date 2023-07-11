@@ -23,16 +23,21 @@ def check_hybridisation_setup(data_path):
     metadata = iss.io.load_metadata(data_path)
     for hyb_round in metadata["hybridisation"].keys():
         reference_hyb_spots = np.load(
-            processed_path / data_path /f"{hyb_round}_cluster_means.npz", allow_pickle=True,
+            processed_path / data_path / f"{hyb_round}_cluster_means.npz",
+            allow_pickle=True,
         )
         figs = iss.vis.plot_clusters(
-            [reference_hyb_spots["cluster_means"], ],
+            [
+                reference_hyb_spots["cluster_means"],
+            ],
             reference_hyb_spots["spot_colors"],
-            [reference_hyb_spots["cluster_inds"], ],
+            [
+                reference_hyb_spots["cluster_inds"],
+            ],
         )
         for fig in figs:
             fig.savefig(figure_folder / f"{hyb_round}_{fig.get_label()}.png")
-        
+
 
 def check_barcode_calling(data_path):
     """Plot the barcode cluster scatter plots and cluster means and save them in the
@@ -40,13 +45,14 @@ def check_barcode_calling(data_path):
 
     Args:
         data_path (str): Relative path to data folder
-        
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     figure_folder = processed_path / data_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     reference_barcode_spots = np.load(
-        processed_path / data_path / "reference_barcode_spots.npz", allow_pickle=True,
+        processed_path / data_path / "reference_barcode_spots.npz",
+        allow_pickle=True,
     )
     cluster_means = np.load(processed_path / data_path / "barcode_cluster_means.npy")
     figs = iss.vis.plot_clusters(
@@ -59,18 +65,19 @@ def check_barcode_calling(data_path):
 
 
 def check_omp_setup(data_path):
-    """Plot the OMP setup, including clustering of reference gene spots and 
+    """Plot the OMP setup, including clustering of reference gene spots and
     gene templates, and save them in the figures folder
 
     Args:
         data_path (str): Relative path to data folder
-        
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     figure_folder = processed_path / data_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     reference_gene_spots = np.load(
-        processed_path / data_path / "reference_gene_spots.npz", allow_pickle=True,
+        processed_path / data_path / "reference_gene_spots.npz",
+        allow_pickle=True,
     )
     omp_stat = np.load(processed_path / data_path / "gene_dict.npz", allow_pickle=True)
     figs = iss.vis.plot_clusters(
