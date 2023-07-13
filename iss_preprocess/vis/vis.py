@@ -240,13 +240,17 @@ def round_to_rgb(stack, iround, extent, channel_colors, vmax):
     Args:
         stack (ndarray): X x Y x C x R stack
         iround (int): sequencing round to visualize
-        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
+        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]] or None, in which
+            case the full image is used.
         channel_colors (list): list of colors for each channel.
         vmax (float): maximum value for each channel.
 
     Returns:
         RGB image.
     """
+    if extent is None:
+        extent = ((0, stack.shape[0]), (0, stack.shape[1]))
+
     return to_rgb(
         stack[extent[0][0] : extent[0][1], extent[1][0] : extent[1][1], :, iround],
         channel_colors,
@@ -266,9 +270,10 @@ def plot_sequencing_rounds(
 
     Args:
         stack (ndarray): X x Y x C x R stack
-        vmax (float): maximum value for each channel.
-        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
-        channel_colors (list): list of colors for each channel.
+        vmax (float, optional): maximum value for each channel. Default: 0.5
+        extent (list, optional): extent of plot. [[xmin, xmax], [ymin, ymax]]. If None,
+            use full image. Default: ((0, 2000), (0, 2000))
+        channel_colors (list, optional): list of colors for each channel.
             Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
 
     """

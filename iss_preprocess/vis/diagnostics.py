@@ -1,13 +1,18 @@
 from natsort import natsorted
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 import cv2
 from pathlib import Path
 from flexiznam import PARAMETERS
 import iss_preprocess as iss
+import flexiznam as flz
 from ..io import load_ops
 from iss_preprocess.pipeline import ara_registration as ara_reg
+from iss_preprocess.pipeline import sequencing
+from iss_preprocess.vis import round_to_rgb
 
 
 def plot_correction_images(
@@ -200,7 +205,10 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     ops = load_ops(data_path)
 
     stitched_stack = iss.pipeline.stitch_registered(
-        data_path, reference_prefix, roi=roi, channels=ops["ref_ch"],
+        data_path,
+        reference_prefix,
+        roi=roi,
+        channels=ops["ref_ch"],
     ).astype(np.single)
 
     fig = plt.figure()
@@ -217,7 +225,9 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     )
 
     atlas_utils.plot_borders_and_areas(
-        ax, area_ids, border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
+        ax,
+        area_ids,
+        border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
     )
 
     ax.set_ylim(ax.get_ylim()[::-1])
@@ -277,10 +287,10 @@ def plot_tilestats_distributions(
             ax.set_ylim(-0.4, 0.4)
 
     for ax in fig.axes:
-        ax.axvline(2 ** 12, color="k", zorder=-10)
+        ax.axvline(2**12, color="k", zorder=-10)
         for c, i in enumerate(np.argsort(camera_order)):
             ax.axvline(ops["black_level"][i], color=colors[c], zorder=-10)
-        ax.set_xlim(np.min(ops["black_level"]) - 2, 2 ** 12)
+        ax.set_xlim(np.min(ops["black_level"]) - 2, 2**12)
         ax.semilogx()
     ax.legend()
     fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)
@@ -292,6 +302,8 @@ def plot_matrix_difference(
     col_labels=None,
     line_labels=("Raw", "Corrected", "Difference"),
     range_min=(5, 5, 0.1),
+    range_max=None,
+    axes=None,
 ):
     """Plot the raw, corrected matrices and their difference
 
@@ -304,13 +316,21 @@ def plot_matrix_difference(
             Defaults to ('Raw', 'Corrected', 'Difference').
         range_min (tuple, optional): N features long tuple of minimal range for color
             bars. Defaults to (5,5,0.1)
+        range_max (tuple, optional): N features long tuple of maximal range for color
+            bars. Defaults to None, no max.
+        axes (np.array, optional): 3 x n features array of axes to plot into. Defaults
+            to None.
 
     Returns:
         plt.Figure: Figure instance
     """
     ncols = raw.shape[0]
-    fig, axes = plt.subplots(3, ncols)
-    fig.set_size_inches((ncols * 3.5, 6))
+    if axes is None:
+        fig, axes = plt.subplots(3, ncols)
+        fig.set_size_inches((ncols * 3.5, 6))
+        fig.subplots_adjust(top=0.9, wspace=0.15, hspace=0)
+    else:
+        fig = axes[0, 0].figure
 
     for col in range(ncols):
         vmin = corrected[col].min()
@@ -318,6 +338,10 @@ def plot_matrix_difference(
         rng = vmax - vmin
         if rng < range_min[col]:
             rng = range_min[col]
+            vmin = vmin - rng
+            vmax = vmax + rng
+        elif (range_max is not None) and (rng > range_max[col]):
+            rng = range_max[col]
             vmin = vmin - rng
             vmax = vmax + rng
         im = axes[0, col].imshow(raw[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5)
@@ -346,5 +370,102 @@ def plot_matrix_difference(
     if line_labels is not None:
         for il, label in enumerate(line_labels):
             axes[il, 0].set_ylabel(label, fontsize=11)
-    fig.subplots_adjust(top=0.9, wspace=0.15, hspace=0)
     return fig
+
+
+def check_rolonies_registration(
+    savefname,
+    data_path,
+    tile_coors,
+    n_rolonies,
+    prefix="genes_round",
+    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    vmax=0.5,
+    correct_illumination=True,
+    corrected_shifts=True,
+):
+    """Check the registration of rolonies
+
+    Will plot a random selection of rolonies overlaid on the spot sign image circles.
+
+    Args:
+        savefname (str): Path to save the figure to
+        data_path (str): Path to the data folder
+        tile_coors (tuple): Tile coordinates
+        n_rolonies (int): Number of rolonies to plot
+        prefix (str, optional): Prefix to use. Defaults to "genes_round".
+        channel_colors (list, optional): List of colors for each channel. Defaults to
+            ([1,0,0],[0,1,0],[1,0,1],[0,1,1]).
+        vmax (float, optional): Max value image scale. Defaults to 0.5.
+        correct_illumination (bool, optional): Whether to correct for illumination.
+            Defaults to True.
+        corrected_shifts (bool, optional): Whether to use corrected shifts. Defaults to
+            True.
+
+    """
+    ops = load_ops(data_path)
+    processed_path = Path(flz.config.PARAMETERS["data_root"]["processed"])
+    spot_sign = np.load(processed_path / data_path / "spot_sign_image.npy")
+    # cut a line in the middle
+    line = spot_sign[spot_sign.shape[0] // 2, :]
+    positive_radius = np.diff(np.where(line > 0)[0][[0, -1]]) / 2 + 0.5
+    negative_radius = np.diff(np.where(line < -0.1)[0][[0, -1]]) / 2
+
+    spot_folder = processed_path / data_path / "spots"
+    spots = pd.read_pickle(
+        spot_folder
+        / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+    )
+    spots.reset_index(inplace=True)
+    nrounds = ops[f"{prefix}s"]
+    # get stack registered between channel and rounds
+    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+        data_path,
+        filter_r=ops["filter_r"],
+        correct_channels=True,
+        correct_illumination=correct_illumination,
+        corrected_shifts=corrected_shifts,
+        tile_coors=ops["ref_tile"],
+        suffix=ops[f"{prefix.split('_')[0]}_projection"],
+        prefix=prefix,
+        nrounds=nrounds,
+        specific_rounds=None,
+    )
+    extent = negative_radius.astype(int) * np.array([-1, 1]) * 3
+
+    rng = np.random.default_rng(42)
+    rolonies = rng.choice(spots.index, n_rolonies, replace=False)
+    nrow = int(np.sqrt(n_rolonies))
+    ncol = int(np.ceil(n_rolonies / nrow))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(ncol * 3, nrow * 3))
+    fig.subplots_adjust(
+        top=0.9, wspace=0.01, hspace=0.01, bottom=0.01, left=0.01, right=0.99
+    )
+    stacks_list = []
+    for i, ax in enumerate(axes.flatten()):
+        spot = spots.loc[rolonies[i]]
+        center = spot[["x", "y"]].astype(int).values
+        wx = np.clip(center[0] + extent, 0, reg_stack.shape[0])
+        wy = np.clip(center[1] + extent, 0, reg_stack.shape[1])
+        stack_part = reg_stack[slice(*wy), slice(*wx)]
+        stacks_list.append(stack_part)
+        pc = plt.Circle(center, radius=positive_radius, ec="r", fc="none", lw=2)
+        ax.add_artist(pc)
+        nc = plt.Circle(center, radius=negative_radius, ec="b", fc="none", lw=2)
+        ax.add_artist(nc)
+        ax.imshow(
+            round_to_rgb(stack_part, 0, None, channel_colors, vmax),
+            extent=np.hstack([extent + center[0], extent + center[1]]),
+            origin="lower",
+        )
+        ax.set_title(f"X: {center[0]}, Y: {center[1]}")
+
+    def animate(i):
+        for ax, stack in zip(axes.flatten(), stacks_list):
+            ax.images[0].set_data(
+                round_to_rgb(stack, i, None, channel_colors, vmax),
+            )
+        fig.suptitle(f"Tile {tile_coors}. Round {i}")
+
+    anim = FuncAnimation(fig, animate, frames=reg_stack.shape[3], interval=200)
+    anim.save(savefname, writer=FFMpegWriter(fps=2))
