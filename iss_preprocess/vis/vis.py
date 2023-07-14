@@ -211,25 +211,26 @@ def plot_gene_templates(gene_dict, gene_names, BASES, nrounds=7, nchannels=4):
     return fig
 
 
-def add_bases_legend(extent, channel_colors):
+def add_bases_legend(channel_colors, transform=None):
     """
     Add legend for base colors to a plot.
 
     Args:
-        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
         channel_colors (list): list of colors for each channel.
+        transform (matplotlib.transforms.Transform): transform for legend.
 
     """
-    xrange = extent[0][1] - extent[0][0]
-    yrange = extent[1][1] - extent[1][0]
+    if transform is None:
+        transform = plt.gca().transAxes
     for i, (color, base) in enumerate(zip(channel_colors, iss.call.BASES)):
         plt.text(
-            xrange * 0.6 + i * xrange * 0.1,
-            yrange * 0.95,
+            0.6 + i * 0.1,
+            0.05,
             base,
             color=color,
             fontweight="bold",
             fontsize=32,
+            transform=transform,
         )
 
 
@@ -286,7 +287,7 @@ def plot_sequencing_rounds(
         plt.imshow(round_to_rgb(stack, iround, extent, channel_colors, vmax))
         plt.axis("off")
         plt.title(f"Round {iround+1}", color="white")
-    add_bases_legend(extent, channel_colors)
+    add_bases_legend(channel_colors)
     plt.tight_layout()
 
 
@@ -313,7 +314,7 @@ def animate_sequencing_rounds(
     fig.patch.set_facecolor("black")
     nrounds = stack.shape[3]
     im = plt.imshow(round_to_rgb(stack, 0, extent, channel_colors, vmax))
-    add_bases_legend(extent, channel_colors)
+    add_bases_legend(channel_colors)
 
     plt.axis("off")
 
