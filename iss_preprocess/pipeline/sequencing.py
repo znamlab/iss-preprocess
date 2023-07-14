@@ -252,7 +252,7 @@ def setup_omp(data_path):
     )
     gene_dict, gene_names = make_gene_templates(cluster_means, codebook)
 
-    norm_shift = np.sqrt(np.median(np.sum(stack ** 2, axis=(2, 3))))
+    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
     np.savez(
         processed_path / data_path / "gene_dict.npz",
         gene_dict=gene_dict,
@@ -284,7 +284,7 @@ def estimate_channel_correction(
         pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values
             for filtered stacks
         norm_factors (np.array) A Nch x Nround array of normalisation factors
-        
+
     """
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
@@ -299,7 +299,7 @@ def estimate_channel_correction(
         print(f"counting pixel values for roi {tile[0]}, tile {tile[1]}, {tile[2]}")
         stack = filter_stack(
             load_sequencing_rounds(
-                data_path, tile, suffix=projection, prefix=prefix, nrounds=nrounds,
+                data_path, tile, suffix=projection, prefix=prefix, nrounds=nrounds
             ),
             r1=ops["filter_r"][0],
             r2=ops["filter_r"][1],
@@ -395,7 +395,7 @@ def load_and_register_sequencing_tile(
         specific_rounds = [specific_rounds]
     # ensure we have an array
     specific_rounds = np.asarray(specific_rounds, dtype=int)
-    assert specific_rounds.min() > 0
+    assert specific_rounds.min() > 0, "rounds must be strictly positive integers"
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     stack = load_sequencing_rounds(
@@ -447,12 +447,12 @@ def load_and_register_sequencing_tile(
 def compute_spot_sign_image(data_path, prefix="genes_round"):
     """Compute the reference spot sign image to use in spot calling. Save it to
     the processed data folder.
-    
+
     Args:
         data_path (str): Relative path to data.
         prefix (str, optional):  Prefix of the sequencing read to use.
             Defaults to "genes_round".
-        
+
     """
     ops = load_ops(data_path)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -498,20 +498,20 @@ def load_spot_sign_image(data_path, threshold):
 def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_round"):
     """
     Run OMP on a tile and return the results.
-    
+
     Args:
         data_path (str): Relative path to data.
         tile_coors (tuple): Coordinates of the tile to process.
         ops (dict): Dictionary of parameters.
         save_stack (bool, optional): Whether to save the registered stack.
             Defaults to False.
-        prefix (str, optional): Prefix of the sequencing read to use. 
+        prefix (str, optional): Prefix of the sequencing read to use.
             Defaults to "genes_round".
-        
+
     Returns:
         numpy.ndarray: OMP results.
         dict: Dictionary of OMP parameters.
-        
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
 
@@ -553,9 +553,7 @@ def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_
     return g, omp_stat
 
 
-def detect_genes_on_tile(
-    data_path, tile_coors, save_stack=False, prefix="genes_round",
-):
+def detect_genes_on_tile(data_path, tile_coors, save_stack=False, prefix="genes_round"):
     """Apply the OMP algorithm to unmix spots in a given tile using the saved
     gene dictionary and settings saved in `ops.yml`. Then detect gene spots in
     the resulting gene maps.
