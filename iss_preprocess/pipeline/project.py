@@ -1,6 +1,8 @@
 import numpy as np
 import multiprocessing as mp
 import shutil
+import shlex
+import subprocess
 from functools import partial
 from flexiznam.config import PARAMETERS
 from pathlib import Path
@@ -59,7 +61,7 @@ def project_round(data_path, prefix, overwrite=False):
         additional_args += ",OVERWRITE=--overwrite"
 
     roi_dims = get_roi_dimensions(data_path, prefix)
-    batch_process_tiles(
+    job_ids = batch_process_tiles(
         data_path, "project_tile", roi_dims=roi_dims, additional_args=additional_args
     )
     # copy one of the tiff metadata files
@@ -70,6 +72,22 @@ def project_round(data_path, prefix, overwrite=False):
     target_path.mkdir(parents=True, exist_ok=True)
     shutil.copy(
         raw_path / data_path / prefix / metadata_fname, target_path / metadata_fname,
+    )
+    
+
+    script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"plot_overview.sh")
+    args = (
+        f"--export=DATAPATH={data_path},PREFIX={prefix}"
+    )
+    log_fname = f"iss_plot_overviews_%j"
+    args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
+    args = args + f" --dependency=afterok:{job_ids}"
+    command = f"sbatch {args} {script_path}"
+    print(command)
+    subprocess.Popen(
+        shlex.split(command),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
     )
 
 
