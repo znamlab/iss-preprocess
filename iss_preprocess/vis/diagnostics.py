@@ -12,7 +12,7 @@ import flexiznam as flz
 from ..io import load_ops
 from iss_preprocess.pipeline import ara_registration as ara_reg
 from iss_preprocess.pipeline import sequencing
-from iss_preprocess.vis import round_to_rgb
+from iss_preprocess.vis import round_to_rgb, add_bases_legend
 
 
 def plot_correction_images(
@@ -425,23 +425,37 @@ def check_rolonies_registration(
         correct_channels=True,
         correct_illumination=correct_illumination,
         corrected_shifts=corrected_shifts,
-        tile_coors=ops["ref_tile"],
+        tile_coors=tile_coors,
         suffix=ops[f"{prefix.split('_')[0]}_projection"],
         prefix=prefix,
         nrounds=nrounds,
         specific_rounds=None,
     )
-    extent = negative_radius.astype(int) * np.array([-1, 1]) * 3
+    extent = np.array([-1, 1]) * 100
 
     rng = np.random.default_rng(42)
     rolonies = rng.choice(spots.index, n_rolonies, replace=False)
-    nrow = int(np.sqrt(n_rolonies))
-    ncol = int(np.ceil(n_rolonies / nrow))
-    fig, axes = plt.subplots(nrow, ncol, figsize=(ncol * 3, nrow * 3))
+    if n_rolonies == 1:
+        fig, axes = plt.subplots(1, 1, figsize=(5, 5))
+        axes = np.array([axes])
+    else:
+        nrow = int(np.sqrt(n_rolonies))
+        ncol = int(np.ceil(n_rolonies / nrow))
+        fig, axes = plt.subplots(nrow, ncol, figsize=(ncol * 3, nrow * 3))
     fig.subplots_adjust(
-        top=0.9, wspace=0.01, hspace=0.01, bottom=0.01, left=0.01, right=0.99
+        top=0.9, wspace=0.01, hspace=0.1, bottom=0.01, left=0.01, right=0.99
     )
+
+    # get codebook
+    codebook = pd.read_csv(
+        Path(__file__).parent.parent / "call" / ops["codebook"],
+        header=None,
+        names=["gii", "seq", "gene"],
+    )
+    base_params = dict(color="white", fontsize=20, fontweight="bold")
     stacks_list = []
+    sequences = []
+    labels = []
     for i, ax in enumerate(axes.flatten()):
         spot = spots.loc[rolonies[i]]
         center = spot[["x", "y"]].astype(int).values
@@ -455,17 +469,29 @@ def check_rolonies_registration(
         ax.add_artist(nc)
         ax.imshow(
             round_to_rgb(stack_part, 0, None, channel_colors, vmax),
-            extent=np.hstack([extent + center[0], extent + center[1]]),
+            extent=np.hstack([wx, wy]),
             origin="lower",
         )
-        ax.set_title(f"X: {center[0]}, Y: {center[1]}")
+        ax.axis("off")
+        ax.set_title(f"Rol #{rolonies[i]}. X: {center[0]}, Y: {center[1]}")
+        gene = spots.loc[rolonies[i], "gene"]
+        sequences.append(codebook.loc[codebook["gene"] == gene, "seq"].values[0])
+        txt = ax.text(0.05, 0.9, sequences[i][0], transform=ax.transAxes, **base_params)
+        labels.append(txt)
 
-    def animate(i):
-        for ax, stack in zip(axes.flatten(), stacks_list):
+    add_bases_legend(channel_colors=channel_colors)
+
+    def animate(iround):
+        for iax, stack in enumerate(stacks_list):
+            ax = axes.flatten()[iax]
+
             ax.images[0].set_data(
-                round_to_rgb(stack, i, None, channel_colors, vmax),
+                round_to_rgb(stack, iround, None, channel_colors, vmax),
             )
-        fig.suptitle(f"Tile {tile_coors}. Round {i}")
+            labels[iax].set_text(sequences[iax][iround])
+        fig.suptitle(
+            f"Tile {tile_coors}. Corrected shifts: {corrected_shifts}. Round {iround}"
+        )
 
     anim = FuncAnimation(fig, animate, frames=reg_stack.shape[3], interval=200)
     anim.save(savefname, writer=FFMpegWriter(fps=2))
