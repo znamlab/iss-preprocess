@@ -399,12 +399,12 @@ def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
 
     """
     if genes:
-        iss.pipeline.corrected_shifts(data_path, prefix="genes_round")
+        iss.pipeline.correct_shifts(data_path, prefix="genes_round")
         iss.pipeline.setup_omp(data_path)
         batch_process_tiles(data_path, "extract_tile")
 
     if barcodes:
-        iss.pipeline.corrected_shifts(data_path, prefix="barcode_round")
+        iss.pipeline.correct_shifts(data_path, prefix="barcode_round")
         iss.pipeline.setup_barcode_calling(data_path)
         batch_process_tiles(data_path, "basecall_tile")
 
