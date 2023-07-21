@@ -100,7 +100,7 @@ def setup_barcode_calling(data_path):
             suffix=ops["barcode_projection"],
             nrounds=ops["barcode_rounds"],
             correct_channels=ops["barcode_correct_channels"],
-            corrected_shifts=ops['correct_shifts'],
+            corrected_shifts=ops['corrected_shifts'],
             correct_illumination=False,
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -148,7 +148,7 @@ def basecall_tile(data_path, tile_coors):
         suffix=ops["barcode_projection"],
         nrounds=nrounds,
         correct_channels=ops["barcode_correct_channels"],
-        corrected_shifts=ops['correct_shifts'],
+        corrected_shifts=ops['corrected_shifts'],
         correct_illumination=True,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
