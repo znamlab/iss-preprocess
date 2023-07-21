@@ -9,9 +9,7 @@ import pandas as pd
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 import tifffile
-from ..io import (
-    get_roi_dimensions
-)
+from ..io import get_roi_dimensions
 
 
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
@@ -326,12 +324,9 @@ def animate_sequencing_rounds(
     plt.show()
     anim.save(savefname, writer=FFMpegWriter(fps=2))
 
+
 def plot_overview_images(
-    data_path,
-    prefix,
-    plot_grid=True,
-    downsample_factor=25,
-    save_raw=False
+    data_path, prefix, plot_grid=True, downsample_factor=25, save_raw=False
 ):
     """Plot individual channel overview images.
     
@@ -350,8 +345,8 @@ def plot_overview_images(
         for ch in range(4):
             fig = plt.figure()
             fig.clear()
-            print(f'Doing roi {roi}, channel {ch}')
-            print('   ... stitching', flush=True)
+            print(f"Doing roi {roi}, channel {ch}")
+            print("   ... stitching", flush=True)
             stack = iss.pipeline.stitch_tiles(
                 data_path,
                 prefix=prefix,
@@ -360,65 +355,68 @@ def plot_overview_images(
                 ich=ch,
                 correct_illumination=False,
             )
-            stack = stack.astype('uint16')
-            print('   ... plotting', flush=True)
+            stack = stack.astype("uint16")
+            print("   ... plotting", flush=True)
             nx = roi_dim[1]
             ny = roi_dim[2]
             downsample_factor = 25
             percentile_value = np.percentile(
-                stack[::downsample_factor, ::downsample_factor],
-                98)
-            tile_size = 3000/downsample_factor
-            dim_x = (nx*tile_size)+tile_size
-            dim_y = (ny*tile_size)+tile_size
-            
-            extracted_chamber = data_path.split(
-                'becalia_rabies_barseq', 1)[-1].replace('/', ' ')
-            plt.title(f'{extracted_chamber}, ROI: {roi}, {prefix}, Channel: {ch}')
-            plt.imshow(stack[::downsample_factor, ::downsample_factor],
-                       vmax=percentile_value
-                      )
+                stack[::downsample_factor, ::downsample_factor], 98
+            )
+            tile_size = 3000 / downsample_factor
+            dim_x = (nx * tile_size) + tile_size
+            dim_y = (ny * tile_size) + tile_size
+
+            extracted_chamber = data_path.split("becalia_rabies_barseq", 1)[-1].replace(
+                "/", " "
+            )
+            plt.title(f"{extracted_chamber}, ROI: {roi}, {prefix}, Channel: {ch}")
+            plt.imshow(
+                stack[::downsample_factor, ::downsample_factor], vmax=percentile_value
+            )
             ax = plt.gca()
-            ax.set_aspect('equal')
+            ax.set_aspect("equal")
             if plot_grid:
-                #Add gridlines at approximate tile boundaries
+                # Add gridlines at approximate tile boundaries
                 ax.set_xlim(0, dim_x)
                 ax.set_ylim(0, dim_y)
-                ax.set_xticks(np.arange(0, dim_x, tile_size)+(tile_size/2))
-                ax.set_yticks(np.arange(0, dim_y, tile_size)+(tile_size/2))
+                ax.set_xticks(np.arange(0, dim_x, tile_size) + (tile_size / 2))
+                ax.set_yticks(np.arange(0, dim_y, tile_size) + (tile_size / 2))
                 minor_locator1 = AutoMinorLocator(2)
                 minor_locator2 = FixedLocator(np.arange(0, dim_y, tile_size))
                 ax.xaxis.set_minor_locator(minor_locator1)
                 ax.yaxis.set_minor_locator(minor_locator2)
-                ax.grid(which='minor', color='lightgrey')
+                ax.grid(which="minor", color="lightgrey")
                 # Adjust tick labels to display between the ticks
-                ax.set_xticklabels(np.arange(0,
-                                              len(ax.get_xticks())),
-                                    rotation=90)
-                ax.set_yticklabels(np.arange(0,
-                                              len(ax.get_yticks()))[::-1])
-                ax.tick_params(top=False,
-                   bottom=False,
-                   left=False,
-                   right=False,
-                   labelleft=True,
-                   labelbottom=True)
+                ax.set_xticklabels(np.arange(0, len(ax.get_xticks())), rotation=90)
+                ax.set_yticklabels(np.arange(0, len(ax.get_yticks()))[::-1])
+                ax.tick_params(
+                    top=False,
+                    bottom=False,
+                    left=False,
+                    right=False,
+                    labelleft=True,
+                    labelbottom=True,
+                )
             ax.invert_yaxis()
-            print('   ... saving', flush=True)
-            figure_folder = processed_path / data_path / 'figures' / 'round_overviews'
+            print("   ... saving", flush=True)
+            figure_folder = processed_path / data_path / "figures" / "round_overviews"
             figure_folder.mkdir(parents=True, exist_ok=True)
-            plt.savefig(processed_path
-                         / data_path 
-                         / 'figures' 
-                         / 'round_overviews' 
-                         / f'{extracted_chamber} ROI {roi} {prefix} Channel {ch}.png',
-                dpi=300)
+            plt.savefig(
+                processed_path
+                / data_path
+                / "figures"
+                / "round_overviews"
+                / f"{extracted_chamber} ROI {roi} {prefix} Channel {ch}.png",
+                dpi=300,
+            )
             if save_raw:
-                tifffile.imwrite(processed_path 
-                                 / data_path 
-                                 / 'figures' 
-                                 / 'round_overviews' 
-                                 / f'{extracted_chamber} ROI {roi} {prefix} Channel {ch}.tif',
-                             stack,
-                             imagej=True,
+                tifffile.imwrite(
+                    processed_path
+                    / data_path
+                    / "figures"
+                    / "round_overviews"
+                    / f"{extracted_chamber} ROI {roi} {prefix} Channel {ch}.tif",
+                    stack,
+                    imagej=True,
                 )
