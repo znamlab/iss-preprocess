@@ -92,47 +92,6 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     return stack, bad_pixels
 
 
-# @updates_flexilims(name_source="script")
-# def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
-#     """Start sbatch scripts for all tiles across all rois.
-
-#     Args:
-#         data_path (str): Relative path to data.
-#         script (str): Filename stem of the sbatch script, e.g. `extract_tile`.
-#         roi_dims (numpy.array, optional): Nx3 array of roi dimensions. If None, will
-#             load `genes_round_1_1` dimensions
-#         additional_args (str, optional): Additional environment variable to export
-#             to pass to the sbatch job. Should start with a leading comma.
-#             Defaults to "".
-
-#     """
-#     if roi_dims is None:
-#         roi_dims = get_roi_dimensions(data_path)
-#     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
-#     ops = load_ops(data_path)
-#     if "use_rois" not in ops.keys():
-#         ops["use_rois"] = roi_dims[:, 0]
-#     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
-#     for roi in roi_dims[use_rois, :]:
-#         nx = roi[1] + 1
-#         ny = roi[2] + 1
-#         for iy in range(ny):
-#             for ix in range(nx):
-#                 args = (
-#                     f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
-#                 )
-#                 args = args + additional_args
-#                 log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
-#                 args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
-#                 command = f"sbatch {args} {script_path}"
-#                 print(command)
-#                 subprocess.Popen(
-#                     shlex.split(command),
-#                     stdout=subprocess.DEVNULL,
-#                     stderr=subprocess.STDOUT,
-#                 )
-
-
 def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     """Start sbatch scripts for all tiles across all rois.
     
@@ -452,7 +411,7 @@ def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
 
     """
     if genes:
-        #iss.pipeline.correct_shifts(data_path, prefix="genes_round")
+        iss.pipeline.correct_shifts(data_path, prefix="genes_round")
         iss.pipeline.setup_omp(data_path)
         batch_process_tiles(data_path, "extract_tile")
 
