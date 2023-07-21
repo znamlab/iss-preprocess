@@ -61,7 +61,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             filter_r=filter_r,
             correct_channels=True,
             correct_illumination=True,
-            corrected_shifts=ops['corrected_shifts'],
+            corrected_shifts=ops["corrected_shifts"],
             specific_rounds=rounds,
         )
         # the transforms for all rounds are the same and saved with round 1

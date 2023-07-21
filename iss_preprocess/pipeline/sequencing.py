@@ -353,7 +353,7 @@ def load_and_register_sequencing_tile(
     suffix="fstack",
     filter_r=(2, 4),
     correct_channels=False,
-    corrected_shifts=ops['corrected_shifts'],
+    corrected_shifts="best",
     correct_illumination=False,
     nrounds=7,
     specific_rounds=None,
