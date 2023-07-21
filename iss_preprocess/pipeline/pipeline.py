@@ -59,9 +59,9 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             suffix=projection,
             prefix=acq_type,
             filter_r=filter_r,
-            correct_channels='best',
+            correct_channels=True,
             correct_illumination=True,
-            corrected_shifts=True,
+            corrected_shifts='best,
             specific_rounds=rounds,
         )
         # the transforms for all rounds are the same and saved with round 1
