@@ -61,7 +61,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             filter_r=filter_r,
             correct_channels=True,
             correct_illumination=True,
-            corrected_shifts=True,
+            corrected_shifts=ops['corrected_shifts'],
             specific_rounds=rounds,
         )
         # the transforms for all rounds are the same and saved with round 1
@@ -399,12 +399,12 @@ def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
 
     """
     if genes:
-        iss.pipeline.correct_shifts(data_path, prefix="genes_round")
+        iss.pipeline.corrected_shifts(data_path, prefix="genes_round")
         iss.pipeline.setup_omp(data_path)
         batch_process_tiles(data_path, "extract_tile")
 
     if barcodes:
-        iss.pipeline.correct_shifts(data_path, prefix="barcode_round")
+        iss.pipeline.corrected_shifts(data_path, prefix="barcode_round")
         iss.pipeline.setup_barcode_calling(data_path)
         batch_process_tiles(data_path, "basecall_tile")
 

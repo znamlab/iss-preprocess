@@ -8,16 +8,11 @@ from ..reg import (
     estimate_shifts_for_tile,
     estimate_shifts_and_angles_for_tile,
     estimate_rotation_translation,
-    make_transform
+    make_transform,
 )
 from . import pipeline
 from .sequencing import load_sequencing_rounds
-from ..io import (
-    load_tile_by_coors,
-    load_metadata,
-    load_ops,
-    get_roi_dimensions
-)
+from ..io import load_tile_by_coors, load_metadata, load_ops, get_roi_dimensions
 
 
 def register_reference_tile(data_path, prefix="genes_round"):
@@ -161,6 +156,9 @@ def correct_shifts(data_path, prefix):
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
         correct_shifts_roi(data_path, roi, prefix=prefix)
+        filter_ransac_shifts(
+            data_path, prefix, roi, max_residuals=ops["ransac_residual_threshold"]
+        )
 
 
 def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500):
@@ -238,6 +236,45 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
             )
             # TODO: perhaps save in a cleaner way
             itile += 1
+
+
+def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
+    """Filter shifts to use RANSAC shifts only if the initial shifts are off
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Directory prefix to use, e.g. "genes_round".
+        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles,
+            Ytiles)
+        max_residuals (int, optional): Threshold on residuals above which the RANSAC
+            shifts are used. Defaults to 10.
+    """
+    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    roi = roi_dims[0]
+    nx = roi_dims[1] + 1
+    ny = roi_dims[2] + 1
+
+    save_dir = processed_path / data_path / "reg"
+    for iy in range(ny):
+        for ix in range(nx):
+            tforms_init = np.load(save_dir / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz")
+            tforms_corrected = np.load(
+                save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
+            )
+            tforms_best = {key: tforms_init[key] for key in tforms_init.keys()}
+            for which in ["within", "between"]:
+                shifts_init = tforms_init[f"shifts_{which}_channels"]
+                shifts_corrected = tforms_corrected[f"shifts_{which}_channels"]
+                residuals = np.abs(shifts_init - shifts_corrected)
+                shifts_best = np.array(shifts_init, copy=True)
+                shifts_best[residuals > max_residuals] = shifts_corrected[
+                    residuals > max_residuals
+                ]
+                tforms_best[f"shifts_{which}_channels"] = shifts_best
+            tforms_best.update({"allow_pickle": True})
+            np.savez(
+                save_dir / f"tforms_best_{prefix}_{roi}_{ix}_{iy}.npz", **tforms_best
+            )
 
 
 def correct_hyb_shifts(data_path, prefix=None):

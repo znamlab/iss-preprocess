@@ -100,7 +100,7 @@ def setup_barcode_calling(data_path):
             suffix=ops["barcode_projection"],
             nrounds=ops["barcode_rounds"],
             correct_channels=ops["barcode_correct_channels"],
-            corrected_shifts=True,
+            corrected_shifts=ops['corrected_shifts'],
             correct_illumination=False,
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -148,7 +148,7 @@ def basecall_tile(data_path, tile_coors):
         suffix=ops["barcode_projection"],
         nrounds=nrounds,
         correct_channels=ops["barcode_correct_channels"],
-        corrected_shifts=True,
+        corrected_shifts=ops['corrected_shifts'],
         correct_illumination=True,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -353,7 +353,7 @@ def load_and_register_sequencing_tile(
     suffix="fstack",
     filter_r=(2, 4),
     correct_channels=False,
-    corrected_shifts=True,
+    corrected_shifts=ops['corrected_shifts'],
     correct_illumination=False,
     nrounds=7,
     specific_rounds=None,
@@ -373,8 +373,8 @@ def load_and_register_sequencing_tile(
             If `False`, stack is not filtered. Defaults to (2, 4).
         correct_channels (bool, optional): Whether to normalize channel brightness.
             Defaults to False.
-        corrected_shifts (bool, optional): Whether to use corrected shifts estimated
-            by robust regression across tiles. Defaults to True.
+        corrected_shifts (str, optional): Which shift to use. One of `reference`,
+            `single_tile`, `ransac`, or `best`. Defaults to 'best'.
         correct_illumination (bool, optional): Whether to correct vignetting.
             Defaults to False.
         nrounds (int, optional): Number of sequencing rounds to load. Used only if
@@ -396,6 +396,11 @@ def load_and_register_sequencing_tile(
     # ensure we have an array
     specific_rounds = np.asarray(specific_rounds, dtype=int)
     assert specific_rounds.min() > 0, "rounds must be strictly positive integers"
+    valid_shifts = ["reference", "single_tile", "ransac", "best"]
+    assert (
+        corrected_shifts in valid_shifts,
+        f"unknown shift correction method, must be one of {valid_shifts}",
+    )
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     stack = load_sequencing_rounds(
@@ -409,12 +414,23 @@ def load_and_register_sequencing_tile(
     if correct_illumination:
         stack = apply_illumination_correction(data_path, stack, prefix)
 
-    if corrected_shifts:
-        tforms_fname = f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
-        tforms_path = processed_path / data_path / "reg" / tforms_fname
-    else:
+    if corrected_shifts == "reference":
         tforms_fname = f"tforms_{prefix}.npz"
         tforms_path = processed_path / data_path / tforms_fname
+    elif corrected_shifts == "single_tile":
+        tforms_fname = (
+            f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        )
+        tforms_path = processed_path / data_path / "reg" / tforms_fname
+    elif corrected_shifts == "ransac":
+        tforms_fname = f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        tforms_path = processed_path / data_path / "reg" / tforms_fname
+    elif corrected_shifts == "best":
+        tforms_fname = (
+            f"tforms_best_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        )
+        tforms_path = processed_path / data_path / "reg" / tforms_fname
+
     tforms = np.load(tforms_path, allow_pickle=True)
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
