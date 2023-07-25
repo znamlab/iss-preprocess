@@ -397,10 +397,9 @@ def load_and_register_sequencing_tile(
     specific_rounds = np.asarray(specific_rounds, dtype=int)
     assert specific_rounds.min() > 0, "rounds must be strictly positive integers"
     valid_shifts = ["reference", "single_tile", "ransac", "best"]
-    assert 
-        corrected_shifts in valid_shifts, (
+    assert corrected_shifts in valid_shifts, (
         f"unknown shift correction method, must be one of {valid_shifts}",
-        )
+    )
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     stack = load_sequencing_rounds(
