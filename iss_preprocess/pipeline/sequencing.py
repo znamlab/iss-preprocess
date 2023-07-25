@@ -100,7 +100,7 @@ def setup_barcode_calling(data_path):
             suffix=ops["barcode_projection"],
             nrounds=ops["barcode_rounds"],
             correct_channels=ops["barcode_correct_channels"],
-            corrected_shifts=True,
+            corrected_shifts=ops['corrected_shifts'],
             correct_illumination=False,
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -148,7 +148,7 @@ def basecall_tile(data_path, tile_coors):
         suffix=ops["barcode_projection"],
         nrounds=nrounds,
         correct_channels=ops["barcode_correct_channels"],
-        corrected_shifts=True,
+        corrected_shifts=ops['corrected_shifts'],
         correct_illumination=True,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -252,7 +252,7 @@ def setup_omp(data_path):
     )
     gene_dict, gene_names = make_gene_templates(cluster_means, codebook)
 
-    norm_shift = np.sqrt(np.median(np.sum(stack ** 2, axis=(2, 3))))
+    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
     np.savez(
         processed_path / data_path / "gene_dict.npz",
         gene_dict=gene_dict,
@@ -284,7 +284,7 @@ def estimate_channel_correction(
         pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values
             for filtered stacks
         norm_factors (np.array) A Nch x Nround array of normalisation factors
-        
+
     """
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
@@ -299,7 +299,7 @@ def estimate_channel_correction(
         print(f"counting pixel values for roi {tile[0]}, tile {tile[1]}, {tile[2]}")
         stack = filter_stack(
             load_sequencing_rounds(
-                data_path, tile, suffix=projection, prefix=prefix, nrounds=nrounds,
+                data_path, tile, suffix=projection, prefix=prefix, nrounds=nrounds
             ),
             r1=ops["filter_r"][0],
             r2=ops["filter_r"][1],
@@ -353,7 +353,7 @@ def load_and_register_sequencing_tile(
     suffix="fstack",
     filter_r=(2, 4),
     correct_channels=False,
-    corrected_shifts=True,
+    corrected_shifts="best",
     correct_illumination=False,
     nrounds=7,
     specific_rounds=None,
@@ -373,8 +373,8 @@ def load_and_register_sequencing_tile(
             If `False`, stack is not filtered. Defaults to (2, 4).
         correct_channels (bool, optional): Whether to normalize channel brightness.
             Defaults to False.
-        corrected_shifts (bool, optional): Whether to use corrected shifts estimated
-            by robust regression across tiles. Defaults to True.
+        corrected_shifts (str, optional): Which shift to use. One of `reference`,
+            `single_tile`, `ransac`, or `best`. Defaults to 'best'.
         correct_illumination (bool, optional): Whether to correct vignetting.
             Defaults to False.
         nrounds (int, optional): Number of sequencing rounds to load. Used only if
@@ -395,7 +395,12 @@ def load_and_register_sequencing_tile(
         specific_rounds = [specific_rounds]
     # ensure we have an array
     specific_rounds = np.asarray(specific_rounds, dtype=int)
-    assert specific_rounds.min() > 0
+    assert specific_rounds.min() > 0, "rounds must be strictly positive integers"
+    valid_shifts = ["reference", "single_tile", "ransac", "best"]
+    assert (
+        corrected_shifts in valid_shifts,
+        f"unknown shift correction method, must be one of {valid_shifts}",
+    )
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     stack = load_sequencing_rounds(
@@ -409,12 +414,23 @@ def load_and_register_sequencing_tile(
     if correct_illumination:
         stack = apply_illumination_correction(data_path, stack, prefix)
 
-    if corrected_shifts:
-        tforms_fname = f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
-        tforms_path = processed_path / data_path / "reg" / tforms_fname
-    else:
+    if corrected_shifts == "reference":
         tforms_fname = f"tforms_{prefix}.npz"
         tforms_path = processed_path / data_path / tforms_fname
+    elif corrected_shifts == "single_tile":
+        tforms_fname = (
+            f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        )
+        tforms_path = processed_path / data_path / "reg" / tforms_fname
+    elif corrected_shifts == "ransac":
+        tforms_fname = f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        tforms_path = processed_path / data_path / "reg" / tforms_fname
+    elif corrected_shifts == "best":
+        tforms_fname = (
+            f"tforms_best_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        )
+        tforms_path = processed_path / data_path / "reg" / tforms_fname
+
     tforms = np.load(tforms_path, allow_pickle=True)
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
@@ -447,12 +463,12 @@ def load_and_register_sequencing_tile(
 def compute_spot_sign_image(data_path, prefix="genes_round"):
     """Compute the reference spot sign image to use in spot calling. Save it to
     the processed data folder.
-    
+
     Args:
         data_path (str): Relative path to data.
         prefix (str, optional):  Prefix of the sequencing read to use.
             Defaults to "genes_round".
-        
+
     """
     ops = load_ops(data_path)
     processed_path = Path(PARAMETERS["data_root"]["processed"])
@@ -498,20 +514,20 @@ def load_spot_sign_image(data_path, threshold):
 def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_round"):
     """
     Run OMP on a tile and return the results.
-    
+
     Args:
         data_path (str): Relative path to data.
         tile_coors (tuple): Coordinates of the tile to process.
         ops (dict): Dictionary of parameters.
         save_stack (bool, optional): Whether to save the registered stack.
             Defaults to False.
-        prefix (str, optional): Prefix of the sequencing read to use. 
+        prefix (str, optional): Prefix of the sequencing read to use.
             Defaults to "genes_round".
-        
+
     Returns:
         numpy.ndarray: OMP results.
         dict: Dictionary of OMP parameters.
-        
+
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
 
@@ -553,9 +569,7 @@ def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_
     return g, omp_stat
 
 
-def detect_genes_on_tile(
-    data_path, tile_coors, save_stack=False, prefix="genes_round",
-):
+def detect_genes_on_tile(data_path, tile_coors, save_stack=False, prefix="genes_round"):
     """Apply the OMP algorithm to unmix spots in a given tile using the saved
     gene dictionary and settings saved in `ops.yml`. Then detect gene spots in
     the resulting gene maps.
