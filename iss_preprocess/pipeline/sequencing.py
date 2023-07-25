@@ -100,7 +100,7 @@ def setup_barcode_calling(data_path):
             suffix=ops["barcode_projection"],
             nrounds=ops["barcode_rounds"],
             correct_channels=ops["barcode_correct_channels"],
-            corrected_shifts=ops['corrected_shifts'],
+            corrected_shifts=ops["corrected_shifts"],
             correct_illumination=False,
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -148,7 +148,7 @@ def basecall_tile(data_path, tile_coors):
         suffix=ops["barcode_projection"],
         nrounds=nrounds,
         correct_channels=ops["barcode_correct_channels"],
-        corrected_shifts=ops['corrected_shifts'],
+        corrected_shifts=ops["corrected_shifts"],
         correct_illumination=True,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -397,10 +397,10 @@ def load_and_register_sequencing_tile(
     specific_rounds = np.asarray(specific_rounds, dtype=int)
     assert specific_rounds.min() > 0, "rounds must be strictly positive integers"
     valid_shifts = ["reference", "single_tile", "ransac", "best"]
-    assert (
-        corrected_shifts in valid_shifts,
+    assert 
+        corrected_shifts in valid_shifts, (
         f"unknown shift correction method, must be one of {valid_shifts}",
-    )
+        )
 
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     stack = load_sequencing_rounds(
