@@ -9,7 +9,7 @@ import pandas as pd
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 import tifffile
-from ..io import get_roi_dimensions
+from ..io import get_roi_dimensions, load_micromanager_metadata
 
 
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
@@ -339,10 +339,12 @@ def plot_overview_images(
     """
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi_dims = iss.io.get_roi_dimensions(data_path)
+    image_metadata = load_micromanager_metadata(data_path, prefix)
+    nchannels = image_metadata["Summary"]["Channels"]
     # TODO: Run individual batch jobs for each ROI/channel for speed
     for roi_dim in roi_dims:
         roi = roi_dim[0]
-        for ch in range(4):
+        for ch in range(nchannels):
             fig = plt.figure()
             fig.clear()
             print(f"Doing roi {roi}, channel {ch}")
@@ -359,7 +361,6 @@ def plot_overview_images(
             print("   ... plotting", flush=True)
             nx = roi_dim[1]
             ny = roi_dim[2]
-            downsample_factor = 25
             percentile_value = np.percentile(
                 stack[::downsample_factor, ::downsample_factor], 98
             )
@@ -407,7 +408,7 @@ def plot_overview_images(
                 / data_path
                 / "figures"
                 / "round_overviews"
-                / f"{extracted_chamber} ROI {roi} {prefix} Channel {ch}.png",
+                / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.png",
                 dpi=300,
             )
             if save_raw:
@@ -416,7 +417,7 @@ def plot_overview_images(
                     / data_path
                     / "figures"
                     / "round_overviews"
-                    / f"{extracted_chamber} ROI {roi} {prefix} Channel {ch}.tif",
+                    / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.tif",
                     stack,
                     imagej=True,
                 )

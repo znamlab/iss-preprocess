@@ -135,9 +135,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 )
                 stdout, _ = process.communicate()
                 job_id = stdout.decode().strip().split(';')[0]  # Extract the job ID
-                if job_id:
-                    job_ids.append(job_id)
-    job_ids = ','.join(job_ids)
+                job_ids.append(job_id)
     
     return job_ids
 
