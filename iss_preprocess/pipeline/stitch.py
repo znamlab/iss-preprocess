@@ -3,6 +3,7 @@ import numpy as np
 import warnings
 import pandas as pd
 import warnings
+import iss_preprocess as iss
 from skimage.registration import phase_cross_correlation
 from flexiznam.config import PARAMETERS
 from pathlib import Path
@@ -48,7 +49,6 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     # we have data with channels/rounds registered
     # Now find how much the acquisition stitching is shifting the data compared to
     # reference
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi, tilex, tiley = tile_coors
 
     # now find registration to ref
@@ -59,8 +59,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
 
     stack[bad_pixels] = np.nan
     reg2ref = np.load(
-        processed_path
-        / data_path
+        iss.io.get_processed_path(data_path)
         / "reg"
         / f"tforms_corrected_to_ref_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
@@ -120,11 +119,10 @@ def register_within_acquisition(
         numpy.array: shape of the tile
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    target = processed_path / data_path / "reg" / f"{prefix}_shifts.npz"
+    save_fname = iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
 
-    if reload and target.exists():
-        return np.load(target)
+    if reload and save_fname.exists():
+        return np.load(save_fname)
 
     if ref_roi is None:
         ops = load_ops(data_path)
@@ -151,9 +149,9 @@ def register_within_acquisition(
             data_path, prefix, saved_shifts=shifts, bytile_shifts=output
         )
 
-    target.parent.mkdir(exist_ok=True)
+    save_fname.parent.mkdir(exist_ok=True)
     np.savez(
-        target, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape
+        save_fname, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape
     )
     return shifts[:2], shifts[2:], tile_shape
 
@@ -190,7 +188,6 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
-
     if ref_coors is None:
         ops = load_ops(data_path)
         ref_coors = ops["ref_tile"]
@@ -246,12 +243,12 @@ def get_tile_corners(data_path, prefix, roi):
     if "round" in prefix:
         # always use round 1
         prefix = f"{prefix.split('_')[0]}_round_1_1"
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    shifts = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
+    shifts = np.load(
+        iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
+    )
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles
     )
-
     corners = np.stack(
         [
             tile_origins + np.array(c_pos) * shifts["tile_shape"]
@@ -259,7 +256,6 @@ def get_tile_corners(data_path, prefix, roi):
         ],
         axis=3,
     )
-
     return corners
 
 
@@ -279,7 +275,6 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
             coordinates
 
     """
-
     yy, xx = np.meshgrid(np.arange(ntiles[1]), np.arange(ntiles[0]))
 
     tile_origins = (
@@ -321,12 +316,12 @@ def stitch_tiles(
         numpy.ndarray: stitched image.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     if not shifts_prefix:
         shifts_prefix = prefix
-    shift_file = processed_path / data_path / "reg" / f"{shifts_prefix}_shifts.npz"
+    shift_file = processed_path / "reg" / f"{shifts_prefix}_shifts.npz"
     if shift_file.exists():
         shifts = np.load(shift_file)
     else:
@@ -354,9 +349,7 @@ def stitch_tiles(
     stitched_stack = np.zeros(max_origin + tile_shape)
     if correct_illumination:
         ops = load_ops(data_path)
-        average_image_fname = (
-            processed_path / data_path / "averages" / f"{prefix}_average.tif"
-        )
+        average_image_fname = processed_path / "averages" / f"{prefix}_average.tif"
         average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
         # TODO: use the illumination corerction function?
     for ix in range(ntiles[0]):
@@ -397,10 +390,10 @@ def stitch_registered(
         channels = [channels]
     else:
         channels = list(channels)
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
+    shifts = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-    shifts = np.load(processed_path / data_path / "reg" / f"{ref_prefix}_shifts.npz")
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
@@ -463,12 +456,17 @@ def merge_roi_spots(data_path, prefix, tile_origins, tile_centers, iroi=1):
                 spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
                 spot_dist = (
-                    spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
-                    - tile_centers[np.newaxis, :, :, 1]
-                ) ** 2 + (
-                    spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
-                    - tile_centers[np.newaxis, :, :, 0]
-                ) ** 2
+                    (
+                        spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
+                        - tile_centers[np.newaxis, :, :, 1]
+                    )
+                    ** 2
+                    + (
+                        spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
+                        - tile_centers[np.newaxis, :, :, 0]
+                    )
+                    ** 2
+                )
                 home_tile_dist = (spot_dist[:, ix, iy]).copy()
                 spot_dist[:, ix, iy] = np.inf
                 min_spot_dist = np.min(spot_dist, axis=(1, 2))
@@ -594,11 +592,10 @@ def stitch_and_register(
         stitched_stack_target, scale=scale, angle=angle, shift=shift
     )
 
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     fname = f"{target_prefix}_roi{roi}_tform_to_ref.npz"
     print(f"Saving {fname} in the reg folder")
     np.savez(
-        processed_path / data_path / "reg" / fname,
+        iss.io.get_processed_path(data_path) / "reg" / fname,
         angle=angle,
         shift=shift,
         scale=scale,
@@ -636,8 +633,8 @@ def merge_and_align_spots(
         pandas.DataFrame: DataFrame containing all spots in reference coordinates.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    reg_path = processed_path / data_path / "reg"
+    processed_path = iss.io.get_processed_path(data_path)
+    reg_path = processed_path / "reg"
 
     # find tile origin, final shape, and shifts in reference coordinates
     ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
@@ -670,7 +667,7 @@ def merge_and_align_spots(
         iroi=roi,
     )
 
-    spots.to_pickle(processed_path / data_path / f"{spots_prefix}_spots_{roi}.pkl")
+    spots.to_pickle(processed_path / f"{spots_prefix}_spots_{roi}.pkl")
     return spots
 
 

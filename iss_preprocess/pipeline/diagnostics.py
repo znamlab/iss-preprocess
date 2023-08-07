@@ -3,10 +3,8 @@ Module containing diagnostic plots to make sure steps of the pipeline run smooth
 
 The functions in here do not compute anything useful, but create figures
 """
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-from flexiznam.config import PARAMETERS
 import iss_preprocess as iss
 
 
@@ -17,22 +15,22 @@ def check_hybridisation_setup(data_path):
         data_path (str): Relative path to data folder
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    figure_folder = processed_path / data_path / "figures"
+    processed_path = iss.io.get_processed_path(data_path)
+    figure_folder = processed_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     metadata = iss.io.load_metadata(data_path)
     for hyb_round in metadata["hybridisation"].keys():
         reference_hyb_spots = np.load(
-            processed_path / data_path /f"{hyb_round}_cluster_means.npz", allow_pickle=True,
+            processed_path / f"{hyb_round}_cluster_means.npz", allow_pickle=True,
         )
         figs = iss.vis.plot_clusters(
-            [reference_hyb_spots["cluster_means"], ],
+            [reference_hyb_spots["cluster_means"],],
             reference_hyb_spots["spot_colors"],
-            [reference_hyb_spots["cluster_inds"], ],
+            [reference_hyb_spots["cluster_inds"],],
         )
         for fig in figs:
             fig.savefig(figure_folder / f"{hyb_round}_{fig.get_label()}.png")
-        
+
 
 def check_barcode_calling(data_path):
     """Plot the barcode cluster scatter plots and cluster means and save them in the
@@ -42,13 +40,13 @@ def check_barcode_calling(data_path):
         data_path (str): Relative path to data folder
         
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    figure_folder = processed_path / data_path / "figures"
+    processed_path = iss.io.get_processed_path(data_path)
+    figure_folder = processed_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     reference_barcode_spots = np.load(
-        processed_path / data_path / "reference_barcode_spots.npz", allow_pickle=True,
+        processed_path / "reference_barcode_spots.npz", allow_pickle=True,
     )
-    cluster_means = np.load(processed_path / data_path / "barcode_cluster_means.npy")
+    cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
     figs = iss.vis.plot_clusters(
         cluster_means,
         reference_barcode_spots["spot_colors"],
@@ -66,13 +64,13 @@ def check_omp_setup(data_path):
         data_path (str): Relative path to data folder
         
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    figure_folder = processed_path / data_path / "figures"
+    processed_path = iss.io.get_processed_path(data_path)
+    figure_folder = processed_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     reference_gene_spots = np.load(
-        processed_path / data_path / "reference_gene_spots.npz", allow_pickle=True,
+        processed_path / "reference_gene_spots.npz", allow_pickle=True,
     )
-    omp_stat = np.load(processed_path / data_path / "gene_dict.npz", allow_pickle=True)
+    omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
     figs = iss.vis.plot_clusters(
         omp_stat["cluster_means"],
         reference_gene_spots["spot_colors"],
@@ -94,10 +92,10 @@ def check_spot_sign_image(data_path):
         data_path (str): Relative path to data folder
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    figure_folder = processed_path / data_path / "figures"
+    processed_path = iss.io.get_processed_path(data_path)
+    figure_folder = processed_path / "figures"
     figure_folder.mkdir(exist_ok=True)
-    spot_image = np.load(processed_path / data_path / "spot_sign_image.npy")
+    spot_image = np.load(processed_path / "spot_sign_image.npy")
     iss.vis.plot_spot_sign_image(spot_image)
     plt.savefig(figure_folder / "spot_sign_image.png")
 
@@ -119,9 +117,9 @@ def check_illumination_correction(
         verbose (bool, optional): Print info about progress. Defaults to True
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    average_dir = processed_path / data_path / "averages"
-    figure_folder = processed_path / data_path / "figures"
+    processed_path = iss.io.get_processed_path(data_path)
+    average_dir = processed_path / "averages"
+    figure_folder = processed_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     correction_images = dict()
     distributions = dict()
@@ -163,9 +161,9 @@ def reg_to_ref_estimation(
             "genes_round_1_1"
             
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    reg_dir = processed_path / data_path / "reg"
-    figure_folder = processed_path / data_path / "figures"
+    processed_path = iss.io.get_processed_path(data_path)
+    reg_dir = processed_path / "reg"
+    figure_folder = processed_path / "figures"
 
     ndims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = iss.io.load_ops(data_path)

@@ -3,8 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 import cv2
-from pathlib import Path
-from flexiznam import PARAMETERS
 import iss_preprocess as iss
 from ..io import load_ops
 from iss_preprocess.pipeline import ara_registration as ara_reg
@@ -163,8 +161,7 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
         plt.colorbar(img, ax=ax)
     fig.tight_layout()
     fig.suptitle(prefix)
-    processed = Path(PARAMETERS["data_root"]["processed"])
-    fig_file = processed / data_path / "figures" / f"adjacent_tile_reg_{prefix}.png"
+    fig_file = iss.io.get_processed_path(data_path) / "figures" / f"adjacent_tile_reg_{prefix}.png"
     if not fig_file.parent.exists():
         fig_file.parent.mkdir()
     fig.savefig(fig_file, dpi=300)
@@ -196,9 +193,7 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     )
     reg_metadata = ara_reg.load_registration_reference_metadata(data_path, roi=roi)
 
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
-
     stitched_stack = iss.pipeline.stitch_registered(
         data_path, reference_prefix, roi=roi, channels=ops["ref_ch"],
     ).astype(np.single)
@@ -215,11 +210,9 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         origin="lower",
         cmap="gray",
     )
-
     atlas_utils.plot_borders_and_areas(
         ax, area_ids, border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
     )
-
     ax.set_ylim(ax.get_ylim()[::-1])
     ax.set_xticks([])
     ax.set_yticks([])

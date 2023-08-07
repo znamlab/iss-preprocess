@@ -3,8 +3,6 @@ import subprocess
 import warnings
 from pathlib import Path
 import numpy as np
-from flexiznam.config import PARAMETERS
-
 import iss_preprocess as iss
 from ..image import apply_illumination_correction, tilestats_and_mean_image
 from ..io import (
@@ -186,15 +184,14 @@ def create_single_average(
         print(f"    {ops_values}={ops[ops_values]}")
     print("", flush=True)
 
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-
+    processed_path = iss.io.get_processed_path(data_path)
     if prefix_filter is None:
         target_file = f"{subfolder}_average.tif"
     else:
         target_file = f"{prefix_filter}_average.tif"
     target_stats = target_file.replace("_average.tif", "_tilestats.npy")
-    target_file = processed_path / data_path / "averages" / target_file
-    target_stats = processed_path / data_path / "averages" / target_stats
+    target_file = processed_path / "averages" / target_file
+    target_stats = processed_path / "averages" / target_stats
     # ensure the directory exists for first average.
     target_file.parent.mkdir(exist_ok=True)
 
@@ -233,7 +230,7 @@ def create_all_single_averages(
             "barcode_rounds", "fluorescence", "hybridisation")`
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
 
@@ -255,9 +252,9 @@ def create_all_single_averages(
         Path(__file__).parent.parent.parent / "scripts" / "create_single_average.sh"
     )
     for folder in to_average:
-        data_folder = processed_path / data_path
+        data_folder = processed_path / folder
         if not data_folder.is_dir():
-            warnings.warn("{0} does not exists. Skipping".format(data_folder / folder))
+            warnings.warn(f"{data_folder} does not exists. Skipping")
             continue
         projection = ops[f"{folder.split('_')[0].lower()}_projection"]
         export_args = dict(
@@ -321,9 +318,8 @@ def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
             pixel size. Defaults to 10
 
     """
-
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    registration_folder = processed_path / data_path / "register_to_ara"
+    processed_path = iss.io.get_processed_path(data_path)
+    registration_folder = processed_path / "register_to_ara"
     registration_folder.mkdir(exist_ok=True)
     # also make sure that the relevant subfolders are created
     (registration_folder / "qupath_project").mkdir(exist_ok=True)
