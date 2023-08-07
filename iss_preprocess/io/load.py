@@ -35,6 +35,7 @@ def load_ops(data_path):
         dict: Options, see config/defaults_ops.yaml for description
 
     """
+
     def flatten_dict(d):
         flattened_dict = {}
         for key, value in d.items():
@@ -44,7 +45,7 @@ def load_ops(data_path):
             else:
                 flattened_dict[key] = value
         return flattened_dict
-    
+
     processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops_fname = processed_path / data_path / "ops.yml"
 
@@ -78,7 +79,7 @@ def load_ops(data_path):
             "barcode_rounds": metadata["barcode_rounds"],
         }
     )
-            
+
     return ops
 
 
@@ -98,7 +99,14 @@ def load_metadata(data_path):
     raw_path = Path(PARAMETERS["data_root"]["raw"])
     metadata_fname = raw_path / data_path / (Path(data_path).name + "_metadata.yml")
     if not metadata_fname.exists():
-        raise IOError(f"Metadata not found.\n{metadata_fname} does not exist")
+        processed_path = Path(PARAMETERS["data_root"]["processed"])
+        metadata_fname = (
+            processed_path / data_path / (Path(data_path).name + "_metadata.yml")
+        )
+        if metadata_fname.exists():
+            print("Metadata not found in raw data, loading from processed data")
+        else:
+            raise IOError(f"Metadata not found.\n{metadata_fname} does not exist")
     with open(metadata_fname, "r") as f:
         metadata = yaml.safe_load(f)
     return metadata
