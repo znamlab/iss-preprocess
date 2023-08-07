@@ -198,7 +198,7 @@ def create_single_average(
     black_level = ops["black_level"] if subtract_black else 0
 
     av_image, tilestats = tilestats_and_mean_image(
-        processed_path / data_path / subfolder,
+        processed_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
         n_batch=n_batch,
@@ -241,7 +241,8 @@ def create_all_single_averages(
             folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
             to_average.extend(folders)
         elif kind in ("fluorescence", "hybridisation"):
-            to_average.extend(list(metadata[kind].keys()))
+            if kind in metadata.keys():
+                to_average.extend(list(metadata[kind].keys()))
         else:
             raise IOError(
                 f"Unknown type of acquisition: {kind}.\n"

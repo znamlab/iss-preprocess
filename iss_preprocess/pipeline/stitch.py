@@ -5,7 +5,6 @@ import pandas as pd
 import warnings
 import iss_preprocess as iss
 from skimage.registration import phase_cross_correlation
-from flexiznam.config import PARAMETERS
 from pathlib import Path
 from . import pipeline
 from .. import vis
