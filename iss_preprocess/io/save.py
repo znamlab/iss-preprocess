@@ -1,8 +1,6 @@
 from tifffile import TiffWriter
 import cv2
 import numpy as np
-import yaml
-from pathlib import Path
 
 
 def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True):
