@@ -97,13 +97,14 @@ def estimate_channel_correction_hybridisation(data_path):
         norm_factors (np.array) A Nch x Nround array of normalisation factors
 
     """
+    metadata = load_metadata(data_path)
+    if "hybridisation" not in metadata.keys():
+        return
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
-
     max_val = 65535
     pixel_dist = np.zeros((max_val + 1, nch))
-    metadata = load_metadata(data_path)
     for hyb_round in metadata["hybridisation"].keys():
         for tile in ops["correction_tiles"]:
             print(
