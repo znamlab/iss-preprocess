@@ -367,19 +367,20 @@ def setup_channel_correction(data_path):
         
     """
     ops = load_ops(data_path)
-    iss.pipeline.estimate_channel_correction(
-        data_path,
-        prefix="barcode_round",
-        nrounds=ops["barcode_rounds"],
-        fit_norm_factors=ops["fit_channel_correction"],
-    )
-
-    iss.pipeline.estimate_channel_correction(
-        data_path,
-        prefix="genes_round",
-        nrounds=ops["genes_rounds"],
-        fit_norm_factors=ops["fit_channel_correction"],
-    )
+    if ops["barcode_rounds"] > 0:
+        iss.pipeline.estimate_channel_correction(
+            data_path,
+            prefix="barcode_round",
+            nrounds=ops["barcode_rounds"],
+            fit_norm_factors=ops["fit_channel_correction"],
+        )
+    if ops["genes_rounds"] > 0:
+        iss.pipeline.estimate_channel_correction(
+            data_path,
+            prefix="genes_round",
+            nrounds=ops["genes_rounds"],
+            fit_norm_factors=ops["fit_channel_correction"],
+        )
 
     iss.pipeline.estimate_channel_correction_hybridisation(data_path)
 
