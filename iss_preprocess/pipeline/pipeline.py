@@ -108,8 +108,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
         roi_dims = get_roi_dimensions(data_path)
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys():
-        ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
@@ -233,7 +232,6 @@ def create_all_single_averages(
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
-
     # Collect all folder names
     to_average = []
     for kind in todo:

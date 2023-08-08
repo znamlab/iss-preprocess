@@ -694,6 +694,7 @@ def merge_and_align_spots_all_rois(
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
     )
+    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
         args = f"--export=DATAPATH={data_path},ROI={roi},"

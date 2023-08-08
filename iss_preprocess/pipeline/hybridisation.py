@@ -235,8 +235,8 @@ def extract_hyb_spots_all(data_path):
 
     """
     roi_dims = get_roi_dimensions(data_path)
-
     ops = load_ops(data_path)
+    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     script_path = str(

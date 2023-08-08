@@ -151,6 +151,7 @@ def correct_shifts(data_path, prefix):
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
+    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
         correct_shifts_roi(data_path, roi, prefix=prefix)
@@ -283,6 +284,7 @@ def correct_hyb_shifts(data_path, prefix=None):
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
+    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     if prefix:
@@ -308,6 +310,7 @@ def correct_shifts_to_ref(data_path, prefix, fit_angle=False):
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
+    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     prefix_to_reg = f"to_ref_{prefix}"
     for roi in roi_dims[use_rois, :]:
