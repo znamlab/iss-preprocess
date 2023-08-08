@@ -201,9 +201,11 @@ def plot_gene_templates(gene_dict, gene_names, BASES, nrounds=7, nchannels=4):
         nchannels (int): number of channels. Default: 4
 
     """
-    fig = plt.figure(figsize=(10, 20), facecolor="w", label="gene_templates")
+    ncols = 9
+    nrows = int(np.ceil(len(gene_names) / ncols))
+    fig = plt.figure(figsize=(10, 2 * nrows), facecolor="w", label="gene_templates")
     for igene, gene in enumerate(gene_names):
-        plt.subplot(10, 9, igene + 1)
+        plt.subplot(nrows, ncols, igene + 1)
         plt.imshow(np.reshape(gene_dict[:, igene], (nrounds, nchannels)), cmap="gray")
         plt.title(gene)
         plt.xticks(np.arange(4), BASES)
