@@ -468,13 +468,18 @@ def compute_spot_sign_image(data_path, prefix="genes_round"):
     """
     ops = load_ops(data_path)
     processed_path = iss.io.get_processed_path(data_path)
-    g, _ = run_omp_on_tile(
-        data_path, ops["ref_tile"], ops, save_stack=False, prefix=prefix
-    )
-
-    spot_sign_image = get_spot_shape(
-        g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15
-    )
+    total_spots = 0
+    images = []
+    for tile in ops["genes_ref_tiles"]:
+        g, _ = run_omp_on_tile(
+            data_path, ops["ref_tile"], ops, save_stack=False, prefix=prefix
+        )
+        spot_sign_image, n_spots = get_spot_shape(
+            g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15
+        )
+        images.append(spot_sign_image)
+        total_spots += n_spots
+    spot_sign_image = np.sum(np.stack(images, axis=2), axis=2) / total_spots
     spot_sign_image = apply_symmetry(spot_sign_image)
     np.save(processed_path / "spot_sign_image.npy", spot_sign_image)
     iss.pipeline.check_spot_sign_image(data_path)

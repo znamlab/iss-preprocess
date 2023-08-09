@@ -48,8 +48,7 @@ def get_spot_shape(g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15):
                     ]
                 )
                 nspots += 1
-
-    return spot_sign_image / nspots
+    return spot_sign_image, nspots
 
 
 def apply_symmetry(spot_sign_image):
