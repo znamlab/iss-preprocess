@@ -136,7 +136,6 @@ def basecall_tile(data_path, tile_coors):
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
     cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
-    nrounds = cluster_means.shape[0]
 
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
@@ -144,7 +143,7 @@ def basecall_tile(data_path, tile_coors):
         filter_r=ops["filter_r"],
         prefix="barcode_round",
         suffix=ops["barcode_projection"],
-        nrounds=nrounds,
+        nrounds=ops["barcode_rounds"],
         correct_channels=ops["barcode_correct_channels"],
         corrected_shifts=ops["corrected_shifts"],
         correct_illumination=True,
@@ -158,15 +157,13 @@ def basecall_tile(data_path, tile_coors):
         threshold=ops["barcode_detection_threshold_basecalling"],
         rho=ops["barcode_spot_rho"],
     )
-    # TODO: size should probably be set inside detect spots?
     extract_spots(spots, stack, ops["spot_extraction_radius"])
     x = np.stack(spots["trace"], axis=2)
     cluster_inds = []
     top_score = []
 
-    nrounds = x.shape[0]
     # TODO: perhaps we should apply background correction before basecalling?
-    for iround in range(nrounds):
+    for iround in range(ops["barcode_rounds"]):
         this_round_means = cluster_means[iround]
         this_round_means = this_round_means / np.linalg.norm(this_round_means, axis=1)
         x_norm = (
@@ -222,6 +219,7 @@ def setup_omp(data_path):
             prefix="genes_round",
             suffix=ops["genes_projection"],
             correct_channels=ops["genes_correct_channels"],
+            nrounds=ops["genes_rounds"],
         )
         stack[bad_pixels, :, :] = 0
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]

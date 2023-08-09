@@ -71,6 +71,7 @@ def check_omp_setup(data_path):
         processed_path / "reference_gene_spots.npz", allow_pickle=True,
     )
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
+    nrounds = reference_gene_spots["spot_colors"].shape[0]
     figs = iss.vis.plot_clusters(
         omp_stat["cluster_means"],
         reference_gene_spots["spot_colors"],
@@ -78,7 +79,10 @@ def check_omp_setup(data_path):
     )
     figs.append(
         iss.vis.plot_gene_templates(
-            omp_stat["gene_dict"], omp_stat["gene_names"], iss.call.BASES
+            omp_stat["gene_dict"],
+            omp_stat["gene_names"],
+            iss.call.BASES,
+            nrounds=nrounds,
         )
     )
     for fig in figs:
