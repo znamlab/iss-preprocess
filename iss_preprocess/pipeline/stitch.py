@@ -84,7 +84,6 @@ def register_within_acquisition(
     data_path,
     prefix,
     ref_roi=None,
-    reg_fraction=0.1,
     ref_ch=0,
     suffix="fstack",
     reload=True,
@@ -100,8 +99,6 @@ def register_within_acquisition(
         prefix (str, optional): Full name of the acquisition folder.
         ref_roi (int, optional): ROI to use for registration. If `None` use
             `ops['ref_tile'][0]`. Defaults to None.
-        reg_fraction (float, optional): overlap fraction used for registration.
-            Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
@@ -130,12 +127,12 @@ def register_within_acquisition(
 
     ntiles = ndim[ndim[:, 0] == ref_roi][0][1:]
     output = np.zeros((ntiles[0], ntiles[1], 4))
-    for tilex in range(ntiles[0]):
+    # skip the first x position in case tile direction is right to left
+    for tilex in range(1, ntiles[0]):
         for tiley in range(ntiles[1]):
             shift_right, shift_down, tile_shape = register_adjacent_tiles(
                 data_path,
                 ref_coors=(ref_roi, tilex, tiley),
-                reg_fraction=reg_fraction,
                 ref_ch=ref_ch,
                 suffix=suffix,
                 prefix=prefix,
@@ -156,12 +153,7 @@ def register_within_acquisition(
 
 
 def register_adjacent_tiles(
-    data_path,
-    ref_coors=None,
-    reg_fraction=0.1,
-    ref_ch=0,
-    suffix="fstack",
-    prefix="genes_round_1_1",
+    data_path, ref_coors=None, ref_ch=0, suffix="fstack", prefix="genes_round_1_1",
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -187,10 +179,9 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
+    ops = load_ops(data_path)
     if ref_coors is None:
-        ops = load_ops(data_path)
         ref_coors = ops["ref_tile"]
-
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
@@ -198,20 +189,23 @@ def register_adjacent_tiles(
     tile_down = load_tile_by_coors(
         data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
     )
-    right_coors = (ref_coors[0], ref_coors[1] + 1, ref_coors[2])
+    right_offset = 1 if ops["tile_direction"] == "left_to_right" else -1
+    right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
     tile_right = load_tile_by_coors(
         data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
     )
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
-    reg_pix_x = int(xpix * reg_fraction)
-    reg_pix_y = int(ypix * reg_fraction)
+    reg_pix_x = int(xpix * ops["reg_fraction"])
+    reg_pix_y = int(ypix * ops["reg_fraction"])
 
     shift_right = phase_cross_correlation(
         tile_ref[:, -reg_pix_x:, ref_ch],
         tile_right[:, :reg_pix_x, ref_ch],
         upsample_factor=5,
     )[0] + [0, xpix - reg_pix_x]
+    if ops["tile_direction"] != "left_to_right":
+        shift_right = -shift_right
 
     shift_down = phase_cross_correlation(
         tile_ref[:reg_pix_y, :, ref_ch],
@@ -334,7 +328,6 @@ def stitch_tiles(
         ) = register_adjacent_tiles(
             data_path,
             ref_coors=ops["ref_tile"],
-            reg_fraction=0.1,
             ref_ch=0,
             suffix="fstack",
             prefix=prefix,
@@ -694,7 +687,8 @@ def merge_and_align_spots_all_rois(
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
     )
-    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
         args = f"--export=DATAPATH={data_path},ROI={roi},"

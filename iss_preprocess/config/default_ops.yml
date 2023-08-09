@@ -24,10 +24,14 @@ registration:
   ref_ch: 0
   # Index of the reference round to use for registration
   ref_round: 0
+  # Fraction of the tile to use for registration
+  reg_fraction: 0.1
   # Method for correcting shifts for individual tiles
   corrected_shifts: best
   # Mininum tile shift above which RANSAC fit is used to estimate the shift
   ransac_residual_threshold: 10
+  # Wheter tile position increments from left to right or right to left
+  tile_direction: left_to_right
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating
 # bleedthrough matrices, calling hybridisation spots and basecalling barcodes
