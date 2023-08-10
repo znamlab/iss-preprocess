@@ -424,7 +424,7 @@ def load_and_register_sequencing_tile(
             f"tforms_best_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
         )
         tforms_path = processed_path / "reg" / tforms_fname
-
+    ops = iss.io.load_ops(data_path)
     tforms = np.load(tforms_path, allow_pickle=True)
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
@@ -433,6 +433,8 @@ def load_and_register_sequencing_tile(
         tforms["angles_between_channels"],
         tforms["shifts_between_channels"],
         stack.shape[:2],
+        align_channels=ops["align_channels"],
+        ref_ch=ops["ref_ch"],
     )
     tforms = tforms[:, specific_rounds - 1]
     stack = align_channels_and_rounds(stack, tforms)
@@ -537,6 +539,7 @@ def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_
         correct_channels=ops["genes_correct_channels"],
         prefix=prefix,
         nrounds=ops["genes_rounds"],
+        correct_illumination=True
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 
