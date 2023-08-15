@@ -18,6 +18,8 @@ image_correction:
 
 # Parameters for registration across rounds and channels
 registration:
+  # Whether to use channel-specific registration parameters
+  align_channels: true
   # Coordinates of the reference tile to use for initial estimation of scale and rotation between channels
   ref_tile: [ 1, 0, 0 ]
   # Index of the reference channel to use for registration (camera index, NOT wavelength index)
@@ -30,6 +32,10 @@ registration:
   corrected_shifts: best
   # Mininum tile shift above which RANSAC fit is used to estimate the shift
   ransac_residual_threshold: 10
+  # Maximum shift for tiles to be included in the RANSAC fit
+  ransac_max_shift: 500
+  # Minumum number of tile for RANSAC fit, otherwise median is used
+  ransac_min_tiles: 10
   # Wheter tile position increments from left to right or right to left
   tile_direction: left_to_right
 

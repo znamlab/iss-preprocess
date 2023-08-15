@@ -151,16 +151,25 @@ def correct_shifts(data_path, prefix):
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, :]:
-        correct_shifts_roi(data_path, roi, prefix=prefix)
+        correct_shifts_roi(
+            data_path,
+            roi,
+            prefix=prefix,
+            max_shift=ops["ransac_max_shift"],
+            min_tiles=ops["ransac_min_tiles"],
+        )
         filter_ransac_shifts(
             data_path, prefix, roi, max_residuals=ops["ransac_residual_threshold"]
         )
 
 
-def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500):
+def correct_shifts_roi(
+    data_path, roi_dims, prefix="genes_round", max_shift=500, min_tiles=0
+):
     """Use robust regression to correct shifts across tiles for a single ROI.
 
     RANSAC regression is applied to shifts within and across channels using
@@ -174,6 +183,8 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
         max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
             Tiles with larger absolute shifts will not be included in the fit but will
             still have their corrected shifts estimated. Defaults to 500.
+        min_tiles (int, optional): Minimum number of tiles to use for RANSAC regression,
+            otherwise median is used.
 
     """
     processed_path = iss.io.get_processed_path(data_path)
@@ -198,23 +209,46 @@ def correct_shifts_roi(data_path, roi_dims, prefix="genes_round", max_shift=500)
     shifts_between_channels_corrected = np.zeros(shifts_between_channels.shape)
     # TODO: maybe make X in the loop above?
     X = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
-
-    for ich in range(shifts_within_channels.shape[0]):
-        for iround in range(shifts_within_channels.shape[1]):
+    ntiles = nx * ny
+    if ntiles < min_tiles:
+        shifts_within_channels_corrected = np.tile(
+            np.median(shifts_within_channels, axis=3)[:, :, :, np.newaxis],
+            (1, 1, 1, ntiles),
+        )
+        shifts_between_channels_corrected = np.tile(
+            np.median(shifts_between_channels, axis=2)[:, :, np.newaxis], (1, 1, ntiles)
+        )
+    else:
+        for ich in range(shifts_within_channels.shape[0]):
+            for iround in range(shifts_within_channels.shape[1]):
+                median_shift = np.median(
+                    shifts_within_channels[ich, iround, :, :], axis=1
+                )[:, np.newaxis]
+                inliers = np.all(
+                    np.abs(shifts_within_channels[ich, iround, :, :] - median_shift)
+                    < max_shift,
+                    axis=0,
+                )
+                for idim in range(2):
+                    reg = RANSACRegressor(random_state=0).fit(
+                        X[inliers, :],
+                        shifts_within_channels[ich, iround, idim, inliers],
+                    )
+                    shifts_within_channels_corrected[
+                        ich, iround, idim, :
+                    ] = reg.predict(X)
+            median_shift = np.median(shifts_between_channels[ich, :, :], axis=1)[
+                :, np.newaxis
+            ]
             inliers = np.all(
-                np.abs(shifts_within_channels[ich, iround, :, :]) < max_shift, axis=0
+                np.abs(shifts_between_channels[ich, :, :] - median_shift) < max_shift,
+                axis=0,
             )
             for idim in range(2):
                 reg = RANSACRegressor(random_state=0).fit(
-                    X[inliers, :], shifts_within_channels[ich, iround, idim, inliers]
+                    X[inliers, :], shifts_between_channels[ich, idim, inliers]
                 )
-                shifts_within_channels_corrected[ich, iround, idim, :] = reg.predict(X)
-        inliers = np.all(np.abs(shifts_between_channels[ich, :, :]) < max_shift, axis=0)
-        for idim in range(2):
-            reg = RANSACRegressor(random_state=0).fit(
-                X[inliers, :], shifts_between_channels[ich, idim, inliers]
-            )
-            shifts_between_channels_corrected[ich, idim, :] = reg.predict(X)
+                shifts_between_channels_corrected[ich, idim, :] = reg.predict(X)
 
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -284,7 +318,8 @@ def correct_hyb_shifts(data_path, prefix=None):
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     if prefix:
@@ -310,7 +345,8 @@ def correct_shifts_to_ref(data_path, prefix, fit_angle=False):
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     prefix_to_reg = f"to_ref_{prefix}"
     for roi in roi_dims[use_rois, :]:
