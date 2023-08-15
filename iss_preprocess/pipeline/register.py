@@ -165,6 +165,7 @@ def correct_shifts(data_path, prefix):
         filter_ransac_shifts(
             data_path, prefix, roi, max_residuals=ops["ransac_residual_threshold"]
         )
+    iss.pipeline.check_tile_shifts(data_path, prefix)
 
 
 def correct_shifts_roi(

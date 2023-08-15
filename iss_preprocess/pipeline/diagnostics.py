@@ -6,6 +6,7 @@ The functions in here do not compute anything useful, but create figures
 import numpy as np
 import matplotlib.pyplot as plt
 import iss_preprocess as iss
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 def check_hybridisation_setup(data_path):
@@ -168,15 +169,16 @@ def reg_to_ref_estimation(
     processed_path = iss.io.get_processed_path(data_path)
     reg_dir = processed_path / "reg"
     figure_folder = processed_path / "figures"
-
-    ndims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
+    figure_folder.mkdir(exist_ok=True)
+    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = iss.io.load_ops(data_path)
     if rois is not None:
-        ndims = ndims[np.in1d(ndims[:, 0], rois)]
+        roi_dims = roi_dims[np.in1d(roi_dims[:, 0], rois)]
     elif "use_rois" in ops:
-        ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
+        roi_dims = roi_dims[np.in1d(roi_dims[:, 0], ops["use_rois"])]
     figs = {}
-    for roi, *ntiles in ndims:
+    roi_dims[:, 1:] = roi_dims[:, 1:] + 1
+    for roi, *ntiles in roi_dims:
         raw = np.zeros([3, *ntiles]) + np.nan
         corrected = np.zeros([3, *ntiles]) + np.nan
         for ix in range(ntiles[0]):
@@ -206,3 +208,77 @@ def reg_to_ref_estimation(
         )
         figs[roi] = fig
     return fig
+
+
+def check_tile_shifts(
+    data_path, prefix, rois=None, roi_dimension_prefix="genes_round_1_1"
+):
+    """Plot estimation of shifts/angle for registration to ref
+
+    Compare raw measures to ransac
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Acquisition prefix, "barcode_round" for instance.
+        rois (list): List of ROIs to process. If None, will either use ops["use_rois"]
+            if it is defined, or all ROIs otherwise. Defaults to None
+        roi_dimension_prefix (str, optional): prefix to load roi dimension. Defaults to
+            "genes_round_1_1"
+            
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    reg_dir = processed_path / "reg"
+    figure_folder = processed_path / "figures"
+    figure_folder.mkdir(exist_ok=True)
+    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
+    ops = iss.io.load_ops(data_path)
+    if rois is not None:
+        roi_dims = roi_dims[np.in1d(roi_dims[:, 0], rois)]
+    elif "use_rois" in ops:
+        roi_dims = roi_dims[np.in1d(roi_dims[:, 0], ops["use_rois"])]
+    roi_dims[:, 1:] = roi_dims[:, 1:] + 1
+    figs = {}
+    data = np.load(reg_dir / f"tforms_{prefix}_{roi_dims[0,0]}_0_0.npz")
+    nchannels = data["shifts_within_channels"].shape[0]
+    nrounds = data["shifts_within_channels"].shape[1]
+    for roi, *ntiles in roi_dims:
+        shifts_within_channels_raw = np.zeros([nchannels, nrounds, 2, *ntiles]) + np.nan
+        shifts_within_channels_corrected = shifts_within_channels_raw.copy()
+        shifts_between_channels_raw = np.zeros([nchannels, 2, *ntiles]) + np.nan
+        shifts_between_channels_corrected = shifts_between_channels_raw.copy()
+
+        for ix in range(ntiles[0]):
+            for iy in range(ntiles[1]):
+                try:
+                    data = np.load(reg_dir / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz")
+                    shifts_within_channels_raw[:, :, :, ix, iy] = data[
+                        "shifts_within_channels"
+                    ]
+                    shifts_between_channels_raw[:, :, ix, iy] = data[
+                        "shifts_between_channels"
+                    ]
+                except FileNotFoundError:
+                    pass
+                data = np.load(
+                    reg_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
+                )
+                shifts_within_channels_corrected[:, :, :, ix, iy] = data[
+                    "shifts_within_channels"
+                ]
+                shifts_between_channels_corrected[:, :, ix, iy] = data[
+                    "shifts_between_channels"
+                ]
+        # create a PDF for each roi
+        with PdfPages(figure_folder / f"tile_shifts_{prefix}_roi{roi}.pdf") as pdf:
+            for ch in range(nchannels):
+                for dim in range(2):
+                    fig = iss.vis.plot_matrix_difference(
+                        raw=shifts_within_channels_raw[ch, :, dim, :, :],
+                        corrected=shifts_within_channels_corrected[ch, :, dim, :, :],
+                        col_labels=[f"round {i}" for i in range(nrounds)],
+                        range_min=np.ones(nrounds) * 5,
+                    )
+                    fig.suptitle(f"Dim {dim} shifts. {prefix} ROI {roi} channel {ch}")
+                    pdf.savefig(fig)
+                    figs[roi] = fig
+    return figs
