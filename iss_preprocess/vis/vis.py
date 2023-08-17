@@ -369,11 +369,11 @@ def plot_overview_images(
             tile_size = 3000 / downsample_factor
             dim_x = (nx * tile_size) + tile_size
             dim_y = (ny * tile_size) + tile_size
-
-            extracted_chamber = data_path.split("becalia_rabies_barseq", 1)[-1].replace(
-                "/", " "
+            mouse_name = Path(data_path).parts[1]
+            extracted_chamber = Path(data_path).parts[2]
+            plt.title(
+                f"{mouse_name} {extracted_chamber}, ROI: {roi}, {prefix}, Channel: {ch}"
             )
-            plt.title(f"{extracted_chamber}, ROI: {roi}, {prefix}, Channel: {ch}")
             plt.imshow(
                 stack[::downsample_factor, ::downsample_factor], vmax=percentile_value
             )
