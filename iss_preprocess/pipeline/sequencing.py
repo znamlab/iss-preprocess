@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
 import iss_preprocess as iss
@@ -100,7 +99,7 @@ def setup_barcode_calling(data_path):
             suffix=ops["barcode_projection"],
             nrounds=ops["barcode_rounds"],
             correct_channels=ops["barcode_correct_channels"],
-            corrected_shifts=True,
+            corrected_shifts=ops["corrected_shifts"],
             correct_illumination=False,
         )
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -115,14 +114,13 @@ def setup_barcode_calling(data_path):
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
         all_spots, score_thresh=ops["barcode_cluster_score_thresh"]
     )
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     np.savez(
-        processed_path / data_path / "reference_barcode_spots.npz",
+        processed_path / "reference_barcode_spots.npz",
         spot_colors=spot_colors,
         cluster_inds=cluster_inds,
     )
-    save_path = processed_path / data_path / "barcode_cluster_means.npy"
-    np.save(save_path, cluster_means)
+    np.save(processed_path / "barcode_cluster_means.npy", cluster_means)
     iss.pipeline.check_barcode_calling(data_path)
     return cluster_means, all_spots
 
@@ -135,10 +133,9 @@ def basecall_tile(data_path, tile_coors):
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
-    cluster_means = np.load(processed_path / data_path / "barcode_cluster_means.npy")
-    nrounds = cluster_means.shape[0]
+    cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
 
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
@@ -146,9 +143,9 @@ def basecall_tile(data_path, tile_coors):
         filter_r=ops["filter_r"],
         prefix="barcode_round",
         suffix=ops["barcode_projection"],
-        nrounds=nrounds,
+        nrounds=ops["barcode_rounds"],
         correct_channels=ops["barcode_correct_channels"],
-        corrected_shifts=True,
+        corrected_shifts=ops["corrected_shifts"],
         correct_illumination=True,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -160,15 +157,13 @@ def basecall_tile(data_path, tile_coors):
         threshold=ops["barcode_detection_threshold_basecalling"],
         rho=ops["barcode_spot_rho"],
     )
-    # TODO: size should probably be set inside detect spots?
     extract_spots(spots, stack, ops["spot_extraction_radius"])
     x = np.stack(spots["trace"], axis=2)
     cluster_inds = []
     top_score = []
 
-    nrounds = x.shape[0]
     # TODO: perhaps we should apply background correction before basecalling?
-    for iround in range(nrounds):
+    for iround in range(ops["barcode_rounds"]):
         this_round_means = cluster_means[iround]
         this_round_means = this_round_means / np.linalg.norm(this_round_means, axis=1)
         x_norm = (
@@ -189,7 +184,7 @@ def basecall_tile(data_path, tile_coors):
     spots["bases"] = ["".join(BASES[seq]) for seq in spots["sequence"]]
     spots["dot_product_score"] = barcode_spots_dot_product(spots, cluster_means)
     spots["mean_intensity"] = [np.mean(np.abs(trace)) for trace in spots["trace"]]
-    save_dir = processed_path / data_path / "spots"
+    save_dir = processed_path / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     spots.to_pickle(
         save_dir
@@ -213,7 +208,7 @@ def setup_omp(data_path):
 
     """
     ops = load_ops(data_path)
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     all_spots = []
     for ref_tile in ops["genes_ref_tiles"]:
         print(f"detecting spots in tile {ref_tile}")
@@ -224,6 +219,7 @@ def setup_omp(data_path):
             prefix="genes_round",
             suffix=ops["genes_projection"],
             correct_channels=ops["genes_correct_channels"],
+            nrounds=ops["genes_rounds"],
         )
         stack[bad_pixels, :, :] = 0
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
@@ -240,7 +236,7 @@ def setup_omp(data_path):
         all_spots, score_thresh=ops["genes_cluster_score_thresh"]
     )
     np.savez(
-        processed_path / data_path / "reference_gene_spots.npz",
+        processed_path / "reference_gene_spots.npz",
         spot_colors=spot_colors,
         cluster_inds=cluster_inds,
     )
@@ -252,9 +248,9 @@ def setup_omp(data_path):
     )
     gene_dict, gene_names = make_gene_templates(cluster_means, codebook)
 
-    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
+    norm_shift = np.sqrt(np.median(np.sum(stack ** 2, axis=(2, 3))))
     np.savez(
-        processed_path / data_path / "gene_dict.npz",
+        processed_path / "gene_dict.npz",
         gene_dict=gene_dict,
         gene_names=gene_names,
         norm_shift=norm_shift,
@@ -335,8 +331,7 @@ def estimate_channel_correction(
     else:
         norm_factors_fit = norm_factors_raw
 
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    save_path = processed_path / data_path / f"correction_{prefix}.npz"
+    save_path = iss.io.get_processed_path(data_path) / f"correction_{prefix}.npz"
     np.savez(
         save_path,
         pixel_dist=pixel_dist,
@@ -353,7 +348,7 @@ def load_and_register_sequencing_tile(
     suffix="fstack",
     filter_r=(2, 4),
     correct_channels=False,
-    corrected_shifts=True,
+    corrected_shifts="best",
     correct_illumination=False,
     nrounds=7,
     specific_rounds=None,
@@ -373,8 +368,8 @@ def load_and_register_sequencing_tile(
             If `False`, stack is not filtered. Defaults to (2, 4).
         correct_channels (bool, optional): Whether to normalize channel brightness.
             Defaults to False.
-        corrected_shifts (bool, optional): Whether to use corrected shifts estimated
-            by robust regression across tiles. Defaults to True.
+        corrected_shifts (str, optional): Which shift to use. One of `reference`,
+            `single_tile`, `ransac`, or `best`. Defaults to 'best'.
         correct_illumination (bool, optional): Whether to correct vignetting.
             Defaults to False.
         nrounds (int, optional): Number of sequencing rounds to load. Used only if
@@ -396,8 +391,12 @@ def load_and_register_sequencing_tile(
     # ensure we have an array
     specific_rounds = np.asarray(specific_rounds, dtype=int)
     assert specific_rounds.min() > 0, "rounds must be strictly positive integers"
+    valid_shifts = ["reference", "single_tile", "ransac", "best"]
+    assert corrected_shifts in valid_shifts, (
+        f"unknown shift correction method, must be one of {valid_shifts}",
+    )
 
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     stack = load_sequencing_rounds(
         data_path,
         tile_coors,
@@ -409,12 +408,23 @@ def load_and_register_sequencing_tile(
     if correct_illumination:
         stack = apply_illumination_correction(data_path, stack, prefix)
 
-    if corrected_shifts:
-        tforms_fname = f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
-        tforms_path = processed_path / data_path / "reg" / tforms_fname
-    else:
+    if corrected_shifts == "reference":
         tforms_fname = f"tforms_{prefix}.npz"
-        tforms_path = processed_path / data_path / tforms_fname
+        tforms_path = processed_path / tforms_fname
+    elif corrected_shifts == "single_tile":
+        tforms_fname = (
+            f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        )
+        tforms_path = processed_path / "reg" / tforms_fname
+    elif corrected_shifts == "ransac":
+        tforms_fname = f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        tforms_path = processed_path / "reg" / tforms_fname
+    elif corrected_shifts == "best":
+        tforms_fname = (
+            f"tforms_best_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        )
+        tforms_path = processed_path / "reg" / tforms_fname
+    ops = iss.io.load_ops(data_path)
     tforms = np.load(tforms_path, allow_pickle=True)
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
@@ -423,6 +433,8 @@ def load_and_register_sequencing_tile(
         tforms["angles_between_channels"],
         tforms["shifts_between_channels"],
         stack.shape[:2],
+        align_channels=ops["align_channels"],
+        ref_ch=ops["ref_ch"],
     )
     tforms = tforms[:, specific_rounds - 1]
     stack = align_channels_and_rounds(stack, tforms)
@@ -434,7 +446,7 @@ def load_and_register_sequencing_tile(
         mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
         bad_pixels = binary_dilation(bad_pixels, mask)
     if correct_channels:
-        correction_path = processed_path / data_path / f"correction_{prefix}.npz"
+        correction_path = processed_path / f"correction_{prefix}.npz"
         norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
         if correct_channels == "round1_only":
             stack = stack / norm_factors[np.newaxis, np.newaxis, :, 0, np.newaxis]
@@ -455,16 +467,21 @@ def compute_spot_sign_image(data_path, prefix="genes_round"):
 
     """
     ops = load_ops(data_path)
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    g, _ = run_omp_on_tile(
-        data_path, ops["ref_tile"], ops, save_stack=False, prefix=prefix
-    )
-
-    spot_sign_image = get_spot_shape(
-        g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15
-    )
+    processed_path = iss.io.get_processed_path(data_path)
+    total_spots = 0
+    images = []
+    for tile in ops["genes_ref_tiles"]:
+        g, _ = run_omp_on_tile(
+            data_path, ops["ref_tile"], ops, save_stack=False, prefix=prefix
+        )
+        spot_sign_image, n_spots = get_spot_shape(
+            g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15
+        )
+        images.append(spot_sign_image)
+        total_spots += n_spots
+    spot_sign_image = np.sum(np.stack(images, axis=2), axis=2) / total_spots
     spot_sign_image = apply_symmetry(spot_sign_image)
-    np.save(processed_path / data_path / "spot_sign_image.npy", spot_sign_image)
+    np.save(processed_path / "spot_sign_image.npy", spot_sign_image)
     iss.pipeline.check_spot_sign_image(data_path)
 
 
@@ -482,8 +499,8 @@ def load_spot_sign_image(data_path, threshold):
         numpy.ndarray: Spot sign image after thresholding, containing -1, 0, or 1s.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    spot_image_path = processed_path / data_path / "spot_sign_image.npy"
+    processed_path = iss.io.get_processed_path(data_path)
+    spot_image_path = processed_path / "spot_sign_image.npy"
     if spot_image_path.exists():
         spot_sign_image = np.load(spot_image_path)
     else:
@@ -513,7 +530,7 @@ def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_
         dict: Dictionary of OMP parameters.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
 
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
@@ -522,18 +539,19 @@ def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_
         correct_channels=ops["genes_correct_channels"],
         prefix=prefix,
         nrounds=ops["genes_rounds"],
+        correct_illumination=True
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 
     if save_stack:
-        save_dir = processed_path / data_path / "reg"
+        save_dir = processed_path / "reg"
         save_dir.mkdir(parents=True, exist_ok=True)
         stack_path = (
             save_dir / f"tile_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.tif"
         )
         write_stack(stack.copy(), stack_path, bigtiff=True)
 
-    omp_stat = np.load(processed_path / data_path / "gene_dict.npz", allow_pickle=True)
+    omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
     g, _, _ = run_omp(
         stack,
         omp_stat["gene_dict"],
@@ -569,7 +587,6 @@ def detect_genes_on_tile(data_path, tile_coors, save_stack=False, prefix="genes_
             Defaults to "genes_round".
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     g, omp_stat = run_omp_on_tile(
         data_path, tile_coors, ops, save_stack=save_stack, prefix=prefix
@@ -585,7 +602,7 @@ def detect_genes_on_tile(data_path, tile_coors, save_stack=False, prefix="genes_
 
     for df, gene in zip(gene_spots, omp_stat["gene_names"]):
         df["gene"] = gene
-    save_dir = processed_path / data_path / "spots"
+    save_dir = iss.io.get_processed_path(data_path) / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     pd.concat(gene_spots).to_pickle(
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"

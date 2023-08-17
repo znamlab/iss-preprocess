@@ -4,7 +4,6 @@ import yaml
 from skimage.transform import rescale
 from scipy.ndimage import gaussian_filter
 import bg_atlasapi as bga
-from flexiznam import PARAMETERS
 from . import stitch
 import cv2
 from ..io import (
@@ -14,6 +13,7 @@ from ..io import (
     load_stack,
     get_pixel_size,
     save_ome_tiff_pyramid,
+    get_processed_path,
 )
 
 
@@ -32,7 +32,6 @@ def find_roi_position_on_cryostat(data_path):
         min_step (float): Minimum thickness between two slices
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     metadata = load_metadata(data_path)
     rois = metadata["ROI"].keys()
 
@@ -53,7 +52,7 @@ def find_roi_position_on_cryostat(data_path):
 
     # find where is each slice of the chamber in the section order of the whole brain
     # the chamber folder should be called chamber_XX
-    chamber = int((processed_path / data_path).name.split("_")[1])
+    chamber = int(Path(data_path).name.split("_")[1])
     chamber_pos2section_order = {
         s.chamber_position: s.section_position
         for _, s in section_info[section_info.chamber == chamber].iterrows()
@@ -82,8 +81,8 @@ def load_registration_reference_metadata(data_path, roi):
         metadata (dict): Content of the metadata yml file
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    reg_folder = processed_path / data_path / "register_to_ara"
+    processed_path = get_processed_path(data_path)
+    reg_folder = processed_path / "register_to_ara"
     chamber = reg_folder.parent.name
     if not reg_folder.is_dir():
         raise IOError("Registration folder does not exists. Perform registration first")
@@ -112,8 +111,8 @@ def load_coordinate_image(data_path, roi, full_scale=False):
         coords (np.ndarray): 3 channel image of ARA coordinates
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    reg_folder = processed_path / data_path / "register_to_ara"
+    processed_path = get_processed_path(data_path)
+    reg_folder = processed_path / "register_to_ara"
 
     if not reg_folder.is_dir():
         raise IOError("Registration folder does not exists. Perform registration first")
@@ -227,8 +226,7 @@ def overview_single_roi(
     print(f"Sigma blur: {sigma_blur}", flush=True)
     sigma_blur = float(sigma_blur)
     chamber = Path(data_path).name
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    registration_folder = processed_path / data_path / "register_to_ara"
+    registration_folder = get_processed_path(data_path) / "register_to_ara"
 
     print("Finding shifts")
     ops = load_ops(data_path)

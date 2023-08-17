@@ -1,7 +1,7 @@
 from os import system
 import numpy as np
 import pandas as pd
-from flexiznam.config import PARAMETERS
+import iss_preprocess as iss
 from pathlib import Path
 from skimage.measure import regionprops_table
 from skimage.segmentation import expand_labels
@@ -56,7 +56,6 @@ def segment_roi(
 
     """
     print(f"running segmentation on roi {iroi} from {data_path} using {prefix}")
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     ops = load_ops(data_path)
     print(f"stitching {prefix} and aligning to {reference}", flush=True)
     stitched_stack = stitch_registered(
@@ -73,7 +72,7 @@ def segment_roi(
         model_type=ops["cellpose_model"],
         use_gpu=use_gpu,
     )
-    np.save(processed_path / data_path / f"masks_{iroi}.npy", masks)
+    np.save(iss.io.get_processed_path(data_path) / f"masks_{iroi}.npy", masks)
 
 
 def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_size=10):
@@ -95,7 +94,6 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
             If None, will not get area information. Defaults to 10.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     big_masks = _get_big_masks(data_path, roi, masks, mask_expansion)
 
     cell_df = pd.DataFrame(
@@ -121,7 +119,7 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
             acronyms=True,
             inplace=True,
         )
-    cell_folder = processed_path / data_path / "cells"
+    cell_folder = iss.io.get_processed_path(data_path) / "cells"
     cell_folder.mkdir(exist_ok=True)
     cell_df.to_pickle(cell_folder / f"cells_df_roi{roi}.pkl")
     return cell_df
@@ -156,7 +154,7 @@ def add_mask_id(
         dict: Dictionary of spots dataframes
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     big_masks = _get_big_masks(data_path, roi, masks, mask_expansion)
 
     metadata = load_metadata(data_path=data_path)
@@ -173,9 +171,7 @@ def add_mask_id(
     spots_dict = dict()
     for prefix in spot_acquisitions:
         print(f"Loading {prefix}", flush=True)
-        spot_df = pd.read_pickle(
-            processed_path / data_path / f"{prefix}_spots_{roi}.pkl"
-        )
+        spot_df = pd.read_pickle(processed_path / f"{prefix}_spots_{roi}.pkl")
         filt_col, threshold = thresholds[prefix]
         spot_df = spot_df[spot_df[filt_col] > threshold]
         # modify spots in place
@@ -223,9 +219,6 @@ def segment_spots(
             cell. Index is the mask ID of the cell
 
     """
-
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-
     # add the mask_id column to spots_df
     spots_dict = add_mask_id(
         data_path,
@@ -257,9 +250,9 @@ def segment_spots(
 
     # Save barcodes
     barcode_df = spots_in_cells.pop("barcode_round")
-    cell_folder = processed_path / data_path / "cells"
-    cell_folder.mkdir(exist_ok=True)
-    barcode_df.to_pickle(cell_folder / f"barcode_df_roi{roi}.pkl")
+    save_dir = iss.io.get_processed_path(data_path) / "cells"
+    save_dir.mkdir(exist_ok=True)
+    barcode_df.to_pickle(save_dir / f"barcode_df_roi{roi}.pkl")
 
     # Fuse genes and hybridisation
     fused_df = spots_in_cells.pop("genes_round")
@@ -271,7 +264,7 @@ def segment_spots(
         fused_df = fused_df.join(hyb_df, how="outer")
     fused_df[np.isnan(fused_df)] = 0
     fused_df = fused_df.astype(int)
-    fused_df.to_pickle(cell_folder / f"genes_df_roi{roi}.pkl")
+    fused_df.to_pickle(save_dir / f"genes_df_roi{roi}.pkl")
 
     return barcode_df, fused_df
 
@@ -293,10 +286,8 @@ def _get_big_masks(data_path, roi, masks, mask_expansion):
         numpy.ndarray: masks expanded
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     if masks is None:
-        masks = np.load(processed_path / data_path / f"masks_{roi}.npy")
-
+        masks = np.load(iss.io.get_processed_path(data_path) / f"masks_{roi}.npy")
     if mask_expansion is None:
         big_masks = masks
     else:

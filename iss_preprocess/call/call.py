@@ -25,6 +25,8 @@ def get_cluster_means(spots, score_thresh=0.0):
     Returns:
         cluster_means (list): A list with Nrounds elements. Each a Ncl x Nch (square
             because N channels is equal to N clusters) array of cluster means
+        spot_colors (numpy.ndarray): Nrounds x Nch x Nspots array of spot colors
+        cluster_inds (list): A list with Nrounds elements. Each a Nspots array of
             
     """
     spot_colors = np.stack(spots["trace"], axis=2)  # round x channels x spots
