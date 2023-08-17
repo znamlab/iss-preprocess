@@ -328,7 +328,11 @@ def animate_sequencing_rounds(
 
 
 def plot_overview_images(
-    data_path, prefix, plot_grid=True, downsample_factor=25, save_raw=False
+    data_path,
+    prefix,
+    plot_grid=True,
+    downsample_factor=25,
+    save_raw=False
 ):
     """Plot individual channel overview images.
     
@@ -339,10 +343,13 @@ def plot_overview_images(
         downsample_factor (int): Amount to downsample overview
         save_raw (bool): Whether to save a full size tif with no gridlines
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path)
     image_metadata = load_micromanager_metadata(data_path, prefix)
     nchannels = image_metadata["Summary"]["Channels"]
+    # Check if average image exists for illumination correction
+    correct_illumination = (processed_path / data_path / 'averages' / f'{prefix}_average.tif').exists()
+
     # TODO: Run individual batch jobs for each ROI/channel for speed
     for roi_dim in roi_dims:
         roi = roi_dim[0]
@@ -357,7 +364,7 @@ def plot_overview_images(
                 roi=roi,
                 suffix="max",
                 ich=ch,
-                correct_illumination=False,
+                correct_illumination=correct_illumination,
             )
             stack = stack.astype("uint16")
             print("   ... plotting", flush=True)
@@ -403,22 +410,16 @@ def plot_overview_images(
                 )
             ax.invert_yaxis()
             print("   ... saving", flush=True)
-            figure_folder = processed_path / data_path / "figures" / "round_overviews"
+            figure_folder = processed_path / "figures" / "round_overviews"
             figure_folder.mkdir(parents=True, exist_ok=True)
             plt.savefig(
-                processed_path
-                / data_path
-                / "figures"
-                / "round_overviews"
+                figure_folder
                 / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.png",
                 dpi=300,
             )
             if save_raw:
                 tifffile.imwrite(
-                    processed_path
-                    / data_path
-                    / "figures"
-                    / "round_overviews"
+                    figure_folder
                     / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.tif",
                     stack,
                     imagej=True,
