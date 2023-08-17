@@ -118,11 +118,22 @@ def project_round(path, prefix, overwrite=False):
 @click.option(
     "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
 )
-def check_projection(path, prefix):
+@click.option(
+    "--plot",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Whether to save mp4 of registration results.",
+)
+def check_projection(path, prefix, plot):
     """Check if projection has completed for all tile."""
     import iss_preprocess.pipeline as pipeline
 
     pipeline.check_projection(path, prefix)
+    if plot:
+        from iss_preprocess.pipeline import diagnostics
+
+        diagnostics.check_ref_tile_registration(path, prefix=prefix)
 
 
 @cli.command()
@@ -179,7 +190,7 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix,
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
     )
 
 
@@ -371,7 +382,7 @@ def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
 
         additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
         batch_process_tiles(
-            path, "register_tile_to_ref", additional_args=additional_args,
+            path, "register_tile_to_ref", additional_args=additional_args
         )
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
@@ -472,7 +483,7 @@ def align_spots_roi(
         )
 
     merge_and_align_spots(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi,
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
     )
 
 
@@ -503,9 +514,7 @@ def create_grand_averages(path):
     """Create grand average for illumination correction"""
     from iss_preprocess import pipeline
 
-    pipeline.create_grand_averages(
-        path, prefix_todo=("genes_round", "barcode_round"),
-    )
+    pipeline.create_grand_averages(path, prefix_todo=("genes_round", "barcode_round"))
 
 
 @cli.command()
@@ -572,9 +581,7 @@ def create_single_average(
 @click.option("-r", "--roi", help="Roi id", type=int)
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
 @click.option("--sigma", help="Sigma for gaussian blur")
-def overview_for_ara_registration(
-    path, roi, slice_id, sigma=10.0,
-):
+def overview_for_ara_registration(path, roi, slice_id, sigma=10.0):
     """Generate the overview of one ROI used for registration
 
     Args:
