@@ -9,7 +9,7 @@ import pandas as pd
 from flexiznam.config import PARAMETERS
 from pathlib import Path
 import tifffile
-from ..io import get_roi_dimensions, load_micromanager_metadata
+from ..io import get_processed_path, load_micromanager_metadata
 
 
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
@@ -345,7 +345,7 @@ def plot_overview_images(
     nchannels = image_metadata["Summary"]["Channels"]
     # Check if average image exists for illumination correction
     correct_illumination = (
-        processed_path / data_path / "averages" / f"{prefix}_average.tif"
+        processed_path / "averages" / f"{prefix}_average.tif"
     ).exists()
 
     # TODO: Run individual batch jobs for each ROI/channel for speed
