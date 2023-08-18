@@ -328,14 +328,10 @@ def animate_sequencing_rounds(
 
 
 def plot_overview_images(
-    data_path,
-    prefix,
-    plot_grid=True,
-    downsample_factor=25,
-    save_raw=False
+    data_path, prefix, plot_grid=True, downsample_factor=25, save_raw=False
 ):
     """Plot individual channel overview images.
-    
+
     Args:
         data_path (str): Relative path to data
         prefix (str): Prefix of acquisition
@@ -348,7 +344,9 @@ def plot_overview_images(
     image_metadata = load_micromanager_metadata(data_path, prefix)
     nchannels = image_metadata["Summary"]["Channels"]
     # Check if average image exists for illumination correction
-    correct_illumination = (processed_path / data_path / 'averages' / f'{prefix}_average.tif').exists()
+    correct_illumination = (
+        processed_path / data_path / "averages" / f"{prefix}_average.tif"
+    ).exists()
 
     # TODO: Run individual batch jobs for each ROI/channel for speed
     for roi_dim in roi_dims:
