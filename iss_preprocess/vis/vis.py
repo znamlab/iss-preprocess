@@ -6,7 +6,6 @@ from scipy.cluster import hierarchy
 import iss_preprocess as iss
 import seaborn as sns
 import pandas as pd
-from flexiznam.config import PARAMETERS
 from pathlib import Path
 import tifffile
 from ..io import get_processed_path, load_micromanager_metadata
