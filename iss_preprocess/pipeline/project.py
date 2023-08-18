@@ -71,20 +71,7 @@ def project_round(data_path, prefix, overwrite=False):
         raw_path / prefix / metadata_fname, target_path / metadata_fname,
     )
     
-    script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"plot_overview.sh")
-    args = (
-        f"--export=DATAPATH={data_path},PREFIX={prefix}"
-    )
-    log_fname = f"iss_plot_overviews_%j"
-    args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
-    args = args + f" --dependency=afterok:{job_ids}"
-    command = f"sbatch {args} {script_path}"
-    print(command)
-    subprocess.Popen(
-        shlex.split(command),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-    )
+    job_ids = iss.vis.plot_overview_images(data_path, prefix, dependency=job_ids)
 
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
