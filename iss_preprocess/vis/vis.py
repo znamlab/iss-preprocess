@@ -8,6 +8,7 @@ import seaborn as sns
 import pandas as pd
 from pathlib import Path
 import tifffile
+from znamutils import slurm_it
 from ..io import get_processed_path, load_micromanager_metadata
 
 
@@ -327,16 +328,22 @@ def animate_sequencing_rounds(
 
 
 def plot_overview_images(
-    data_path, prefix, plot_grid=True, downsample_factor=25, save_raw=False
+    data_path,
+    prefix,
+    plot_grid=True,
+    downsample_factor=25,
+    save_raw=False,
+    dependency=None,
 ):
     """Plot individual channel overview images.
 
     Args:
         data_path (str): Relative path to data
         prefix (str): Prefix of acquisition
-        plot_axis (bool): Whether to plot gridlines at tile boundaries
-        downsample_factor (int): Amount to downsample overview
-        save_raw (bool): Whether to save a full size tif with no gridlines
+        plot_axis (bool, optional): Whether to plot gridlines at tile boundaries. Defaults to True.
+        downsample_factor (int, optional): Amount to downsample overview. Defaults to 25.
+        save_raw (bool, optional): Whether to save a full size tif with no gridlines. Defaults to False.
+        dependency (str, optional): Dependency for the generates slurm scripts
     """
     processed_path = get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path)
@@ -346,78 +353,128 @@ def plot_overview_images(
     correct_illumination = (
         processed_path / "averages" / f"{prefix}_average.tif"
     ).exists()
-
-    # TODO: Run individual batch jobs for each ROI/channel for speed
+    job_ids = []
     for roi_dim in roi_dims:
         roi = roi_dim[0]
         for ch in range(nchannels):
-            fig = plt.figure()
-            fig.clear()
-            print(f"Doing roi {roi}, channel {ch}")
-            print("   ... stitching", flush=True)
-            stack = iss.pipeline.stitch_tiles(
-                data_path,
-                prefix=prefix,
-                roi=roi,
-                suffix="max",
-                ich=ch,
-                correct_illumination=correct_illumination,
-            )
-            stack = stack.astype("uint16")
-            print("   ... plotting", flush=True)
-            nx = roi_dim[1]
-            ny = roi_dim[2]
-            percentile_value = np.percentile(
-                stack[::downsample_factor, ::downsample_factor], 98
-            )
-            tile_size = 3000 / downsample_factor
-            dim_x = (nx * tile_size) + tile_size
-            dim_y = (ny * tile_size) + tile_size
-            mouse_name = Path(data_path).parts[1]
-            extracted_chamber = Path(data_path).parts[2]
-            plt.title(
-                f"{mouse_name} {extracted_chamber}, ROI: {roi}, {prefix}, Channel: {ch}"
-            )
-            plt.imshow(
-                stack[::downsample_factor, ::downsample_factor], vmax=percentile_value
-            )
-            ax = plt.gca()
-            ax.set_aspect("equal")
-            if plot_grid:
-                # Add gridlines at approximate tile boundaries
-                ax.set_xlim(0, dim_x)
-                ax.set_ylim(0, dim_y)
-                ax.set_xticks(np.arange(0, dim_x, tile_size) + (tile_size / 2))
-                ax.set_yticks(np.arange(0, dim_y, tile_size) + (tile_size / 2))
-                minor_locator1 = AutoMinorLocator(2)
-                minor_locator2 = FixedLocator(np.arange(0, dim_y, tile_size))
-                ax.xaxis.set_minor_locator(minor_locator1)
-                ax.yaxis.set_minor_locator(minor_locator2)
-                ax.grid(which="minor", color="lightgrey")
-                # Adjust tick labels to display between the ticks
-                ax.set_xticklabels(np.arange(0, len(ax.get_xticks())), rotation=90)
-                ax.set_yticklabels(np.arange(0, len(ax.get_yticks()))[::-1])
-                ax.tick_params(
-                    top=False,
-                    bottom=False,
-                    left=False,
-                    right=False,
-                    labelleft=True,
-                    labelbottom=True,
+            job_ids.append(
+                plot_single_overview(
+                    data_path,
+                    prefix,
+                    roi,
+                    ch,
+                    nx=roi_dim[1],
+                    ny=roi_dim[2],
+                    plot_grid=plot_grid,
+                    downsample_factor=downsample_factor,
+                    save_raw=save_raw,
+                    correct_illumination=correct_illumination,
+                    use_slurm=True,
+                    slurm_folder=f"{Path.home()}/slurm_logs",
+                    scripts_name=f"plot_overview_{prefix}_{roi}_{ch}",
+                    job_dependency=dependency,
                 )
-            ax.invert_yaxis()
-            print("   ... saving", flush=True)
-            figure_folder = processed_path / "figures" / "round_overviews"
-            figure_folder.mkdir(parents=True, exist_ok=True)
-            plt.savefig(
-                figure_folder
-                / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.png",
-                dpi=300,
             )
-            if save_raw:
-                tifffile.imwrite(
-                    figure_folder
-                    / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.tif",
-                    stack,
-                    imagej=True,
-                )
+    return job_ids
+
+
+@slurm_it(conda_env="iss-preprocess")
+def plot_single_overview(
+    data_path,
+    prefix,
+    roi,
+    ch,
+    nx=None,
+    ny=None,
+    plot_grid=True,
+    downsample_factor=25,
+    save_raw=False,
+    correct_illumination=True,
+):
+    """Plot a single channel overview image.
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of acquisition
+        roi (int): ROI number
+        ch (int): Channel number
+        nx (int, optional): Number of tiles in x. If None will read from roi_dimensions
+        ny (int, optional): Number of tiles in y. If None will read from roi_dimensions
+        plot_axis (bool, optional): Whether to plot gridlines at tile boundaries. Defaults to True.
+        downsample_factor (int, optional): Amount to downsample overview. Defaults to 25.
+        save_raw (bool, optional): Whether to save a full size tif with no gridlines. Defaults to False.
+        correct_illumination (bool, optional): Whether to correct for uneven illumination. Defaults to True.
+
+    Returns:
+        fig: Figure object
+    """
+    if nx is None or ny is None:
+        roi_dims = iss.io.get_roi_dimensions(data_path)
+        for roi_dim in roi_dims:
+            if roi_dim[0] == roi:
+                nx = roi_dim[1]
+                ny = roi_dim[2]
+                break
+
+    fig = plt.figure()
+    fig.clear()
+    print(f"Doing roi {roi}, channel {ch}")
+    print("   ... stitching", flush=True)
+    stack = iss.pipeline.stitch_tiles(
+        data_path,
+        prefix=prefix,
+        roi=roi,
+        suffix="max",
+        ich=ch,
+        correct_illumination=correct_illumination,
+    )
+    stack = stack.astype("uint16")
+    print("   ... plotting", flush=True)
+    percentile_value = np.percentile(
+        stack[::downsample_factor, ::downsample_factor], 98
+    )
+    mouse_name = Path(data_path).parts[1]
+    extracted_chamber = Path(data_path).parts[2]
+    plt.title(f"{mouse_name} {extracted_chamber}, ROI: {roi}, {prefix}, Channel: {ch}")
+    plt.imshow(stack[::downsample_factor, ::downsample_factor], vmax=percentile_value)
+    ax = plt.gca()
+    ax.set_aspect("equal")
+    if plot_grid:
+        dim = np.array(stack.shape)[::-1] / downsample_factor
+        tile_size = dim / np.array([nx, ny])
+        for ix, x in enumerate("xy"):
+            # Add gridlines at approximate tile boundaries
+            getattr(ax, f"set_{x}lim")(0, dim[ix])
+            tcks = np.arange(0, dim[ix], tile_size[ix]) + (tile_size[ix] / 2)
+            getattr(ax, f"set_{x}ticks")(tcks)
+            minor_locator = FixedLocator(np.arange(0, dim[ix], tile_size[ix]))
+            getattr(ax, f"{x}axis").set_minor_locator(minor_locator)
+
+        # Adjust tick labels to display between the ticks
+        ax.set_xticklabels(np.arange(0, len(ax.get_xticks())), rotation=90)
+        ax.set_yticklabels(np.arange(0, len(ax.get_yticks()))[::-1])
+
+        ax.grid(which="minor", color="lightgrey")
+        ax.tick_params(
+            top=False,
+            bottom=False,
+            left=False,
+            right=False,
+            labelleft=True,
+            labelbottom=True,
+        )
+    ax.invert_yaxis()
+    print("   ... saving", flush=True)
+    figure_folder = get_processed_path(data_path) / "figures" / "round_overviews"
+    figure_folder.mkdir(parents=True, exist_ok=True)
+    plt.savefig(
+        figure_folder / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.png",
+        dpi=300,
+    )
+    if save_raw:
+        tifffile.imwrite(
+            figure_folder / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.tif",
+            stack,
+            imagej=True,
+        )
+    return fig
