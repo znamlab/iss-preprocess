@@ -1,8 +1,6 @@
 import numpy as np
 import multiprocessing as mp
 import shutil
-import shlex
-import subprocess
 import iss_preprocess as iss
 from functools import partial
 from pathlib import Path
@@ -53,25 +51,35 @@ def project_round(data_path, prefix, overwrite=False):
             Defaults to False.
 
     """
+    processed_path = iss.io.get_processed_path(data_path)
+    target_path = processed_path / prefix
+    target_path.mkdir(parents=True, exist_ok=True)
+    roi_dims = get_roi_dimensions(data_path, prefix)
+    ops = load_ops(data_path)
+    # Change ref tile to a central position where tissue will be
+    metadata = iss.io.load_metadata(data_path)
+    ops.update(
+        {
+            "ref_tile": [
+                        list(metadata["ROI"].keys())[0],
+                        round(roi_dims[0,1] / 2),
+                        round(roi_dims[0,2] / 2)
+                        ]
+        }
+    )
     additional_args = f",PREFIX={prefix}"
     if overwrite:
         additional_args += ",OVERWRITE=--overwrite"
-
-    roi_dims = get_roi_dimensions(data_path, prefix)
     job_ids = batch_process_tiles(
         data_path, "project_tile", roi_dims=roi_dims, additional_args=additional_args
     )
     # copy one of the tiff metadata files
-    processed_path = iss.io.get_processed_path(data_path)
     raw_path = iss.io.get_raw_path(data_path)
     metadata_fname = f"{prefix}_MMStack_{roi_dims[0][0]}-Pos000_000_metadata.txt"
-    target_path = processed_path / prefix
-    target_path.mkdir(parents=True, exist_ok=True)
     shutil.copy(
         raw_path / prefix / metadata_fname, target_path / metadata_fname,
     )
-    
-    job_ids = iss.vis.plot_overview_images(data_path, prefix, dependency=job_ids)
+    job_ids = iss.vis.plot_overview_images(data_path, prefix, dependency=','.join(job_ids))
 
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
