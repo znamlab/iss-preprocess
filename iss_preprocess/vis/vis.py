@@ -363,8 +363,8 @@ def plot_overview_images(
                     prefix,
                     roi,
                     ch,
-                    nx=roi_dim[1],
-                    ny=roi_dim[2],
+                    nx=roi_dim[1] + 1,
+                    ny=roi_dim[2] + 1,
                     plot_grid=plot_grid,
                     downsample_factor=downsample_factor,
                     save_raw=save_raw,
@@ -412,8 +412,8 @@ def plot_single_overview(
         roi_dims = iss.io.get_roi_dimensions(data_path)
         for roi_dim in roi_dims:
             if roi_dim[0] == roi:
-                nx = roi_dim[1]
-                ny = roi_dim[2]
+                nx = roi_dim[1] + 1
+                ny = roi_dim[2] + 1
                 break
 
     fig = plt.figure()
