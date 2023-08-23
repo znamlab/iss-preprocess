@@ -320,6 +320,19 @@ def stitch_tiles(
     else:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
         ops = load_ops(data_path)
+        metadata = iss.io.load_metadata(data_path)
+        ops_fname = processed_path / "ops.yml"
+        if not ops_fname.exists():
+            # Change ref tile to a central position where tissue will be
+            ops.update(
+                {
+                    "ref_tile": [
+                                list(metadata["ROI"].keys())[0],
+                                round(roi_dims[0,1] / 2),
+                                round(roi_dims[0,2] / 2)
+                                ]
+                }
+            )
         shifts = {}
         (
             shifts["shift_right"],
