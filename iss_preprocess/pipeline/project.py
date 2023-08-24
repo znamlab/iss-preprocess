@@ -70,7 +70,7 @@ def project_round(data_path, prefix, overwrite=False):
     additional_args = f",PREFIX={prefix}"
     if overwrite:
         additional_args += ",OVERWRITE=--overwrite"
-    job_ids = batch_process_tiles(
+    tileproj_job_ids = batch_process_tiles(
         data_path, "project_tile", roi_dims=roi_dims, additional_args=additional_args
     )
     # copy one of the tiff metadata files
@@ -79,8 +79,10 @@ def project_round(data_path, prefix, overwrite=False):
     shutil.copy(
         raw_path / prefix / metadata_fname, target_path / metadata_fname,
     )
-    job_ids = iss.vis.plot_overview_images(data_path, prefix, dependency=','.join(job_ids))
-
+ 
+    overview_job_ids = iss.vis.plot_overview_images(data_path, prefix, dependency=','.join(tileproj_job_ids))
+    
+    return tileproj_job_ids, overview_job_ids
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     """Project a single tile by its coordinates.

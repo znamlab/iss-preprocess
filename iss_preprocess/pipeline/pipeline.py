@@ -12,6 +12,7 @@ from ..io import (
     load_tile_by_coors,
     write_stack,
 )
+from znamutils import slurm_it
 from ..decorators import updates_flexilims
 from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
@@ -139,7 +140,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
 
 
 
-
+@slurm_it(conda_env="iss-preprocess")
 def create_single_average(
     data_path,
     subfolder,
@@ -206,7 +207,7 @@ def create_single_average(
 
     black_level = ops["black_level"] if subtract_black else 0
 
-    av_image, tilestats = tilestats_and_mean_image(
+    av_image, tilestats = iss.image.tilestats_and_mean_image(
         processed_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
@@ -219,7 +220,7 @@ def create_single_average(
         combine_tilestats=combine_tilestats,
         exclude_tiffs=exclude_tiffs,
     )
-    write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
+    iss.io.write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
     np.save(target_stats, tilestats)
     print(f"Average saved to {target_file}, tilestats to {target_stats}", flush=True)
     return av_image, tilestats
@@ -230,6 +231,7 @@ def create_all_single_averages(
     data_path,
     n_batch,
     todo=("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"),
+    dependency=None,
 ):
     """Average all tiffs in each folder and then all folders by acquisition type
 
@@ -240,8 +242,8 @@ def create_all_single_averages(
 
     """
     processed_path = iss.io.get_processed_path(data_path)
-    ops = load_ops(data_path)
-    metadata = load_metadata(data_path)
+    ops = iss.io.load_ops(data_path)
+    metadata = iss.io.load_metadata(data_path)
     # Collect all folder names
     to_average = []
     for kind in todo:
@@ -256,34 +258,37 @@ def create_all_single_averages(
                 f"Unknown type of acquisition: {kind}.\n"
                 + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
             )
-
-    script_path = str(
-        Path(__file__).parent.parent.parent / "scripts" / "create_single_average.sh"
-    )
+      
+    job_ids = []
     for folder in to_average:
         data_folder = processed_path / folder
         if not data_folder.is_dir():
             warnings.warn(f"{data_folder} does not exists. Skipping")
             continue
         projection = ops[f"{folder.split('_')[0].lower()}_projection"]
-        export_args = dict(
-            DATAPATH=data_path, SUBFOLDER=folder, SUFFIX=projection, N_BATCH=n_batch
+        job_ids.append(
+            create_single_average(
+                data_path,
+                folder,
+                n_batch=n_batch,
+                subtract_black = True,
+                prefix_filter=None,
+                suffix=projection,
+                use_slurm=True,
+                slurm_folder=f"{Path.home()}/slurm_logs",
+                scripts_name=f"create_single_average_{folder}",
+                job_dependency=dependency
+            )
         )
-        args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
-        args = (
-            args
-            + f" --output={Path.home()}/slurm_logs/iss_create_single_average_%j.out"
-            + f" --error={Path.home()}/slurm_logs/iss_create_single_average_%j.err"
-        )
-        command = f"sbatch {args} {script_path}"
-        print(command)
-        subprocess.Popen(
-            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-        )
+    return job_ids
 
 
 @updates_flexilims
-def create_grand_averages(data_path, prefix_todo=("genes_round", "barcode_round")):
+def create_grand_averages(
+    data_path,
+    prefix_todo=("genes_round", "barcode_round"),
+    dependency=None,
+    ):
     """Average single acquisition averages into grand average
 
     Args:
@@ -293,22 +298,23 @@ def create_grand_averages(data_path, prefix_todo=("genes_round", "barcode_round"
 
     """
     subfolder = "averages"
-    script_path = str(
-        Path(__file__).parent.parent.parent / "scripts" / "create_grand_average.sh"
-    )
+    job_ids = []   
     for kind in prefix_todo:
-        export_args = dict(DATAPATH=data_path, SUBFOLDER=subfolder, PREFIX=kind)
-        args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
-        args = (
-            args
-            + f" --output={Path.home()}/slurm_logs/iss_create_grand_average_%j.out"
-            + f" --error={Path.home()}/slurm_logs/iss_create_grand_average_%j.err"
+        job_ids.append(
+            create_single_average(
+                data_path,
+                subfolder,
+                subtract_black = False,
+                prefix_filter=kind,
+                combine_tilestats=True,
+                suffix="_1_average",
+                use_slurm=True,
+                slurm_folder=f"{Path.home()}/slurm_logs",
+                scripts_name=f"create_grand_average_{kind}",
+                job_dependency=dependency
+            )
         )
-        command = f"sbatch {args} {script_path}"
-        print(command)
-        subprocess.Popen(
-            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-        )
+    return job_ids
 
 
 def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
