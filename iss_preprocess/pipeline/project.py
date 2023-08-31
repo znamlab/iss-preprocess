@@ -7,7 +7,7 @@ from pathlib import Path
 from ..image import fstack_channels
 from ..io import get_tile_ome, write_stack, get_roi_dimensions, load_ops
 from .pipeline import batch_process_tiles
-
+from ..decorators import updates_flexilims
 
 def check_projection(data_path, prefix, suffixes=("max", "fstack")):
     """Check if all tiles have been projected successfully.
@@ -39,7 +39,7 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
     if all_projected:
         print("all tiles projected!")
 
-
+@updates_flexilims(name_source="prefix")
 def project_round(data_path, prefix, overwrite=False):
     """Start SLURM jobs to z-project all tiles from a single imaging round.
     Also, copy one of the MicroManager metadata files from raw to processed directory.
@@ -76,9 +76,10 @@ def project_round(data_path, prefix, overwrite=False):
     # copy one of the tiff metadata files
     raw_path = iss.io.get_raw_path(data_path)
     metadata_fname = f"{prefix}_MMStack_{roi_dims[0][0]}-Pos000_000_metadata.txt"
-    shutil.copy(
-        raw_path / prefix / metadata_fname, target_path / metadata_fname,
-    )
+    if not (target_path / metadata_fname).exists():
+        shutil.copy(
+            raw_path / prefix / metadata_fname, target_path / metadata_fname,
+        )
  
     overview_job_ids = iss.vis.plot_overview_images(data_path, prefix, dependency=','.join(tileproj_job_ids))
     

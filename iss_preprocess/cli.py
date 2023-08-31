@@ -5,6 +5,21 @@ import click
 def cli():
     pass
 
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-f",
+    "--force-redo",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Force redoing all steps.")
+
+def project_and_average(path, force_redo=False):
+    """Project and average all available data then create plots."""
+    from iss_preprocess.pipeline import project_and_average
+    click.echo(f"Processing {path}")
+    project_and_average(path, force_redo=force_redo)
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
@@ -600,29 +615,9 @@ def overview_for_ara_registration(
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def setup_flexilims(path):
     """Setup the flexilims database"""
-    import flexiznam as flz
-    from pathlib import Path
+    from iss_preprocess.pipeline import setup_flexilims
 
-    data_path = Path(path)
-    flm_session = flz.get_flexilims_session(project_id=data_path.parts[0])
-    # first level, which is the mouse, must exist
-    mouse = flz.get_entity(
-        name=data_path.parts[1], datatype="mouse", flexilims_session=flm_session
-    )
-    if mouse is None:
-        raise ValueError(f"Mouse {data_path.parts[1]} does not exist in flexilims")
-    parent_id = mouse["id"]
-    for sample_name in data_path.parts[2:]:
-        sample = flz.add_sample(
-            parent_id,
-            attributes=None,
-            sample_name=sample_name,
-            conflicts="skip",
-            other_relations=None,
-            flexilims_session=flm_session,
-        )
-        parent_id = sample["id"]
-
+    setup_flexilims(path)
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")

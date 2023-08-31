@@ -4,13 +4,14 @@ import warnings
 from pathlib import Path
 import numpy as np
 import iss_preprocess as iss
-from ..image import apply_illumination_correction, tilestats_and_mean_image
+import flexiznam as flz
+import os
+from ..image import apply_illumination_correction
 from ..io import (
     get_roi_dimensions,
     load_metadata,
     load_ops,
     load_tile_by_coors,
-    write_stack,
 )
 from znamutils import slurm_it
 from ..decorators import updates_flexilims
@@ -18,6 +19,117 @@ from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
 from .sequencing import load_and_register_sequencing_tile
 
+def project_and_average(data_path, force_redo=False):
+    """Project and average all available data then create plots.
+    
+
+    Load a tile of `prefix` with channels/rounds registered, apply illumination correction
+    and filtering.
+
+    Args:
+        data_path (str): Relative path to data
+        force_redo (bool): Redo all processing steps? Defaults to False
+
+    Returns:
+        po_job_ids (list): A list of job IDs for the slurm jobs created
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    metadata = iss.io.load_metadata(data_path)
+    slurm_folder = processed_path / "slurm_scripts" 
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+
+    # First, set up flexilims, adding chamber
+    iss.pipeline.setup_flexilims(data_path)
+
+    # Make a list of expected acquisition folders using metadata.yml
+    todo = ("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation")
+    data_by_kind = {kind: [] for kind in todo}
+    acquisition_complete = {kind: True for kind in todo}
+    for kind in todo:
+        if kind.endswith("rounds"):
+            data_by_kind[kind] = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
+        elif kind in ("fluorescence", "hybridisation"):
+            data_by_kind[kind] = list(metadata[kind].keys())
+
+    # Check for expected folders in raw_data and compute acquisition_complete flags
+    raw_path = iss.io.get_raw_path(data_path)
+    to_process = []
+    print(f"Checking for expected folders in {raw_path}", flush=True)
+    for kind in todo:
+        for folder in data_by_kind[kind]:
+            if not force_redo:
+                if not (raw_path / folder).exists():
+                    print(f"{folder} not found in raw, skipping", flush=True)
+                    acquisition_complete[kind] = False
+                    continue
+            to_process.append(folder)
+            
+    # Run projection on unprojected data
+    pr_job_ids = []
+    proj, mouse, chamber = data_path.split(os.sep)[:-1]
+    flm_sess = flz.get_flexilims_session(project_id=proj)
+    print(f'to_process: {to_process}')
+    for prefix in to_process:
+        flm_dataset = flz.get_entity(name="_".join([mouse, chamber, f'project_round_{prefix}']),
+                                    flexilims_session=flm_sess)
+        if flm_dataset is not None:
+            print(f'{prefix} is already projected, continuing', flush=True)
+            continue
+        tileproj_job_ids, _ = iss.pipeline.project_round(data_path, prefix)
+        pr_job_ids.extend(tileproj_job_ids)
+
+    # TODO: Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
+    #       This would need to take pr_job_ids and output more job_ids for csa to wait for
+
+    # Something like this
+    #for prefix in to_process:
+    #    all_projected, failed_tiles = iss.pipeline.check_projection(data_path, prefix)
+    #    if not all_projected:
+    #        print(f"{prefix} is missing projected tiles, re-projecting {failed_tiles}")
+    #        for tile in failed_tiles:
+    #            iss.pipeline.project_tile(tile)
+
+    # Then create averages of projections
+    # TODO: Set csa to_do based on which data is present but not projected
+    
+    csa_job_ids = iss.pipeline.create_all_single_averages(data_path,
+                                                    n_batch=1,
+                                                    dependency=pr_job_ids)
+
+    # Create grand averages if all rounds are projected
+    if acquisition_complete["genes_rounds"] or acquisition_complete["barcode_rounds"]:
+        cga_job_ids = iss.pipeline.create_grand_averages(data_path,
+                                                        dependency=csa_job_ids)
+    else:
+        print("All rounds not yet projected, skipping grand average creation", flush=True)
+        cga_job_ids = None
+    
+    plot_job_ids = csa_job_ids if csa_job_ids else []
+    if cga_job_ids:
+        plot_job_ids.extend(cga_job_ids)
+
+    # TODO: When plotting overview, check whether grand average has occured if it is a
+    # 'round' type, use it if so, otherwise use single average.
+
+    po_job_ids = []
+    for prefix in to_process:
+        flm_dataset = flz.get_entity(name="_".join([mouse, chamber, f'plot_single_overview_{prefix}']),
+                                    flexilims_session=flm_sess)
+        if not force_redo:
+            if flm_dataset is not None:
+                print(f'{prefix} is already plotted, continuing', flush=True)
+                continue
+        job_id = iss.vis.plot_overview_images(
+            data_path,
+            prefix,
+            plot_grid=True,
+            downsample_factor=25,
+            save_raw=False,
+            dependency=plot_job_ids,
+        )
+        po_job_ids.extend(job_id)
+    
+    return po_job_ids
 
 def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     """Load one single tile
@@ -263,7 +375,11 @@ def create_all_single_averages(
     for folder in to_average:
         data_folder = processed_path / folder
         if not data_folder.is_dir():
-            warnings.warn(f"{data_folder} does not exists. Skipping")
+            warnings.warn(f"{data_folder} projected data does not exist. Skipping")
+            continue
+        average_image = processed_path / "averages" / f"{folder}_average.tif"
+        if average_image.exists():
+            print(f"{folder} average already exists. Skipping")
             continue
         projection = ops[f"{folder.split('_')[0].lower()}_projection"]
         job_ids.append(
@@ -277,7 +393,7 @@ def create_all_single_averages(
                 use_slurm=True,
                 slurm_folder=f"{Path.home()}/slurm_logs",
                 scripts_name=f"create_single_average_{folder}",
-                job_dependency=dependency
+                job_dependency=','.join(dependency) if dependency else None
             )
         )
     return job_ids
@@ -287,6 +403,7 @@ def create_all_single_averages(
 def create_grand_averages(
     data_path,
     prefix_todo=("genes_round", "barcode_round"),
+    n_batch = 1,
     dependency=None,
     ):
     """Average single acquisition averages into grand average
@@ -304,6 +421,7 @@ def create_grand_averages(
             create_single_average(
                 data_path,
                 subfolder,
+                n_batch=n_batch,
                 subtract_black = False,
                 prefix_filter=kind,
                 combine_tilestats=True,
@@ -311,7 +429,7 @@ def create_grand_averages(
                 use_slurm=True,
                 slurm_folder=f"{Path.home()}/slurm_logs",
                 scripts_name=f"create_grand_average_{kind}",
-                job_dependency=dependency
+                job_dependency=','.join(dependency) if dependency else None 
             )
         )
     return job_ids
@@ -424,3 +542,24 @@ def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
         iss.pipeline.correct_hyb_shifts(data_path)
         iss.pipeline.setup_hyb_spot_calling(data_path)
         iss.pipeline.extract_hyb_spots_all(data_path)
+
+def setup_flexilims(path):
+    data_path = Path(path)
+    flm_session = flz.get_flexilims_session(project_id=data_path.parts[0])
+    # first level, which is the mouse, must exist
+    mouse = flz.get_entity(
+        name=data_path.parts[1], datatype="mouse", flexilims_session=flm_session
+    )
+    if mouse is None:
+        raise ValueError(f"Mouse {data_path.parts[1]} does not exist in flexilims")
+    parent_id = mouse["id"]
+    for sample_name in data_path.parts[2:]:
+        sample = flz.add_sample(
+            parent_id,
+            attributes=None,
+            sample_name=sample_name,
+            conflicts="skip",
+            other_relations=None,
+            flexilims_session=flm_session,
+        )
+        parent_id = sample["id"]

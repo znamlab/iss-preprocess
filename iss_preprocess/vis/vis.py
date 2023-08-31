@@ -10,6 +10,7 @@ from pathlib import Path
 import tifffile
 from znamutils import slurm_it
 from ..io import get_processed_path, load_micromanager_metadata
+from ..decorators import updates_flexilims
 
 
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
@@ -326,7 +327,6 @@ def animate_sequencing_rounds(
     plt.show()
     anim.save(savefname, writer=FFMpegWriter(fps=2))
 
-
 def plot_overview_images(
     data_path,
     prefix,
@@ -372,11 +372,10 @@ def plot_overview_images(
                     use_slurm=True,
                     slurm_folder=f"{Path.home()}/slurm_logs",
                     scripts_name=f"plot_overview_{prefix}_{roi}_{ch}",
-                    job_dependency=dependency,
+                    job_dependency=','.join(dependency) if dependency else None,
                 )
             )
     return job_ids
-
 
 @slurm_it(conda_env="iss-preprocess")
 def plot_single_overview(
