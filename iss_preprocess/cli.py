@@ -158,7 +158,7 @@ def setup_barcodes(path):
 def setup_hybridisation(path):
     """Estimate bleedthrough matrices for hybridisation spots."""
     from iss_preprocess.pipeline import setup_hyb_spot_calling
-    
+
     setup_hyb_spot_calling(path)
 
 
@@ -369,10 +369,9 @@ def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
 
+        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
         batch_process_tiles(
-            path,
-            "register_tile_to_ref",
-            f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}",
+            path, "register_tile_to_ref", additional_args=additional_args,
         )
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
@@ -618,11 +617,25 @@ def setup_flexilims(path):
         parent_id = sample["id"]
 
 
-@click.command()
+@cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def setup_channel_correction(path):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
     from iss_preprocess.pipeline import setup_channel_correction
+
     setup_channel_correction(path)
     click.echo("Channel correction setup complete.")
 
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("--genes", is_flag=True, help="Whether to call spots for genes.")
+@click.option("--barcodes", is_flag=True, help="Whether to call spots for barcodes.")
+@click.option(
+    "--hybridisation", is_flag=True, help="Whether to call spots for hybridisation."
+)
+def call_spots(path, genes, barcodes, hybridisation):
+    """Call spots for genes, barcodes and hybridisation rounds"""
+    from iss_preprocess.pipeline import call_spots
+
+    call_spots(path, genes, barcodes, hybridisation)

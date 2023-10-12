@@ -9,6 +9,42 @@ import yaml
 import re
 
 
+def get_raw_path(data_path):
+    """Return the path to the raw data.
+
+    Args:
+        data_path (str): Relative path to data
+
+    Returns:
+        pathlib.Path: Path to raw data
+
+    """
+    project = data_path.split("/")[0]
+    if project in PARAMETERS["project_paths"].keys():
+        raw_path = Path(PARAMETERS["project_paths"][project]["raw"])
+    else:
+        raw_path = Path(PARAMETERS["data_root"]["raw"])
+    return raw_path / data_path
+
+
+def get_processed_path(data_path):
+    """Return the path to the processed data.
+
+    Args:
+        data_path (str): Relative path to data
+
+    Returns:
+        pathlib.Path: Path to processed data
+
+    """
+    project = data_path.split("/")[0]
+    if project in PARAMETERS["project_paths"].keys():
+        processed_path = Path(PARAMETERS["project_paths"][project]["processed"])
+    else:
+        processed_path = Path(PARAMETERS["data_root"]["processed"])
+    return processed_path / data_path
+
+
 def load_hyb_probes_metadata():
     """Load the hybridisation probes metadata.
     
@@ -35,6 +71,7 @@ def load_ops(data_path):
         dict: Options, see config/defaults_ops.yaml for description
 
     """
+
     def flatten_dict(d):
         flattened_dict = {}
         for key, value in d.items():
@@ -44,9 +81,9 @@ def load_ops(data_path):
             else:
                 flattened_dict[key] = value
         return flattened_dict
-    
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    ops_fname = processed_path / data_path / "ops.yml"
+
+    processed_path = get_processed_path(data_path)
+    ops_fname = processed_path / "ops.yml"
 
     default_ops_fname = Path(__file__).parent.parent / "config" / "default_ops.yml"
     with open(default_ops_fname, "r") as f:
@@ -60,12 +97,12 @@ def load_ops(data_path):
         # for any keys that are not in the ops file, use the defaults
         ops = dict(default_ops, **ops)
 
-    black_level_fname = processed_path / data_path / "black_level.npy"
+    black_level_fname = processed_path / "black_level.npy"
     if black_level_fname.exists():
         ops["black_level"] = np.load(black_level_fname)
     else:
         print("black level not found, computing from dark frame")
-        dark_fname = processed_path / ops["dark_frame_path"]
+        dark_fname = get_processed_path(ops["dark_frame_path"])
         dark_frames = load_stack(dark_fname)
         ops["black_level"] = dark_frames.mean(axis=(0, 1))
         np.save(black_level_fname, ops["black_level"])
@@ -78,7 +115,7 @@ def load_ops(data_path):
             "barcode_rounds": metadata["barcode_rounds"],
         }
     )
-            
+
     return ops
 
 
@@ -95,10 +132,15 @@ def load_metadata(data_path):
         dict: Content of `{chamber}_metadata.yml`
 
     """
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
-    metadata_fname = raw_path / data_path / (Path(data_path).name + "_metadata.yml")
+    metadata_fname = get_raw_path(data_path) / (Path(data_path).name + "_metadata.yml")
     if not metadata_fname.exists():
-        raise IOError(f"Metadata not found.\n{metadata_fname} does not exist")
+        metadata_fname = get_processed_path(data_path) / (
+            Path(data_path).name + "_metadata.yml"
+        )
+        if metadata_fname.exists():
+            print("Metadata not found in raw data, loading from processed data")
+        else:
+            raise IOError(f"Metadata not found.\n{metadata_fname} does not exist")
     with open(metadata_fname, "r") as f:
         metadata = yaml.safe_load(f)
     return metadata
@@ -130,7 +172,7 @@ def load_micromanager_metadata(data_path, prefix):
         metadata (dict): Content of the metadata file
 
     """
-    acq_folder = Path(PARAMETERS["data_root"]["processed"]) / data_path / prefix
+    acq_folder = get_processed_path(data_path) / prefix
     # the metadata for the first ROI is always copied. Just in case the first ROI is not
     # ROI 1, we find whichever is available
     fmetadata = list(acq_folder.glob("*_metadata.txt"))
@@ -154,14 +196,12 @@ def load_section_position(data_path):
         pandas.DataFrame: Slice position info
 
     """
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
-    mouse_path = (raw_path / data_path).parent
+    mouse_path = get_raw_path(data_path).parent
     csv_path = mouse_path / "section_position.csv"
     slice_info = pd.read_csv(csv_path, index_col=None)
     return slice_info
 
 
-# AB: LGTM 10/01/23
 def load_tile_by_coors(
     data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
 ):
@@ -180,12 +220,11 @@ def load_tile_by_coors(
 
     """
     tile_roi, tile_x, tile_y = tile_coors
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     fname = (
         f"{prefix}_MMStack_{tile_roi}-"
         + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
     )
-    return load_stack(processed_path / data_path / prefix / fname)
+    return load_stack(get_processed_path(data_path) / prefix / fname)
 
 
 # TODO: add shape check? What if pages are not 2D (rgb, weird tiffs)
@@ -262,21 +301,20 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
         numpy.ndarray: Nroi x 3 array of containing (roi_id, NtilesX, NtilesY) for each roi
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims_file = processed_path / data_path / f"{prefix}_roi_dims.npy"
+    processed_path = get_processed_path(data_path)
+    roi_dims_file = processed_path / f"{prefix}_roi_dims.npy"
     if roi_dims_file.exists():
         return np.load(roi_dims_file)
 
     # file does not exist, let's find roi dims from filenames and create the file
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
-    data_dir = raw_path / data_path / prefix
+    data_dir = get_raw_path(data_path) / prefix
     fnames = [p.name for p in data_dir.glob("*.tif")]
     if not fnames:
         warnings.warn(
             "Raw data has already been archived. Trying to use projected data"
         )
         ops = load_ops(data_path)
-        data_dir = processed_path / data_path / prefix
+        data_dir = processed_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
         pattern = (
             rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['projection']}.tif"

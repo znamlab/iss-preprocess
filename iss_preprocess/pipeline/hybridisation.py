@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import iss_preprocess as iss
-from flexiznam.config import PARAMETERS
 from pathlib import Path
 from skimage.morphology import binary_dilation
 from ..image import filter_stack, apply_illumination_correction, compute_distribution
@@ -54,13 +53,11 @@ def load_and_register_hyb_tile(
             during analysis.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     tforms_fname = (
         f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
     )
-    tforms = np.load(
-        processed_path / data_path / "reg" / tforms_fname, allow_pickle=True
-    )
+    tforms = np.load(processed_path / "reg" / tforms_fname, allow_pickle=True)
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
     )
@@ -76,7 +73,7 @@ def load_and_register_hyb_tile(
         mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
         bad_pixels = binary_dilation(bad_pixels, mask)
     if correct_channels:
-        correction_path = processed_path / data_path / f"correction_{prefix}.npz"
+        correction_path = processed_path / f"correction_{prefix}.npz"
         norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
         stack = stack / norm_factors[np.newaxis, np.newaxis, :]
     return stack, bad_pixels
@@ -100,13 +97,14 @@ def estimate_channel_correction_hybridisation(data_path):
         norm_factors (np.array) A Nch x Nround array of normalisation factors
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    metadata = load_metadata(data_path)
+    if "hybridisation" not in metadata.keys():
+        return
+    processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
-
     max_val = 65535
     pixel_dist = np.zeros((max_val + 1, nch))
-    metadata = load_metadata(data_path)
     for hyb_round in metadata["hybridisation"].keys():
         for tile in ops["correction_tiles"]:
             print(
@@ -133,7 +131,7 @@ def estimate_channel_correction_hybridisation(data_path):
                 cumulative_pixel_dist[:, ich] > ops["correction_quantile"]
             )
 
-        save_path = processed_path / data_path / f"correction_{hyb_round}.npz"
+        save_path = processed_path / f"correction_{hyb_round}.npz"
         np.savez(save_path, pixel_dist=pixel_dist, norm_factors=norm_factors)
 
 
@@ -145,7 +143,7 @@ def setup_hyb_spot_calling(data_path, vis=True):
         vis (bool, optional): Whether to generate diagnostic plots. Defaults to True.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     metadata = load_metadata(data_path)
     for hyb_round in metadata["hybridisation"].keys():
         cluster_means, spot_colors, cluster_inds, genes = hyb_spot_cluster_means(
@@ -156,7 +154,7 @@ def setup_hyb_spot_calling(data_path, vis=True):
             plt.imshow(cluster_means)
             plt.title(hyb_round)
             plt.yticks(ticks=range(cluster_means.shape[0]), labels=genes)
-        save_path = processed_path / data_path / f"{hyb_round}_cluster_means.npz"
+        save_path = processed_path / f"{hyb_round}_cluster_means.npz"
         np.savez(
             save_path,
             cluster_means=cluster_means,
@@ -237,8 +235,8 @@ def extract_hyb_spots_all(data_path):
 
     """
     roi_dims = get_roi_dimensions(data_path)
-
     ops = load_ops(data_path)
+    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     script_path = str(
@@ -284,10 +282,10 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
         prefix (str): Prefix of the hybridisation round, e.g. "hybridisation_1_1".
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
     clusters = np.load(
-        processed_path / data_path / f"{prefix}_cluster_means.npz", allow_pickle=True
+        processed_path / f"{prefix}_cluster_means.npz", allow_pickle=True
     )
     print(f"detecting spots in tile {tile_coors}")
     stack, _ = load_and_register_hyb_tile(
@@ -301,19 +299,33 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     spots = detect_spots(
         np.max(stack, axis=2), threshold=ops["hybridisation_detection_threshold"]
     )
-    stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
-    spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
-    extract_spots(spots, stack, ops["spot_extraction_radius"])
-    x = np.stack(spots["trace"], axis=2)
-    x_norm = x[0, :, :].T / np.linalg.norm(x[0, :, :].T, axis=1)[:, np.newaxis]
-    score = x_norm @ clusters["cluster_means"].T
-    cluster_ind = np.argmax(score, axis=1)
-    spots["cluster"] = cluster_ind
-    spots["gene"] = clusters["genes"][cluster_ind]
-    spots["score"] = np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind])
-    spots["mean_intensity"] = [np.max(trace) for trace in spots["trace"]]
-
-    save_dir = processed_path / data_path / "spots"
+    if spots.shape[0]:
+        stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
+        spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
+        iss.pipeline.extract_spots(spots, stack, ops["spot_extraction_radius"])
+        x = np.stack(spots["trace"], axis=2)
+        x_norm = x[0, :, :].T / np.linalg.norm(x[0, :, :].T, axis=1)[:, np.newaxis]
+        score = x_norm @ clusters["cluster_means"].T
+        cluster_ind = np.argmax(score, axis=1)
+        spots["cluster"] = cluster_ind
+        spots["gene"] = clusters["genes"][cluster_ind]
+        spots["score"] = np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind])
+        spots["mean_intensity"] = [np.max(trace) for trace in spots["trace"]]
+    else:
+        print(f"No spots detected in tile {tile_coors} for round {prefix}")
+        spots = pd.DataFrame(
+            columns=[
+                "y",
+                "x",
+                "size",
+                "trace",
+                "cluster",
+                "gene",
+                "score",
+                "mean_intensity",
+            ]
+        )
+    save_dir = processed_path / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     spots.to_pickle(
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"

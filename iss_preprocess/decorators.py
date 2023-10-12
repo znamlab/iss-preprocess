@@ -41,7 +41,7 @@ def updates_flexilims(func, name_source=None, *args, **kwargs):
             func_name = args[arg_index]
         dataset_name = f"{parent_name}_{func_name}"
         flm_attr = dict(ops)
-        flz.utils.clean_dictionary_recursively(flm_attr)
+        flz.utils.clean_recursively(flm_attr)
         print("Adding dataset to flexilims")
         rep = flz.add_dataset(
             parent_id=parent["id"],

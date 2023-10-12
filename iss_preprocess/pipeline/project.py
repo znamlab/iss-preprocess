@@ -1,8 +1,8 @@
 import numpy as np
 import multiprocessing as mp
 import shutil
+import iss_preprocess as iss
 from functools import partial
-from flexiznam.config import PARAMETERS
 from pathlib import Path
 from ..image import fstack_channels
 from ..io import get_tile_ome, write_stack, get_roi_dimensions, load_ops
@@ -19,11 +19,10 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
             Defaults to ("max", "fstack").
             
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    roi_dims = get_roi_dimensions(data_path)
+    processed_path = iss.io.get_processed_path(data_path)
+    roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys():
-        ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     all_projected = True
     for roi in roi_dims[use_rois, :]:
@@ -33,9 +32,7 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
             for ix in range(nx):
                 fname = f"{prefix}_MMStack_{roi[0]}-Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}"
                 for suffix in suffixes:
-                    proj_path = (
-                        processed_path / data_path / prefix / f"{fname}_{suffix}.tif"
-                    )
+                    proj_path = processed_path / prefix / f"{fname}_{suffix}.tif"
                     if not proj_path.exists():
                         print(f"{proj_path} missing!")
                         all_projected = False
@@ -63,13 +60,13 @@ def project_round(data_path, prefix, overwrite=False):
         data_path, "project_tile", roi_dims=roi_dims, additional_args=additional_args
     )
     # copy one of the tiff metadata files
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
+    processed_path = iss.io.get_processed_path(data_path)
+    raw_path = iss.io.get_raw_path(data_path)
     metadata_fname = f"{prefix}_MMStack_{roi_dims[0][0]}-Pos000_000_metadata.txt"
-    target_path = processed_path / data_path / prefix
+    target_path = processed_path / prefix
     target_path.mkdir(parents=True, exist_ok=True)
     shutil.copy(
-        raw_path / data_path / prefix / metadata_fname, target_path / metadata_fname,
+        raw_path / prefix / metadata_fname, target_path / metadata_fname,
     )
 
 
@@ -97,21 +94,20 @@ def project_tile(fname, overwrite=False, sth=13):
         overwrite (bool): whether to repeat if already completed
 
     """
-    raw_path = Path(PARAMETERS["data_root"]["raw"])
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    save_path_fstack = processed_path / (fname + "_fstack.tif")
-    save_path_max = processed_path / (fname + "_max.tif")
+    save_path_fstack = iss.io.get_processed_path(fname + "_fstack.tif")
+    save_path_max = iss.io.get_processed_path(fname + "_max.tif")
     if not overwrite and (save_path_fstack.exists() or save_path_max.exists()):
         print(f"{fname} already projected...\n")
         return
     print(f"loading {fname}\n")
     im = get_tile_ome(
-        raw_path / (fname + ".ome.tif"), raw_path / (fname + "_metadata.txt")
+        iss.io.get_raw_path(fname + ".ome.tif"),
+        iss.io.get_raw_path(fname + "_metadata.txt"),
     )
     print("computing projection\n")
     im_fstack = fstack_channels(im, sth=sth)
     im_max = np.max(im, axis=3)
-    (processed_path / fname).parent.mkdir(parents=True, exist_ok=True)
+    iss.io.get_processed_path(fname).parent.mkdir(parents=True, exist_ok=True)
     write_stack(im_fstack, save_path_fstack, bigtiff=True)
     write_stack(im_max, save_path_max, bigtiff=True)
 

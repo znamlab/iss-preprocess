@@ -13,11 +13,11 @@ def detect_isolated_spots(
 ):
     """
     Detect spots that are isolated from their neighbors.
-    
+
     For each spot, we compute the average intensity in a circular annulus around
     the spot. If the average intensity is below a threshold, we consider the spot
     to be isolated.
-    
+
     Args:
         im (numpy.ndarray): X x Y image
         detection_threshold (float): threshold for initial spot detection
@@ -28,13 +28,15 @@ def detect_isolated_spots(
 
     Returns:
         pandas.DataFrame of spots
-    
+
     """
     spots = detect_spots(im, threshold=detection_threshold)
     strel = annulus(annulus_r[0], annulus_r[1])
     strel = strel / np.sum(strel)
     annulus_image = scipy.ndimage.correlate(im, strel)
     isolated = annulus_image[spots["y"], spots["x"]] < isolation_threshold
+    if not np.any(isolated):
+        raise ValueError("No isolated spots found")
     return spots.iloc[isolated]
 
 
@@ -64,6 +66,7 @@ def detect_spots(im, threshold=100, spot_size=2):
 
     return spots
 
+
 def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None):
     """Make an image by convolving spots with a gaussian
 
@@ -79,7 +82,7 @@ def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None)
 
     Returns:
         numpy.ndarray: Convolution results
-        
+
     """
     kernel_size = gaussian_width * 8
     kernel_size += 1 - kernel_size % 2  # kernel shape must be odd

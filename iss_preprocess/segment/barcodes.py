@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 import cv2
-from pathlib import Path
-from flexiznam import PARAMETERS
+import iss_preprocess as iss
 from .spots import make_spot_image
 from ..io import get_pixel_size
 
@@ -24,9 +23,8 @@ def convolve_spots(data_path, roi, kernel_um, dot_threshold, output_shape=None):
         numpy.ndarray: 2D image of roi density
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     all_spots = pd.read_pickle(
-        processed_path / data_path / f"barcode_round_spots_{roi}.pkl"
+        iss.io.get_processed_path(data_path) / f"barcode_round_spots_{roi}.pkl"
     )
     spots = all_spots[all_spots.dot_product_score > dot_threshold]
 
