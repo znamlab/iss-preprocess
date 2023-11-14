@@ -327,10 +327,11 @@ def stitch_tiles(
             ops.update(
                 {
                     "ref_tile": [
-                                list(metadata["ROI"].keys())[0],
-                                round(roi_dims[0,1] / 2),
-                                round(roi_dims[0,2] / 2)
-                                ]
+                        list(metadata["ROI"].keys())[0],
+                        round(roi_dims[0, 1] / 2),
+                        round(roi_dims[0, 2] / 2),
+                    ],
+                    "ref_ch": 0,
                 }
             )
         shifts = {}
@@ -341,7 +342,7 @@ def stitch_tiles(
         ) = register_adjacent_tiles(
             data_path,
             ref_coors=ops["ref_tile"],
-            ref_ch=0,
+            ref_ch=ops["ref_ch"],
             suffix="fstack",
             prefix=prefix,
         )
