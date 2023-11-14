@@ -153,7 +153,7 @@ def register_within_acquisition(
 
 
 def register_adjacent_tiles(
-    data_path, ref_coors=None, ref_ch=0, suffix="fstack", prefix="genes_round_1_1",
+    data_path, ref_coors=None, ref_ch=0, suffix="fstack", prefix="genes_round_1_1"
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -461,17 +461,12 @@ def merge_roi_spots(data_path, prefix, tile_origins, tile_centers, iroi=1):
                 spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
                 spot_dist = (
-                    (
-                        spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 1]
-                    )
-                    ** 2
-                    + (
-                        spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 0]
-                    )
-                    ** 2
-                )
+                    spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 1]
+                ) ** 2 + (
+                    spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 0]
+                ) ** 2
                 home_tile_dist = (spot_dist[:, ix, iy]).copy()
                 spot_dist[:, ix, iy] = np.inf
                 min_spot_dist = np.min(spot_dist, axis=(1, 2))

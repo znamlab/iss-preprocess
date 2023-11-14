@@ -17,12 +17,13 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
         prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
         suffixes (tuple, optional): Projection suffixes to check for.
             Defaults to ("max", "fstack").
-            
+
     """
     processed_path = iss.io.get_processed_path(data_path)
     roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     all_projected = True
     for roi in roi_dims[use_rois, :]:
@@ -61,10 +62,10 @@ def project_round(data_path, prefix, overwrite=False):
     ops.update(
         {
             "ref_tile": [
-                        list(metadata["ROI"].keys())[0],
-                        round(roi_dims[0,1] / 2),
-                        round(roi_dims[0,2] / 2)
-                        ]
+                list(metadata["ROI"].keys())[0],
+                round(roi_dims[0, 1] / 2),
+                round(roi_dims[0, 2] / 2),
+            ]
         }
     )
     additional_args = f",PREFIX={prefix}"
@@ -76,22 +77,22 @@ def project_round(data_path, prefix, overwrite=False):
     # copy one of the tiff metadata files
     raw_path = iss.io.get_raw_path(data_path)
     metadata_fname = f"{prefix}_MMStack_{roi_dims[0][0]}-Pos000_000_metadata.txt"
-    shutil.copy(
-        raw_path / prefix / metadata_fname, target_path / metadata_fname,
+    shutil.copy(raw_path / prefix / metadata_fname, target_path / metadata_fname)
+    job_ids = iss.vis.plot_overview_images(
+        data_path, prefix, dependency=",".join(job_ids)
     )
-    job_ids = iss.vis.plot_overview_images(data_path, prefix, dependency=','.join(job_ids))
 
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     """Project a single tile by its coordinates.
-    
+
     Args:
         tile_coors (tuple): (roi, x, y) coordinates of the tile.
         data_path (str): Relative path to data.
         prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
         overwrite (bool, optional): Whether to re-project if files already exist.
             Defaults to False.
-            
+
     """
     fname = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
     tile_path = str(Path(data_path) / prefix / fname)

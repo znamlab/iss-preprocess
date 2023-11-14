@@ -104,9 +104,9 @@ def barcode_spots_dot_product(
 ):
     """
     Compute dot product between synthetic trace and observed trace for each spot.
-    
+
     The synthetic trace is estimated using the provided bleeedthrough matrix.
-    The observed trace is first background subtracted using the same approach as 
+    The observed trace is first background subtracted using the same approach as
     used in the OMP algorithm.
 
     Args:
@@ -118,10 +118,10 @@ def barcode_spots_dot_product(
             penalizes the dot product score for spots with very low signal.
         sequence_column (str): name of column in spots table containing the sequence.
             Default is 'sequence', but could also be 'corrected_sequence'.
-    
+
     Returns:
         List of dot product scores for each spot.
-    
+
     """
     nrounds = cluster_means.shape[0]
     nchannels = cluster_means.shape[1]
@@ -256,7 +256,7 @@ def omp_weighted(
         beta_squared (float): parameter for weighted OMP.
         weighted (bool): whether to use weighted OMP. Default is True.
         refit_background (bool): whether to refit background coefficients on every iteration.
-            Default is True.        
+            Default is True.
         norm_shift (float): additional shift to add to the norm of the pixel trace. Larger values
             reduce false positive gene calls in dim pixels. Default is 0.
 
@@ -300,7 +300,7 @@ def omp_weighted(
         not_chosen = np.nonzero(np.logical_not(ichosen))[0]
         if weighted:
             sigma_squared = beta_squared + alpha * np.sum(
-                Xfull[:, ichosen] ** 2 * coefs ** 2, axis=1
+                Xfull[:, ichosen] ** 2 * coefs**2, axis=1
             )
             weights_sq = (1 / sigma_squared) / np.mean(1 / sigma_squared)
             dot_product = np.abs(

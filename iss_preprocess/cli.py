@@ -179,7 +179,7 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix,
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
     )
 
 
@@ -312,7 +312,10 @@ def extract(path):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
-    "-n", "--prefix", default="DAPI_1", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
+    "-n",
+    "--prefix",
+    default="DAPI_1",
+    help="Path prefix to use for segmentation, e.g. 'DAPI_1",
 )
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
 @click.option(
@@ -331,7 +334,10 @@ def segment(path, prefix, roi=1, use_gpu=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
-    "-n", "--prefix", default="DAPI_1", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
+    "-n",
+    "--prefix",
+    default="DAPI_1",
+    help="Path prefix to use for segmentation, e.g. 'DAPI_1",
 )
 @click.option(
     "--use-gpu",
@@ -371,7 +377,7 @@ def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
 
         additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
         batch_process_tiles(
-            path, "register_tile_to_ref", additional_args=additional_args,
+            path, "register_tile_to_ref", additional_args=additional_args
         )
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
@@ -416,7 +422,7 @@ def align_spots(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
-    reload=True
+    reload=True,
 ):
     from iss_preprocess.pipeline import (
         merge_and_align_spots_all_rois,
@@ -479,7 +485,7 @@ def align_spots_roi(
         )
 
     merge_and_align_spots(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi,
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
     )
 
 
@@ -510,9 +516,7 @@ def create_grand_averages(path):
     """Create grand average for illumination correction"""
     from iss_preprocess import pipeline
 
-    pipeline.create_grand_averages(
-        path, prefix_todo=("genes_round", "barcode_round"),
-    )
+    pipeline.create_grand_averages(path, prefix_todo=("genes_round", "barcode_round"))
 
 
 @cli.command()
@@ -579,9 +583,7 @@ def create_single_average(
 @click.option("-r", "--roi", help="Roi id", type=int)
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
 @click.option("--sigma", help="Sigma for gaussian blur")
-def overview_for_ara_registration(
-    path, roi, slice_id, sigma=10.0,
-):
+def overview_for_ara_registration(path, roi, slice_id, sigma=10.0):
     """Generate the overview of one ROI used for registration
 
     Args:
@@ -647,11 +649,18 @@ def call_spots(path, genes, barcodes, hybridisation):
 
     call_spots(path, genes, barcodes, hybridisation)
 
+
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option("-g", "--plot_grid", help="Whether to plot grid", default=True)
-@click.option("-d", "--downsample_factor", help="Amount to downsample output", type=int, default=25)
+@click.option(
+    "-d",
+    "--downsample_factor",
+    help="Amount to downsample output",
+    type=int,
+    default=25,
+)
 @click.option("-s", "--save_raw", help="Whether to save full size tif", default=False)
 def plot_overview(path, prefix, plot_grid, downsample_factor, save_raw):
     """Plot individual channel overview images."""

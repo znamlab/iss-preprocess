@@ -161,7 +161,11 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
         plt.colorbar(img, ax=ax)
     fig.tight_layout()
     fig.suptitle(prefix)
-    fig_file = iss.io.get_processed_path(data_path) / "figures" / f"adjacent_tile_reg_{prefix}.png"
+    fig_file = (
+        iss.io.get_processed_path(data_path)
+        / "figures"
+        / f"adjacent_tile_reg_{prefix}.png"
+    )
     if not fig_file.parent.exists():
         fig_file.parent.mkdir()
     fig.savefig(fig_file, dpi=300)
@@ -195,7 +199,7 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
 
     ops = load_ops(data_path)
     stitched_stack = iss.pipeline.stitch_registered(
-        data_path, reference_prefix, roi=roi, channels=ops["ref_ch"],
+        data_path, reference_prefix, roi=roi, channels=ops["ref_ch"]
     ).astype(np.single)
 
     fig = plt.figure()
@@ -211,7 +215,7 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         cmap="gray",
     )
     atlas_utils.plot_borders_and_areas(
-        ax, area_ids, border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
+        ax, area_ids, border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1)
     )
     ax.set_ylim(ax.get_ylim()[::-1])
     ax.set_xticks([])
@@ -270,10 +274,10 @@ def plot_tilestats_distributions(
             ax.set_ylim(-0.4, 0.4)
 
     for ax in fig.axes:
-        ax.axvline(2 ** 12, color="k", zorder=-10)
+        ax.axvline(2**12, color="k", zorder=-10)
         for c, i in enumerate(np.argsort(camera_order)):
             ax.axvline(ops["black_level"][i], color=colors[c], zorder=-10)
-        ax.set_xlim(np.min(ops["black_level"]) - 2, 2 ** 12)
+        ax.set_xlim(np.min(ops["black_level"]) - 2, 2**12)
         ax.semilogx()
     ax.legend()
     fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)
