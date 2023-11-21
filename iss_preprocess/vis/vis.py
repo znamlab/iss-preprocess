@@ -3,13 +3,14 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 from matplotlib.ticker import AutoMinorLocator, FixedLocator
 from scipy.cluster import hierarchy
+from skimage.measure import block_reduce
 import iss_preprocess as iss
 import seaborn as sns
 import pandas as pd
 from pathlib import Path
 import tifffile
 from znamutils import slurm_it
-from ..io import get_processed_path, load_micromanager_metadata
+from iss_preprocess.io import get_processed_path, load_micromanager_metadata
 
 
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
@@ -334,6 +335,8 @@ def plot_overview_images(
     downsample_factor=25,
     save_raw=False,
     dependency=None,
+    use_slurm=True,
+    group_channels=True,
 ):
     """Plot individual channel overview images.
 
@@ -344,9 +347,11 @@ def plot_overview_images(
         downsample_factor (int, optional): Amount to downsample overview. Defaults to 25.
         save_raw (bool, optional): Whether to save a full size tif with no gridlines. Defaults to False.
         dependency (str, optional): Dependency for the generates slurm scripts
+        use_slurm (bool, optional): Whether to use slurm to run the jobs. Defaults to True.
+        group_channels (bool, optional): Whether to group channels together. Defaults to True.
     """
     processed_path = get_processed_path(data_path)
-    roi_dims = iss.io.get_roi_dimensions(data_path)
+    roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
     image_metadata = load_micromanager_metadata(data_path, prefix)
     nchannels = image_metadata["Summary"]["Channels"]
     # Check if average image exists for illumination correction
@@ -354,31 +359,44 @@ def plot_overview_images(
         processed_path / "averages" / f"{prefix}_average.tif"
     ).exists()
     job_ids = []
+    kwargs = dict(
+        data_path=data_path,
+        prefix=prefix,
+        plot_grid=plot_grid,
+        downsample_factor=downsample_factor,
+        save_raw=save_raw,
+        correct_illumination=correct_illumination,
+        use_slurm=use_slurm,
+        job_dependency=dependency,
+    )
+
     for roi_dim in roi_dims:
         roi = roi_dim[0]
-        for ch in range(nchannels):
+        if group_channels:
+            channels = [list(range(nchannels))]
+        else:
+            channels = range(nchannels)
+
+        for ch in channels:
+            if isinstance(ch, list):
+                scripts_name = f"plot_overview_{prefix}_{roi}_channels_{'_'.join([str(c) for c in ch])}"
+            else:
+                scripts_name = f"plot_overview_{prefix}_{roi}_channel_{ch}"
             job_ids.append(
                 plot_single_overview(
-                    data_path,
-                    prefix,
-                    roi,
-                    ch,
+                    roi=roi,
+                    ch=ch,
                     nx=roi_dim[1] + 1,
                     ny=roi_dim[2] + 1,
-                    plot_grid=plot_grid,
-                    downsample_factor=downsample_factor,
-                    save_raw=save_raw,
-                    correct_illumination=correct_illumination,
-                    use_slurm=True,
                     slurm_folder=f"{Path.home()}/slurm_logs",
-                    scripts_name=f"plot_overview_{prefix}_{roi}_{ch}",
-                    job_dependency=dependency,
+                    scripts_name=scripts_name,
+                    **kwargs,
                 )
             )
     return job_ids
 
 
-@slurm_it(conda_env="iss-preprocess")
+@slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
 def plot_single_overview(
     data_path,
     prefix,
@@ -390,6 +408,9 @@ def plot_single_overview(
     downsample_factor=25,
     save_raw=False,
     correct_illumination=True,
+    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    vmin=None,
+    vmax=None,
 ):
     """Plot a single channel overview image.
 
@@ -397,19 +418,26 @@ def plot_single_overview(
         data_path (str): Relative path to data
         prefix (str): Prefix of acquisition
         roi (int): ROI number
-        ch (int): Channel number
+        ch (int or list): Channel number
         nx (int, optional): Number of tiles in x. If None will read from roi_dimensions
         ny (int, optional): Number of tiles in y. If None will read from roi_dimensions
-        plot_axis (bool, optional): Whether to plot gridlines at tile boundaries. Defaults to True.
+        plot_axis (bool, optional): Whether to plot gridlines at tile boundaries.
+            Defaults to True.
         downsample_factor (int, optional): Amount to downsample overview. Defaults to 25.
-        save_raw (bool, optional): Whether to save a full size tif with no gridlines. Defaults to False.
-        correct_illumination (bool, optional): Whether to correct for uneven illumination. Defaults to True.
+        save_raw (bool, optional): Whether to save a full size tif with no gridlines.
+            Defaults to False.
+        correct_illumination (bool, optional): Whether to correct for uneven
+            illumination. Defaults to True.
+        channel_colors (list, optional): List of colors for each channel. Use only if
+            ch is a list. Defaults to ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]).
+        vmin (float, optional): Minimum value for each channel. Defaults to None.
+        vmax (float, optional): Maximum value for each channel. Defaults to None.
 
     Returns:
         fig: Figure object
     """
     if nx is None or ny is None:
-        roi_dims = iss.io.get_roi_dimensions(data_path)
+        roi_dims = iss.io.get_roi_dimensions(data_path, prefix=prefix)
         for roi_dim in roi_dims:
             if roi_dim[0] == roi:
                 nx = roi_dim[1] + 1
@@ -418,29 +446,67 @@ def plot_single_overview(
 
     fig = plt.figure()
     fig.clear()
-    print(f"Doing roi {roi}, channel {ch}")
-    print("   ... stitching", flush=True)
-    stack = iss.pipeline.stitch_tiles(
-        data_path,
-        prefix=prefix,
-        roi=roi,
-        suffix="max",
-        ich=ch,
-        correct_illumination=correct_illumination,
-    )
-    stack = stack.astype("uint16")
-    print("   ... plotting", flush=True)
-    percentile_value = np.percentile(
-        stack[::downsample_factor, ::downsample_factor], 98
-    )
+
+    single_channel = True if isinstance(ch, int) else False
+
+    if single_channel:
+        ch = [ch]
+        suffix = f"channel_{ch[0]}"
+    else:
+        suffix = f"channels_{'_'.join([str(c) for c in ch])}"
+
+    stack = None
+    print(f"Doing roi {roi}")
+    for ic, c in enumerate(ch):
+        print(f"    Channel {c}")
+        print("   ... stitching", flush=True)
+        small_stack = iss.pipeline.stitch_tiles(
+            data_path,
+            prefix=prefix,
+            roi=roi,
+            suffix="max",
+            ich=c,
+            correct_illumination=correct_illumination,
+        )
+        if downsample_factor > 1:
+            small_stack = block_reduce(
+                small_stack, (downsample_factor, downsample_factor), np.max
+            )
+        if stack is None:
+            stack = np.zeros(small_stack.shape + (len(ch),), dtype="uint16")
+        stack[:, :, ic] = small_stack.astype("uint16")
+
+    figure_folder = get_processed_path(data_path) / "figures" / "round_overviews"
+    figure_folder.mkdir(parents=True, exist_ok=True)
     mouse_name = Path(data_path).parts[1]
     extracted_chamber = Path(data_path).parts[2]
-    plt.title(f"{mouse_name} {extracted_chamber}, ROI: {roi}, {prefix}, Channel: {ch}")
-    plt.imshow(stack[::downsample_factor, ::downsample_factor], vmax=percentile_value)
+
+    if save_raw:
+        print("   ... saving raw", flush=True)
+        tifffile.imwrite(
+            figure_folder
+            / f"{extracted_chamber}_roi_{roi:02d}_{prefix}_{suffix}.ome.tif",
+            np.moveaxis(stack, -1, 0),
+            imagej=True,
+        )
+    print("   ... plotting", flush=True)
+
+    if single_channel:
+        if vmax is None:
+            vmax = np.percentile(stack, 98)
+        plt.imshow(stack, vmax=vmax, vmin=vmin)
+    else:
+        rgb = to_rgb(stack, channel_colors, vmax=vmax, vmin=vmin)
+        plt.imshow(rgb)
     ax = plt.gca()
     ax.set_aspect("equal")
     if plot_grid:
-        dim = np.array(stack.shape)[::-1] / downsample_factor
+        plt.title(
+            f"{mouse_name} {extracted_chamber}, ROI: {roi}, {prefix}, Channel: {ch}"
+        )
+        dim = np.array(stack.shape)[::-1]
+        if not single_channel:
+            dim = dim[1:]
         tile_size = dim / np.array([nx, ny])
         for ix, x in enumerate("xy"):
             # Add gridlines at approximate tile boundaries
@@ -463,18 +529,15 @@ def plot_single_overview(
             labelleft=True,
             labelbottom=True,
         )
-    ax.invert_yaxis()
+        ax.invert_yaxis()
+    else:
+        ax.axis("off")
+        fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=None, hspace=None)
+
     print("   ... saving", flush=True)
-    figure_folder = get_processed_path(data_path) / "figures" / "round_overviews"
-    figure_folder.mkdir(parents=True, exist_ok=True)
     plt.savefig(
-        figure_folder / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.png",
+        figure_folder / f"{extracted_chamber}_roi_{roi:02d}_{prefix}_{suffix}.png",
         dpi=300,
     )
-    if save_raw:
-        tifffile.imwrite(
-            figure_folder / f"{extracted_chamber}_roi_{roi}_{prefix}_channel_{ch}.tif",
-            stack,
-            imagej=True,
-        )
+    print("   ... done", flush=True)
     return fig
