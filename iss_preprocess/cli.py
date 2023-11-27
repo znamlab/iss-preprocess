@@ -244,8 +244,10 @@ def estimate_hyb_shifts(path, prefix=None, suffix="fstack"):
 
 
 @cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
+    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
+)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 def correct_shifts(path, prefix):
     """Correct X-Y shifts using robust regression across tiles."""
     from iss_preprocess.pipeline import correct_shifts
