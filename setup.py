@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="iss_preprocess",
-    version="v0.2.2",
+    version="v0.2.3",
     url="https://github.com/znamlab/iss-preprocess",
     license="MIT",
     author="Znamenskiy lab",
@@ -16,6 +16,7 @@ setup(
         "scikit-image",
         "scikit-learn",
         "flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git",
+        "znamutils @ git+ssh://git@github.com/znamlab/znamutils.git",
         "opencv-python",
         "numba",
         "cellpose",

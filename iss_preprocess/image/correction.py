@@ -3,9 +3,8 @@ from pathlib import Path
 import cv2
 from skimage.morphology import disk
 from skimage.filters import median
-from ..io.load import load_stack, load_ops
+from ..io.load import load_stack, load_ops, get_processed_path
 from ..coppafish import hanning_diff
-from flexiznam.config import PARAMETERS
 from pathlib import Path
 
 
@@ -27,11 +26,9 @@ def apply_illumination_correction(data_path, stack, prefix, dtype=float):
         stack (np.array): Normalised stack. Same shape as input.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
-    average_image_fname = (
-        processed_path / data_path / "averages" / f"{prefix}_average.tif"
-    )
+    average_image_fname = processed_path / "averages" / f"{prefix}_average.tif"
     average_image = load_stack(average_image_fname).astype(float)
 
     if stack.ndim == 4:
@@ -210,7 +207,7 @@ def _mean_tiffs(
             )
         tilestats = np.load(stats)
     else:
-        tilestats = compute_distribution(data)
+        tilestats = compute_distribution(data, max_value=2**16)
 
     # initialise folder mean with first frame
     mean_image = np.array(data, dtype=float)
@@ -226,7 +223,7 @@ def _mean_tiffs(
             stats = tile.with_name(tile.name.replace("_average.tif", "_tilestats.npy"))
             tilestats += np.load(stats)
         else:
-            tilestats += compute_distribution(data)
+            tilestats += compute_distribution(data, max_value=2**16)
 
         data = np.clip(data.astype(float) - black_level.reshape(1, 1, -1), 0, max_value)
         mean_image += data / len(tiff_list)
@@ -241,7 +238,7 @@ def _mean_tiffs(
     return mean_image, tilestats
 
 
-def compute_distribution(stack, max_value=int(2 ** 12 + 1)):
+def compute_distribution(stack, max_value=int(2**12 + 1)):
     """Compute simple tile statistics for one multichannel image
 
     Args:
@@ -255,6 +252,6 @@ def compute_distribution(stack, max_value=int(2 ** 12 + 1)):
     distribution = np.zeros((max_value + 1, stack.shape[2]))
     for ich in range(stack.shape[2]):
         distribution[:, ich] = np.bincount(
-            stack[:, :, ich].flatten().astype(np.uint16), minlength=max_value + 1,
+            stack[:, :, ich].flatten().astype(np.uint16), minlength=max_value + 1
         )
     return distribution

@@ -1,8 +1,6 @@
 from tifffile import TiffWriter
 import cv2
 import numpy as np
-import yaml
-from pathlib import Path
 
 
 def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True):
@@ -49,13 +47,13 @@ def save_ome_tiff_pyramid(
 
     Returns:
         np.array: Last level of the pyramid, most downsampled image
-        
+
     """
 
     if dtype not in ["uint8", "uint16"]:
         raise NotImplementedError("`dtype` must be uint8 or uint16")
     nbits = int(dtype[4:])
-    max_val = 2 ** nbits - 1
+    max_val = 2**nbits - 1
     if verbose:
         print("... Clipping array")
     image = np.clip(image, 0, max_val).astype(dtype)  # clip to avoid overflow

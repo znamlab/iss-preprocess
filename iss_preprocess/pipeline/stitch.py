@@ -3,8 +3,8 @@ import numpy as np
 import warnings
 import pandas as pd
 import warnings
+import iss_preprocess as iss
 from skimage.registration import phase_cross_correlation
-from flexiznam.config import PARAMETERS
 from pathlib import Path
 from . import pipeline
 from .. import vis
@@ -48,7 +48,6 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     # we have data with channels/rounds registered
     # Now find how much the acquisition stitching is shifting the data compared to
     # reference
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     roi, tilex, tiley = tile_coors
 
     # now find registration to ref
@@ -59,8 +58,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
 
     stack[bad_pixels] = np.nan
     reg2ref = np.load(
-        processed_path
-        / data_path
+        iss.io.get_processed_path(data_path)
         / "reg"
         / f"tforms_corrected_to_ref_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
@@ -86,7 +84,6 @@ def register_within_acquisition(
     data_path,
     prefix,
     ref_roi=None,
-    reg_fraction=0.1,
     ref_ch=0,
     suffix="fstack",
     reload=True,
@@ -102,8 +99,6 @@ def register_within_acquisition(
         prefix (str, optional): Full name of the acquisition folder.
         ref_roi (int, optional): ROI to use for registration. If `None` use
             `ops['ref_tile'][0]`. Defaults to None.
-        reg_fraction (float, optional): overlap fraction used for registration.
-            Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         ref_round (int, optional): reference round used for registration. Defaults to 0.
         nrounds (int, optional): Number of rounds to load. Defaults to 7.
@@ -120,11 +115,10 @@ def register_within_acquisition(
         numpy.array: shape of the tile
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    target = processed_path / data_path / "reg" / f"{prefix}_shifts.npz"
+    save_fname = iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
 
-    if reload and target.exists():
-        return np.load(target)
+    if reload and save_fname.exists():
+        return np.load(save_fname)
 
     if ref_roi is None:
         ops = load_ops(data_path)
@@ -133,12 +127,12 @@ def register_within_acquisition(
 
     ntiles = ndim[ndim[:, 0] == ref_roi][0][1:]
     output = np.zeros((ntiles[0], ntiles[1], 4))
-    for tilex in range(ntiles[0]):
+    # skip the first x position in case tile direction is right to left
+    for tilex in range(1, ntiles[0]):
         for tiley in range(ntiles[1]):
             shift_right, shift_down, tile_shape = register_adjacent_tiles(
                 data_path,
                 ref_coors=(ref_roi, tilex, tiley),
-                reg_fraction=reg_fraction,
                 ref_ch=ref_ch,
                 suffix=suffix,
                 prefix=prefix,
@@ -151,20 +145,15 @@ def register_within_acquisition(
             data_path, prefix, saved_shifts=shifts, bytile_shifts=output
         )
 
-    target.parent.mkdir(exist_ok=True)
+    save_fname.parent.mkdir(exist_ok=True)
     np.savez(
-        target, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape
+        save_fname, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape
     )
     return shifts[:2], shifts[2:], tile_shape
 
 
 def register_adjacent_tiles(
-    data_path,
-    ref_coors=None,
-    reg_fraction=0.1,
-    ref_ch=0,
-    suffix="fstack",
-    prefix="genes_round_1_1",
+    data_path, ref_coors=None, ref_ch=0, suffix="fstack", prefix="genes_round_1_1"
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -190,11 +179,9 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
-
+    ops = load_ops(data_path)
     if ref_coors is None:
-        ops = load_ops(data_path)
         ref_coors = ops["ref_tile"]
-
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
@@ -202,20 +189,23 @@ def register_adjacent_tiles(
     tile_down = load_tile_by_coors(
         data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
     )
-    right_coors = (ref_coors[0], ref_coors[1] + 1, ref_coors[2])
+    right_offset = 1 if ops["tile_direction"] == "left_to_right" else -1
+    right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
     tile_right = load_tile_by_coors(
         data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
     )
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
-    reg_pix_x = int(xpix * reg_fraction)
-    reg_pix_y = int(ypix * reg_fraction)
+    reg_pix_x = int(xpix * ops["reg_fraction"])
+    reg_pix_y = int(ypix * ops["reg_fraction"])
 
     shift_right = phase_cross_correlation(
         tile_ref[:, -reg_pix_x:, ref_ch],
         tile_right[:, :reg_pix_x, ref_ch],
         upsample_factor=5,
     )[0] + [0, xpix - reg_pix_x]
+    if ops["tile_direction"] != "left_to_right":
+        shift_right = -shift_right
 
     shift_down = phase_cross_correlation(
         tile_ref[:reg_pix_y, :, ref_ch],
@@ -246,12 +236,12 @@ def get_tile_corners(data_path, prefix, roi):
     if "round" in prefix:
         # always use round 1
         prefix = f"{prefix.split('_')[0]}_round_1_1"
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    shifts = np.load(processed_path / data_path / "reg" / f"{prefix}_shifts.npz")
+    shifts = np.load(
+        iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
+    )
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles
     )
-
     corners = np.stack(
         [
             tile_origins + np.array(c_pos) * shifts["tile_shape"]
@@ -259,7 +249,6 @@ def get_tile_corners(data_path, prefix, roi):
         ],
         axis=3,
     )
-
     return corners
 
 
@@ -279,7 +268,6 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
             coordinates
 
     """
-
     yy, xx = np.meshgrid(np.arange(ntiles[1]), np.arange(ntiles[0]))
 
     tile_origins = (
@@ -321,17 +309,31 @@ def stitch_tiles(
         numpy.ndarray: stitched image.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     if not shifts_prefix:
         shifts_prefix = prefix
-    shift_file = processed_path / data_path / "reg" / f"{shifts_prefix}_shifts.npz"
+    shift_file = processed_path / "reg" / f"{shifts_prefix}_shifts.npz"
     if shift_file.exists():
         shifts = np.load(shift_file)
     else:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
         ops = load_ops(data_path)
+        metadata = iss.io.load_metadata(data_path)
+        ops_fname = processed_path / "ops.yml"
+        if not ops_fname.exists():
+            # Change ref tile to a central position where tissue will be
+            ops.update(
+                {
+                    "ref_tile": [
+                        list(metadata["ROI"].keys())[0],
+                        round(roi_dims[0, 1] / 2),
+                        round(roi_dims[0, 2] / 2),
+                    ],
+                    "ref_ch": 0,
+                }
+            )
         shifts = {}
         (
             shifts["shift_right"],
@@ -340,8 +342,7 @@ def stitch_tiles(
         ) = register_adjacent_tiles(
             data_path,
             ref_coors=ops["ref_tile"],
-            reg_fraction=0.1,
-            ref_ch=0,
+            ref_ch=ops["ref_ch"],
             suffix="fstack",
             prefix=prefix,
         )
@@ -354,9 +355,7 @@ def stitch_tiles(
     stitched_stack = np.zeros(max_origin + tile_shape)
     if correct_illumination:
         ops = load_ops(data_path)
-        average_image_fname = (
-            processed_path / data_path / "averages" / f"{prefix}_average.tif"
-        )
+        average_image_fname = processed_path / "averages" / f"{prefix}_average.tif"
         average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
         # TODO: use the illumination corerction function?
     for ix in range(ntiles[0]):
@@ -397,10 +396,10 @@ def stitch_registered(
         channels = [channels]
     else:
         channels = list(channels)
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
+    shifts = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-    shifts = np.load(processed_path / data_path / "reg" / f"{ref_prefix}_shifts.npz")
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
@@ -594,11 +593,10 @@ def stitch_and_register(
         stitched_stack_target, scale=scale, angle=angle, shift=shift
     )
 
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
     fname = f"{target_prefix}_roi{roi}_tform_to_ref.npz"
     print(f"Saving {fname} in the reg folder")
     np.savez(
-        processed_path / data_path / "reg" / fname,
+        iss.io.get_processed_path(data_path) / "reg" / fname,
         angle=angle,
         shift=shift,
         scale=scale,
@@ -636,8 +634,8 @@ def merge_and_align_spots(
         pandas.DataFrame: DataFrame containing all spots in reference coordinates.
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    reg_path = processed_path / data_path / "reg"
+    processed_path = iss.io.get_processed_path(data_path)
+    reg_path = processed_path / "reg"
 
     # find tile origin, final shape, and shifts in reference coordinates
     ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
@@ -670,7 +668,7 @@ def merge_and_align_spots(
         iroi=roi,
     )
 
-    spots.to_pickle(processed_path / data_path / f"{spots_prefix}_spots_{roi}.pkl")
+    spots.to_pickle(processed_path / f"{spots_prefix}_spots_{roi}.pkl")
     return spots
 
 
@@ -698,6 +696,8 @@ def merge_and_align_spots_all_rois(
     script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
     )
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
         args = f"--export=DATAPATH={data_path},ROI={roi},"

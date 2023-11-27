@@ -255,8 +255,10 @@ def estimate_hyb_shifts(path, prefix=None, suffix="fstack"):
 
 
 @cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
+    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
+)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 def correct_shifts(path, prefix):
     """Correct X-Y shifts using robust regression across tiles."""
     from iss_preprocess.pipeline import correct_shifts
@@ -323,7 +325,10 @@ def extract(path):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
-    "-n", "--prefix", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
+    "-n",
+    "--prefix",
+    default="DAPI_1",
+    help="Path prefix to use for segmentation, e.g. 'DAPI_1",
 )
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
 @click.option(
@@ -342,7 +347,10 @@ def segment(path, prefix, roi=1, use_gpu=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
-    "-n", "--prefix", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
+    "-n",
+    "--prefix",
+    default="DAPI_1",
+    help="Path prefix to use for segmentation, e.g. 'DAPI_1",
 )
 @click.option(
     "--use-gpu",
@@ -416,21 +424,28 @@ def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
     default="genes_round_1_1",
     help="Directory prefix to registration reference.",
 )
+@click.option(
+    "-l",
+    "--reload",
+    default=True,
+    help="Whether to reload register_adjacent_tiles shifts.",
+)
 def align_spots(
     path,
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
+    reload=True,
 ):
     from iss_preprocess.pipeline import (
         merge_and_align_spots_all_rois,
         register_within_acquisition,
     )
 
-    register_within_acquisition(path, prefix=reg_prefix, reload=True, save_plot=True)
+    register_within_acquisition(path, prefix=reg_prefix, reload=reload, save_plot=True)
     if reg_prefix != ref_prefix:
         register_within_acquisition(
-            path, prefix=ref_prefix, reload=True, save_plot=True
+            path, prefix=ref_prefix, reload=reload, save_plot=True
         )
     merge_and_align_spots_all_rois(
         path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, ref_prefix=ref_prefix
@@ -646,3 +661,24 @@ def call_spots(path, genes, barcodes, hybridisation):
     from iss_preprocess.pipeline import call_spots
 
     call_spots(path, genes, barcodes, hybridisation)
+
+
+@cli.command()
+@click.option(
+    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
+)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
+@click.option("-g", "--plot_grid", help="Whether to plot grid", default=True)
+@click.option(
+    "-d",
+    "--downsample_factor",
+    help="Amount to downsample output",
+    type=int,
+    default=25,
+)
+@click.option("-s", "--save_raw", help="Whether to save full size tif", default=False)
+def plot_overview(path, prefix, plot_grid, downsample_factor, save_raw):
+    """Plot individual channel overview images."""
+    from iss_preprocess.vis import plot_overview_images
+
+    plot_overview_images(path, prefix, plot_grid, downsample_factor, save_raw)

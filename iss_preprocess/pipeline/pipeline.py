@@ -3,8 +3,6 @@ import subprocess
 import warnings
 from pathlib import Path
 import numpy as np
-from flexiznam.config import PARAMETERS
-
 import iss_preprocess as iss
 from ..image import apply_illumination_correction, tilestats_and_mean_image
 from ..io import (
@@ -92,7 +90,6 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     return stack, bad_pixels
 
 
-@updates_flexilims(name_source="script")
 def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     """Start sbatch scripts for all tiles across all rois.
 
@@ -113,6 +110,9 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+
+    job_ids = []  # Store job IDs
+
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
         ny = roi[2] + 1
@@ -124,13 +124,18 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 args = args + additional_args
                 log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
                 args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
-                command = f"sbatch {args} {script_path}"
+                command = f"sbatch --parsable {args} {script_path}"
                 print(command)
-                subprocess.Popen(
+                process = subprocess.Popen(
                     shlex.split(command),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.STDOUT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
+                stdout, _ = process.communicate()
+                job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
+                job_ids.append(job_id)
+
+    return job_ids
 
 
 def create_single_average(
@@ -186,22 +191,21 @@ def create_single_average(
         print(f"    {ops_values}={ops[ops_values]}")
     print("", flush=True)
 
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-
+    processed_path = iss.io.get_processed_path(data_path)
     if prefix_filter is None:
         target_file = f"{subfolder}_average.tif"
     else:
         target_file = f"{prefix_filter}_average.tif"
     target_stats = target_file.replace("_average.tif", "_tilestats.npy")
-    target_file = processed_path / data_path / "averages" / target_file
-    target_stats = processed_path / data_path / "averages" / target_stats
+    target_file = processed_path / "averages" / target_file
+    target_stats = processed_path / "averages" / target_stats
     # ensure the directory exists for first average.
     target_file.parent.mkdir(exist_ok=True)
 
     black_level = ops["black_level"] if subtract_black else 0
 
     av_image, tilestats = tilestats_and_mean_image(
-        processed_path / data_path / subfolder,
+        processed_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
         n_batch=n_batch,
@@ -233,10 +237,9 @@ def create_all_single_averages(
             "barcode_rounds", "fluorescence", "hybridisation")`
 
     """
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+    processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
-
     # Collect all folder names
     to_average = []
     for kind in todo:
@@ -244,7 +247,8 @@ def create_all_single_averages(
             folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
             to_average.extend(folders)
         elif kind in ("fluorescence", "hybridisation"):
-            to_average.extend(list(metadata[kind].keys()))
+            if kind in metadata.keys():
+                to_average.extend(list(metadata[kind].keys()))
         else:
             raise IOError(
                 f"Unknown type of acquisition: {kind}.\n"
@@ -255,9 +259,9 @@ def create_all_single_averages(
         Path(__file__).parent.parent.parent / "scripts" / "create_single_average.sh"
     )
     for folder in to_average:
-        data_folder = processed_path / data_path
+        data_folder = processed_path / folder
         if not data_folder.is_dir():
-            warnings.warn("{0} does not exists. Skipping".format(data_folder / folder))
+            warnings.warn(f"{data_folder} does not exists. Skipping")
             continue
         projection = ops[f"{folder.split('_')[0].lower()}_projection"]
         export_args = dict(
@@ -321,9 +325,8 @@ def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
             pixel size. Defaults to 10
 
     """
-
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
-    registration_folder = processed_path / data_path / "register_to_ara"
+    processed_path = iss.io.get_processed_path(data_path)
+    registration_folder = processed_path / "register_to_ara"
     registration_folder.mkdir(exist_ok=True)
     # also make sure that the relevant subfolders are created
     (registration_folder / "qupath_project").mkdir(exist_ok=True)
@@ -364,25 +367,26 @@ def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
 
 def setup_channel_correction(data_path):
     """Setup channel correction for barcode, genes and hybridisation rounds
-        
+
     Args:
         data_path (str): Relative path to the data folder
-        
+
     """
     ops = load_ops(data_path)
-    iss.pipeline.estimate_channel_correction(
-        data_path,
-        prefix="barcode_round",
-        nrounds=ops["barcode_rounds"],
-        fit_norm_factors=ops["fit_channel_correction"],
-    )
-
-    iss.pipeline.estimate_channel_correction(
-        data_path,
-        prefix="genes_round",
-        nrounds=ops["genes_rounds"],
-        fit_norm_factors=ops["fit_channel_correction"],
-    )
+    if ops["barcode_rounds"] > 0:
+        iss.pipeline.estimate_channel_correction(
+            data_path,
+            prefix="barcode_round",
+            nrounds=ops["barcode_rounds"],
+            fit_norm_factors=ops["fit_channel_correction"],
+        )
+    if ops["genes_rounds"] > 0:
+        iss.pipeline.estimate_channel_correction(
+            data_path,
+            prefix="genes_round",
+            nrounds=ops["genes_rounds"],
+            fit_norm_factors=ops["fit_channel_correction"],
+        )
 
     iss.pipeline.estimate_channel_correction_hybridisation(data_path)
 
