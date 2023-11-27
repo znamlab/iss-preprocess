@@ -115,26 +115,12 @@ def project_round(path, prefix, overwrite=False):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option(
-    "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
-)
-@click.option(
-    "--plot",
-    is_flag=True,
-    show_default=True,
-    default=True,
-    help="Whether to save mp4 of registration results.",
-)
-def check_projection(path, prefix, plot):
+@click.option("-n", "--prefix", help="Path prefile, e.g. genes_round_1_1, None for all")
+def check_projection(path, prefix):
     """Check if projection has completed for all tile."""
     import iss_preprocess.pipeline as pipeline
 
     pipeline.check_projection(path, prefix)
-    if plot:
-        from iss_preprocess.pipeline import diagnostics
-
-        diagnostics.check_ref_tile_registration(path, prefix=prefix)
-
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
