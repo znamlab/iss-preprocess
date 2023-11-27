@@ -651,8 +651,10 @@ def call_spots(path, genes, barcodes, hybridisation):
 
 
 @cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
+    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
+)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 @click.option("-g", "--plot_grid", help="Whether to plot grid", default=True)
 @click.option(
     "-d",
