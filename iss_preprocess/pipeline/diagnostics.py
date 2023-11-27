@@ -20,12 +20,9 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
         data_path (str): Relative path to data folder
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
     """
-    target_folder = (
-        Path(PARAMETERS["data_root"]["processed"])
-        / data_path
-        / "figures"
-        / "registration"
-    )
+    processed_path = iss.io.get_processed_path(data_path)
+    target_folder = processed_path / "figures" / "registration"
+
     target_folder.mkdir(exist_ok=True, parents=True)
 
     ops = iss.io.load_ops(data_path)
@@ -71,14 +68,11 @@ def check_shift_correction(
         data_path (str): Relative path to data folder
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
     """
-    target_folder = (
-        Path(PARAMETERS["data_root"]["processed"])
-        / data_path
-        / "figures"
-        / "registration"
-    )
+    processed_path = iss.io.get_processed_path(data_path)
+    target_folder = processed_path / "figures" / "registration"
+
     target_folder.mkdir(exist_ok=True, parents=True)
-    processed_path = Path(PARAMETERS["data_root"]["processed"])
+
     reg_dir = processed_path / data_path / "reg"
     figure_folder = processed_path / data_path / "figures" / "registration"
 
@@ -179,12 +173,9 @@ def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_rou
         data_path (str): Relative path to data folder
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
     """
-    target_folder = (
-        Path(PARAMETERS["data_root"]["processed"])
-        / data_path
-        / "figures"
-        / "registration"
-    )
+    processed_path = iss.io.get_processed_path(data_path)
+    target_folder = processed_path / "figures" / "registration"
+
     target_folder.mkdir(exist_ok=True, parents=True)
 
     ops = iss.io.load_ops(data_path)
