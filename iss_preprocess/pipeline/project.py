@@ -20,6 +20,15 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
 
     """
     processed_path = iss.io.get_processed_path(data_path)
+    if prefix is None:
+        metadata = iss.io.load_metadata(data_path)
+        prefixes = [f'genes_round_{i+1}_1' for i in range(metadata['genes_rounds'])]
+        prefixes += [f'barcode_round_{i+1}_1' for i in range(metadata['barcode_rounds'])]
+        prefixes.extend(metadata['hybridisation'].keys())
+        prefixes.extend(metadata['fluorescence'].keys())
+        for prefix in prefixes:
+            check_projection(data_path, prefix, suffixes)
+        return
     roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
     if "use_rois" not in ops.keys():
@@ -38,7 +47,7 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
                         print(f"{proj_path} missing!")
                         all_projected = False
     if all_projected:
-        print("all tiles projected!")
+        print(f"all tiles projected for {prefix}!")
 
 
 def project_round(data_path, prefix, overwrite=False):

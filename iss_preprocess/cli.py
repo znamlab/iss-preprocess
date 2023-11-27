@@ -115,9 +115,7 @@ def project_round(path, prefix, overwrite=False):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option(
-    "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
-)
+@click.option("-n", "--prefix", help="Acq prefix, e.g. `genes_round_1_1`, None for all")
 def check_projection(path, prefix):
     """Check if projection has completed for all tile."""
     import iss_preprocess.pipeline as pipeline
