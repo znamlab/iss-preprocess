@@ -47,10 +47,10 @@ def get_processed_path(data_path):
 
 def load_hyb_probes_metadata():
     """Load the hybridisation probes metadata.
-    
+
     Returns:
         dict: Contents of `hybridisation_probes.yml`
-        
+
     """
     fname = Path(__file__).parent.parent / "call" / "hybridisation_probes.yml"
     with open(fname, "r") as f:
@@ -234,7 +234,7 @@ def load_stack(fname):
 
     Args:
         fname (str): path to TIFF
-    
+
     Returns:
         numpy.ndarray: X x Y x Z stack.
     """

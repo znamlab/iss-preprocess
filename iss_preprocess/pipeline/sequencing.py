@@ -248,7 +248,7 @@ def setup_omp(data_path):
     )
     gene_dict, gene_names = make_gene_templates(cluster_means, codebook)
 
-    norm_shift = np.sqrt(np.median(np.sum(stack ** 2, axis=(2, 3))))
+    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
     np.savez(
         processed_path / "gene_dict.npz",
         gene_dict=gene_dict,
@@ -539,7 +539,7 @@ def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_
         correct_channels=ops["genes_correct_channels"],
         prefix=prefix,
         nrounds=ops["genes_rounds"],
-        correct_illumination=True
+        correct_illumination=True,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 

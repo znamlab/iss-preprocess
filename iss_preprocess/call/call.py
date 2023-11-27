@@ -17,9 +17,9 @@ def get_cluster_means(spots, score_thresh=0.0):
 
     Args:
         spots (pandas.DataFrame): Dataframe of extracted spot.
-        score_thresh (float, optional): score_thresh arguments for scaled_k_means. 
+        score_thresh (float, optional): score_thresh arguments for scaled_k_means.
             Scalar between 0 and 1. To give a different score for each cluster, give
-            a list of Nc floats. Only points with dot product to a cluster mean vector 
+            a list of Nc floats. Only points with dot product to a cluster mean vector
             greater than this contribute to new estimate of mean vector. Defaults to 0.
 
     Returns:
@@ -27,7 +27,7 @@ def get_cluster_means(spots, score_thresh=0.0):
             because N channels is equal to N clusters) array of cluster means
         spot_colors (numpy.ndarray): Nrounds x Nch x Nspots array of spot colors
         cluster_inds (list): A list with Nrounds elements. Each a Nspots array of
-            
+
     """
     spot_colors = np.stack(spots["trace"], axis=2)  # round x channels x spots
     nrounds = spot_colors.shape[0]
@@ -58,11 +58,11 @@ def extract_spots(spots, stack, spot_radius=2):
         spots (pandas.DataFrame):
         stack (numpy.ndarray): X x Y x C x R stack.
         spot_radius (int, optional): Radius of the spot. Defaults to 2.
-    
+
     Returns:
         spots (pandas.DataFrame): same as input with a new "traces" column containing
             a R x C array of fluorescence value
-            
+
     """
     traces = []
     for _, spot in spots.iterrows():

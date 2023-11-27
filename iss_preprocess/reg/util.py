@@ -35,7 +35,7 @@ def make_transform(s, angle, shift, shape):
 
     Returns:
         numpy.ndarray: transformation matrix
-        
+
     """
     angle = -radians(angle)
     center_x = float(shape[1]) / 2 - 0.5

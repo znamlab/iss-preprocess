@@ -10,3 +10,5 @@ pkgs
 envs
 .tmp/*
 docs/build/*
+build/*
+scratch.py

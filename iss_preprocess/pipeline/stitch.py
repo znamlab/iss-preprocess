@@ -153,7 +153,7 @@ def register_within_acquisition(
 
 
 def register_adjacent_tiles(
-    data_path, ref_coors=None, ref_ch=0, suffix="fstack", prefix="genes_round_1_1",
+    data_path, ref_coors=None, ref_ch=0, suffix="fstack", prefix="genes_round_1_1"
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -320,6 +320,20 @@ def stitch_tiles(
     else:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
         ops = load_ops(data_path)
+        metadata = iss.io.load_metadata(data_path)
+        ops_fname = processed_path / "ops.yml"
+        if not ops_fname.exists():
+            # Change ref tile to a central position where tissue will be
+            ops.update(
+                {
+                    "ref_tile": [
+                        list(metadata["ROI"].keys())[0],
+                        round(roi_dims[0, 1] / 2),
+                        round(roi_dims[0, 2] / 2),
+                    ],
+                    "ref_ch": 0,
+                }
+            )
         shifts = {}
         (
             shifts["shift_right"],
@@ -328,7 +342,7 @@ def stitch_tiles(
         ) = register_adjacent_tiles(
             data_path,
             ref_coors=ops["ref_tile"],
-            ref_ch=0,
+            ref_ch=ops["ref_ch"],
             suffix="fstack",
             prefix=prefix,
         )
@@ -448,17 +462,12 @@ def merge_roi_spots(data_path, prefix, tile_origins, tile_centers, iroi=1):
                 spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
                 spot_dist = (
-                    (
-                        spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 1]
-                    )
-                    ** 2
-                    + (
-                        spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 0]
-                    )
-                    ** 2
-                )
+                    spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 1]
+                ) ** 2 + (
+                    spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 0]
+                ) ** 2
                 home_tile_dist = (spot_dist[:, ix, iy]).copy()
                 spot_dist[:, ix, iy] = np.inf
                 min_spot_dist = np.min(spot_dist, axis=(1, 2))

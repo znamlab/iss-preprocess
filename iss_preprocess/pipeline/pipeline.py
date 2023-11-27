@@ -90,7 +90,6 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     return stack, bad_pixels
 
 
-@updates_flexilims(name_source="script")
 def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     """Start sbatch scripts for all tiles across all rois.
 
@@ -108,8 +107,12 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
         roi_dims = get_roi_dimensions(data_path)
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+
+    job_ids = []  # Store job IDs
+
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
         ny = roi[2] + 1
@@ -121,13 +124,18 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 args = args + additional_args
                 log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
                 args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
-                command = f"sbatch {args} {script_path}"
+                command = f"sbatch --parsable {args} {script_path}"
                 print(command)
-                subprocess.Popen(
+                process = subprocess.Popen(
                     shlex.split(command),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.STDOUT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
+                stdout, _ = process.communicate()
+                job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
+                job_ids.append(job_id)
+
+    return job_ids
 
 
 def create_single_average(
@@ -359,10 +367,10 @@ def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
 
 def setup_channel_correction(data_path):
     """Setup channel correction for barcode, genes and hybridisation rounds
-        
+
     Args:
         data_path (str): Relative path to the data folder
-        
+
     """
     ops = load_ops(data_path)
     if ops["barcode_rounds"] > 0:

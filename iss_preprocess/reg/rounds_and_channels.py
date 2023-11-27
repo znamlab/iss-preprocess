@@ -55,7 +55,7 @@ def generate_channel_round_transforms(
     shifts_between_channels,
     stack_shape,
     align_channels=True,
-    ref_ch=0
+    ref_ch=0,
 ):
     """Generate transformation matrices for each channel and round.
 
@@ -144,7 +144,7 @@ def align_within_channels(
         nangles (int): number of angles to search for each iteration
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
-        
+
     Returns:
         angles (np.array): Nchannels x Nrounds array of angles
         shifts (np.array): Nchannels x Nrounds x 2 array of shifts
@@ -494,7 +494,7 @@ def estimate_rotation_angle(
     Returns:
         best_angle (float) in degrees
         max_cc (float) maximum cross correlation
-        
+
     """
     angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
     max_cc = np.empty(angles.shape)
