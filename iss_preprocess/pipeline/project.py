@@ -22,10 +22,12 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
     processed_path = iss.io.get_processed_path(data_path)
     if prefix is None:
         metadata = iss.io.load_metadata(data_path)
-        prefixes = [f'genes_round_{i+1}_1' for i in range(metadata['genes_rounds'])]
-        prefixes += [f'barcode_round_{i+1}_1' for i in range(metadata['barcode_rounds'])]
-        prefixes.extend(metadata['hybridisation'].keys())
-        prefixes.extend(metadata['fluorescence'].keys())
+        prefixes = [f"genes_round_{i+1}_1" for i in range(metadata["genes_rounds"])]
+        prefixes += [
+            f"barcode_round_{i+1}_1" for i in range(metadata["barcode_rounds"])
+        ]
+        prefixes.extend(metadata["hybridisation"].keys())
+        prefixes.extend(metadata["fluorescence"].keys())
         for prefix in prefixes:
             check_projection(data_path, prefix, suffixes)
         return
