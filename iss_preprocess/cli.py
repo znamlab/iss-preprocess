@@ -122,14 +122,22 @@ def check_projection(path, prefix):
 
     pipeline.check_projection(path, prefix)
 
+
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
+    "-n",
+    "--prefix",
+    help="Path prefix, e.g. 'genes_round'",
+    prompt="Enter path prefix",
+)
 def register_ref_tile(path, prefix):
     """Run registration across channels and rounds for the reference tile."""
     from iss_preprocess.pipeline import register_reference_tile
+    from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
     register_reference_tile(path, prefix=prefix)
+    check_ref_tile_registration(path, prefix)
 
 
 @cli.command()
@@ -654,7 +662,7 @@ def call_spots(path, genes, barcodes, hybridisation):
     "-p", "--path", prompt="Enter data path", help="Data path.", required=True
 )
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
-@click.option("-g", "--plot_grid", help="Whether to plot grid", default=True)
+@click.option("-g", "--plot-grid", help="Whether to plot grid", default=True)
 @click.option(
     "-d",
     "--downsample_factor",
@@ -662,7 +670,7 @@ def call_spots(path, genes, barcodes, hybridisation):
     type=int,
     default=25,
 )
-@click.option("-s", "--save_raw", help="Whether to save full size tif", default=False)
+@click.option("-s", "--save-raw", help="Whether to save full size tif", default=False)
 def plot_overview(path, prefix, plot_grid, downsample_factor, save_raw):
     """Plot individual channel overview images."""
     from iss_preprocess.vis import plot_overview_images
