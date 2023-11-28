@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.fft
 import scipy.ndimage
-from numba import jit, prange
+from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
 from . import phase_corr, make_transform, transform_image
@@ -469,8 +469,7 @@ def estimate_scale_rotation_translation(
     return best_scale, best_angle, shift
 
 
-# TODO: check if this numba is useful here.
-@jit(parallel=True, forceobj=True)
+# Numba makes no difference here
 def estimate_rotation_angle(
     reference_fft,
     target,
@@ -479,6 +478,7 @@ def estimate_rotation_angle(
     nangles,
     min_shift=None,
     max_shift=None,
+    debug=False,
 ):
     """
     Estimate rotation angle that maximizes phase correlation between the target and the
@@ -490,16 +490,23 @@ def estimate_rotation_angle(
         angle_range (float): range of angles in degrees to search over
         best_angle (float): initial angle in degrees
         nangles (int): number of angles to try
+        min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
+            for images acquired from the same camera
+        max_shift (int): maximum shift.
+        debug (bool): whether to return full cross-correlation array
 
     Returns:
         best_angle (float) in degrees
         max_cc (float) maximum cross correlation
+        cc (np.array) cross correlation array, if debug=True
 
     """
     angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
     max_cc = np.empty(angles.shape)
     shifts = np.empty((nangles, 2))
-    for iangle in prange(nangles):
+    if debug:
+        all_cc = np.empty((nangles, *reference_fft.shape), dtype=np.float64)
+    for iangle in range(nangles):
         shifts[iangle, :], cc = phase_corr(
             reference_fft,
             transform_image(target, angle=angles[iangle]),
@@ -508,8 +515,12 @@ def estimate_rotation_angle(
             max_shift=max_shift,
         )
         max_cc[iangle] = np.max(cc)
+        if debug:
+            all_cc[iangle] = cc
     best_angle_index = np.argmax(max_cc)
     best_angle = angles[best_angle_index]
+    if debug:
+        return best_angle, max_cc[best_angle_index], all_cc
     return best_angle, max_cc[best_angle_index]
 
 
