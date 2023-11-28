@@ -333,7 +333,7 @@ def plot_overview_images(
     prefix,
     plot_grid=True,
     downsample_factor=25,
-    save_raw=False,
+    save_raw=True,
     dependency=None,
     use_slurm=True,
     group_channels=True,
@@ -345,7 +345,7 @@ def plot_overview_images(
         prefix (str): Prefix of acquisition
         plot_axis (bool, optional): Whether to plot gridlines at tile boundaries. Defaults to True.
         downsample_factor (int, optional): Amount to downsample overview. Defaults to 25.
-        save_raw (bool, optional): Whether to save a full size tif with no gridlines. Defaults to False.
+        save_raw (bool, optional): Whether to save a tif with no gridlines. Defaults to True.
         dependency (str, optional): Dependency for the generates slurm scripts
         use_slurm (bool, optional): Whether to use slurm to run the jobs. Defaults to True.
         group_channels (bool, optional): Whether to group channels together. Defaults to True.
