@@ -133,11 +133,21 @@ def check_projection(path, prefix):
 )
 def register_ref_tile(path, prefix):
     """Run registration across channels and rounds for the reference tile."""
+    from pathlib import Path
     from iss_preprocess.pipeline import register_reference_tile
     from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
-    register_reference_tile(path, prefix=prefix)
-    check_ref_tile_registration(path, prefix)
+    slurm_folder = f"{Path.home()}/slurm_logs"
+    job_id = register_reference_tile(
+        path, prefix=prefix, use_slurm=True, slurm_folder=str(slurm_folder)
+    )
+    check_ref_tile_registration(
+        path,
+        prefix,
+        use_slurm=True,
+        slurm_folder=str(slurm_folder),
+        job_dependency=job_id,
+    )
 
 
 @cli.command()

@@ -6,13 +6,15 @@ The functions in here do not compute anything useful, but create figures
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
-from flexiznam.config import PARAMETERS
-import iss_preprocess as iss
 from matplotlib.backends.backend_pdf import PdfPages
+from flexiznam.config import PARAMETERS
+from znamutils import slurm_it
+import iss_preprocess as iss
 from iss_preprocess.pipeline import sequencing
 from iss_preprocess import vis
 
 
+@slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
 def check_ref_tile_registration(data_path, prefix="genes_round"):
     """Plot the reference tile registration and save it in the figures folder
 
@@ -34,7 +36,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
         filter_r=False,
         correct_channels=False,
         correct_illumination=False,
-        corrected_shifts=False,
+        corrected_shifts="reference",
         tile_coors=ops["ref_tile"],
         suffix=ops[f"{prefix.split('_')[0]}_projection"],
         prefix=prefix,
