@@ -335,8 +335,8 @@ def plot_overview_images(
     downsample_factor=25,
     save_raw=True,
     dependency=None,
-    use_slurm=True,
     group_channels=True,
+    use_slurm=True,
 ):
     """Plot individual channel overview images.
 
@@ -347,8 +347,8 @@ def plot_overview_images(
         downsample_factor (int, optional): Amount to downsample overview. Defaults to 25.
         save_raw (bool, optional): Whether to save a tif with no gridlines. Defaults to True.
         dependency (str, optional): Dependency for the generates slurm scripts
-        use_slurm (bool, optional): Whether to use slurm to run the jobs. Defaults to True.
         group_channels (bool, optional): Whether to group channels together. Defaults to True.
+        use_slurm (bool, optional): Whether to use slurm to run the jobs. Defaults to True.
     """
     processed_path = get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
@@ -504,9 +504,7 @@ def plot_single_overview(
         plt.title(
             f"{mouse_name} {extracted_chamber}, ROI: {roi}, {prefix}, Channel: {ch}"
         )
-        dim = np.array(stack.shape)[::-1]
-        if not single_channel:
-            dim = dim[1:]
+        dim = np.array(stack.shape)[1::-1]
         tile_size = dim / np.array([nx, ny])
         for ix, x in enumerate("xy"):
             # Add gridlines at approximate tile boundaries
