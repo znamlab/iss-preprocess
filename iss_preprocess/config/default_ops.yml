@@ -38,6 +38,8 @@ registration:
   ransac_min_tiles: 10
   # Wheter tile position increments from left to right or right to left
   tile_direction: left_to_right
+  # Whether to use a median filter on images before registration, if None no filter is applied
+  reg_median_filter: 5
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating
 # bleedthrough matrices, calling hybridisation spots and basecalling barcodes
