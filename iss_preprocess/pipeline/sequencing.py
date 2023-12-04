@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from skimage.morphology import binary_dilation
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.linear_model import LinearRegression
+from znamutils import slurm_it
+
 import iss_preprocess as iss
 from ..image import (
     filter_stack,
@@ -30,8 +34,6 @@ from ..call import (
     apply_symmetry,
     BASES,
 )
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.linear_model import LinearRegression
 
 
 def load_sequencing_rounds(
@@ -260,6 +262,7 @@ def setup_omp(data_path):
     return gene_dict, gene_names, norm_shift
 
 
+@slurm_it(conda_env="iss-preprocess")
 def estimate_channel_correction(
     data_path, prefix="genes_round", nrounds=7, fit_norm_factors=False
 ):

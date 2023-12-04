@@ -365,20 +365,26 @@ def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
         )
 
 
-def setup_channel_correction(data_path):
+def setup_channel_correction(data_path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds
 
     Args:
         data_path (str): Relative path to the data folder
+        use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
+            True.
 
     """
     ops = load_ops(data_path)
+    slurm_folder = Path.home() / "slurm_logs"
     if ops["barcode_rounds"] > 0:
         iss.pipeline.estimate_channel_correction(
             data_path,
             prefix="barcode_round",
             nrounds=ops["barcode_rounds"],
             fit_norm_factors=ops["fit_channel_correction"],
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            scripts_name="barcode_channel_correction",
         )
     if ops["genes_rounds"] > 0:
         iss.pipeline.estimate_channel_correction(
@@ -386,9 +392,14 @@ def setup_channel_correction(data_path):
             prefix="genes_round",
             nrounds=ops["genes_rounds"],
             fit_norm_factors=ops["fit_channel_correction"],
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            scripts_name="genes_channel_correction",
         )
 
-    iss.pipeline.estimate_channel_correction_hybridisation(data_path)
+    iss.pipeline.estimate_channel_correction_hybridisation(
+        data_path, use_slurm=use_slurm, slurm_folder=slurm_folder
+    )
 
 
 def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):

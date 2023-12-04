@@ -3,9 +3,11 @@ import numpy as np
 import warnings
 import pandas as pd
 import warnings
-import iss_preprocess as iss
-from skimage.registration import phase_cross_correlation
 from pathlib import Path
+from skimage.registration import phase_cross_correlation
+from scipy.ndimage import median_filter
+
+import iss_preprocess as iss
 from . import pipeline
 from .. import vis
 from ..io import load_tile_by_coors, load_stack, load_ops, get_roi_dimensions
@@ -165,11 +167,7 @@ def register_adjacent_tiles(
         ref_coors (tuple, optional): coordinates of the reference tile to use for
             registration. Must not be along the bottom or right edge of image. If `None`
             use `ops['ref_tile']`. Defaults to None.
-        reg_fraction (float, optional): overlap fraction used for registration.
-            Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
-        ref_round (int, optional): reference round used for registration. Defaults to 0.
-        nrounds (int, optional): Number of rounds to load. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'proj'.
         prefix (str, optional): Full name of the acquisition folder
 
@@ -199,19 +197,38 @@ def register_adjacent_tiles(
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
 
-    shift_right = phase_cross_correlation(
+    if ops["reg_median_filter"] is not None:
+        msize = ops["reg_median_filter"]
+        print(f"Filtering with median filter of size {msize}")
+        assert isinstance(msize, int), "reg_median_filter must be an integer"
+        tile_ref = median_filter(tile_ref, size=msize)
+        tile_down = median_filter(tile_down, size=msize)
+        tile_right = median_filter(tile_right, size=msize)
+
+    shift_right, _, _ = phase_cross_correlation(
         tile_ref[:, -reg_pix_x:, ref_ch],
         tile_right[:, :reg_pix_x, ref_ch],
         upsample_factor=5,
-    )[0] + [0, xpix - reg_pix_x]
+    )
+    if any(np.abs(shift_right) >= reg_pix_x * 0.1):
+        warnings.warn(
+            f"Shift to right tile is large: {shift_right}"
+            f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is fine."
+        )
+    shift_right += [0, xpix - reg_pix_x]
     if ops["tile_direction"] != "left_to_right":
         shift_right = -shift_right
-
-    shift_down = phase_cross_correlation(
+    shift_down, _, _ = phase_cross_correlation(
         tile_ref[:reg_pix_y, :, ref_ch],
         tile_down[-reg_pix_y:, :, ref_ch],
         upsample_factor=5,
-    )[0] - [ypix - reg_pix_y, 0]
+    )
+    if any(np.abs(shift_down) >= reg_pix_y * 0.1):
+        warnings.warn(
+            f"Shift to down tile is large: {shift_down}"
+            f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is fine."
+        )
+    shift_down -= [ypix - reg_pix_y, 0]
 
     return shift_right, shift_down, (ypix, xpix)
 
@@ -320,14 +337,19 @@ def stitch_tiles(
     else:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
         ops = load_ops(data_path)
-        metadata = iss.io.load_metadata(data_path)
+        try:
+            metadata = iss.io.load_metadata(data_path)
+            ref_roi = list(metadata["ROI"].keys())[0]
+        except FileNotFoundError:
+            ref_roi = roi_dims[0, 0]
+            warnings.warn(f"Metadata file not found, using ROI {ref_roi} as reference.")
         ops_fname = processed_path / "ops.yml"
         if not ops_fname.exists():
             # Change ref tile to a central position where tissue will be
             ops.update(
                 {
                     "ref_tile": [
-                        list(metadata["ROI"].keys())[0],
+                        ref_roi,
                         round(roi_dims[0, 1] / 2),
                         round(roi_dims[0, 2] / 2),
                     ],

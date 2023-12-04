@@ -2,6 +2,7 @@ import numpy as np
 import multiprocessing as mp
 import shutil
 import iss_preprocess as iss
+from warnings import warn
 from functools import partial
 from pathlib import Path
 from ..image import fstack_channels
@@ -69,11 +70,16 @@ def project_round(data_path, prefix, overwrite=False):
     roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
     # Change ref tile to a central position where tissue will be
-    metadata = iss.io.load_metadata(data_path)
+    try:
+        metadata = iss.io.load_metadata(data_path)
+        ref_roi = list(metadata["ROI"].keys())[0]
+    except FileNotFoundError:
+        ref_roi = roi_dims[0, 0]
+        warn(f"Metadata file not found, using ROI {ref_roi} as reference tile.")
     ops.update(
         {
             "ref_tile": [
-                list(metadata["ROI"].keys())[0],
+                ref_roi,
                 round(roi_dims[0, 1] / 2),
                 round(roi_dims[0, 2] / 2),
             ]

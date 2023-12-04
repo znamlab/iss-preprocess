@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import RANSACRegressor
+from scipy.ndimage import median_filter
 from znamutils import slurm_it
 import iss_preprocess as iss
-from scipy.ndimage import median_filter
 from ..reg import (
     register_channels_and_rounds,
     estimate_shifts_for_tile,

@@ -669,20 +669,46 @@ def call_spots(path, genes, barcodes, hybridisation):
 
 @cli.command()
 @click.option(
-    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
+    "--path", "-p", prompt="Enter data path", help="Data path.", required=True
 )
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
-@click.option("-g", "--plot-grid", help="Whether to plot grid", default=True)
 @click.option(
-    "-d",
+    "--plot-grid/--no-plot-gird",
+    "-g",
+    help="Whether to plot grid",
+    default=True,
+    show_default=True,
+)
+@click.option(
     "--downsample_factor",
+    "-d",
     help="Amount to downsample output",
     type=int,
     default=25,
 )
-@click.option("-s", "--save-raw", help="Whether to save full size tif", default=False)
-def plot_overview(path, prefix, plot_grid, downsample_factor, save_raw):
+@click.option(
+    "--save-raw/--no-save-raw",
+    "-r",
+    help="Whether to save full size tif",
+    default=False,
+)
+@click.option(
+    "--separate-channels/--no-separate-channels",
+    "-s",
+    help="Whether to save a figure per channel",
+    default=False,
+)
+def plot_overview(
+    path, prefix, plot_grid, downsample_factor, save_raw, separate_channels
+):
     """Plot individual channel overview images."""
     from iss_preprocess.vis import plot_overview_images
 
-    plot_overview_images(path, prefix, plot_grid, downsample_factor, save_raw)
+    plot_overview_images(
+        data_path=path,
+        prefix=prefix,
+        plot_grid=plot_grid,
+        downsample_factor=downsample_factor,
+        save_raw=save_raw,
+        group_channels=not separate_channels,
+    )
