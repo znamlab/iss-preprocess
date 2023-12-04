@@ -107,7 +107,15 @@ def load_ops(data_path):
         ops["black_level"] = dark_frames.mean(axis=(0, 1))
         np.save(black_level_fname, ops["black_level"])
 
-    metadata = load_metadata(data_path)
+    try:
+        metadata = load_metadata(data_path)
+    except FileNotFoundError:
+        metadata = {
+            "camera_order": [1, 3, 4, 2],
+            "genes_rounds": 7,
+            "barcode_rounds": 12,
+        }
+        warnings.warn(f"Metadata file not found, using {metadata}.")
     ops.update(
         {
             "camera_order": metadata["camera_order"],
@@ -140,7 +148,9 @@ def load_metadata(data_path):
         if metadata_fname.exists():
             print("Metadata not found in raw data, loading from processed data")
         else:
-            raise IOError(f"Metadata not found.\n{metadata_fname} does not exist")
+            raise FileNotFoundError(
+                f"Metadata not found.\n{metadata_fname} does not exist"
+            )
     with open(metadata_fname, "r") as f:
         metadata = yaml.safe_load(f)
     return metadata
