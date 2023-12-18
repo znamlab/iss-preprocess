@@ -31,6 +31,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     nrounds = ops[f"{prefix}s"]
 
     # get stack registered between channel and rounds
+    print("Loading and registering sequencing tile")
     reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
         data_path,
         filter_r=False,
@@ -48,14 +49,37 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     vmaxs = np.quantile(reg_stack[..., 0], 0.9999, axis=(0, 1))
     center = np.array(reg_stack.shape[:2]) // 2
     view = np.array([center - 200, center + 200]).T
+    channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
 
+    print("Animating")
     vis.animate_sequencing_rounds(
         reg_stack,
         savefname=target_folder / f"initial_ref_tile_registration_{prefix}.mp4",
         vmax=vmaxs,
         extent=(view[0], view[1]),
-        channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+        channel_colors=channel_colors,
     )
+
+    print("Static figure")
+    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+    nrounds = stack.shape[3]
+
+    def round_image(iround):
+        vmax = np.percentile(stack[501:1000, 1501:2000, :, iround], 99.9)
+        return iss.vis.to_rgb(
+            stack[501:1000, 1501:2000, :, iround],
+            channel_colors,
+            vmin=np.array([0, 0, 0, 0]),
+            vmax=np.array([1, 1, 1, 1]) * vmax,
+        )
+
+    fig = plt.figure(figsize=(10, 8))
+    for iround in range(nrounds):
+        plt.subplot(3, 4, iround + 1)
+        plt.imshow(round_image(iround))
+        plt.axis("off")
+    plt.tight_layout()
+    print(f"Saved to {target_folder / f'initial_ref_tile_registration_{prefix}.mp4'}")
 
 
 def check_shift_correction(
