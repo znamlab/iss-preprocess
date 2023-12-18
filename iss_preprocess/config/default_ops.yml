@@ -1,3 +1,8 @@
+projection:
+  make_fstack: false
+  make_max: true
+  make_median: true
+
 # Parameters for illumination correction, channel brightness correction and filtering
 image_correction:
   # To compute the average for illumination correction, individual images are clipped to this 
@@ -52,7 +57,7 @@ genes:
   # Filename of the codebook with GIIs
   codebook: codebook_83gene_pool.csv
   # Projection to use for gene spots, "fstack" or "max"
-  genes_projection: fstack 
+  genes_projection: max 
   # How to apply brightness correction for gene sequencing. Can be True, False, or "round1_only". In the
   # latter case all channels are normalized to 1 on round 1 and decrease in brightness across rounds is 
   # not corrected for.
@@ -100,11 +105,11 @@ mcherry:
 
 # projection for other acquisitions
 dapi_projection: max
-anchor_projection: fstack
+anchor_projection: max
 
 # Barcode basecalling
 barcode:
-  barcode_projection: fstack
+  barcode_projection: max
   barcode_correct_channels: round1_only
   barcode_cluster_score_thresh: 0.9
   barcode_detection_threshold: 0.3

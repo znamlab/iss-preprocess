@@ -230,11 +230,24 @@ def load_tile_by_coors(
 
     """
     tile_roi, tile_x, tile_y = tile_coors
-    fname = (
-        f"{prefix}_MMStack_{tile_roi}-"
-        + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
-    )
-    return load_stack(get_processed_path(data_path) / prefix / fname)
+    if suffix != "max-median":
+        fname = (
+            f"{prefix}_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
+        )
+        stack = load_stack(get_processed_path(data_path) / prefix / fname)
+    else:
+        fname = (
+            f"{prefix}_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_max.tif"
+        )
+        stack = load_stack(get_processed_path(data_path) / prefix / fname)
+        fname = (
+            f"{prefix}_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_median.tif"
+        )
+        stack -= load_stack(get_processed_path(data_path) / prefix / fname)
+    return stack
 
 
 # TODO: add shape check? What if pages are not 2D (rgb, weird tiffs)
