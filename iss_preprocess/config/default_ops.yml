@@ -32,6 +32,8 @@ registration:
   corrected_shifts: best
   # Mininum tile shift above which RANSAC fit is used to estimate the shift
   ransac_residual_threshold: 10
+  # Maximum shift for inititial registration across rounds
+  rounds_max_shift: 500
   # Maximum shift for tiles to be included in the RANSAC fit
   ransac_max_shift: 500
   # Minumum number of tile for RANSAC fit, otherwise median is used

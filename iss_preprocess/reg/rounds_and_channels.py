@@ -7,7 +7,7 @@ from skimage.registration import phase_cross_correlation
 from . import phase_corr, make_transform, transform_image
 
 
-def register_channels_and_rounds(stack, ref_ch=0, ref_round=0):
+def register_channels_and_rounds(stack, ref_ch=0, ref_round=0, max_shift=None):
     """
     Estimate transformation matrices for alignment across channels and rounds.
 
@@ -26,7 +26,7 @@ def register_channels_and_rounds(stack, ref_ch=0, ref_round=0):
     """
     # first register images across rounds within each channel
     angles_within_channels, shifts_within_channels = align_within_channels(
-        stack, upsample=False, ref_round=ref_round
+        stack, upsample=False, ref_round=ref_round, max_shift=max_shift
     )
     # use these to computer a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(
@@ -131,6 +131,7 @@ def align_within_channels(
     niter=3,
     nangles=15,
     min_shift=2,
+    max_shift=None,
 ):
     """Align images within each channel.
 
@@ -168,6 +169,7 @@ def align_within_channels(
                     nangles=nangles,
                     min_shift=min_shift,
                     upsample=upsample,
+                    max_shift=max_shift,
                 )
             else:
                 angle, shift = 0.0, [0.0, 0.0]
@@ -180,7 +182,7 @@ def align_within_channels(
 
 
 def estimate_shifts_and_angles_for_tile(
-    stack, scales, ref_ch=0, threshold_quantile=0.9
+    stack, scales, ref_ch=0, threshold_quantile=0.9, max_shift=None
 ):
     """Estimate shifts and angles. Registration is carried out on thresholded images
     using the provided quantile threshold.
@@ -190,6 +192,7 @@ def estimate_shifts_and_angles_for_tile(
         scales (np.array): Nchannels array of scales
         ref_ch (int): reference channel
         threshold_quantile (float): quantile to use for thresholding
+        max_shift (int): maximum shift to avoid spurious cross-correlations
 
     Returns:
         angles (np.array): Nchannels array of angles
@@ -210,6 +213,7 @@ def estimate_shifts_and_angles_for_tile(
                 angle_range=2.0,
                 niter=3,
                 nangles=21,
+                max_shift=max_shift,
             )
         else:
             angle, shift = 0.0, [0.0, 0.0]
@@ -362,6 +366,7 @@ def estimate_correction(
     nangles=3,
     niter=5,
     angle_range=1.0,
+    max_shift=None,
 ):
     """
     Estimate scale, rotation and translation corrections for each channel of a multichannel image.
@@ -374,6 +379,7 @@ def estimate_correction(
         nangles (int): number of angles to search through
         niter (int): number of iterations to run
         angle_range (float): range of angles to search through
+        max_shift (int): maximum shift to avoid spurious cross-correlations
 
     Returns:
         scales (np.array): Nchannels array of scale factors
@@ -395,6 +401,7 @@ def estimate_correction(
                 scale_range=scale_range,
                 angle_range=angle_range,
                 upsample=upsample,
+                max_shift=max_shift
             )
         else:
             scale, angle, shift = 1.0, 0.0, (0, 0)
@@ -414,6 +421,7 @@ def estimate_scale_rotation_translation(
     nangles=15,
     verbose=False,
     upsample=False,
+    max_shift=None,
 ):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
@@ -428,6 +436,8 @@ def estimate_scale_rotation_translation(
         nangles (int): number of angles to try on each iteration
         verbose (bool): whether to print progress of registration
         scale (float): how to rescale image for finding the optimal rotation
+        upsample (bool, or int): whether to upsample the image, and if so but what factor
+        max_shift (int): maximum shift to avoid spurious cross-correlations
 
     Returns:
         best_angle (float) in degrees
@@ -445,7 +455,7 @@ def estimate_scale_rotation_translation(
         for iscale in range(nscales):
             target_rescaled = transform_image(target, scale=scales[iscale])
             best_angles[iscale], max_cc[iscale] = estimate_rotation_angle(
-                reference_fft, target_rescaled, angle_range, best_angle, nangles
+                reference_fft, target_rescaled, angle_range, best_angle, nangles, max_shift=max_shift
             )
         best_scale_index = np.argmax(max_cc)
         best_scale = scales[best_scale_index]
@@ -459,6 +469,7 @@ def estimate_scale_rotation_translation(
             reference_fft,
             transform_image(target, scale=best_scale, angle=best_angle),
             fft_ref=False,
+            max_shift=max_shift,
         )
     else:
         shift = phase_cross_correlation(

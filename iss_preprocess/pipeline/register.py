@@ -52,7 +52,7 @@ def register_reference_tile(data_path, prefix="genes_round"):
         angles_between_channels,
         shifts_between_channels,
     ) = register_channels_and_rounds(
-        stack, ref_ch=ops["ref_ch"], ref_round=ops["ref_round"]
+        stack, ref_ch=ops["ref_ch"], ref_round=ops["ref_round"], max_shift=ops["rounds_max_shift"]
     )
     save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
     np.savez(
@@ -92,7 +92,7 @@ def estimate_shifts_and_angles_by_coors(
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
     angles, shifts = estimate_shifts_and_angles_for_tile(
-        stack, reference_tforms["scales_between_channels"], ref_ch=ops["ref_ch"]
+        stack, reference_tforms["scales_between_channels"], ref_ch=ops["ref_ch"],
     )
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
