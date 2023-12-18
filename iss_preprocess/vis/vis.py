@@ -337,6 +337,8 @@ def plot_overview_images(
     dependency=None,
     group_channels=True,
     use_slurm=True,
+    vmin=None,
+    vmax=None,
 ):
     """Plot individual channel overview images.
 
@@ -349,6 +351,8 @@ def plot_overview_images(
         dependency (str, optional): Dependency for the generates slurm scripts
         group_channels (bool, optional): Whether to group channels together. Defaults to True.
         use_slurm (bool, optional): Whether to use slurm to run the jobs. Defaults to True.
+        vmin (list, optional): vmin for each channel. Default to None
+        vmax (list, optional): vmax for each channel. Default to None
     """
     processed_path = get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
@@ -368,6 +372,8 @@ def plot_overview_images(
         correct_illumination=correct_illumination,
         use_slurm=use_slurm,
         job_dependency=dependency,
+        vmin=vmin,
+        vmax=vmax,
     )
 
     for roi_dim in roi_dims:
