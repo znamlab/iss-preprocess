@@ -18,6 +18,7 @@ def register_channels_and_rounds(
     median_filter=None,
     diag=False,
     data_path="",
+    prefix="",
 ):
     """
     Estimate transformation matrices for alignment across channels and rounds.
@@ -42,7 +43,8 @@ def register_channels_and_rounds(
         max_shift=max_shift,
         median_filter_size=median_filter,
         diag=diag,
-        data_path=data_path, 
+        data_path=data_path,
+        prefix=prefix, 
     )
     # use these to computer a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(
@@ -54,7 +56,8 @@ def register_channels_and_rounds(
         shifts_between_channels,      
     ) = estimate_correction(
         std_stack, ch_to_align=ref_ch, upsample=5,
-        diag=diag, data_path=data_path, max_shift=max_shift,
+        diag=diag, data_path=data_path, prefix=prefix,
+        max_shift=max_shift,
     )
 
     return (
@@ -153,6 +156,7 @@ def align_within_channels(
         median_filter_size=None,
         diag=False,
         data_path="",
+        prefix="",
     ):
     """Align images within each channel.
 
@@ -190,7 +194,8 @@ def align_within_channels(
                   upsample,
                   max_shift,
                   diag,
-                  data_path) 
+                  data_path,
+                  prefix) 
                  for ref_ch in range(nchannels) 
                  for iround in range(nrounds)]
 
@@ -211,7 +216,7 @@ def align_within_channels(
 def process_single_rotation_translation(args):
     (ref_ch, iround, stack, ref_round,
     angle_range, niter, nangles, min_shift,
-    upsample, max_shift, diag, data_path) = args
+    upsample, max_shift, diag, data_path, prefix) = args
 
     print(f"Processing channel {ref_ch}, round {iround}", flush=True)
 
@@ -227,6 +232,7 @@ def process_single_rotation_translation(args):
             max_shift=max_shift,
             diag=diag,
             data_path=data_path,
+            prefix=prefix,
             ref_ch=ref_ch,
             iround=iround,
         )
@@ -433,6 +439,7 @@ def estimate_correction(
     max_shift=None,
     diag=False,
     data_path="",
+    prefix="",
 ):
     """
     Estimate scale, rotation and translation corrections for each channel of a multichannel image.
@@ -465,7 +472,8 @@ def estimate_correction(
                   angle_range,
                   max_shift,
                   diag,
-                  data_path) 
+                  data_path,
+                  prefix) 
                  for channel in range(nchannels)]
 
     # Process tasks in parallel
@@ -488,7 +496,8 @@ def process_single_scale_rotation_translation(args):
     angle_range,
     max_shift,
     diag,
-    data_path
+    data_path,
+    prefix,
     ) = args
     print(f"Processing channel {channel}", flush=True)
 
@@ -505,6 +514,7 @@ def process_single_scale_rotation_translation(args):
             max_shift=max_shift,
             diag=diag,
             data_path=data_path,
+            prefix=prefix,
             channel=channel,
         )
     else:
@@ -525,6 +535,7 @@ def estimate_scale_rotation_translation(
     max_shift=None,
     diag=False,
     data_path="",
+    prefix="",
     channel=None,
 ):
     """
@@ -580,6 +591,7 @@ def estimate_scale_rotation_translation(
             save_path = (
                 get_processed_path(data_path) /
                 "figures" /
+                prefix /
                 "ref_tile" /
                 f"no_upsample_scale_rot_trans_phase_corr.npz"
             )
@@ -676,6 +688,7 @@ def estimate_rotation_translation(
     iter_range_factor=5.0,
     diag=False,
     data_path="",
+    prefix="",
     ref_ch="",
     iround="",
 ):
@@ -718,6 +731,7 @@ def estimate_rotation_translation(
                 save_path = (
                     get_processed_path(data_path) /
                     "figures" /
+                    prefix / 
                     "ref_tile" /
                     f"max_cc_estimate_rotation_angle_ref_ch_{ref_ch}_round_{iround}.npy"
                 )
@@ -737,6 +751,7 @@ def estimate_rotation_translation(
             save_path = (
                 get_processed_path(data_path) /
                 "figures" /
+                prefix /
                 "ref_tile" /
                 f"no_upsample_phase_corr_ref_ch_{ref_ch}_round_{iround}.npy"
             )

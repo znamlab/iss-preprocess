@@ -52,7 +52,8 @@ def register_reference_tile(data_path, prefix="genes_round", diag=True):
         max_shift=ops["rounds_max_shift"],
         median_filter=ops["reg_median_filter"],
         diag=diag,
-        data_path=data_path, 
+        data_path=data_path,
+        prefix=prefix, 
     )
     save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
     np.savez(
