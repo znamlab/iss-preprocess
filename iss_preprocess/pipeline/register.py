@@ -17,7 +17,7 @@ from .sequencing import load_sequencing_rounds
 from ..io import load_tile_by_coors, load_metadata, load_ops, get_roi_dimensions
 
 
-def register_reference_tile(data_path, prefix="genes_round"):
+def register_reference_tile(data_path, prefix="genes_round", diag=True):
     """Estimate round and channel registration parameters for
     the specified tile, include shifts and rotations between rounds
     and shifts, rotations, and scaling between channels.
@@ -31,6 +31,8 @@ def register_reference_tile(data_path, prefix="genes_round"):
             Defaults to "genes_round".
 
     """
+    diag_plot_dir = iss.io.get_processed_path(data_path) / "figures" / "ref_tile"
+    diag_plot_dir.mkdir(parents=True, exist_ok=True)
     ops = load_ops(data_path)
     nrounds = ops[prefix + "s"]
     projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
@@ -44,7 +46,13 @@ def register_reference_tile(data_path, prefix="genes_round"):
         angles_between_channels,
         shifts_between_channels,
     ) = register_channels_and_rounds(
-        stack, ref_ch=ops["ref_ch"], ref_round=ops["ref_round"], max_shift=ops["rounds_max_shift"]
+        stack,
+        ref_ch=ops["ref_ch"],
+        ref_round=ops["ref_round"],
+        max_shift=ops["rounds_max_shift"],
+        median_filter=ops["reg_median_filter"],
+        diag=diag,
+        data_path=data_path, 
     )
     save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
     np.savez(
@@ -62,8 +70,9 @@ def estimate_shifts_and_angles_by_coors(
     data_path,
     tile_coors=(0, 0, 0),
     prefix="hybridisation_1_1",
-    suffix="fstack",
+    suffix="max",
     reference_prefix="barcode_round",
+    max_shift=False,
 ):
     """Estimate shifts and rotations angles for hybridisation images.
 
@@ -82,9 +91,14 @@ def estimate_shifts_and_angles_by_coors(
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
     )
+    if max_shift:
+        max_shift = ops["rounds_max_shift"]
     reference_tforms = np.load(tforms_path, allow_pickle=True)
     angles, shifts = estimate_shifts_and_angles_for_tile(
-        stack, reference_tforms["scales_between_channels"], ref_ch=ops["ref_ch"],
+        stack,
+        reference_tforms["scales_between_channels"],
+        ref_ch=ops["ref_ch"],
+        max_shift=max_shift,
     )
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -99,7 +113,11 @@ def estimate_shifts_and_angles_by_coors(
 
 
 def estimate_shifts_by_coors(
-    data_path, tile_coors=(0, 0, 0), prefix="genes_round", suffix="fstack"
+    data_path,
+    tile_coors=(0, 0, 0),
+    prefix="genes_round",
+    suffix="max",
+    max_shift=None,
 ):
     """Estimate shifts across channels and sequencing rounds using provided reference
     rotation angles and scale factors.
@@ -115,6 +133,10 @@ def estimate_shifts_by_coors(
     """
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
+    if max_shift:
+        max_shift = ops["rounds_max_shift"]
+    min_shift = ops["rounds_min_shift"]
+    median_filter_size = ops["reg_median_filter"]
     nrounds = ops[prefix + "s"]
     tforms_path = processed_path / f"tforms_{prefix}.npz"
     stack = load_sequencing_rounds(
@@ -127,7 +149,10 @@ def estimate_shifts_by_coors(
         reference_tforms["scales_between_channels"],
         reference_tforms["angles_between_channels"],
         ref_ch=ops["ref_ch"],
-        ref_round=0,
+        ref_round=ops["ref_round"],
+        max_shift=max_shift,
+        min_shift=min_shift,
+        median_filter_size=median_filter_size,
     )
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
