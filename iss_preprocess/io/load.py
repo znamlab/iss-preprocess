@@ -113,7 +113,7 @@ def load_ops(data_path):
         metadata = {
             "camera_order": [1, 3, 4, 2],
             "genes_rounds": 7,
-            "barcode_rounds": 12,
+            "barcode_rounds": 10,
         }
         warnings.warn(f"Metadata file not found, using {metadata}.")
     ops.update(
@@ -213,7 +213,7 @@ def load_section_position(data_path):
 
 
 def load_tile_by_coors(
-    data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
+    data_path, tile_coors=(1, 0, 0), suffix="max", prefix="genes_round_1_1"
 ):
     """Load processed tile images
 
@@ -281,26 +281,33 @@ def get_tile_ome(fname, fmetadata):
 
     """
     stack = TiffFile(fname)
-
     with open(fmetadata) as json_file:
         metadata = json.load(json_file)
     frame_keys = list(metadata.keys())[1:]
-
-    zs = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
-    zs = sorted(list(set(zs)))
+    # Create channel and Z position arrays based on metadata
     channels = [int(metadata[frame_key]["Camera"][-1]) for frame_key in frame_keys]
-    channels = sorted(list(set(channels)))
-    nch = len(channels)
-    nz = len(zs)
+    unique_channels = sorted(list(set(channels)))
+    nch = len(unique_channels)
+    # Create a mapping of channel IDs to a 0-based index
+    channel_map = {ch_id: idx for idx, ch_id in enumerate(unique_channels)}
+    # Determine Z positions
+    if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
+        zs = [metadata[frame_key]["ImageNumber"] for frame_key in frame_keys]
+    else:
+        zs = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
+    unique_zs = sorted(list(set(zs)))
+    nz = len(unique_zs)
     xpix = stack.pages[0].tags["ImageWidth"].value
     ypix = stack.pages[0].tags["ImageLength"].value
     im = np.zeros((ypix, xpix, nch, nz))
-
     for page, frame_key in zip(stack.pages, frame_keys):
-        z = zs.index(metadata[frame_key]["ZPositionUm"])
-        ch = int(
-            metadata[frame_key]["Camera"][-1]
-        )  # channel id is the last digit of camera name
+        ch_id = int(metadata[frame_key]["Camera"][-1])  # Actual channel ID
+        ch = channel_map[ch_id]  # Mapped channel index
+        if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
+            z = unique_zs.index(metadata[frame_key]["ImageNumber"])
+        else:
+            z = unique_zs.index(metadata[frame_key]["ZPositionUm"])
+    
         im[:, :, ch, z] = page.asarray()
 
     return im
@@ -340,7 +347,7 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
         data_dir = processed_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
         pattern = (
-            rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['projection']}.tif"
+            rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['genes_projection']}.tif"
         )
     else:
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
