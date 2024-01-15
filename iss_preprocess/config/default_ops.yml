@@ -55,7 +55,7 @@ spot_extraction_radius: 2
 # Parameters for detecting and calling gene spots
 genes:
   # Filename of the codebook with GIIs
-  codebook: codebook_83gene_pool.csv
+  codebook: codebook_88_20230216.csv
   # Projection to use for gene spots, "fstack" or "max"
   genes_projection: max 
   # How to apply brightness correction for gene sequencing. Can be True, False, or "round1_only". In the
