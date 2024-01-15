@@ -126,20 +126,35 @@ def check_projection(path, prefix):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
-def register_ref_tile(path, prefix):
+@click.option(
+    "--diag",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Save diagnostic cross correlogram plots")
+def register_ref_tile(path, prefix, diag=True):
     """Run registration across channels and rounds for the reference tile."""
     from iss_preprocess.pipeline import register_reference_tile
 
-    register_reference_tile(path, prefix=prefix)
+    register_reference_tile(path, prefix=prefix, diag=diag)
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def setup_omp(path):
+@click.option(
+    "--use-slurm",
+    is_flag=True,
+    default=True,
+    help="Whether to use slurm")
+def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from iss_preprocess.pipeline import setup_omp
-
-    setup_omp(path)
+    from pathlib import Path
+    slurm_folder = Path.home() / "slurm_logs"
+    setup_omp(path,
+              use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            scripts_name="setup_omp")
 
 
 @cli.command()
@@ -171,13 +186,19 @@ def setup_hybridisation(path):
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
+@click.option(
+    "--max_shift",
+    is_flag=True,
+    default=True,
+    help="Whether to set a max shift from ops.")
+def register_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=True):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_by_coors
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
+        path, tile_coors=(roi, tilex, tiley),
+        prefix=prefix, suffix=suffix, max_shift=max_shift,
     )
 
 
@@ -192,13 +213,19 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
+@click.option(
+    "--max_shift",
+    is_flag=True,
+    default=True,
+    help="Whether to set a max shift from ops.")
+def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=True):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}/{prefix}")
     estimate_shifts_and_angles_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
+        path, tile_coors=(roi, tilex, tiley),
+        prefix=prefix, suffix=suffix, max_shift=max_shift,
     )
 
 
@@ -208,11 +235,16 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-def estimate_shifts(path, prefix, suffix="fstack"):
+@click.option(
+    "--max_shift",
+    is_flag=True,
+    default=True,
+    help="Whether to set a max shift from ops.")
+def estimate_shifts(path, prefix, suffix="max", max_shift=True):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
-    additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix},MAX_SHIFT={max_shift}"
     batch_process_tiles(path, script="register_tile", additional_args=additional_args)
 
 
@@ -222,7 +254,7 @@ def estimate_shifts(path, prefix, suffix="fstack"):
 @click.option(
     "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
 )
-def estimate_hyb_shifts(path, prefix=None, suffix="fstack"):
+def estimate_hyb_shifts(path, prefix=None, suffix="max"):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
     from iss_preprocess.io import load_metadata
