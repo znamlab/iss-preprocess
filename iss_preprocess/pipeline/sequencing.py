@@ -40,7 +40,7 @@ def load_sequencing_rounds(
     data_path,
     tile_coors=(1, 0, 0),
     nrounds=7,
-    suffix="fstack",
+    suffix="max",
     prefix="round",
     specific_rounds=None,
 ):
@@ -193,7 +193,7 @@ def basecall_tile(data_path, tile_coors):
         / f"barcode_round_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
 
-
+@slurm_it(conda_env="iss-preprocess")
 def setup_omp(data_path):
     """Prepare variables required to run the OMP algorithm. Finds isolated spots using
     STD across rounds and channels. Detected spots are then used to determine the
@@ -221,6 +221,7 @@ def setup_omp(data_path):
             prefix="genes_round",
             suffix=ops["genes_projection"],
             correct_channels=ops["genes_correct_channels"],
+            corrected_shifts=ops["corrected_shifts"],
             nrounds=ops["genes_rounds"],
         )
         stack[bad_pixels, :, :] = 0
@@ -324,7 +325,7 @@ def estimate_channel_correction(
         channels_encoding = (
             OneHotEncoder().fit_transform(x_ch.flatten()[:, np.newaxis]).todense()
         )
-        x = np.hstack((x_round.flatten()[:, np.newaxis], channels_encoding))
+        x = np.asarray(np.hstack((x_round.flatten()[:, np.newaxis], channels_encoding)))
 
         mdl = LinearRegression(fit_intercept=False).fit(
             x, np.log(norm_factors_raw.flatten()[:, np.newaxis])
@@ -348,7 +349,7 @@ def load_and_register_sequencing_tile(
     data_path,
     tile_coors=(1, 0, 0),
     prefix="genes_round",
-    suffix="fstack",
+    suffix="max",
     filter_r=(2, 4),
     correct_channels=False,
     corrected_shifts="best",

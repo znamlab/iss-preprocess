@@ -6,6 +6,7 @@ import warnings
 from pathlib import Path
 from skimage.registration import phase_cross_correlation
 from scipy.ndimage import median_filter
+from ast import literal_eval
 
 import iss_preprocess as iss
 from . import pipeline
@@ -87,7 +88,7 @@ def register_within_acquisition(
     prefix,
     ref_roi=None,
     ref_ch=0,
-    suffix="fstack",
+    suffix="max",
     reload=True,
     save_plot=False,
     dimension_prefix="genes_round_1_1",
@@ -155,7 +156,7 @@ def register_within_acquisition(
 
 
 def register_adjacent_tiles(
-    data_path, ref_coors=None, ref_ch=0, suffix="fstack", prefix="genes_round_1_1"
+    data_path, ref_coors=None, ref_ch=0, suffix="max", prefix="genes_round_1_1"
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -196,8 +197,7 @@ def register_adjacent_tiles(
     xpix = tile_ref.shape[1]
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
-
-    if ops["reg_median_filter"] is not None:
+    if literal_eval(ops["reg_median_filter"]) is not None:
         msize = ops["reg_median_filter"]
         print(f"Filtering with median filter of size {msize}")
         assert isinstance(msize, int), "reg_median_filter must be an integer"
@@ -302,7 +302,7 @@ def stitch_tiles(
     data_path,
     prefix,
     roi=1,
-    suffix="fstack",
+    suffix="max",
     ich=0,
     correct_illumination=False,
     shifts_prefix=None,
@@ -365,7 +365,7 @@ def stitch_tiles(
             data_path,
             ref_coors=ops["ref_tile"],
             ref_ch=ops["ref_ch"],
-            suffix="fstack",
+            suffix="max",
             prefix=prefix,
         )
     tile_shape = shifts["tile_shape"]

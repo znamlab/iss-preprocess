@@ -25,7 +25,7 @@ def load_and_register_hyb_tile(
     data_path,
     tile_coors=(1, 0, 0),
     prefix="hybridisation_1_1",
-    suffix="fstack",
+    suffix="max",
     filter_r=(2, 4),
     correct_illumination=False,
     correct_channels=False,
