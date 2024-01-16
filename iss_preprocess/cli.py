@@ -184,11 +184,11 @@ def setup_hybridisation(path):
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 @click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+    "-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'"
 )
 @click.option(
-    "--max_shift",
-    is_flag=True,
+    "-m",
+    "--max-shift",
     default=True,
     help="Whether to set a max shift from ops.")
 def register_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=True):
@@ -211,10 +211,10 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=True)
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 @click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+    "-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'"
 )
 @click.option(
-    "--max_shift",
+    "--max-shift",
     is_flag=True,
     default=True,
     help="Whether to set a max shift from ops.")
@@ -233,14 +233,14 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=T
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+    "-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'"
 )
 @click.option(
-    "--max_shift",
+    "--max-shift",
     is_flag=True,
     default=True,
     help="Whether to set a max shift from ops.")
-def estimate_shifts(path, prefix, suffix="max", max_shift=True):
+def estimate_shifts(path, prefix="genes_round", suffix="max", max_shift=True):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
@@ -252,7 +252,7 @@ def estimate_shifts(path, prefix, suffix="max", max_shift=True):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
 @click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+    "-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'"
 )
 def estimate_hyb_shifts(path, prefix=None, suffix="max"):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
