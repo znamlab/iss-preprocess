@@ -200,7 +200,7 @@ def align_within_channels(
                  for iround in range(nrounds)]
 
     # Process tasks in parallel
-    with multiprocessing.Pool() as pool:
+    with multiprocessing.Pool(15) as pool:
         results = pool.map(process_single_rotation_translation, pool_args)
 
     # Organize results
@@ -477,7 +477,7 @@ def estimate_correction(
                  for channel in range(nchannels)]
 
     # Process tasks in parallel
-    with multiprocessing.Pool() as pool:
+    with multiprocessing.Pool(15) as pool:
         results = pool.map(process_single_scale_rotation_translation, pool_args)
 
     # Organize results
@@ -570,8 +570,15 @@ def estimate_scale_rotation_translation(
         for iscale in range(nscales):
             target_rescaled = transform_image(target, scale=scales[iscale])
             best_angles[iscale], max_cc[iscale] = estimate_rotation_angle(
-                reference_fft, target_rescaled, angle_range, best_angle,
-                nangles, max_shift=max_shift, debug=diag, data_path=data_path,
+                reference_fft,
+                target_rescaled,
+                angle_range,
+                best_angle,
+                nangles,
+                max_shift=max_shift,
+                debug=diag,
+                data_path=data_path,
+                prefix=prefix,
             )
         best_scale_index = np.argmax(max_cc)
         best_scale = scales[best_scale_index]
@@ -620,6 +627,7 @@ def estimate_rotation_angle(
     max_shift=None,
     debug=False,
     data_path="",
+    prefix="",
 ):
     """
     Estimate rotation angle that maximizes phase correlation between the target and the
@@ -660,17 +668,19 @@ def estimate_rotation_angle(
     best_angle_index = np.argmax(max_cc)
     best_angle = angles[best_angle_index]
     if debug:
-            save_path = (
-                get_processed_path(data_path) /
-                "figures" /
-                "ref_tile" /
-                "estimate_rot_angle_all_cc.npy"
-            )
-            np.save(
-                save_path,
-                all_cc,
-                allow_pickle=True,
-            )
+        save_path = (
+            get_processed_path(data_path) /
+            "figures" /
+            prefix / 
+            "ref_tile"
+        )
+        save_path.mkdir(parents=True, exist_ok=True)
+        np.save(
+            save_path /
+            "estimate_rot_angle_all_cc.npy",
+            all_cc,
+            allow_pickle=True,
+        )
     return best_angle, max_cc[best_angle_index]
 
 
@@ -712,6 +722,13 @@ def estimate_rotation_translation(
         shift (tuple) of X and Y shifts
 
     """
+    save_path = (
+        get_processed_path(data_path) /
+        "figures" /
+        prefix / 
+        "ref_tile"
+    )
+    save_path.mkdir(parents=True, exist_ok=True)
     best_angle = 0
     reference_fft = scipy.fft.fft2(reference)
     for i in range(niter):
@@ -725,18 +742,13 @@ def estimate_rotation_translation(
             max_shift=max_shift,
             debug=diag,
             data_path=data_path,
+            prefix=prefix,
         )
         angle_range = angle_range / iter_range_factor
         if diag:
-                save_path = (
-                    get_processed_path(data_path) /
-                    "figures" /
-                    prefix / 
-                    "ref_tile" /
-                    f"max_cc_estimate_rotation_angle_ref_ch_{ref_ch}_round_{iround}.npy"
-                )
                 np.save(
-                    save_path,
+                    save_path /
+                    f"max_cc_estimate_rotation_angle_ref_ch_{ref_ch}_round_{iround}.npy",
                     max_cc,
                     allow_pickle=True,
                 )
@@ -748,15 +760,9 @@ def estimate_rotation_translation(
             max_shift=max_shift,
         )
         if diag:
-            save_path = (
-                get_processed_path(data_path) /
-                "figures" /
-                prefix /
-                "ref_tile" /
-                f"no_upsample_phase_corr_ref_ch_{ref_ch}_round_{iround}.npy"
-            )
             np.save(
-                save_path,
+                save_path /
+                f"no_upsample_phase_corr_ref_ch_{ref_ch}_round_{iround}.npy",
                 cc_phase_corr,
                 allow_pickle=True,
             )
