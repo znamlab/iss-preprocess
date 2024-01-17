@@ -6,7 +6,6 @@ import warnings
 from pathlib import Path
 from skimage.registration import phase_cross_correlation
 from scipy.ndimage import median_filter
-from ast import literal_eval
 
 import iss_preprocess as iss
 from . import pipeline
@@ -185,13 +184,11 @@ def register_adjacent_tiles(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
     down_offset = 1 if ops["y_tile_direction"] == "bottom_to_top" else -1
-    print(down_offset, flush=True)
     down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + down_offset)
     tile_down = load_tile_by_coors(
         data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
     )
     right_offset = 1 if ops["x_tile_direction"] == "left_to_right" else -1
-    print(right_offset, flush=True)
     right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
     tile_right = load_tile_by_coors(
         data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
