@@ -38,13 +38,14 @@ def register_channels_and_rounds(
     """
     # first register images across rounds within each channel
     angles_within_channels, shifts_within_channels = align_within_channels(
-        stack, upsample=False,
+        stack,
+        upsample=False,
         ref_round=ref_round,
         max_shift=max_shift,
         median_filter_size=median_filter,
         diag=diag,
         data_path=data_path,
-        prefix=prefix, 
+        prefix=prefix,
     )
     # use these to computer a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(
@@ -53,10 +54,14 @@ def register_channels_and_rounds(
     (
         scales_between_channels,
         angles_between_channels,
-        shifts_between_channels,      
+        shifts_between_channels,
     ) = estimate_correction(
-        std_stack, ch_to_align=ref_ch, upsample=5,
-        diag=diag, data_path=data_path, prefix=prefix,
+        std_stack,
+        ch_to_align=ref_ch,
+        upsample=5,
+        diag=diag,
+        data_path=data_path,
+        prefix=prefix,
         max_shift=max_shift,
     )
 
@@ -144,20 +149,21 @@ def align_channels_and_rounds(stack, tforms):
             )
     return reg_stack
 
+
 def align_within_channels(
-        stack,
-        ref_round=0,
-        angle_range=1.0,
-        niter=3,
-        nangles=15,
-        min_shift=2,
-        upsample=False,
-        max_shift=None,
-        median_filter_size=None,
-        diag=False,
-        data_path="",
-        prefix="",
-    ):
+    stack,
+    ref_round=0,
+    angle_range=1.0,
+    niter=3,
+    nangles=15,
+    min_shift=2,
+    upsample=False,
+    max_shift=None,
+    median_filter_size=None,
+    diag=False,
+    data_path="",
+    prefix="",
+):
     """Align images within each channel.
 
     Args:
@@ -179,25 +185,31 @@ def align_within_channels(
     nchannels, nrounds = stack.shape[2:]
     if median_filter_size is not None:
         print(f"Filtering with median filter of size {median_filter_size}")
-        assert isinstance(median_filter_size, int), "reg_median_filter must be an integer"
-        stack = median_filter(stack, size=median_filter_size, axes=(0,1))
+        assert isinstance(
+            median_filter_size, int
+        ), "reg_median_filter must be an integer"
+        stack = median_filter(stack, size=median_filter_size, axes=(0, 1))
 
     # Prepare tasks for each combination of channel and round
-    pool_args = [(ref_ch,
-                  iround,
-                  stack,
-                  ref_round,
-                  angle_range,
-                  niter,
-                  nangles,
-                  min_shift,
-                  upsample,
-                  max_shift,
-                  diag,
-                  data_path,
-                  prefix) 
-                 for ref_ch in range(nchannels) 
-                 for iround in range(nrounds)]
+    pool_args = [
+        (
+            ref_ch,
+            iround,
+            stack,
+            ref_round,
+            angle_range,
+            niter,
+            nangles,
+            min_shift,
+            upsample,
+            max_shift,
+            diag,
+            data_path,
+            prefix,
+        )
+        for ref_ch in range(nchannels)
+        for iround in range(nrounds)
+    ]
 
     # Process tasks in parallel
     with multiprocessing.Pool(15) as pool:
@@ -206,17 +218,30 @@ def align_within_channels(
     # Organize results
     angles_channels = [[None] * nrounds for _ in range(nchannels)]
     shifts_channels = [[None] * nrounds for _ in range(nchannels)]
-    
+
     for ref_ch, iround, angle, shift in results:
         angles_channels[ref_ch][iround] = angle
         shifts_channels[ref_ch][iround] = shift
 
     return angles_channels, shifts_channels
 
+
 def process_single_rotation_translation(args):
-    (ref_ch, iround, stack, ref_round,
-    angle_range, niter, nangles, min_shift,
-    upsample, max_shift, diag, data_path, prefix) = args
+    (
+        ref_ch,
+        iround,
+        stack,
+        ref_round,
+        angle_range,
+        niter,
+        nangles,
+        min_shift,
+        upsample,
+        max_shift,
+        diag,
+        data_path,
+        prefix,
+    ) = args
 
     print(f"Processing channel {ref_ch}, round {iround}", flush=True)
 
@@ -239,8 +264,11 @@ def process_single_rotation_translation(args):
     else:
         angle, shift = 0.0, [0.0, 0.0]
 
-    print(f"Channel {ref_ch}, Round {iround}, Angle: {angle}, Shift: {shift}", flush=True)
+    print(
+        f"Channel {ref_ch}, Round {iround}, Angle: {angle}, Shift: {shift}", flush=True
+    )
     return ref_ch, iround, angle, shift
+
 
 def estimate_shifts_and_angles_for_tile(
     stack, scales, ref_ch=0, threshold_quantile=0.9, max_shift=None
@@ -313,8 +341,10 @@ def estimate_shifts_for_tile(
     nchannels, nrounds = stack.shape[2:]
     if median_filter_size is not None:
         print(f"Filtering with median filter of size {median_filter_size}")
-        assert isinstance(median_filter_size, int), "reg_median_filter must be an integer"
-        stack = median_filter(stack, size=median_filter_size, axes=(0,1))
+        assert isinstance(
+            median_filter_size, int
+        ), "reg_median_filter must be an integer"
+        stack = median_filter(stack, size=median_filter_size, axes=(0, 1))
 
     shifts_within_channels = []
     for ich in range(nchannels):
@@ -462,19 +492,23 @@ def estimate_correction(
     """
     nchannels = im.shape[2]
     # Prepare tasks for each channel
-    pool_args = [(channel,
-                  im,
-                  ch_to_align,
-                  upsample,
-                  niter,
-                  nangles,
-                  scale_range,
-                  angle_range,
-                  max_shift,
-                  diag,
-                  data_path,
-                  prefix) 
-                 for channel in range(nchannels)]
+    pool_args = [
+        (
+            channel,
+            im,
+            ch_to_align,
+            upsample,
+            niter,
+            nangles,
+            scale_range,
+            angle_range,
+            max_shift,
+            diag,
+            data_path,
+            prefix,
+        )
+        for channel in range(nchannels)
+    ]
 
     # Process tasks in parallel
     with multiprocessing.Pool(15) as pool:
@@ -484,20 +518,21 @@ def estimate_correction(
     scales, angles, shifts = zip(*results)
     return list(scales), list(angles), list(shifts)
 
+
 def process_single_scale_rotation_translation(args):
     (
-    channel,
-    im,
-    ch_to_align,
-    upsample,
-    niter,
-    nangles,
-    scale_range,
-    angle_range,
-    max_shift,
-    diag,
-    data_path,
-    prefix,
+        channel,
+        im,
+        ch_to_align,
+        upsample,
+        niter,
+        nangles,
+        scale_range,
+        angle_range,
+        max_shift,
+        diag,
+        data_path,
+        prefix,
     ) = args
     print(f"Processing channel {channel}", flush=True)
 
@@ -521,6 +556,7 @@ def process_single_scale_rotation_translation(args):
         scale, angle, shift = 1.0, 0.0, (0, 0)
 
     return scale, angle, shift
+
 
 def estimate_scale_rotation_translation(
     reference,
@@ -586,7 +622,10 @@ def estimate_scale_rotation_translation(
         angle_range = angle_range / 5
         scale_range = scale_range / 5
         if verbose:
-            print(f"Channel {channel}. Best scale: {best_scale}. Best angle: {best_angle}", flush=True)
+            print(
+                f"Channel {channel}. Best scale: {best_scale}. Best angle: {best_angle}",
+                flush=True,
+            )
     if not upsample:
         shift, _ = phase_corr(
             reference_fft,
@@ -596,15 +635,15 @@ def estimate_scale_rotation_translation(
         )
         if diag:
             save_path = (
-                get_processed_path(data_path) /
-                "figures" /
-                prefix /
-                "ref_tile" /
-                f"no_upsample_scale_rot_trans_phase_corr.npz"
+                get_processed_path(data_path)
+                / "figures"
+                / prefix
+                / "ref_tile"
+                / f"no_upsample_scale_rot_trans_phase_corr.npz"
             )
             np.savez(
                 save_path,
-                cc = _,
+                cc=_,
                 allow_pickle=True,
             )
     else:
@@ -668,16 +707,10 @@ def estimate_rotation_angle(
     best_angle_index = np.argmax(max_cc)
     best_angle = angles[best_angle_index]
     if debug:
-        save_path = (
-            get_processed_path(data_path) /
-            "figures" /
-            prefix / 
-            "ref_tile"
-        )
+        save_path = get_processed_path(data_path) / "figures" / prefix / "ref_tile"
         save_path.mkdir(parents=True, exist_ok=True)
         np.save(
-            save_path /
-            "estimate_rot_angle_all_cc.npy",
+            save_path / "estimate_rot_angle_all_cc.npy",
             all_cc,
             allow_pickle=True,
         )
@@ -722,12 +755,7 @@ def estimate_rotation_translation(
         shift (tuple) of X and Y shifts
 
     """
-    save_path = (
-        get_processed_path(data_path) /
-        "figures" /
-        prefix / 
-        "ref_tile"
-    )
+    save_path = get_processed_path(data_path) / "figures" / prefix / "ref_tile"
     save_path.mkdir(parents=True, exist_ok=True)
     best_angle = 0
     reference_fft = scipy.fft.fft2(reference)
@@ -746,12 +774,12 @@ def estimate_rotation_translation(
         )
         angle_range = angle_range / iter_range_factor
         if diag:
-                np.save(
-                    save_path /
-                    f"max_cc_estimate_rotation_angle_ref_ch_{ref_ch}_round_{iround}.npy",
-                    max_cc,
-                    allow_pickle=True,
-                )
+            np.save(
+                save_path
+                / f"max_cc_estimate_rotation_angle_ref_ch_{ref_ch}_round_{iround}.npy",
+                max_cc,
+                allow_pickle=True,
+            )
     if not upsample:
         shift, cc_phase_corr = phase_corr(
             reference,
@@ -761,8 +789,8 @@ def estimate_rotation_translation(
         )
         if diag:
             np.save(
-                save_path /
-                f"no_upsample_phase_corr_ref_ch_{ref_ch}_round_{iround}.npy",
+                save_path
+                / f"no_upsample_phase_corr_ref_ch_{ref_ch}_round_{iround}.npy",
                 cc_phase_corr,
                 allow_pickle=True,
             )

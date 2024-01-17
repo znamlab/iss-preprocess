@@ -193,6 +193,7 @@ def basecall_tile(data_path, tile_coors):
         / f"barcode_round_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
 
+
 @slurm_it(conda_env="iss-preprocess")
 def setup_omp(data_path):
     """Prepare variables required to run the OMP algorithm. Finds isolated spots using

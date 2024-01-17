@@ -51,7 +51,7 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         g.map_offdiag(sns.scatterplot, size=1, alpha=0.25, edgecolor=None)
         # Set the same number of ticks for each channel
         for ax in g.axes.flatten():
-            ax.locator_params(axis='both', nbins=4)
+            ax.locator_params(axis="both", nbins=4)
         # Set the same axis limits for each channel
         for ich in range(nch):
             for jch in range(nch):
@@ -72,7 +72,7 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         plt.xlabel("rounds")
         plt.ylabel("channels")
         plt.title(f"Cluster {icluster+1}")
-        plt.locator_params(axis='both', nbins=4)
+        plt.locator_params(axis="both", nbins=4)
     plt.tight_layout()
     figs.append(fig)
 

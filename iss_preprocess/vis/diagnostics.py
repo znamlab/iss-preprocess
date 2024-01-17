@@ -349,9 +349,10 @@ def plot_matrix_difference(
     fig.subplots_adjust(top=0.9, wspace=0.15, hspace=0)
     return fig
 
+
 def plot_registration_correlograms(
     data_path,
-    prefix,       
+    prefix,
 ):
     # Find correlogram files
     ops = iss.io.load_ops(data_path)
@@ -360,14 +361,19 @@ def plot_registration_correlograms(
     pattern = r"no_upsample_phase_corr_ref_ch_(\d)_round_(\d).npy"
     filtered_sorted_files = sorted(
         (file for file in all_files if re.match(pattern, file)),
-        key=lambda x: (int(re.match(pattern, x).group(1)), int(re.match(pattern, x).group(2)))
+        key=lambda x: (
+            int(re.match(pattern, x).group(1)),
+            int(re.match(pattern, x).group(2)),
+        ),
     )
 
     # Load files into the corr array
-    final_tforms = np.load(iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz")
+    final_tforms = np.load(
+        iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
+    )
     nchannels = len(final_tforms["angles_within_channels"])
     individual_shape = np.load(os.path.join(corr_dir, filtered_sorted_files[0])).shape
-    corr_array = np.zeros((nchannels, ops[f"{prefix}"+"s"], *individual_shape))
+    corr_array = np.zeros((nchannels, ops[f"{prefix}" + "s"], *individual_shape))
     for file in filtered_sorted_files:
         match = re.match(pattern, file)
         x, y = int(match.group(1)), int(match.group(2))
@@ -376,13 +382,13 @@ def plot_registration_correlograms(
 
     # Filter and sort files
     max_shift = ops["rounds_max_shift"]
-    rows, cols = nchannels, ops[f"{prefix}"+"s"]
+    rows, cols = nchannels, ops[f"{prefix}" + "s"]
     max_coords = np.zeros((rows, cols, 2), dtype=int)
-    fig, axes = plt.subplots(rows, cols, figsize=(2.5*cols, 10))
+    fig, axes = plt.subplots(rows, cols, figsize=(2.5 * cols, 10))
 
     # Set column labels
     for j in range(cols):
-        axes[0, j].set_title(f"Round {j}", size='large')
+        axes[0, j].set_title(f"Round {j}", size="large")
 
     for i in range(rows):
         for j in range(cols):
@@ -391,49 +397,70 @@ def plot_registration_correlograms(
                 corr_array[
                     i,
                     j,
-                    int((corr_array.shape[2]/2)-max_shift):int((corr_array.shape[2]/2)+max_shift),
-                    int((corr_array.shape[3]/2)-max_shift):int((corr_array.shape[3]/2)+max_shift)
+                    int((corr_array.shape[2] / 2) - max_shift) : int(
+                        (corr_array.shape[2] / 2) + max_shift
+                    ),
+                    int((corr_array.shape[3] / 2) - max_shift) : int(
+                        (corr_array.shape[3] / 2) + max_shift
+                    ),
                 ],
                 vmax=np.percentile(corr_array, 99.999),
-                )
+            )
             ax.set_xticks([])
             ax.set_yticks([])
 
             # Draw horizontal and vertical lines intersecting at the center
-            ax.axhline(y=max_shift, color='black', linestyle='-', linewidth=1, alpha=0.2)
-            ax.axvline(x=max_shift, color='black', linestyle='-', linewidth=1, alpha=0.2)
+            ax.axhline(
+                y=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2
+            )
+            ax.axvline(
+                x=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2
+            )
             # Draw circle at the center
             center_circle = patches.Circle(
                 (max_shift, max_shift),
-                radius = 100,
-                edgecolor='black',
-                facecolor='none',
+                radius=100,
+                edgecolor="black",
+                facecolor="none",
                 linewidth=2,
-                alpha=0.3)
+                alpha=0.3,
+            )
             ax.add_patch(center_circle)
             # Draw a hollow circle around the selected final transform
-            circle = patches.Circle((
-                max_shift+final_tforms['shifts_within_channels'][i, j, 1],
-                max_shift+final_tforms['shifts_within_channels'][i, j, 0]
+            circle = patches.Circle(
+                (
+                    max_shift + final_tforms["shifts_within_channels"][i, j, 1],
+                    max_shift + final_tforms["shifts_within_channels"][i, j, 0],
                 ),
                 radius=120,
-                edgecolor='white',
-                facecolor='none',
-                linewidth=2)
+                edgecolor="white",
+                facecolor="none",
+                linewidth=2,
+            )
             ax.add_patch(circle)
             # Also draw a red dot in the center of the circle
             ax.scatter(
-                max_shift+final_tforms['shifts_within_channels'][i, j, 1],
-                max_shift+final_tforms['shifts_within_channels'][i, j, 0],
-                color='red', s=0.5, alpha=0.2
+                max_shift + final_tforms["shifts_within_channels"][i, j, 1],
+                max_shift + final_tforms["shifts_within_channels"][i, j, 0],
+                color="red",
+                s=0.5,
+                alpha=0.2,
             )
-            #Set row labels
-            ax.set_xlabel(f"X = {final_tforms['shifts_within_channels'][i, j, 0]}  " \
-                        f"Y = {final_tforms['shifts_within_channels'][i, j, 1]}", size='large')
+            # Set row labels
+            ax.set_xlabel(
+                f"X = {final_tforms['shifts_within_channels'][i, j, 0]}  "
+                f"Y = {final_tforms['shifts_within_channels'][i, j, 1]}",
+                size="large",
+            )
             if j == 0:
-                ax.set_ylabel(f"Channel {i}", rotation=90, size='large', labelpad=15)
+                ax.set_ylabel(f"Channel {i}", rotation=90, size="large", labelpad=15)
     plt.tight_layout()
     plt.savefig(
-        iss.io.get_processed_path(data_path) / "figures" / prefix /  "ref_tile" / "shifts_within_channels_corr.png",
+        iss.io.get_processed_path(data_path)
+        / "figures"
+        / prefix
+        / "ref_tile"
+        / "shifts_within_channels_corr.png",
         dpi=2000,
-        transparent=True)
+        transparent=True,
+    )

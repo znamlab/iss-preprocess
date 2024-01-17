@@ -307,7 +307,7 @@ def get_tile_ome(fname, fmetadata):
             z = unique_zs.index(metadata[frame_key]["ImageNumber"])
         else:
             z = unique_zs.index(metadata[frame_key]["ZPositionUm"])
-    
+
         im[:, :, ch, z] = page.asarray()
 
     return im
@@ -346,9 +346,7 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
         ops = load_ops(data_path)
         data_dir = processed_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
-        pattern = (
-            rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['genes_projection']}.tif"
-        )
+        pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['genes_projection']}.tif"
     else:
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
     matcher = re.compile(pattern=pattern)

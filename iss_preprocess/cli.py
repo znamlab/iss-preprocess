@@ -131,7 +131,8 @@ def check_projection(path, prefix):
     is_flag=True,
     show_default=True,
     default=True,
-    help="Save diagnostic cross correlogram plots")
+    help="Save diagnostic cross correlogram plots",
+)
 def register_ref_tile(path, prefix, diag=True):
     """Run registration across channels and rounds for the reference tile."""
     from iss_preprocess.pipeline import register_reference_tile
@@ -141,20 +142,16 @@ def register_ref_tile(path, prefix, diag=True):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option(
-    "--use-slurm",
-    is_flag=True,
-    default=True,
-    help="Whether to use slurm")
+@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
 def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from iss_preprocess.pipeline import setup_omp
     from pathlib import Path
+
     slurm_folder = Path.home() / "slurm_logs"
-    setup_omp(path,
-              use_slurm=use_slurm,
-            slurm_folder=slurm_folder,
-            scripts_name="setup_omp")
+    setup_omp(
+        path, use_slurm=use_slurm, slurm_folder=slurm_folder, scripts_name="setup_omp"
+    )
 
 
 @cli.command()
@@ -183,22 +180,21 @@ def setup_hybridisation(path):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 @click.option(
-    "-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'"
+    "-m", "--max-shift", default=True, help="Whether to set a max shift from ops."
 )
-@click.option(
-    "-m",
-    "--max-shift",
-    default=True,
-    help="Whether to set a max shift from ops.")
 def register_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=True):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_by_coors
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path, tile_coors=(roi, tilex, tiley),
-        prefix=prefix, suffix=suffix, max_shift=max_shift,
+        path,
+        tile_coors=(roi, tilex, tiley),
+        prefix=prefix,
+        suffix=suffix,
+        max_shift=max_shift,
     )
 
 
@@ -210,36 +206,39 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=True)
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option(
-    "-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'"
-)
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 @click.option(
     "--max-shift",
     is_flag=True,
     default=True,
-    help="Whether to set a max shift from ops.")
+    help="Whether to set a max shift from ops.",
+)
 def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=True):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}/{prefix}")
     estimate_shifts_and_angles_by_coors(
-        path, tile_coors=(roi, tilex, tiley),
-        prefix=prefix, suffix=suffix, max_shift=max_shift,
+        path,
+        tile_coors=(roi, tilex, tiley),
+        prefix=prefix,
+        suffix=suffix,
+        max_shift=max_shift,
     )
 
 
 @cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.", required=True)
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 @click.option(
-    "-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'"
+    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
 )
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 @click.option(
     "--max-shift",
     is_flag=True,
     default=True,
-    help="Whether to set a max shift from ops.")
+    help="Whether to set a max shift from ops.",
+)
 def estimate_shifts(path, prefix="genes_round", suffix="max", max_shift=True):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
@@ -251,9 +250,7 @@ def estimate_shifts(path, prefix="genes_round", suffix="max", max_shift=True):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
-@click.option(
-    "-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'"
-)
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 def estimate_hyb_shifts(path, prefix=None, suffix="max"):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
@@ -728,6 +725,7 @@ def plot_overview(
         group_channels=not separate_channels,
     )
 
+
 @cli.command()
 @click.option(
     "--path", "-p", prompt="Enter data path", help="Data path.", required=True
@@ -735,7 +733,7 @@ def plot_overview(
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 def plot_registration_correlograms(
     path,
-    prefix,       
+    prefix,
 ):
     """Plot registration correlograms."""
     from iss_preprocess.vis import plot_registration_correlograms
