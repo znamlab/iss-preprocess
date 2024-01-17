@@ -367,7 +367,7 @@ def plot_registration_correlograms(
     final_tforms = np.load(iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz")
     nchannels = len(final_tforms["angles_within_channels"])
     individual_shape = np.load(os.path.join(corr_dir, filtered_sorted_files[0])).shape
-    corr_array = np.zeros((nchannels, ops[f"{prefix}+s"], *individual_shape))
+    corr_array = np.zeros((nchannels, ops[f"{prefix}"+"s"], *individual_shape))
     for file in filtered_sorted_files:
         match = re.match(pattern, file)
         x, y = int(match.group(1)), int(match.group(2))
@@ -376,7 +376,7 @@ def plot_registration_correlograms(
 
     # Filter and sort files
     max_shift = ops["rounds_max_shift"]
-    rows, cols = nchannels, ops[f"{prefix}+s"]
+    rows, cols = nchannels, ops[f"{prefix}"+"s"]
     max_coords = np.zeros((rows, cols, 2), dtype=int)
     fig, axes = plt.subplots(rows, cols, figsize=(2.5*cols, 10))
 
@@ -405,14 +405,13 @@ def plot_registration_correlograms(
             # Draw circle at the center
             center_circle = patches.Circle(
                 (max_shift, max_shift),
-                radius,
+                radius = 100,
                 edgecolor='black',
                 facecolor='none',
                 linewidth=2,
                 alpha=0.3)
             ax.add_patch(center_circle)
             # Draw a hollow circle around the selected final transform
-            radius = 100
             circle = patches.Circle((
                 max_shift+final_tforms['shifts_within_channels'][i, j, 1],
                 max_shift+final_tforms['shifts_within_channels'][i, j, 0]
