@@ -230,8 +230,8 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=T
 
 
 @cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.", required=True)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 @click.option(
     "-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'"
 )
@@ -734,13 +734,13 @@ def plot_overview(
 )
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 def plot_registration_correlograms(
-    data_path,
+    path,
     prefix,       
 ):
     """Plot registration correlograms."""
     from iss_preprocess.vis import plot_registration_correlograms
 
     plot_registration_correlograms(
-        data_path=data_path,
+        data_path=path,
         prefix=prefix,
     )
