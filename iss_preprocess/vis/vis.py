@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 from matplotlib.animation import FuncAnimation, FFMpegWriter
-from matplotlib.ticker import AutoMinorLocator, FixedLocator
+from matplotlib.ticker import FixedLocator
 from scipy.cluster import hierarchy
 from skimage.measure import block_reduce
 import iss_preprocess as iss
