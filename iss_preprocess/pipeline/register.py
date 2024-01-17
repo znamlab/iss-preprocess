@@ -31,8 +31,9 @@ def register_reference_tile(data_path, prefix="genes_round", diag=True):
             Defaults to "genes_round".
 
     """
-    diag_plot_dir = iss.io.get_processed_path(data_path) / "figures" / "ref_tile"
-    diag_plot_dir.mkdir(parents=True, exist_ok=True)
+    if diag:
+        diag_plot_dir = iss.io.get_processed_path(data_path) / "figures" / "ref_tile"
+        diag_plot_dir.mkdir(parents=True, exist_ok=True)
     ops = load_ops(data_path)
     nrounds = ops[prefix + "s"]
     projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
