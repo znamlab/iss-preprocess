@@ -184,11 +184,14 @@ def register_adjacent_tiles(
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
-    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + 1)
+    down_offset = 1 if ops["y_tile_direction"] == "bottom_to_top" else -1
+    print(down_offset, flush=True)
+    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + down_offset)
     tile_down = load_tile_by_coors(
         data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
     )
-    right_offset = 1 if ops["tile_direction"] == "left_to_right" else -1
+    right_offset = 1 if ops["x_tile_direction"] == "left_to_right" else -1
+    print(right_offset, flush=True)
     right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
     tile_right = load_tile_by_coors(
         data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
@@ -197,7 +200,7 @@ def register_adjacent_tiles(
     xpix = tile_ref.shape[1]
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
-    if literal_eval(ops["reg_median_filter"]) is not None:
+    if ops["reg_median_filter"]:
         msize = ops["reg_median_filter"]
         print(f"Filtering with median filter of size {msize}")
         assert isinstance(msize, int), "reg_median_filter must be an integer"
@@ -216,7 +219,7 @@ def register_adjacent_tiles(
             f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is fine."
         )
     shift_right += [0, xpix - reg_pix_x]
-    if ops["tile_direction"] != "left_to_right":
+    if ops["x_tile_direction"] != "left_to_right":
         shift_right = -shift_right
     shift_down, _, _ = phase_cross_correlation(
         tile_ref[:reg_pix_y, :, ref_ch],
@@ -229,6 +232,8 @@ def register_adjacent_tiles(
             f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is fine."
         )
     shift_down -= [ypix - reg_pix_y, 0]
+    if ops["y_tile_direction"] != "bottom_to_top":
+        shift_down = -shift_down
 
     return shift_right, shift_down, (ypix, xpix)
 
