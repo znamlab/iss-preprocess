@@ -37,7 +37,9 @@ registration:
   corrected_shifts: best
   # Mininum tile shift above which RANSAC fit is used to estimate the shift
   ransac_residual_threshold: 10
-  # Maximum shift for inititial registration across rounds
+  # Minimum shift for registration of one channel across rounds
+  rounds_min_shift: 2
+  # Maximum shift for registration across rounds and across channels
   rounds_max_shift: 500
   # Maximum shift for tiles to be included in the RANSAC fit
   ransac_max_shift: 500
@@ -47,7 +49,8 @@ registration:
   x_tile_direction: left_to_right
   # Whether tile position increments from bottom to top or top to bottom
   y_tile_direction: bottom_to_top
-  #Whether to use a median filter on images before registration, if None no filter is applied
+  #Whether to use a median filter on images before registration across rounds
+  # if None no filter is applied
   reg_median_filter: 2
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating

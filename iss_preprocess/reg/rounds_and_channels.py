@@ -7,7 +7,7 @@ from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
 from . import phase_corr, make_transform, transform_image
-from ..io import get_processed_path, load_ops
+from ..io import get_processed_path
 
 
 def register_channels_and_rounds(
@@ -15,6 +15,8 @@ def register_channels_and_rounds(
     ref_ch=0,
     ref_round=0,
     median_filter=None,
+    min_shift=None,
+    max_shift=None,
     diag=False,
     data_path="",
     prefix="",
@@ -26,6 +28,14 @@ def register_channels_and_rounds(
         stack: X x Y x Nchannels x Nrounds images stack
         ref_ch (int): channel to align to
         ref_round (int): round to align to
+        median_filter (int): size of median filter to apply to the stack. Only for
+            images acquired from the same camera
+        min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
+            for images acquired from the same camera
+        max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
+        diag (bool): whether to save diagnostic plots
+        data_path (str): path to data, used for saving diagnostic plots
+        prefix (str): prefix for saving diagnostic plots
 
     Returns:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
@@ -33,14 +43,17 @@ def register_channels_and_rounds(
         scales_between_channels (np.array): Nchannels array of scales
         angles_between_channels (np.array): Nchannels array of angles
         shifts_between_channels (np.array): Nchannels x 2 array of shifts
-
     """
+    if diag:
+        assert data_path != "", "data_path must be provided for saving diagnostic plots"
     # first register images across rounds within each channel
     angles_within_channels, shifts_within_channels = align_within_channels(
         stack,
         upsample=False,
         ref_round=ref_round,
         median_filter_size=median_filter,
+        min_shift=min_shift,
+        max_shift=max_shift,
         diag=diag,
         data_path=data_path,
         prefix=prefix,
@@ -57,6 +70,7 @@ def register_channels_and_rounds(
         std_stack,
         ch_to_align=ref_ch,
         upsample=5,
+        max_shift=max_shift,
         diag=diag,
         data_path=data_path,
         prefix=prefix,
@@ -155,6 +169,8 @@ def align_within_channels(
     nangles=15,
     upsample=False,
     median_filter_size=None,
+    min_shift=None,
+    max_shift=None,
     diag=False,
     data_path="",
     prefix="",
@@ -169,8 +185,15 @@ def align_within_channels(
         angle_range (float): range of angles to search for each round
         niter (int): number of iterations to run
         nangles (int): number of angles to search for each iteration
+        upsample (bool, or int): whether to upsample the image, and if so by what factor
+        median_filter_size (int): size of median filter to apply to the stack. Only for
+            images acquired from the same camera
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
+        max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
+        diag (bool): whether to save diagnostic plots
+        data_path (str): path to data, used for saving diagnostic plots
+        prefix (str): prefix for saving diagnostic plots
 
     Returns:
         angles (np.array): Nchannels x Nrounds array of angles
@@ -197,6 +220,8 @@ def align_within_channels(
             niter,
             nangles,
             upsample,
+            min_shift,
+            max_shift,
             diag,
             data_path,
             prefix,
@@ -205,9 +230,9 @@ def align_within_channels(
         for iround in range(nrounds)
     ]
 
-    #TODO: Process tasks in parallel, each process uses ~3Gb RAM so limit to amount available
+    # TODO: Process tasks in parallel, each process uses ~3Gb RAM so limit to amount available
     with multiprocessing.Pool(15) as pool:
-        results = pool.map(process_single_rotation_translation, pool_args)
+        results = pool.map(_process_single_rotation_translation, pool_args)
 
     # Organize results
     angles_channels = [[None] * nrounds for _ in range(nchannels)]
@@ -220,7 +245,7 @@ def align_within_channels(
     return angles_channels, shifts_channels
 
 
-def process_single_rotation_translation(args):
+def _process_single_rotation_translation(args):
     (
         ref_ch,
         iround,
@@ -231,6 +256,8 @@ def process_single_rotation_translation(args):
         niter,
         nangles,
         upsample,
+        min_shift,
+        max_shift,
         diag,
         data_path,
         prefix,
@@ -246,6 +273,8 @@ def process_single_rotation_translation(args):
             niter=niter,
             nangles=nangles,
             upsample=upsample,
+            min_shift=min_shift,
+            max_shift=max_shift,
             diag=diag,
             data_path=data_path,
             prefix=prefix,
@@ -361,6 +390,7 @@ def estimate_shifts_for_tile(
     )
     shifts_between_channels = []
     for ich in range(nchannels):
+        # TODO this always uses upsample. Is that what we want?
         shifts_between_channels.append(
             phase_cross_correlation(
                 std_stack[:, :, ref_ch],
@@ -452,6 +482,7 @@ def estimate_correction(
     im,
     ch_to_align=0,
     upsample=False,
+    max_shift=None,
     scale_range=0.05,
     nangles=3,
     niter=5,
@@ -466,12 +497,15 @@ def estimate_correction(
     Args:
         im (np.array): X x Y x Nchannels image
         ch_to_align (int): channel to align to
-        upsample (bool, or int): whether to upsample the image, and if so but what factor
+        upsample (bool, or int): whether to upsample the image, and if so by what factor
+        max_shift (int): maximum shift to avoid spurious cross-correlations
         scale_range (float): range of scale factors to search through
         nangles (int): number of angles to search through
         niter (int): number of iterations to run
         angle_range (float): range of angles to search through
-        max_shift (int): maximum shift to avoid spurious cross-correlations
+        diag (bool): whether to save diagnostic plots
+        data_path (str): path to data, used for saving diagnostic plots
+        prefix (str): prefix for saving diagnostic plots
 
     Returns:
         scales (np.array): Nchannels array of scale factors
@@ -488,6 +522,7 @@ def estimate_correction(
             im[:, :, channel],
             ch_to_align,
             upsample,
+            max_shift,
             niter,
             nangles,
             scale_range,
@@ -501,20 +536,21 @@ def estimate_correction(
 
     # Process tasks in parallel
     with multiprocessing.Pool(15) as pool:
-        results = pool.map(process_single_scale_rotation_translation, pool_args)
+        results = pool.map(_process_single_scale_rotation_translation, pool_args)
 
     # Organize results
     scales, angles, shifts = zip(*results)
     return list(scales), list(angles), list(shifts)
 
 
-def process_single_scale_rotation_translation(args):
+def _process_single_scale_rotation_translation(args):
     (
         channel,
         reference,
         target,
         ch_to_align,
         upsample,
+        max_shift,
         niter,
         nangles,
         scale_range,
@@ -535,6 +571,7 @@ def process_single_scale_rotation_translation(args):
             nangles=nangles,
             verbose=True,
             upsample=upsample,
+            max_shift=max_shift,
             diag=diag,
             data_path=data_path,
             prefix=prefix,
@@ -556,6 +593,7 @@ def estimate_scale_rotation_translation(
     nangles=15,
     verbose=False,
     upsample=False,
+    max_shift=None,
     diag=False,
     data_path="",
     prefix="",
@@ -570,12 +608,17 @@ def estimate_scale_rotation_translation(
         reference (numpy.ndarray): X x Y reference image
         target (numpy.ndarray): X x Y target image
         angle_range (float): initial range of angles in degrees to search over
+        scale_range (float): initial range of scales to search over
+        nscales (int): number of scales to try
         niter (int): number of iterations to refine rotation angle
         nangles (int): number of angles to try on each iteration
         verbose (bool): whether to print progress of registration
-        scale (float): how to rescale image for finding the optimal rotation
         upsample (bool, or int): whether to upsample the image, and if so but what factor
         max_shift (int): maximum shift to avoid spurious cross-correlations
+        diag (bool): whether to save diagnostic plots
+        data_path (str): path to data, used for saving diagnostic plots
+        prefix (str): prefix for saving diagnostic plots
+        channel (int): channel, used for saving diagnostic plots
 
     Returns:
         best_angle (float) in degrees
@@ -585,8 +628,7 @@ def estimate_scale_rotation_translation(
     best_angle = 0
     best_scale = 1
     reference_fft = scipy.fft.fft2(reference)
-    ops = load_ops(data_path)
-    max_shift = ops["rounds_max_shift"]
+
     for i in range(niter):
         scales = np.linspace(-scale_range, scale_range, nscales) + best_scale
         max_cc = np.empty(scales.shape)
@@ -599,6 +641,7 @@ def estimate_scale_rotation_translation(
                 angle_range,
                 best_angle,
                 nangles,
+                max_shift=max_shift,
                 debug=diag,
                 data_path=data_path,
                 prefix=prefix,
@@ -649,6 +692,8 @@ def estimate_rotation_angle(
     angle_range,
     best_angle,
     nangles,
+    max_shift=None,
+    min_shift=None,
     debug=False,
     data_path="",
     prefix="",
@@ -663,15 +708,17 @@ def estimate_rotation_angle(
         angle_range (float): range of angles in degrees to search over
         best_angle (float): initial angle in degrees
         nangles (int): number of angles to try
+        max_shift (int): maximum shift to avoid spurious cross-correlations
+        min_shift (int): minimum shift to avoid spurious cross-correlations
+        debug (bool): whether to save diagnostic plots
+        data_path (str): path to data, used for saving diagnostic plots
+        prefix (str): prefix for saving diagnostic plots
 
     Returns:
         best_angle (float) in degrees
         max_cc (float) maximum cross correlation
 
     """
-    ops = load_ops(data_path)
-    max_shift = ops["rounds_max_shift"]
-    min_shift = ops["rounds_min_shift"]
     angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
     max_cc = np.empty(angles.shape)
     shifts = np.empty((nangles, 2))
@@ -710,6 +757,8 @@ def estimate_rotation_translation(
     niter=3,
     nangles=20,
     upsample=None,
+    min_shift=None,
+    max_shift=None,
     iter_range_factor=5.0,
     diag=False,
     data_path="",
@@ -728,22 +777,28 @@ def estimate_rotation_translation(
         angle_range (float): initial range of angles in degrees to search over
         niter (int): number of iterations to refine rotation angle
         nangles (int): number of angles to try on each iteration
-        verbose (bool): whether to print progress of registration
+        upsample (bool, or int): whether to upsample the image, and if so by what factor
+        min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
+            for images acquired from the same camera
+        max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
         iter_range_factor (float): how much to shrink the angle range for each
             iteration. Default: 5.
+        diag (bool): whether to save diagnostic plots
+        data_path (str): path to data, used for saving diagnostic plots
+        prefix (str): prefix for saving diagnostic plots
+        ref_ch (int): reference channel, used for saving diagnostic plots
+        iround (int): round, used for saving diagnostic plots
 
     Returns:
         best_angle (float) in degrees
         shift (tuple) of X and Y shifts
 
     """
-    save_path = get_processed_path(data_path) / "figures" / prefix / "ref_tile"
-    save_path.mkdir(parents=True, exist_ok=True)
+    if diag:
+        save_path = get_processed_path(data_path) / "figures" / prefix / "ref_tile"
+        save_path.mkdir(parents=True, exist_ok=True)
     best_angle = 0
     reference_fft = scipy.fft.fft2(reference)
-    ops = load_ops(data_path)
-    max_shift = ops["rounds_max_shift"]
-    min_shift = ops["rounds_min_shift"]
     for i in range(niter):
         best_angle, max_cc = estimate_rotation_angle(
             reference_fft,

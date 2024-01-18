@@ -51,6 +51,8 @@ def register_reference_tile(data_path, prefix="genes_round", diag=True):
         ref_ch=ops["ref_ch"],
         ref_round=ops["ref_round"],
         median_filter=ops["reg_median_filter"],
+        max_shift=ops["rounds_max_shift"],
+        min_shift=ops["rounds_min_shift"],
         diag=diag,
         data_path=data_path,
         prefix=prefix,
@@ -127,8 +129,7 @@ def estimate_shifts_by_coors(
     """
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
-    max_shift = ops["rounds_max_shift"]
-    min_shift = ops["rounds_min_shift"]
+
     median_filter_size = ops["reg_median_filter"]
     nrounds = ops[prefix + "s"]
     tforms_path = processed_path / f"tforms_{prefix}.npz"
@@ -143,8 +144,8 @@ def estimate_shifts_by_coors(
         reference_tforms["angles_between_channels"],
         ref_ch=ops["ref_ch"],
         ref_round=ops["ref_round"],
-        max_shift=max_shift,
-        min_shift=min_shift,
+        max_shift=ops["rounds_max_shift"],
+        min_shift = ops["rounds_min_shift"],
         median_filter_size=median_filter_size,
     )
     save_dir = processed_path / "reg"
@@ -489,7 +490,7 @@ def register_tile_to_ref(
         ref_tile_coors = tile_coors
     else:
         print(f"Register to {ref_tile_coors}", flush=True)
-
+    ops = load_ops(data_path)
     ref_all_channels, _ = pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=ref_tile_coors,
@@ -516,6 +517,7 @@ def register_tile_to_ref(
         angle_range=1.0,
         niter=3,
         nangles=15,
+        max_shift=ops["rounds_max_shift"],
     )
     print(f"Angle: {angles}, Shifts: {shifts}")
     processed_path = iss.io.get_processed_path(data_path)

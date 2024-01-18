@@ -523,6 +523,8 @@ def stitch_and_register(
     The reference stack always use the "projection" from ops as suffix. The target uses
     the same by default but that can be specified with `target_suffix`
 
+    This does not use ops['max_shift_rounds'].
+
     Args:
         data_path (str): Relative path to data.
         reference_prefix (str): Acquisition prefix to register the stitched image to.
