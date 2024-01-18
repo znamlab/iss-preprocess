@@ -187,10 +187,7 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="max"):
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path,
-        tile_coors=(roi, tilex, tiley),
-        prefix=prefix,
-        suffix=suffix,
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
     )
 
 
@@ -203,22 +200,13 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="max"):
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-@click.option(
-    "--max-shift",
-    is_flag=True,
-    default=True,
-    help="Whether to set a max shift from ops.",
-)
 def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}/{prefix}")
     estimate_shifts_and_angles_by_coors(
-        path,
-        tile_coors=(roi, tilex, tiley),
-        prefix=prefix,
-        suffix=suffix,
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
     )
 
 
@@ -727,7 +715,4 @@ def plot_registration_correlograms(
     """Plot registration correlograms."""
     from iss_preprocess.vis import plot_registration_correlograms
 
-    plot_registration_correlograms(
-        data_path=path,
-        prefix=prefix,
-    )
+    plot_registration_correlograms(data_path=path, prefix=prefix)
