@@ -7,14 +7,13 @@ from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
 from . import phase_corr, make_transform, transform_image
-from ..io import get_processed_path
+from ..io import get_processed_path, load_ops
 
 
 def register_channels_and_rounds(
     stack,
     ref_ch=0,
     ref_round=0,
-    max_shift=None,
     median_filter=None,
     diag=False,
     data_path="",
@@ -41,13 +40,12 @@ def register_channels_and_rounds(
         stack,
         upsample=False,
         ref_round=ref_round,
-        max_shift=max_shift,
         median_filter_size=median_filter,
         diag=diag,
         data_path=data_path,
         prefix=prefix,
     )
-    # use these to computer a reference image for each channel
+    # use these to compute a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
@@ -62,7 +60,6 @@ def register_channels_and_rounds(
         diag=diag,
         data_path=data_path,
         prefix=prefix,
-        max_shift=max_shift,
     )
 
     return (
@@ -156,9 +153,7 @@ def align_within_channels(
     angle_range=1.0,
     niter=3,
     nangles=15,
-    min_shift=2,
     upsample=False,
-    max_shift=None,
     median_filter_size=None,
     diag=False,
     data_path="",
@@ -200,9 +195,7 @@ def align_within_channels(
             angle_range,
             niter,
             nangles,
-            min_shift,
             upsample,
-            max_shift,
             diag,
             data_path,
             prefix,
@@ -235,9 +228,7 @@ def process_single_rotation_translation(args):
         angle_range,
         niter,
         nangles,
-        min_shift,
         upsample,
-        max_shift,
         diag,
         data_path,
         prefix,
@@ -252,9 +243,7 @@ def process_single_rotation_translation(args):
             angle_range=angle_range,
             niter=niter,
             nangles=nangles,
-            min_shift=min_shift,
             upsample=upsample,
-            max_shift=max_shift,
             diag=diag,
             data_path=data_path,
             prefix=prefix,
@@ -288,7 +277,6 @@ def estimate_shifts_and_angles_for_tile(
         shifts (np.array): Nchannels x 2 array of shifts
 
     """
-
     nch = stack.shape[2]
     angles = []
     shifts = []
@@ -466,7 +454,6 @@ def estimate_correction(
     nangles=3,
     niter=5,
     angle_range=1.0,
-    max_shift=None,
     diag=False,
     data_path="",
     prefix="",
@@ -502,7 +489,6 @@ def estimate_correction(
             nangles,
             scale_range,
             angle_range,
-            max_shift,
             diag,
             data_path,
             prefix,
@@ -529,7 +515,6 @@ def process_single_scale_rotation_translation(args):
         nangles,
         scale_range,
         angle_range,
-        max_shift,
         diag,
         data_path,
         prefix,
@@ -546,7 +531,6 @@ def process_single_scale_rotation_translation(args):
             nangles=nangles,
             verbose=True,
             upsample=upsample,
-            max_shift=max_shift,
             diag=diag,
             data_path=data_path,
             prefix=prefix,
@@ -568,7 +552,6 @@ def estimate_scale_rotation_translation(
     nangles=15,
     verbose=False,
     upsample=False,
-    max_shift=None,
     diag=False,
     data_path="",
     prefix="",
@@ -598,7 +581,8 @@ def estimate_scale_rotation_translation(
     best_angle = 0
     best_scale = 1
     reference_fft = scipy.fft.fft2(reference)
-
+    ops = load_ops(data_path)
+    max_shift = ops["rounds_max_shift"]
     for i in range(niter):
         scales = np.linspace(-scale_range, scale_range, nscales) + best_scale
         max_cc = np.empty(scales.shape)
@@ -611,7 +595,6 @@ def estimate_scale_rotation_translation(
                 angle_range,
                 best_angle,
                 nangles,
-                max_shift=max_shift,
                 debug=diag,
                 data_path=data_path,
                 prefix=prefix,
@@ -662,8 +645,6 @@ def estimate_rotation_angle(
     angle_range,
     best_angle,
     nangles,
-    min_shift=None,
-    max_shift=None,
     debug=False,
     data_path="",
     prefix="",
@@ -678,16 +659,15 @@ def estimate_rotation_angle(
         angle_range (float): range of angles in degrees to search over
         best_angle (float): initial angle in degrees
         nangles (int): number of angles to try
-        min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
-            for images acquired from the same camera
-        max_shift (int): maximum shift.
-        debug (bool): whether to return full cross-correlation array
 
     Returns:
         best_angle (float) in degrees
         max_cc (float) maximum cross correlation
 
     """
+    ops = load_ops(data_path)
+    max_shift = ops["rounds_max_shift"]
+    min_shift = ops["rounds_min_shift"]
     angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
     max_cc = np.empty(angles.shape)
     shifts = np.empty((nangles, 2))
@@ -725,9 +705,7 @@ def estimate_rotation_translation(
     angle_range=5.0,
     niter=3,
     nangles=20,
-    min_shift=None,
     upsample=None,
-    max_shift=None,
     iter_range_factor=5.0,
     diag=False,
     data_path="",
@@ -759,6 +737,9 @@ def estimate_rotation_translation(
     save_path.mkdir(parents=True, exist_ok=True)
     best_angle = 0
     reference_fft = scipy.fft.fft2(reference)
+    ops = load_ops(data_path)
+    max_shift = ops["rounds_max_shift"]
+    min_shift = ops["rounds_min_shift"]
     for i in range(niter):
         best_angle, max_cc = estimate_rotation_angle(
             reference_fft,

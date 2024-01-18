@@ -50,7 +50,6 @@ def register_reference_tile(data_path, prefix="genes_round", diag=True):
         stack,
         ref_ch=ops["ref_ch"],
         ref_round=ops["ref_round"],
-        max_shift=ops["rounds_max_shift"],
         median_filter=ops["reg_median_filter"],
         diag=diag,
         data_path=data_path,
@@ -74,7 +73,6 @@ def estimate_shifts_and_angles_by_coors(
     prefix="hybridisation_1_1",
     suffix="max",
     reference_prefix="barcode_round",
-    max_shift=False,
 ):
     """Estimate shifts and rotations angles for hybridisation images.
 
@@ -93,14 +91,12 @@ def estimate_shifts_and_angles_by_coors(
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
     )
-    if max_shift:
-        max_shift = ops["rounds_max_shift"]
     reference_tforms = np.load(tforms_path, allow_pickle=True)
     angles, shifts = estimate_shifts_and_angles_for_tile(
         stack,
         reference_tforms["scales_between_channels"],
         ref_ch=ops["ref_ch"],
-        max_shift=max_shift,
+        max_shift=ops["rounds_max_shift"],
     )
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -119,7 +115,6 @@ def estimate_shifts_by_coors(
     tile_coors=(0, 0, 0),
     prefix="genes_round",
     suffix="max",
-    max_shift=None,
 ):
     """Estimate shifts across channels and sequencing rounds using provided reference
     rotation angles and scale factors.
@@ -135,8 +130,7 @@ def estimate_shifts_by_coors(
     """
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
-    if max_shift:
-        max_shift = ops["rounds_max_shift"]
+    max_shift = ops["rounds_max_shift"]
     min_shift = ops["rounds_min_shift"]
     median_filter_size = ops["reg_median_filter"]
     nrounds = ops[prefix + "s"]
@@ -468,7 +462,6 @@ def register_tile_to_ref(
     reg_prefix,
     ref_prefix="genes_round",
     binarise_quantile=0.7,
-    max_shift=None,
     ref_tile_coors=None,
     reg_channels=None,
     ref_channels=None,
@@ -482,8 +475,6 @@ def register_tile_to_ref(
         ref_prefix (str, optional): Reference prefix. Defaults to "genes_round".
         binarise_quantile (float, optional): Quantile to binarise images before
         registration. Defaults to 0.7.
-        max_shift (int, optional): Maximum shift allowed. None for no max. Defaults to
-            None
         ref_tile_coors (tuple, optional): Tile coordinates of the reference tile.
             Usually not needed as it is assumed to be the same as the tile to register.
             Defaults to None.
@@ -523,7 +514,7 @@ def register_tile_to_ref(
     reg = reg > np.quantile(reg, binarise_quantile)
 
     angles, shifts = estimate_rotation_translation(
-        ref, reg, angle_range=1.0, niter=3, nangles=15, min_shift=2, max_shift=max_shift
+        ref, reg, angle_range=1.0, niter=3, nangles=15,
     )
     print(f"Angle: {angles}, Shifts: {shifts}")
     processed_path = iss.io.get_processed_path(data_path)

@@ -181,9 +181,6 @@ def setup_hybridisation(path):
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-@click.option(
-    "-m", "--max-shift", default=True, help="Whether to set a max shift from ops."
-)
 def register_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=True):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_by_coors
@@ -194,7 +191,6 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=True)
         tile_coors=(roi, tilex, tiley),
         prefix=prefix,
         suffix=suffix,
-        max_shift=max_shift,
     )
 
 
@@ -233,17 +229,11 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max", max_shift=T
 )
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-@click.option(
-    "--max-shift",
-    is_flag=True,
-    default=True,
-    help="Whether to set a max shift from ops.",
-)
-def estimate_shifts(path, prefix="genes_round", suffix="max", max_shift=True):
+def estimate_shifts(path, prefix="genes_round", suffix="max"):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
-    additional_args = f",PREFIX={prefix},SUFFIX={suffix},MAX_SHIFT={max_shift}"
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
     batch_process_tiles(path, script="register_tile", additional_args=additional_args)
 
 
