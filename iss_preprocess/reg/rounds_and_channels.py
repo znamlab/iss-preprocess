@@ -610,7 +610,7 @@ def estimate_scale_rotation_translation(
                 flush=True,
             )
     if not upsample:
-        shift, _ = phase_corr(
+        shift, cc = phase_corr(
             reference_fft,
             transform_image(target, scale=best_scale, angle=best_angle),
             fft_ref=False,
@@ -626,7 +626,7 @@ def estimate_scale_rotation_translation(
             )
             np.savez(
                 save_path,
-                cc=_,
+                cc=cc,
                 allow_pickle=True,
             )
     else:
