@@ -111,10 +111,7 @@ def estimate_shifts_and_angles_by_coors(
 
 
 def estimate_shifts_by_coors(
-    data_path,
-    tile_coors=(0, 0, 0),
-    prefix="genes_round",
-    suffix="max",
+    data_path, tile_coors=(0, 0, 0), prefix="genes_round", suffix="max"
 ):
     """Estimate shifts across channels and sequencing rounds using provided reference
     rotation angles and scale factors.
@@ -514,7 +511,11 @@ def register_tile_to_ref(
     reg = reg > np.quantile(reg, binarise_quantile)
 
     angles, shifts = estimate_rotation_translation(
-        ref, reg, angle_range=1.0, niter=3, nangles=15,
+        ref,
+        reg,
+        angle_range=1.0,
+        niter=3,
+        nangles=15,
     )
     print(f"Angle: {angles}, Shifts: {shifts}")
     processed_path = iss.io.get_processed_path(data_path)
