@@ -190,7 +190,8 @@ def align_within_channels(
         (
             ref_ch,
             iround,
-            stack,
+            stack[:, :, ref_ch, ref_round],
+            stack[:, :, ref_ch, iround],
             ref_round,
             angle_range,
             niter,
@@ -204,7 +205,7 @@ def align_within_channels(
         for iround in range(nrounds)
     ]
 
-    # Process tasks in parallel
+    #TODO: Process tasks in parallel, each process uses ~3Gb RAM so limit to amount available
     with multiprocessing.Pool(15) as pool:
         results = pool.map(process_single_rotation_translation, pool_args)
 
@@ -223,7 +224,8 @@ def process_single_rotation_translation(args):
     (
         ref_ch,
         iround,
-        stack,
+        reference,
+        target,
         ref_round,
         angle_range,
         niter,
@@ -238,8 +240,8 @@ def process_single_rotation_translation(args):
 
     if ref_round != iround:
         angle, shift = estimate_rotation_translation(
-            stack[:, :, ref_ch, ref_round],
-            stack[:, :, ref_ch, iround],
+            reference,
+            target,
             angle_range=angle_range,
             niter=niter,
             nangles=nangles,
@@ -482,7 +484,8 @@ def estimate_correction(
     pool_args = [
         (
             channel,
-            im,
+            im[:, :, ch_to_align],
+            im[:, :, channel],
             ch_to_align,
             upsample,
             niter,
@@ -508,7 +511,8 @@ def estimate_correction(
 def process_single_scale_rotation_translation(args):
     (
         channel,
-        im,
+        reference,
+        target,
         ch_to_align,
         upsample,
         niter,
@@ -523,8 +527,8 @@ def process_single_scale_rotation_translation(args):
 
     if channel != ch_to_align:
         scale, angle, shift = estimate_scale_rotation_translation(
-            im[:, :, ch_to_align],
-            im[:, :, channel],
+            reference,
+            target,
             angle_range=angle_range,
             scale_range=scale_range,
             niter=niter,
