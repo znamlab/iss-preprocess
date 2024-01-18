@@ -216,7 +216,7 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max"):
 )
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-def estimate_shifts(path, prefix="genes_round", suffix="max"):
+def estimate_shifts(path, prefix, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
