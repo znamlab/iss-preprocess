@@ -286,10 +286,8 @@ def get_tile_ome(fname, fmetadata):
     frame_keys = list(metadata.keys())[1:]
     # Create channel and Z position arrays based on metadata
     channels = [int(metadata[frame_key]["Camera"][-1]) for frame_key in frame_keys]
-    unique_channels = sorted(list(set(channels)))
-    nch = len(unique_channels)
-    # Create a mapping of channel IDs to a 0-based index
-    channel_map = {ch_id: idx for idx, ch_id in enumerate(unique_channels)}
+    channels = sorted(list(set(channels)))
+    nch = len(channels)
     # Determine Z positions
     if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
         zs = [metadata[frame_key]["ImageNumber"] for frame_key in frame_keys]
@@ -302,13 +300,12 @@ def get_tile_ome(fname, fmetadata):
     im = np.zeros((ypix, xpix, nch, nz))
     for page, frame_key in zip(stack.pages, frame_keys):
         ch_id = int(metadata[frame_key]["Camera"][-1])  # Actual channel ID
-        ch = channel_map[ch_id]  # Mapped channel index
         if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
             z = unique_zs.index(metadata[frame_key]["ImageNumber"])
         else:
             z = unique_zs.index(metadata[frame_key]["ZPositionUm"])
 
-        im[:, :, ch, z] = page.asarray()
+        im[:, :, channels.index(ch_id), z] = page.asarray()
 
     return im
 
