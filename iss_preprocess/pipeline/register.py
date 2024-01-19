@@ -150,7 +150,7 @@ def estimate_shifts_by_coors(
         ref_ch=ops["ref_ch"],
         ref_round=ops["ref_round"],
         max_shift=ops["rounds_max_shift"],
-        min_shift = ops["rounds_min_shift"],
+        min_shift=ops["rounds_min_shift"],
         median_filter_size=median_filter_size,
     )
     save_dir = processed_path / "reg"

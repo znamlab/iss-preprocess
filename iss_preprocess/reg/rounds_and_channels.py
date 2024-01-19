@@ -395,7 +395,7 @@ def estimate_shifts_for_tile(
     )
     shifts_between_channels = []
     for ich in range(nchannels):
-        # TODO this always uses upsample. Is that what we want?
+        # TODO this always uses upsample. Is that what we want?
         shifts_between_channels.append(
             phase_cross_correlation(
                 std_stack[:, :, ref_ch],
