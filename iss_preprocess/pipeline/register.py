@@ -29,6 +29,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=True):
         data_path (str): Relative path to data.
         prefix (str, optional): Directory prefix to register.
             Defaults to "genes_round".
+        diag (bool, optional): Whether to save diagnostic plots.
 
     """
     if diag:
@@ -85,6 +86,9 @@ def estimate_shifts_and_angles_by_coors(
         prefix (str, optional): Prefix of the hybridisation round. Defaults to "hybridisation_1_1".
         reference_prefix (str, optional): Prefix to use for loading precomputed
             scale factors between channels. Defaults to "barcode_round".
+        suffix (str, optional): Filename suffix specifying which z-projection to use.
+            Defaults to "max".
+        reference_prefix (str, optional): Prefix of the reference round. Defaults to "barcode_round".
 
     """
     processed_path = iss.io.get_processed_path(data_path)

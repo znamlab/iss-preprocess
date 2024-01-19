@@ -25,6 +25,7 @@ def register_channels_and_rounds(
     Estimate transformation matrices for alignment across channels and rounds.
 
     Args:
+        data_path (str): path to data, used for saving diagnostic plots
         stack: X x Y x Nchannels x Nrounds images stack
         ref_ch (int): channel to align to
         ref_round (int): round to align to
@@ -34,7 +35,6 @@ def register_channels_and_rounds(
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
         diag (bool): whether to save diagnostic plots
-        data_path (str): path to data, used for saving diagnostic plots
         prefix (str): prefix for saving diagnostic plots
 
     Returns:
@@ -178,6 +178,7 @@ def align_within_channels(
     """Align images within each channel.
 
     Args:
+        data_path (str): path to data, used for saving diagnostic plots
         stack (np.array): X x Y x Nchannels x Nrounds images stack
         upsample (bool, or int): whether to use subpixel registration, and if so, how much
             to upsample
@@ -192,7 +193,6 @@ def align_within_channels(
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
         diag (bool): whether to save diagnostic plots
-        data_path (str): path to data, used for saving diagnostic plots
         prefix (str): prefix for saving diagnostic plots
 
     Returns:
@@ -297,6 +297,7 @@ def estimate_shifts_and_angles_for_tile(
     using the provided quantile threshold.
 
     Args:
+        data_path (str): path to data, used for saving diagnostic plots
         stack (np.array): X x Y x Nchannels images stack
         scales (np.array): Nchannels array of scales
         ref_ch (int): reference channel
@@ -352,6 +353,9 @@ def estimate_shifts_for_tile(
         angles_between_channels (np.array): Nchannels x Nchannels array of angles
         ref_ch (int): reference channel
         ref_round (int): reference round
+        max_shift (int): maximum shift to avoid spurious cross-correlations
+        min_shift (int): minimum shift to avoid spurious cross-correlations
+        median_filter_size (int): size of median filter to apply to the stack. Only for
 
     Returns:
         shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
@@ -496,6 +500,7 @@ def estimate_correction(
     Estimate scale, rotation and translation corrections for each channel of a multichannel image.
 
     Args:
+        data_path (str): path to data, used for saving diagnostic plots
         im (np.array): X x Y x Nchannels image
         ch_to_align (int): channel to align to
         upsample (bool, or int): whether to upsample the image, and if so by what factor
@@ -505,7 +510,6 @@ def estimate_correction(
         niter (int): number of iterations to run
         angle_range (float): range of angles to search through
         diag (bool): whether to save diagnostic plots
-        data_path (str): path to data, used for saving diagnostic plots
         prefix (str): prefix for saving diagnostic plots
 
     Returns:
@@ -606,6 +610,7 @@ def estimate_scale_rotation_translation(
     searching over small and smaller angle range.
 
     Args:
+        data_path (str): path to data, used for saving diagnostic plots
         reference (numpy.ndarray): X x Y reference image
         target (numpy.ndarray): X x Y target image
         angle_range (float): initial range of angles in degrees to search over
@@ -617,7 +622,6 @@ def estimate_scale_rotation_translation(
         upsample (bool, or int): whether to upsample the image, and if so but what factor
         max_shift (int): maximum shift to avoid spurious cross-correlations
         diag (bool): whether to save diagnostic plots
-        data_path (str): path to data, used for saving diagnostic plots
         prefix (str): prefix for saving diagnostic plots
         channel (int): channel, used for saving diagnostic plots
 
@@ -704,6 +708,7 @@ def estimate_rotation_angle(
     reference image.
 
     Args:
+        data_path (str): path to data, used for saving diagnostic plots
         reference_fft (numpy.ndarray): X x Y reference image in Fourier domain
         target (numpy.ndarray): X x Y target image
         angle_range (float): range of angles in degrees to search over
@@ -712,7 +717,6 @@ def estimate_rotation_angle(
         max_shift (int): maximum shift to avoid spurious cross-correlations
         min_shift (int): minimum shift to avoid spurious cross-correlations
         debug (bool): whether to save diagnostic plots
-        data_path (str): path to data, used for saving diagnostic plots
         prefix (str): prefix for saving diagnostic plots
 
     Returns:
@@ -773,6 +777,7 @@ def estimate_rotation_translation(
     searching over small and smaller angle range.
 
     Args:
+        data_path (str): path to data, used for saving diagnostic plots
         reference (numpy.ndarray): X x Y reference image
         target (numpy.ndarray): X x Y target image
         angle_range (float): initial range of angles in degrees to search over
@@ -785,7 +790,6 @@ def estimate_rotation_translation(
         iter_range_factor (float): how much to shrink the angle range for each
             iteration. Default: 5.
         diag (bool): whether to save diagnostic plots
-        data_path (str): path to data, used for saving diagnostic plots
         prefix (str): prefix for saving diagnostic plots
         ref_ch (int): reference channel, used for saving diagnostic plots
         iround (int): round, used for saving diagnostic plots
