@@ -11,6 +11,7 @@ from ..io import get_processed_path
 
 
 def register_channels_and_rounds(
+    data_path,
     stack,
     ref_ch=0,
     ref_round=0,
@@ -18,7 +19,6 @@ def register_channels_and_rounds(
     min_shift=None,
     max_shift=None,
     diag=False,
-    data_path="",
     prefix="",
 ):
     """
@@ -48,6 +48,7 @@ def register_channels_and_rounds(
         assert data_path != "", "data_path must be provided for saving diagnostic plots"
     # first register images across rounds within each channel
     angles_within_channels, shifts_within_channels = align_within_channels(
+        data_path,
         stack,
         upsample=False,
         ref_round=ref_round,
@@ -55,7 +56,6 @@ def register_channels_and_rounds(
         min_shift=min_shift,
         max_shift=max_shift,
         diag=diag,
-        data_path=data_path,
         prefix=prefix,
     )
     # use these to compute a reference image for each channel
@@ -67,12 +67,12 @@ def register_channels_and_rounds(
         angles_between_channels,
         shifts_between_channels,
     ) = estimate_correction(
+        data_path,
         std_stack,
         ch_to_align=ref_ch,
         upsample=5,
         max_shift=max_shift,
         diag=diag,
-        data_path=data_path,
         prefix=prefix,
     )
 
@@ -162,6 +162,7 @@ def align_channels_and_rounds(stack, tforms):
 
 
 def align_within_channels(
+    data_path,
     stack,
     ref_round=0,
     angle_range=1.0,
@@ -172,7 +173,6 @@ def align_within_channels(
     min_shift=None,
     max_shift=None,
     diag=False,
-    data_path="",
     prefix="",
 ):
     """Align images within each channel.
@@ -267,6 +267,7 @@ def _process_single_rotation_translation(args):
 
     if ref_round != iround:
         angle, shift = estimate_rotation_translation(
+            data_path,
             reference,
             target,
             angle_range=angle_range,
@@ -276,7 +277,6 @@ def _process_single_rotation_translation(args):
             min_shift=min_shift,
             max_shift=max_shift,
             diag=diag,
-            data_path=data_path,
             prefix=prefix,
             ref_ch=ref_ch,
             iround=iround,
@@ -291,7 +291,7 @@ def _process_single_rotation_translation(args):
 
 
 def estimate_shifts_and_angles_for_tile(
-    stack, scales, ref_ch=0, threshold_quantile=0.9, max_shift=None
+    data_path, stack, scales, ref_ch=0, threshold_quantile=0.9, max_shift=None
 ):
     """Estimate shifts and angles. Registration is carried out on thresholded images
     using the provided quantile threshold.
@@ -316,6 +316,7 @@ def estimate_shifts_and_angles_for_tile(
         if ref_ch != ich:
             thresh = np.quantile(stack[:, :, ich], threshold_quantile)
             angle, shift = estimate_rotation_translation(
+                data_path,
                 stack[:, :, ref_ch] > ref_thresh,
                 transform_image(stack[:, :, ich] > thresh, scale=scales[ich]),
                 angle_range=2.0,
@@ -479,6 +480,7 @@ def apply_corrections(im, scales, angles, shifts, cval=0.0):
 
 
 def estimate_correction(
+    data_path,
     im,
     ch_to_align=0,
     upsample=False,
@@ -488,7 +490,6 @@ def estimate_correction(
     niter=5,
     angle_range=1.0,
     diag=False,
-    data_path="",
     prefix="",
 ):
     """
@@ -563,6 +564,7 @@ def _process_single_scale_rotation_translation(args):
 
     if channel != ch_to_align:
         scale, angle, shift = estimate_scale_rotation_translation(
+            data_path,
             reference,
             target,
             angle_range=angle_range,
@@ -573,7 +575,6 @@ def _process_single_scale_rotation_translation(args):
             upsample=upsample,
             max_shift=max_shift,
             diag=diag,
-            data_path=data_path,
             prefix=prefix,
             channel=channel,
         )
@@ -584,6 +585,7 @@ def _process_single_scale_rotation_translation(args):
 
 
 def estimate_scale_rotation_translation(
+    data_path,
     reference,
     target,
     angle_range=5.0,
@@ -595,7 +597,6 @@ def estimate_scale_rotation_translation(
     upsample=False,
     max_shift=None,
     diag=False,
-    data_path="",
     prefix="",
     channel=None,
 ):
@@ -636,6 +637,7 @@ def estimate_scale_rotation_translation(
         for iscale in range(nscales):
             target_rescaled = transform_image(target, scale=scales[iscale])
             best_angles[iscale], max_cc[iscale] = estimate_rotation_angle(
+                data_path,
                 reference_fft,
                 target_rescaled,
                 angle_range,
@@ -643,7 +645,6 @@ def estimate_scale_rotation_translation(
                 nangles,
                 max_shift=max_shift,
                 debug=diag,
-                data_path=data_path,
                 prefix=prefix,
             )
         best_scale_index = np.argmax(max_cc)
@@ -687,6 +688,7 @@ def estimate_scale_rotation_translation(
 
 # Numba makes no difference here
 def estimate_rotation_angle(
+    data_path,
     reference_fft,
     target,
     angle_range,
@@ -695,7 +697,6 @@ def estimate_rotation_angle(
     max_shift=None,
     min_shift=None,
     debug=False,
-    data_path="",
     prefix="",
 ):
     """
@@ -751,6 +752,7 @@ def estimate_rotation_angle(
 # TODO: check if this numba is useful here.
 @jit(parallel=True, forceobj=True)
 def estimate_rotation_translation(
+    data_path,
     reference,
     target,
     angle_range=5.0,
@@ -761,7 +763,6 @@ def estimate_rotation_translation(
     max_shift=None,
     iter_range_factor=5.0,
     diag=False,
-    data_path="",
     prefix="",
     ref_ch="",
     iround="",
@@ -801,6 +802,7 @@ def estimate_rotation_translation(
     reference_fft = scipy.fft.fft2(reference)
     for i in range(niter):
         best_angle, max_cc = estimate_rotation_angle(
+            data_path,
             reference_fft,
             target,
             angle_range,
@@ -809,7 +811,6 @@ def estimate_rotation_translation(
             min_shift=min_shift,
             max_shift=max_shift,
             debug=diag,
-            data_path=data_path,
             prefix=prefix,
         )
         angle_range = angle_range / iter_range_factor
