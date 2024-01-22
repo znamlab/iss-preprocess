@@ -130,9 +130,7 @@ def project_round(path, prefix, overwrite=False):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option(
-    "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
-)
+@click.option("-n", "--prefix", help="Acq prefix, e.g. `genes_round_1_1`, None for all")
 def check_projection(path, prefix):
     """Check if projection has completed for all tile."""
     import iss_preprocess.pipeline as pipeline
@@ -143,20 +141,32 @@ def check_projection(path, prefix):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
-def register_ref_tile(path, prefix):
+@click.option(
+    "--diag",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Save diagnostic cross correlogram plots",
+)
+def register_ref_tile(path, prefix, diag=True):
     """Run registration across channels and rounds for the reference tile."""
     from iss_preprocess.pipeline import register_reference_tile
 
-    register_reference_tile(path, prefix=prefix)
+    register_reference_tile(path, prefix=prefix, diag=diag)
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def setup_omp(path):
+@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from iss_preprocess.pipeline import setup_omp
+    from pathlib import Path
 
-    setup_omp(path)
+    slurm_folder = Path.home() / "slurm_logs"
+    setup_omp(
+        path, use_slurm=use_slurm, slurm_folder=slurm_folder, scripts_name="setup_omp"
+    )
 
 
 @cli.command()
@@ -185,16 +195,14 @@ def setup_hybridisation(path):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
-)
-def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+def register_tile(path, prefix, roi, tilex, tiley, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_by_coors
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix,
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
     )
 
 
@@ -206,10 +214,8 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
-)
-def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
 
@@ -220,12 +226,12 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
 
 
 @cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
 )
-def estimate_shifts(path, prefix, suffix="fstack"):
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+def estimate_shifts(path, prefix, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
@@ -236,10 +242,8 @@ def estimate_shifts(path, prefix, suffix="fstack"):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
-@click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
-)
-def estimate_hyb_shifts(path, prefix=None, suffix="fstack"):
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+def estimate_hyb_shifts(path, prefix=None, suffix="max"):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
     from iss_preprocess.io import load_metadata
@@ -259,8 +263,10 @@ def estimate_hyb_shifts(path, prefix=None, suffix="fstack"):
 
 
 @cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
+    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
+)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 def correct_shifts(path, prefix):
     """Correct X-Y shifts using robust regression across tiles."""
     from iss_preprocess.pipeline import correct_shifts
@@ -327,7 +333,10 @@ def extract(path):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
-    "-n", "--prefix", default="DAPI_1", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
+    "-n",
+    "--prefix",
+    default="DAPI_1",
+    help="Path prefix to use for segmentation, e.g. 'DAPI_1",
 )
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
 @click.option(
@@ -346,7 +355,10 @@ def segment(path, prefix, roi=1, use_gpu=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
-    "-n", "--prefix", default="DAPI_1", help="Path prefix to use for segmentation, e.g. 'DAPI_1"
+    "-n",
+    "--prefix",
+    default="DAPI_1",
+    help="Path prefix to use for segmentation, e.g. 'DAPI_1",
 )
 @click.option(
     "--use-gpu",
@@ -386,7 +398,7 @@ def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
 
         additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
         batch_process_tiles(
-            path, "register_tile_to_ref", additional_args=additional_args,
+            path, "register_tile_to_ref", additional_args=additional_args
         )
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
@@ -431,7 +443,7 @@ def align_spots(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
-    reload=True
+    reload=True,
 ):
     from iss_preprocess.pipeline import (
         merge_and_align_spots_all_rois,
@@ -494,7 +506,7 @@ def align_spots_roi(
         )
 
     merge_and_align_spots(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi,
+        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
     )
 
 
@@ -525,9 +537,7 @@ def create_grand_averages(path):
     """Create grand average for illumination correction"""
     from iss_preprocess import pipeline
 
-    pipeline.create_grand_averages(
-        path, prefix_todo=("genes_round", "barcode_round"),
-    )
+    pipeline.create_grand_averages(path, prefix_todo=("genes_round", "barcode_round"))
 
 
 @cli.command()
@@ -594,9 +604,7 @@ def create_single_average(
 @click.option("-r", "--roi", help="Roi id", type=int)
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
 @click.option("--sigma", help="Sigma for gaussian blur")
-def overview_for_ara_registration(
-    path, roi, slice_id, sigma=10.0,
-):
+def overview_for_ara_registration(path, roi, slice_id, sigma=10.0):
     """Generate the overview of one ROI used for registration
 
     Args:
@@ -642,14 +650,64 @@ def call_spots(path, genes, barcodes, hybridisation):
 
     call_spots(path, genes, barcodes, hybridisation)
 
+
 @cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
-@click.option("-g", "--plot_grid", help="Whether to plot grid", default=True)
-@click.option("-d", "--downsample_factor", help="Amount to downsample output", type=int, default=25)
-@click.option("-s", "--save_raw", help="Whether to save full size tif", default=False)
-def plot_overview(path, prefix, plot_grid, downsample_factor, save_raw):
+@click.option(
+    "--path", "-p", prompt="Enter data path", help="Data path.", required=True
+)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
+@click.option(
+    "--plot-grid/--no-plot-gird",
+    "-g",
+    help="Whether to plot grid",
+    default=True,
+    show_default=True,
+)
+@click.option(
+    "--downsample_factor",
+    "-d",
+    help="Amount to downsample output",
+    type=int,
+    default=25,
+)
+@click.option(
+    "--save-raw/--no-save-raw",
+    "-r",
+    help="Whether to save full size tif",
+    default=False,
+)
+@click.option(
+    "--separate-channels/--no-separate-channels",
+    "-s",
+    help="Whether to save a figure per channel",
+    default=False,
+)
+def plot_overview(
+    path, prefix, plot_grid, downsample_factor, save_raw, separate_channels
+):
     """Plot individual channel overview images."""
     from iss_preprocess.vis import plot_overview_images
 
-    plot_overview_images(path, prefix, plot_grid, downsample_factor, save_raw)
+    plot_overview_images(
+        data_path=path,
+        prefix=prefix,
+        plot_grid=plot_grid,
+        downsample_factor=downsample_factor,
+        save_raw=save_raw,
+        group_channels=not separate_channels,
+    )
+
+
+@cli.command()
+@click.option(
+    "--path", "-p", prompt="Enter data path", help="Data path.", required=True
+)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
+def plot_registration_correlograms(
+    path,
+    prefix,
+):
+    """Plot registration correlograms."""
+    from iss_preprocess.vis import plot_registration_correlograms
+
+    plot_registration_correlograms(data_path=path, prefix=prefix)

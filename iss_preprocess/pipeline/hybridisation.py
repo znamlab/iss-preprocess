@@ -2,9 +2,11 @@ import subprocess, shlex
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import iss_preprocess as iss
 from pathlib import Path
 from skimage.morphology import binary_dilation
+from znamutils import slurm_it
+
+import iss_preprocess as iss
 from ..image import filter_stack, apply_illumination_correction, compute_distribution
 from ..reg import apply_corrections
 from ..io import (
@@ -23,7 +25,7 @@ def load_and_register_hyb_tile(
     data_path,
     tile_coors=(1, 0, 0),
     prefix="hybridisation_1_1",
-    suffix="fstack",
+    suffix="max",
     filter_r=(2, 4),
     correct_illumination=False,
     correct_channels=False,
@@ -79,6 +81,7 @@ def load_and_register_hyb_tile(
     return stack, bad_pixels
 
 
+@slurm_it(conda_env="iss-preprocess")
 def estimate_channel_correction_hybridisation(data_path):
     """Compute grayscale value distribution and normalisation factors for
     all hybridisation rounds.
@@ -236,7 +239,8 @@ def extract_hyb_spots_all(data_path):
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     script_path = str(

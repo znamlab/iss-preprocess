@@ -2,6 +2,7 @@ import numpy as np
 import multiprocessing as mp
 import shutil
 import iss_preprocess as iss
+from warnings import warn
 from functools import partial
 from pathlib import Path
 from ..image import fstack_channels
@@ -17,12 +18,24 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
         prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
         suffixes (tuple, optional): Projection suffixes to check for.
             Defaults to ("max", "fstack").
-            
+
     """
     processed_path = iss.io.get_processed_path(data_path)
+    if prefix is None:
+        metadata = iss.io.load_metadata(data_path)
+        prefixes = [f"genes_round_{i+1}_1" for i in range(metadata["genes_rounds"])]
+        prefixes += [
+            f"barcode_round_{i+1}_1" for i in range(metadata["barcode_rounds"])
+        ]
+        prefixes.extend(metadata["hybridisation"].keys())
+        prefixes.extend(metadata["fluorescence"].keys())
+        for prefix in prefixes:
+            check_projection(data_path, prefix, suffixes)
+        return
     roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     all_projected = True
     for roi in roi_dims[use_rois, :]:
@@ -37,7 +50,7 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
                         print(f"{proj_path} missing!")
                         all_projected = False
     if all_projected:
-        print("all tiles projected!")
+        print(f"all tiles projected for {prefix}!")
 
 @updates_flexilims(name_source="prefix")
 def project_round(data_path, prefix, overwrite=False):
@@ -57,14 +70,19 @@ def project_round(data_path, prefix, overwrite=False):
     roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
     # Change ref tile to a central position where tissue will be
-    metadata = iss.io.load_metadata(data_path)
+    try:
+        metadata = iss.io.load_metadata(data_path)
+        ref_roi = list(metadata["ROI"].keys())[0]
+    except FileNotFoundError:
+        ref_roi = roi_dims[0, 0]
+        warn(f"Metadata file not found, using ROI {ref_roi} as reference tile.")
     ops.update(
         {
             "ref_tile": [
-                        list(metadata["ROI"].keys())[0],
-                        round(roi_dims[0,1] / 2),
-                        round(roi_dims[0,2] / 2)
-                        ]
+                ref_roi,
+                round(roi_dims[0, 1] / 2),
+                round(roi_dims[0, 2] / 2),
+            ]
         }
     )
     additional_args = f",PREFIX={prefix}"
@@ -87,21 +105,22 @@ def project_round(data_path, prefix, overwrite=False):
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     """Project a single tile by its coordinates.
-    
+
     Args:
         tile_coors (tuple): (roi, x, y) coordinates of the tile.
         data_path (str): Relative path to data.
         prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
         overwrite (bool, optional): Whether to re-project if files already exist.
             Defaults to False.
-            
+
     """
     fname = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
     tile_path = str(Path(data_path) / prefix / fname)
-    project_tile(tile_path, overwrite=overwrite)
+    ops = load_ops(data_path)
+    project_tile(tile_path, ops, overwrite=overwrite)
 
 
-def project_tile(fname, overwrite=False, sth=13):
+def project_tile(fname, ops, overwrite=False, sth=13):
     """Calculates extended depth of field and max intensity projections for a single tile.
 
     Args:
@@ -111,7 +130,10 @@ def project_tile(fname, overwrite=False, sth=13):
     """
     save_path_fstack = iss.io.get_processed_path(fname + "_fstack.tif")
     save_path_max = iss.io.get_processed_path(fname + "_max.tif")
-    if not overwrite and (save_path_fstack.exists() or save_path_max.exists()):
+    save_path_median = iss.io.get_processed_path(fname + "_median.tif")
+    if not overwrite and (
+        save_path_fstack.exists() or save_path_max.exists() or save_path_median.exists()
+    ):
         print(f"{fname} already projected...\n")
         return
     print(f"loading {fname}\n")
@@ -120,11 +142,19 @@ def project_tile(fname, overwrite=False, sth=13):
         iss.io.get_raw_path(fname + "_metadata.txt"),
     )
     print("computing projection\n")
-    im_fstack = fstack_channels(im, sth=sth)
-    im_max = np.max(im, axis=3)
     iss.io.get_processed_path(fname).parent.mkdir(parents=True, exist_ok=True)
-    write_stack(im_fstack, save_path_fstack, bigtiff=True)
-    write_stack(im_max, save_path_max, bigtiff=True)
+    if ops["make_fstack"]:
+        print("making fstack projection\n")
+        im_fstack = fstack_channels(im, sth=sth)
+        write_stack(im_fstack, save_path_fstack, bigtiff=True)
+    if ops["make_median"]:
+        print("making median projection\n")
+        im_median = np.median(im, axis=3)
+        write_stack(im_median, save_path_median, bigtiff=True)
+    if ops["make_max"]:
+        print("making max projection\n")
+        im_max = np.max(im, axis=3)
+        write_stack(im_max, save_path_max, bigtiff=True)
 
 
 def project_tile_row(data_path, prefix, tile_roi, tile_row, max_col, overwrite=False):

@@ -3,9 +3,11 @@ import numpy as np
 import warnings
 import pandas as pd
 import warnings
-import iss_preprocess as iss
-from skimage.registration import phase_cross_correlation
 from pathlib import Path
+from skimage.registration import phase_cross_correlation
+from scipy.ndimage import median_filter
+
+import iss_preprocess as iss
 from . import pipeline
 from .. import vis
 from ..io import load_tile_by_coors, load_stack, load_ops, get_roi_dimensions
@@ -85,7 +87,7 @@ def register_within_acquisition(
     prefix,
     ref_roi=None,
     ref_ch=0,
-    suffix="fstack",
+    suffix="max",
     reload=True,
     save_plot=False,
     dimension_prefix="genes_round_1_1",
@@ -153,7 +155,7 @@ def register_within_acquisition(
 
 
 def register_adjacent_tiles(
-    data_path, ref_coors=None, ref_ch=0, suffix="fstack", prefix="genes_round_1_1",
+    data_path, ref_coors=None, ref_ch=0, suffix="max", prefix="genes_round_1_1"
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -165,11 +167,7 @@ def register_adjacent_tiles(
         ref_coors (tuple, optional): coordinates of the reference tile to use for
             registration. Must not be along the bottom or right edge of image. If `None`
             use `ops['ref_tile']`. Defaults to None.
-        reg_fraction (float, optional): overlap fraction used for registration.
-            Defaults to 0.1.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
-        ref_round (int, optional): reference round used for registration. Defaults to 0.
-        nrounds (int, optional): Number of rounds to load. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'proj'.
         prefix (str, optional): Full name of the acquisition folder
 
@@ -185,11 +183,12 @@ def register_adjacent_tiles(
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
-    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + 1)
+    down_offset = 1 if ops["y_tile_direction"] == "bottom_to_top" else -1
+    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + down_offset)
     tile_down = load_tile_by_coors(
         data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
     )
-    right_offset = 1 if ops["tile_direction"] == "left_to_right" else -1
+    right_offset = 1 if ops["x_tile_direction"] == "left_to_right" else -1
     right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
     tile_right = load_tile_by_coors(
         data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
@@ -198,20 +197,40 @@ def register_adjacent_tiles(
     xpix = tile_ref.shape[1]
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
+    if ops["reg_median_filter"]:
+        msize = ops["reg_median_filter"]
+        print(f"Filtering with median filter of size {msize}")
+        assert isinstance(msize, int), "reg_median_filter must be an integer"
+        tile_ref = median_filter(tile_ref, size=msize)
+        tile_down = median_filter(tile_down, size=msize)
+        tile_right = median_filter(tile_right, size=msize)
 
-    shift_right = phase_cross_correlation(
+    shift_right, _, _ = phase_cross_correlation(
         tile_ref[:, -reg_pix_x:, ref_ch],
         tile_right[:, :reg_pix_x, ref_ch],
         upsample_factor=5,
-    )[0] + [0, xpix - reg_pix_x]
-    if ops["tile_direction"] != "left_to_right":
+    )
+    if any(np.abs(shift_right) >= reg_pix_x * 0.1):
+        warnings.warn(
+            f"Shift to right tile is large: {shift_right}"
+            f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is fine."
+        )
+    shift_right += [0, xpix - reg_pix_x]
+    if ops["x_tile_direction"] != "left_to_right":
         shift_right = -shift_right
-
-    shift_down = phase_cross_correlation(
+    shift_down, _, _ = phase_cross_correlation(
         tile_ref[:reg_pix_y, :, ref_ch],
         tile_down[-reg_pix_y:, :, ref_ch],
         upsample_factor=5,
-    )[0] - [ypix - reg_pix_y, 0]
+    )
+    if any(np.abs(shift_down) >= reg_pix_y * 0.1):
+        warnings.warn(
+            f"Shift to down tile is large: {shift_down}"
+            f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is fine."
+        )
+    shift_down -= [ypix - reg_pix_y, 0]
+    if ops["y_tile_direction"] != "bottom_to_top":
+        shift_down = -shift_down
 
     return shift_right, shift_down, (ypix, xpix)
 
@@ -285,7 +304,7 @@ def stitch_tiles(
     data_path,
     prefix,
     roi=1,
-    suffix="fstack",
+    suffix="max",
     ich=0,
     correct_illumination=False,
     shifts_prefix=None,
@@ -320,17 +339,23 @@ def stitch_tiles(
     else:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
         ops = load_ops(data_path)
-        metadata = iss.io.load_metadata(data_path)
+        try:
+            metadata = iss.io.load_metadata(data_path)
+            ref_roi = list(metadata["ROI"].keys())[0]
+        except FileNotFoundError:
+            ref_roi = roi_dims[0, 0]
+            warnings.warn(f"Metadata file not found, using ROI {ref_roi} as reference.")
         ops_fname = processed_path / "ops.yml"
         if not ops_fname.exists():
             # Change ref tile to a central position where tissue will be
             ops.update(
                 {
                     "ref_tile": [
-                                list(metadata["ROI"].keys())[0],
-                                round(roi_dims[0,1] / 2),
-                                round(roi_dims[0,2] / 2)
-                                ]
+                        ref_roi,
+                        round(roi_dims[0, 1] / 2),
+                        round(roi_dims[0, 2] / 2),
+                    ],
+                    "ref_ch": 0,
                 }
             )
         shifts = {}
@@ -341,8 +366,8 @@ def stitch_tiles(
         ) = register_adjacent_tiles(
             data_path,
             ref_coors=ops["ref_tile"],
-            ref_ch=0,
-            suffix="fstack",
+            ref_ch=ops["ref_ch"],
+            suffix="max",
             prefix=prefix,
         )
     tile_shape = shifts["tile_shape"]
@@ -461,17 +486,12 @@ def merge_roi_spots(data_path, prefix, tile_origins, tile_centers, iroi=1):
                 spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
                 spot_dist = (
-                    (
-                        spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 1]
-                    )
-                    ** 2
-                    + (
-                        spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 0]
-                    )
-                    ** 2
-                )
+                    spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 1]
+                ) ** 2 + (
+                    spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
+                    - tile_centers[np.newaxis, :, :, 0]
+                ) ** 2
                 home_tile_dist = (spot_dist[:, ix, iy]).copy()
                 spot_dist[:, ix, iy] = np.inf
                 min_spot_dist = np.min(spot_dist, axis=(1, 2))
@@ -502,6 +522,8 @@ def stitch_and_register(
 
     The reference stack always use the "projection" from ops as suffix. The target uses
     the same by default but that can be specified with `target_suffix`
+
+    This does not use ops['max_shift_rounds'].
 
     Args:
         data_path (str): Relative path to data.
@@ -572,6 +594,7 @@ def stitch_and_register(
 
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
+            data_path,
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
             niter=3,
@@ -583,6 +606,7 @@ def stitch_and_register(
         )
     else:
         angle, shift = estimate_rotation_translation(
+            data_path,
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
             angle_range=1.0,

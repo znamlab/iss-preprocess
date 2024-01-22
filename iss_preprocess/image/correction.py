@@ -207,7 +207,7 @@ def _mean_tiffs(
             )
         tilestats = np.load(stats)
     else:
-        tilestats = compute_distribution(data, max_value=2 ** 16)
+        tilestats = compute_distribution(data, max_value=2**16)
 
     # initialise folder mean with first frame
     mean_image = np.array(data, dtype=float)
@@ -223,7 +223,7 @@ def _mean_tiffs(
             stats = tile.with_name(tile.name.replace("_average.tif", "_tilestats.npy"))
             tilestats += np.load(stats)
         else:
-            tilestats += compute_distribution(data, max_value=2 ** 16)
+            tilestats += compute_distribution(data, max_value=2**16)
 
         data = np.clip(data.astype(float) - black_level.reshape(1, 1, -1), 0, max_value)
         mean_image += data / len(tiff_list)
@@ -238,7 +238,7 @@ def _mean_tiffs(
     return mean_image, tilestats
 
 
-def compute_distribution(stack, max_value=int(2 ** 12 + 1)):
+def compute_distribution(stack, max_value=int(2**12 + 1)):
     """Compute simple tile statistics for one multichannel image
 
     Args:
@@ -252,6 +252,6 @@ def compute_distribution(stack, max_value=int(2 ** 12 + 1)):
     distribution = np.zeros((max_value + 1, stack.shape[2]))
     for ich in range(stack.shape[2]):
         distribution[:, ich] = np.bincount(
-            stack[:, :, ich].flatten().astype(np.uint16), minlength=max_value + 1,
+            stack[:, :, ich].flatten().astype(np.uint16), minlength=max_value + 1
         )
     return distribution

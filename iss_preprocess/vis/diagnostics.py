@@ -1,6 +1,9 @@
 from natsort import natsorted
 import numpy as np
+import os
+import re
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 import cv2
 import iss_preprocess as iss
@@ -161,7 +164,11 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
         plt.colorbar(img, ax=ax)
     fig.tight_layout()
     fig.suptitle(prefix)
-    fig_file = iss.io.get_processed_path(data_path) / "figures" / f"adjacent_tile_reg_{prefix}.png"
+    fig_file = (
+        iss.io.get_processed_path(data_path)
+        / "figures"
+        / f"adjacent_tile_reg_{prefix}.png"
+    )
     if not fig_file.parent.exists():
         fig_file.parent.mkdir()
     fig.savefig(fig_file, dpi=300)
@@ -195,7 +202,7 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
 
     ops = load_ops(data_path)
     stitched_stack = iss.pipeline.stitch_registered(
-        data_path, reference_prefix, roi=roi, channels=ops["ref_ch"],
+        data_path, reference_prefix, roi=roi, channels=ops["ref_ch"]
     ).astype(np.single)
 
     fig = plt.figure()
@@ -211,7 +218,7 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         cmap="gray",
     )
     atlas_utils.plot_borders_and_areas(
-        ax, area_ids, border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
+        ax, area_ids, border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1)
     )
     ax.set_ylim(ax.get_ylim()[::-1])
     ax.set_xticks([])
@@ -270,10 +277,10 @@ def plot_tilestats_distributions(
             ax.set_ylim(-0.4, 0.4)
 
     for ax in fig.axes:
-        ax.axvline(2 ** 12, color="k", zorder=-10)
+        ax.axvline(2**12, color="k", zorder=-10)
         for c, i in enumerate(np.argsort(camera_order)):
             ax.axvline(ops["black_level"][i], color=colors[c], zorder=-10)
-        ax.set_xlim(np.min(ops["black_level"]) - 2, 2 ** 12)
+        ax.set_xlim(np.min(ops["black_level"]) - 2, 2**12)
         ax.semilogx()
     ax.legend()
     fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)
@@ -341,3 +348,119 @@ def plot_matrix_difference(
             axes[il, 0].set_ylabel(label, fontsize=11)
     fig.subplots_adjust(top=0.9, wspace=0.15, hspace=0)
     return fig
+
+
+def plot_registration_correlograms(
+    data_path,
+    prefix,
+):
+    # Find correlogram files
+    ops = iss.io.load_ops(data_path)
+    corr_dir = iss.io.get_processed_path(data_path) / "figures" / prefix / "ref_tile"
+    all_files = os.listdir(corr_dir)
+    pattern = r"no_upsample_phase_corr_ref_ch_(\d)_round_(\d).npy"
+    filtered_sorted_files = sorted(
+        (file for file in all_files if re.match(pattern, file)),
+        key=lambda x: (
+            int(re.match(pattern, x).group(1)),
+            int(re.match(pattern, x).group(2)),
+        ),
+    )
+
+    # Load files into the corr array
+    final_tforms = np.load(
+        iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
+    )
+    nchannels = len(final_tforms["angles_within_channels"])
+    individual_shape = np.load(os.path.join(corr_dir, filtered_sorted_files[0])).shape
+    corr_array = np.zeros((nchannels, ops[f"{prefix}" + "s"], *individual_shape))
+    for file in filtered_sorted_files:
+        match = re.match(pattern, file)
+        x, y = int(match.group(1)), int(match.group(2))
+        if y != ops["ref_round"]:
+            corr_array[x, y] = np.load(os.path.join(corr_dir, file))
+
+    # Filter and sort files
+    max_shift = ops["rounds_max_shift"]
+    rows, cols = nchannels, ops[f"{prefix}" + "s"]
+    max_coords = np.zeros((rows, cols, 2), dtype=int)
+    fig, axes = plt.subplots(rows, cols, figsize=(2.5 * cols, 10))
+
+    # Set column labels
+    for j in range(cols):
+        axes[0, j].set_title(f"Round {j}", size="large")
+
+    for i in range(rows):
+        for j in range(cols):
+            ax = axes[i, j]
+            ax.imshow(
+                corr_array[
+                    i,
+                    j,
+                    int((corr_array.shape[2] / 2) - max_shift) : int(
+                        (corr_array.shape[2] / 2) + max_shift
+                    ),
+                    int((corr_array.shape[3] / 2) - max_shift) : int(
+                        (corr_array.shape[3] / 2) + max_shift
+                    ),
+                ],
+                vmax=np.percentile(corr_array, 99.999),
+            )
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+            # Draw horizontal and vertical lines intersecting at the center
+            ax.axhline(
+                y=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2
+            )
+            ax.axvline(
+                x=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2
+            )
+            # Draw circle at the center
+            center_circle = patches.Circle(
+                (max_shift, max_shift),
+                radius=100,
+                edgecolor="black",
+                facecolor="none",
+                linewidth=2,
+                alpha=0.3,
+            )
+            ax.add_patch(center_circle)
+            # Draw a hollow circle around the selected final transform
+            circle = patches.Circle(
+                (
+                    max_shift + final_tforms["shifts_within_channels"][i, j, 1],
+                    max_shift + final_tforms["shifts_within_channels"][i, j, 0],
+                ),
+                radius=120,
+                edgecolor="white",
+                facecolor="none",
+                linewidth=2,
+            )
+            ax.add_patch(circle)
+            # Also draw a red dot in the center of the circle
+            ax.scatter(
+                max_shift + final_tforms["shifts_within_channels"][i, j, 1],
+                max_shift + final_tforms["shifts_within_channels"][i, j, 0],
+                color="red",
+                s=0.5,
+                alpha=0.2,
+            )
+            # Set row labels
+            ax.set_xlabel(
+                f"X = {final_tforms['shifts_within_channels'][i, j, 0]}  "
+                f"Y = {final_tforms['shifts_within_channels'][i, j, 1]}",
+                size="large",
+            )
+            if j == 0:
+                ax.set_ylabel(f"Channel {i}", rotation=90, size="large", labelpad=15)
+    plt.tight_layout()
+    plt.savefig(
+        iss.io.get_processed_path(data_path)
+        / "figures"
+        / prefix
+        / "ref_tile"
+        / "shifts_within_channels_corr.png",
+        dpi=2000,
+        transparent=True,
+    )
