@@ -87,7 +87,7 @@ def register_within_acquisition(
     prefix,
     ref_roi=None,
     ref_ch=0,
-    suffix="fstack",
+    suffix="max",
     reload=True,
     save_plot=False,
     dimension_prefix="genes_round_1_1",
@@ -155,7 +155,7 @@ def register_within_acquisition(
 
 
 def register_adjacent_tiles(
-    data_path, ref_coors=None, ref_ch=0, suffix="fstack", prefix="genes_round_1_1"
+    data_path, ref_coors=None, ref_ch=0, suffix="max", prefix="genes_round_1_1"
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -183,11 +183,12 @@ def register_adjacent_tiles(
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
-    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + 1)
+    down_offset = 1 if ops["y_tile_direction"] == "bottom_to_top" else -1
+    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + down_offset)
     tile_down = load_tile_by_coors(
         data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
     )
-    right_offset = 1 if ops["tile_direction"] == "left_to_right" else -1
+    right_offset = 1 if ops["x_tile_direction"] == "left_to_right" else -1
     right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
     tile_right = load_tile_by_coors(
         data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
@@ -196,8 +197,7 @@ def register_adjacent_tiles(
     xpix = tile_ref.shape[1]
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
-
-    if ops["reg_median_filter"] is not None:
+    if ops["reg_median_filter"]:
         msize = ops["reg_median_filter"]
         print(f"Filtering with median filter of size {msize}")
         assert isinstance(msize, int), "reg_median_filter must be an integer"
@@ -216,7 +216,7 @@ def register_adjacent_tiles(
             f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is fine."
         )
     shift_right += [0, xpix - reg_pix_x]
-    if ops["tile_direction"] != "left_to_right":
+    if ops["x_tile_direction"] != "left_to_right":
         shift_right = -shift_right
     shift_down, _, _ = phase_cross_correlation(
         tile_ref[:reg_pix_y, :, ref_ch],
@@ -229,6 +229,8 @@ def register_adjacent_tiles(
             f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is fine."
         )
     shift_down -= [ypix - reg_pix_y, 0]
+    if ops["y_tile_direction"] != "bottom_to_top":
+        shift_down = -shift_down
 
     return shift_right, shift_down, (ypix, xpix)
 
@@ -302,7 +304,7 @@ def stitch_tiles(
     data_path,
     prefix,
     roi=1,
-    suffix="fstack",
+    suffix="max",
     ich=0,
     correct_illumination=False,
     shifts_prefix=None,
@@ -365,7 +367,7 @@ def stitch_tiles(
             data_path,
             ref_coors=ops["ref_tile"],
             ref_ch=ops["ref_ch"],
-            suffix="fstack",
+            suffix="max",
             prefix=prefix,
         )
     tile_shape = shifts["tile_shape"]
@@ -521,6 +523,8 @@ def stitch_and_register(
     The reference stack always use the "projection" from ops as suffix. The target uses
     the same by default but that can be specified with `target_suffix`
 
+    This does not use ops['max_shift_rounds'].
+
     Args:
         data_path (str): Relative path to data.
         reference_prefix (str): Acquisition prefix to register the stitched image to.
@@ -590,6 +594,7 @@ def stitch_and_register(
 
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
+            data_path,
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
             niter=3,
@@ -601,6 +606,7 @@ def stitch_and_register(
         )
     else:
         angle, shift = estimate_rotation_translation(
+            data_path,
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
             angle_range=1.0,

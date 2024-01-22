@@ -37,16 +37,21 @@ registration:
   corrected_shifts: best
   # Mininum tile shift above which RANSAC fit is used to estimate the shift
   ransac_residual_threshold: 10
-  # Maximum shift for inititial registration across rounds
+  # Minimum shift for registration of one channel across rounds
+  rounds_min_shift: 2
+  # Maximum shift for registration across rounds and across channels
   rounds_max_shift: 500
   # Maximum shift for tiles to be included in the RANSAC fit
   ransac_max_shift: 500
   # Minumum number of tile for RANSAC fit, otherwise median is used
   ransac_min_tiles: 10
-  # Wheter tile position increments from left to right or right to left
-  tile_direction: left_to_right
-  # Whether to use a median filter on images before registration, if None no filter is applied
-  reg_median_filter: 5
+  # Whether tile position increments from left to right or right to left
+  x_tile_direction: left_to_right
+  # Whether tile position increments from bottom to top or top to bottom
+  y_tile_direction: bottom_to_top
+  #Whether to use a median filter on images before registration across rounds
+  # if None no filter is applied
+  reg_median_filter: 2
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating
 # bleedthrough matrices, calling hybridisation spots and basecalling barcodes
@@ -55,7 +60,7 @@ spot_extraction_radius: 2
 # Parameters for detecting and calling gene spots
 genes:
   # Filename of the codebook with GIIs
-  codebook: codebook_83gene_pool.csv
+  codebook: codebook_88_20230216.csv
   # Projection to use for gene spots, "fstack" or "max"
   genes_projection: max 
   # How to apply brightness correction for gene sequencing. Can be True, False, or "round1_only". In the

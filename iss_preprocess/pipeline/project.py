@@ -129,10 +129,8 @@ def project_tile(fname, ops, overwrite=False, sth=13):
     save_path_max = iss.io.get_processed_path(fname + "_max.tif")
     save_path_median = iss.io.get_processed_path(fname + "_median.tif")
     if not overwrite and (
-        save_path_fstack.exists() or 
-        save_path_max.exists() or 
-        save_path_median.exists()
-        ):
+        save_path_fstack.exists() or save_path_max.exists() or save_path_median.exists()
+    ):
         print(f"{fname} already projected...\n")
         return
     print(f"loading {fname}\n")
