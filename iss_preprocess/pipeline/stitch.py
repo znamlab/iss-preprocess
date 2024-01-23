@@ -4,8 +4,8 @@ import warnings
 import pandas as pd
 import warnings
 from pathlib import Path
-from skimage.registration import phase_cross_correlation
 from scipy.ndimage import median_filter
+from skimage.registration import phase_cross_correlation
 
 import iss_preprocess as iss
 from . import pipeline
@@ -193,17 +193,18 @@ def register_adjacent_tiles(
     tile_right = load_tile_by_coors(
         data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
     )
+    if ops["reg_median_filter"]:
+        msize = ops["reg_median_filter"]
+        assert isinstance(msize, int), "reg_median_filter must be an integer"
+        tile_ref = median_filter(tile_ref, msize, axes=(0, 1))
+        tile_down = median_filter(tile_down, msize, axes=(0, 1))
+        tile_right = median_filter(tile_right, msize, axes=(0, 1))
+
+
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
-    if ops["reg_median_filter"]:
-        msize = ops["reg_median_filter"]
-        print(f"Filtering with median filter of size {msize}")
-        assert isinstance(msize, int), "reg_median_filter must be an integer"
-        tile_ref = median_filter(tile_ref, size=msize)
-        tile_down = median_filter(tile_down, size=msize)
-        tile_right = median_filter(tile_right, size=msize)
 
     shift_right, _, _ = phase_cross_correlation(
         tile_ref[:, -reg_pix_x:, ref_ch],
