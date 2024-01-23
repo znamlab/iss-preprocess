@@ -509,12 +509,20 @@ def register_tile_to_ref(
     if ref_channels is not None:
         ref_all_channels = ref_all_channels[:, :, ref_channels]
     ref = np.nanmean(ref_all_channels, axis=(2, 3))
-    ref = ref > np.quantile(ref, binarise_quantile)
 
     if reg_channels is not None:
+        if isinstance(reg_channels, int):
+            reg_channels = [reg_channels]
         reg_all_channels = reg_all_channels[:, :, reg_channels]
     reg = np.nanmean(reg_all_channels, axis=(2, 3))
-    reg = reg > np.quantile(reg, binarise_quantile)
+
+    if ops["reg_median_filter"]:
+        ref = median_filter(ref, size=ops["reg_median_filter"], axes=(0, 1))
+        reg = median_filter(reg, size=ops["reg_median_filter"], axes=(0, 1))
+
+    if binarise_quantile is not None:
+        reg = reg > np.quantile(reg, binarise_quantile)
+        ref = ref > np.quantile(ref, binarise_quantile)
 
     angles, shifts = estimate_rotation_translation(
         data_path,

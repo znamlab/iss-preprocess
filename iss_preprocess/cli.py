@@ -375,13 +375,22 @@ def segment_all(path, prefix, use_gpu=False):
 @click.option("-r", "--roi", default=None, help="ROI number. None for all.")
 @click.option("-x", "--tilex", default=None, help="Tile X position. None for all.")
 @click.option("-y", "--tiley", default=None, help="Tile Y position. None for all.")
-def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
+@click.option(
+    "-c",
+    "--reg_channels",
+    default=None,
+    help="Channels to register (comma separated string of integer).",
+    type=str,
+)
+def register_to_reference(
+    path, reg_prefix, ref_prefix, roi, tilex, tiley, reg_channels
+):
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
 
-        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
+        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels}"
         batch_process_tiles(
             path, "register_tile_to_ref", additional_args=additional_args
         )
@@ -389,11 +398,15 @@ def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
         from iss_preprocess.pipeline import register
 
+        if reg_channels is not None:
+            reg_channels = [int(x) for x in reg_channels.split(",")]
+
         register.register_tile_to_ref(
             data_path=path,
             tile_coors=(roi, tilex, tiley),
             reg_prefix=reg_prefix,
             ref_prefix=ref_prefix,
+            reg_channels=reg_channels,
         )
 
 
