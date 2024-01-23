@@ -79,7 +79,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
         stack = load_tile_by_coors(
             data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
         )
-        bad_pixels = np.zeros(stack.shape, dtype=bool)
+        bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
         stack = apply_illumination_correction(data_path, stack, prefix)
 
     stack[bad_pixels] = 0
