@@ -129,9 +129,20 @@ def register_within_acquisition(
 
     ntiles = ndim[ndim[:, 0] == ref_roi][0][1:]
     output = np.zeros((ntiles[0], ntiles[1], 4))
+
     # skip the first x position in case tile direction is right to left
-    for tilex in range(1, ntiles[0]):
-        for tiley in range(ntiles[1]):
+    if ops["x_tile_direction"] == "right_to_left":
+        rangex = range(1, ntiles[0] + 1)
+    else:
+        rangex = range(ntiles[0])
+    # skip the first y position in case tile direction is top to bottom
+    if ops["y_tile_direction"] == "top_to_bottom":
+        rangey = range(1, ntiles[1] + 1)
+    else:
+        rangey = range(ntiles[1])
+
+    for tilex in rangex:
+        for tiley in rangey:
             shift_right, shift_down, tile_shape = register_adjacent_tiles(
                 data_path,
                 ref_coors=(ref_roi, tilex, tiley),
