@@ -6,7 +6,7 @@ import multiprocessing
 from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
-from . import phase_corr, make_transform, transform_image
+from . import phase_corr, make_transform, transform_image, masked_phase_corr
 from ..io import get_processed_path
 
 
@@ -702,6 +702,9 @@ def estimate_rotation_angle(
     min_shift=None,
     debug=False,
     prefix="",
+    reference_mask_fft=None,
+    target_mask=None,
+    reference_squared_fft=None,
 ):
     """
     Estimate rotation angle that maximizes phase correlation between the target and the
@@ -718,6 +721,13 @@ def estimate_rotation_angle(
         min_shift (int): minimum shift to avoid spurious cross-correlations
         debug (bool): whether to save diagnostic plots
         prefix (str): prefix for saving diagnostic plots
+        reference_mask_fft (numpy.ndarray): Binary mask for reference image. If not None,
+            will compute masked phase correlation. Default: None
+        target_mask (numpy.ndarray): Binary mask for target image. If not None,
+            will compute masked phase correlation. Default: None
+        reference_squared_fft (numpy.ndarray): FFT of the squared reference image. Required
+            for masked phase correlation. Default: None
+
 
     Returns:
         best_angle (float) in degrees
@@ -730,13 +740,25 @@ def estimate_rotation_angle(
     if debug:
         all_cc = np.empty((nangles, *reference_fft.shape), dtype=np.float64)
     for iangle in range(nangles):
-        shifts[iangle, :], cc = phase_corr(
-            reference_fft,
-            transform_image(target, angle=angles[iangle]),
-            fft_ref=False,
-            min_shift=min_shift,
-            max_shift=max_shift,
-        )
+        if reference_mask_fft is None:
+            shifts[iangle, :], cc = phase_corr(
+                reference_fft,
+                transform_image(target, angle=angles[iangle]),
+                fft_ref=False,
+                min_shift=min_shift,
+                max_shift=max_shift,
+            )
+        else:
+            shifts[iangle, :], cc = masked_phase_corr(
+                reference_fft,
+                transform_image(target, angle=angles[iangle]),
+                fft_ref=False,
+                reference_mask=reference_mask_fft,
+                target_mask=target_mask,
+                min_shift=min_shift,
+                max_shift=max_shift,
+                reference_squared_fft=reference_squared_fft,
+            )
         max_cc[iangle] = np.max(cc)
         if debug:
             all_cc[iangle] = cc
@@ -762,6 +784,8 @@ def estimate_rotation_translation(
     angle_range=5.0,
     niter=3,
     nangles=20,
+    reference_mask=None,
+    target_mask=None,
     upsample=None,
     min_shift=None,
     max_shift=None,
@@ -783,6 +807,10 @@ def estimate_rotation_translation(
         angle_range (float): initial range of angles in degrees to search over
         niter (int): number of iterations to refine rotation angle
         nangles (int): number of angles to try on each iteration
+        reference_mask (numpy.ndarray): Binary mask for reference image. Only used
+            if upsample is not None. Default: None
+        target_mask (numpy.ndarray): Binary mask for target image. Only used if upsample
+            is not None. Default: None
         upsample (bool, or int): whether to upsample the image, and if so by what factor
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
@@ -804,6 +832,12 @@ def estimate_rotation_translation(
         save_path.mkdir(parents=True, exist_ok=True)
     best_angle = 0
     reference_fft = scipy.fft.fft2(reference)
+    if reference_mask is not None:
+        fixed_squared_fft = scipy.fft.fft2(np.square(reference))
+        reference_mask_fft = scipy.fft.fft2(reference_mask)
+    else:
+        fixed_squared_fft = None
+        reference_mask_fft = None
     for i in range(niter):
         best_angle, max_cc = estimate_rotation_angle(
             data_path,
@@ -816,6 +850,9 @@ def estimate_rotation_translation(
             max_shift=max_shift,
             debug=diag,
             prefix=prefix,
+            reference_mask_fft=reference_mask_fft,
+            reference_squared_fft=fixed_squared_fft,
+            target_mask=target_mask,
         )
         angle_range = angle_range / iter_range_factor
         if diag:
@@ -826,12 +863,22 @@ def estimate_rotation_translation(
                 allow_pickle=True,
             )
     if not upsample:
-        shift, cc_phase_corr = phase_corr(
-            reference,
-            transform_image(target, angle=best_angle),
-            min_shift=min_shift,
-            max_shift=max_shift,
-        )
+        if reference_mask is None:
+            shift, cc_phase_corr = phase_corr(
+                reference,
+                transform_image(target, angle=best_angle),
+                min_shift=min_shift,
+                max_shift=max_shift,
+            )
+        else:
+            shift, cc_phase_corr = masked_phase_corr(
+                reference,
+                transform_image(target, angle=best_angle),
+                min_shift=min_shift,
+                max_shift=max_shift,
+                reference_mask=reference_mask,
+                target_mask=target_mask,
+            )
         if diag:
             np.save(
                 save_path
@@ -844,5 +891,7 @@ def estimate_rotation_translation(
             reference,
             transform_image(target, angle=best_angle),
             upsample_factor=upsample,
+            reference_mask=reference_mask,
+            target_mask=target_mask,
         )[0]
     return best_angle, shift
