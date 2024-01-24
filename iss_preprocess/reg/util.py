@@ -117,28 +117,57 @@ def masked_phase_corr(
     min_shift: int=None,
     fft_ref: bool=True,
     reference_mask_fft: np.ndarray = None,
+    reference_squared_fft: np.ndarray = None,
     overlap_ratio: float = 0.3,
 ) -> np.ndarray:
     """
     Compute phase correlation of two images.
 
-    masks must be boolean arrays of the same shape as the images.
-    all images must be the same shape.
+    Target and reference must have the same shape.
+    Masks must be boolean arrays of the same shape as the images.
+    
+    Args:
+        reference (numpy.ndarray): reference image
+        target (numpy.ndarray): target image
+        reference_mask (numpy.ndarray): reference mask
+        target_mask (numpy.ndarray): target mask
+        max_shift (int): the range over which to search for the maximum of the
+            cross-correlogram
+        min_shift (int): the range over which to search for the minimum of the
+            cross-correlogram
+        fft_ref (bool): whether to compute the FFT transform of the reference and 
+            the reference mask
+        reference_mask_fft (numpy.ndarray): FFT of the reference mask. (required if
+            fft_ref is False)
+        reference_squared_fft (numpy.ndarray): FFT of the squared reference image (required 
+            if fft_ref is False)
+        overlap_ratio (float): Minimal ratio of the overlap between the two masks to
+            consider the cross-correlation at a given location.
 
+    Returns:
+        shift: numpy.array of the location of the peak of the cross-correlogram
+        cc: numpy.ndarray of the cross-correlagram itself.
     """
 
-    float_dtype = reference.dtype
+    float_dtype = target.dtype
+    if not np.issubdtype(float_dtype, np.floating):
+        # we probably have a boolean array. Use float32 for the FFTs.
+        float_dtype = np.float32
+
     eps = np.finfo(float_dtype).eps
 
     if fft_ref:
         reference[np.logical_not(reference_mask)] = 0.0
-        fixed_fft = scipy.fft.fft2(reference)
-    
-    if reference_mask_fft is None:
-        fixed_mask_fft = scipy.fft.fft2(reference_mask.astype(float_dtype))
+        reference_fft = scipy.fft.fft2(reference)
+        reference_squared_fft = scipy.fft.fft2(np.square(reference))
+        reference_mask_fft = scipy.fft.fft2(reference_mask.astype(float_dtype))
+        del reference, reference_mask
     else:
-        fixed_mask_fft = reference_mask_fft
-
+        reference_fft = reference
+        reference_mask_fft = reference_mask
+        assert reference_squared_fft is not None, "fixed_squared_fft must be provided if fft_ref is False"
+        del reference_mask, reference
+        
     # all computation are made on the rotated image
     rotated_moving_image = target[::-1, ::-1]
     rotated_moving_mask = target_mask[::-1, ::-1]
@@ -150,25 +179,24 @@ def masked_phase_corr(
 
     # Calculate overlap of masks at every point in the convolution.
     # Locations with high overlap should not be taken into account.
-    number_overlap_masked_px = scipy.fft.ifft2(rotated_moving_mask_fft * fixed_mask_fft).real
+    number_overlap_masked_px = scipy.fft.ifft2(rotated_moving_mask_fft * reference_mask_fft).real
     number_overlap_masked_px[:] = np.round(number_overlap_masked_px)
     number_overlap_masked_px[:] = np.fmax(number_overlap_masked_px, eps)
-    masked_correlated_fixed_fft = scipy.fft.ifft2(rotated_moving_mask_fft * fixed_fft).real
+    masked_correlated_fixed_fft = scipy.fft.ifft2(rotated_moving_mask_fft * reference_fft).real
     masked_correlated_rotated_moving_fft = scipy.fft.ifft2(
-        fixed_mask_fft * rotated_moving_fft).real
+        reference_mask_fft * rotated_moving_fft).real
     
-    numerator = scipy.fft.ifft2(rotated_moving_fft * fixed_fft).real
+    numerator = scipy.fft.ifft2(rotated_moving_fft * reference_fft).real
     numerator -= masked_correlated_fixed_fft * \
         masked_correlated_rotated_moving_fft / number_overlap_masked_px
 
-    fixed_squared_fft = scipy.fft.fft2(np.square(reference))
-    fixed_denom = scipy.fft.ifft2(rotated_moving_mask_fft * fixed_squared_fft).real
+    fixed_denom = scipy.fft.ifft2(rotated_moving_mask_fft * reference_squared_fft).real
     fixed_denom -= np.square(masked_correlated_fixed_fft) / \
         number_overlap_masked_px
     fixed_denom[:] = np.fmax(fixed_denom, 0.0)
 
     rotated_moving_squared_fft = scipy.fft.fft2(np.square(rotated_moving_image))
-    moving_denom = scipy.fft.ifft2(fixed_mask_fft * rotated_moving_squared_fft).real
+    moving_denom = scipy.fft.ifft2(reference_mask_fft * rotated_moving_squared_fft).real
     moving_denom -= np.square(masked_correlated_rotated_moving_fft) / \
         number_overlap_masked_px
     moving_denom[:] = np.fmax(moving_denom, 0.0)
@@ -200,7 +228,7 @@ def masked_phase_corr(
     cc = scipy.fft.fftshift(cc)
 
     shift = (
-        np.unravel_index(np.argmax(cc), reference.shape) - np.array(reference.shape) / 2
+        np.unravel_index(np.argmax(cc), target.shape) - np.array(target.shape) / 2
     )
 
     return shift, cc
