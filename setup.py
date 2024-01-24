@@ -25,6 +25,7 @@ setup(
         "natsort",
         "seaborn",
         "decorator",
+        "scipy>=1.11.0",
     ],
     entry_points="""
         [console_scripts]

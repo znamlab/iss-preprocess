@@ -4,12 +4,13 @@ import warnings
 import pandas as pd
 import warnings
 from pathlib import Path
-from skimage.registration import phase_cross_correlation
 from scipy.ndimage import median_filter
+from skimage.registration import phase_cross_correlation
 
 import iss_preprocess as iss
 from . import pipeline
 from .. import vis
+from ..image.correction import apply_illumination_correction
 from ..io import load_tile_by_coors, load_stack, load_ops, get_roi_dimensions
 from .register import align_spots
 from ..reg import (
@@ -88,6 +89,7 @@ def register_within_acquisition(
     ref_roi=None,
     ref_ch=0,
     suffix="max",
+    correct_illumination=False,
     reload=True,
     save_plot=False,
     dimension_prefix="genes_round_1_1",
@@ -102,9 +104,9 @@ def register_within_acquisition(
         ref_roi (int, optional): ROI to use for registration. If `None` use
             `ops['ref_tile'][0]`. Defaults to None.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
-        ref_round (int, optional): reference round used for registration. Defaults to 0.
-        nrounds (int, optional): Number of rounds to load. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'proj'.
+        correct_illumination (bool, optional): Remove black levels and correct illumination
+            before registration if True, return raw data otherwise. Default to False
         reload (bool, optional): If target file already exists, reload instead of
             recomputing. Defaults to True
         save_plot (bool, optional): If True save diagnostic plot. Defaults to False
@@ -129,15 +131,27 @@ def register_within_acquisition(
 
     ntiles = ndim[ndim[:, 0] == ref_roi][0][1:]
     output = np.zeros((ntiles[0], ntiles[1], 4))
+
     # skip the first x position in case tile direction is right to left
-    for tilex in range(1, ntiles[0]):
-        for tiley in range(ntiles[1]):
+    if ops["x_tile_direction"] == "right_to_left":
+        rangex = range(1, ntiles[0] + 1)
+    else:
+        rangex = range(ntiles[0])
+    # skip the first y position in case tile direction is top to bottom
+    if ops["y_tile_direction"] == "top_to_bottom":
+        rangey = range(1, ntiles[1] + 1)
+    else:
+        rangey = range(ntiles[1])
+
+    for tilex in rangex:
+        for tiley in rangey:
             shift_right, shift_down, tile_shape = register_adjacent_tiles(
                 data_path,
                 ref_coors=(ref_roi, tilex, tiley),
                 ref_ch=ref_ch,
                 suffix=suffix,
                 prefix=prefix,
+                correct_illumination=correct_illumination,
             )
             output[tilex, tiley] = np.hstack([shift_right, shift_down])
     shifts = np.nanmedian(output, axis=(0, 1))
@@ -155,7 +169,12 @@ def register_within_acquisition(
 
 
 def register_adjacent_tiles(
-    data_path, ref_coors=None, ref_ch=0, suffix="max", prefix="genes_round_1_1"
+    data_path,
+    ref_coors=None,
+    ref_ch=0,
+    suffix="max",
+    prefix="genes_round_1_1",
+    correct_illumination=False,
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -170,6 +189,9 @@ def register_adjacent_tiles(
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         suffix (str, optional): File name suffix. Defaults to 'proj'.
         prefix (str, optional): Full name of the acquisition folder
+        correct_illumination (bool, optional): Remove black levels and correct illumination
+            before registration if True, return raw data otherwise. Default to False
+
 
     Returns:
         numpy.array: `shift_right`, X and Y shifts between different columns
@@ -193,17 +215,22 @@ def register_adjacent_tiles(
     tile_right = load_tile_by_coors(
         data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
     )
+    if correct_illumination:
+        tile_ref = apply_illumination_correction(data_path, tile_ref, prefix)
+        tile_down = apply_illumination_correction(data_path, tile_down, prefix)
+        tile_right = apply_illumination_correction(data_path, tile_right, prefix)
+
+    if ops["reg_median_filter"]:
+        msize = ops["reg_median_filter"]
+        assert isinstance(msize, int), "reg_median_filter must be an integer"
+        tile_ref = median_filter(tile_ref, msize, axes=(0, 1))
+        tile_down = median_filter(tile_down, msize, axes=(0, 1))
+        tile_right = median_filter(tile_right, msize, axes=(0, 1))
+
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
-    if ops["reg_median_filter"]:
-        msize = ops["reg_median_filter"]
-        print(f"Filtering with median filter of size {msize}")
-        assert isinstance(msize, int), "reg_median_filter must be an integer"
-        tile_ref = median_filter(tile_ref, size=msize)
-        tile_down = median_filter(tile_down, size=msize)
-        tile_right = median_filter(tile_right, size=msize)
 
     shift_right, _, _ = phase_cross_correlation(
         tile_ref[:, -reg_pix_x:, ref_ch],

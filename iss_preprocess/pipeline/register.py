@@ -509,12 +509,20 @@ def register_tile_to_ref(
     if ref_channels is not None:
         ref_all_channels = ref_all_channels[:, :, ref_channels]
     ref = np.nanmean(ref_all_channels, axis=(2, 3))
-    ref = ref > np.quantile(ref, binarise_quantile)
 
     if reg_channels is not None:
+        if isinstance(reg_channels, int):
+            reg_channels = [reg_channels]
         reg_all_channels = reg_all_channels[:, :, reg_channels]
     reg = np.nanmean(reg_all_channels, axis=(2, 3))
-    reg = reg > np.quantile(reg, binarise_quantile)
+
+    if ops["reg_median_filter"]:
+        ref = median_filter(ref, size=ops["reg_median_filter"], axes=(0, 1))
+        reg = median_filter(reg, size=ops["reg_median_filter"], axes=(0, 1))
+
+    if binarise_quantile is not None:
+        reg = reg > np.quantile(reg, binarise_quantile)
+        ref = ref > np.quantile(ref, binarise_quantile)
 
     angles, shifts = estimate_rotation_translation(
         data_path,
@@ -569,7 +577,7 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
     )
     # always get tile shape for genes_round_1_1
     tile_shape = np.load(
-        processed_path / data_path / "reg" / f"{ref_prefix}_shifts.npz"
+        processed_path / "reg" / f"{ref_prefix}_shifts.npz"
     )["tile_shape"]
     spots_tform = make_transform(
         tform2ref["scales"][0][0],
