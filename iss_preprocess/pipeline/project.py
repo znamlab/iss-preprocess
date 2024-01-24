@@ -1,7 +1,9 @@
 import numpy as np
 import multiprocessing as mp
 import shutil
+import shlex
 import iss_preprocess as iss
+import subprocess
 from warnings import warn
 from functools import partial
 from pathlib import Path
@@ -9,7 +11,9 @@ from ..image import fstack_channels
 from ..io import get_tile_ome, write_stack, get_roi_dimensions, load_ops
 from .pipeline import batch_process_tiles
 from ..decorators import updates_flexilims
+from znamutils import slurm_it
 
+@slurm_it(conda_env="iss-preprocess")
 def check_projection(data_path, prefix, suffixes=("max", "fstack")):
     """Check if all tiles have been projected successfully.
 
@@ -46,11 +50,63 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
                 fname = f"{prefix}_MMStack_{roi[0]}-Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}"
                 for suffix in suffixes:
                     proj_path = processed_path / prefix / f"{fname}_{suffix}.tif"
+                    not_projected = []
                     if not proj_path.exists():
                         print(f"{proj_path} missing!")
                         all_projected = False
+                        not_projected.append(fname)
+
     if all_projected:
         print(f"all tiles projected for {prefix}!")
+    else:
+       np.savetxt(
+           processed_path / prefix / "missing_tiles.txt",
+           not_projected,
+           fmt="%s",
+           )
+
+@slurm_it(conda_env="iss-preprocess")
+def reproject_failed(
+    data_path,
+):
+    """Re-project tiles that failed to project previously."""
+    processed_path = iss.io.get_processed_path(data_path)
+    missing_tiles = []
+    for prefix in processed_path.iterdir():
+        if not prefix.is_dir():
+            continue
+        for fname in (prefix / "missing_tiles.txt").read_text().split("\n"):
+            if len(fname) == 0:
+                continue
+            missing_tiles.append(fname)
+    job_ids = []
+    for fname in missing_tiles:
+        for tile in missing_tiles:
+            prefix = tile.split("_MMStack")[0]
+            roi = int(tile.split("_MMStack")[1].split("-")[0])
+            ix = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[0])
+            iy = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[1])
+            args = (
+            f"--export=DATAPATH={data_path},PREFIX={prefix},"
+            f"ROI={roi},TILEX={ix},TILEY={iy},OVERWRITE=--overwrite"
+            )
+            log_fname = f"iss_reproject_{roi[0]}_{ix}_{iy}_%j"
+            args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
+            script_path = Path(__file__).parent / "project_tile.sh"
+            command = f"sbatch --parsable {args} {script_path}"
+            print(command)
+            process = subprocess.Popen(
+                shlex.split(command),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            stdout, _ = process.communicate()
+            job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
+            job_ids.append(job_id)
+    if len(missing_tiles) == 0:
+        print("No failed tiles to re-project!")
+    else:
+        return job_ids
 
 @updates_flexilims(name_source="prefix")
 def project_round(data_path, prefix, overwrite=False):

@@ -51,18 +51,17 @@ def project_and_average(data_path, force_redo=False):
         elif kind in ("fluorescence", "hybridisation"):
             data_by_kind[kind] = list(metadata[kind].keys())
 
-    # Check for expected folders in raw_data and compute acquisition_complete flags
+    # Check for expected folders in raw_data and check acquisition types for completion
     raw_path = iss.io.get_raw_path(data_path)
     to_process = []
     print(f"Checking for expected folders in {raw_path}", flush=True)
     for kind in todo:
         for folder in data_by_kind[kind]:
-            if not force_redo:
-                if not (raw_path / folder).exists():
-                    print(f"{folder} not found in raw, skipping", flush=True)
-                    acquisition_complete[kind] = False
-                    continue
-            to_process.append(folder)
+            if not (raw_path / folder).exists():
+                print(f"{folder} not found in raw, skipping", flush=True)
+                acquisition_complete[kind] = False
+                continue
+        to_process.append(folder)
             
     # Run projection on unprojected data
     pr_job_ids = []
@@ -70,11 +69,13 @@ def project_and_average(data_path, force_redo=False):
     flm_sess = flz.get_flexilims_session(project_id=proj)
     print(f'to_process: {to_process}')
     for prefix in to_process:
-        flm_dataset = flz.get_entity(name="_".join([mouse, chamber, f'project_round_{prefix}']),
-                                    flexilims_session=flm_sess)
-        if flm_dataset is not None:
-            print(f'{prefix} is already projected, continuing', flush=True)
-            continue
+        if not force_redo:
+            # Skip if already projected
+            flm_dataset = flz.get_entity(name="_".join([mouse, chamber, f'project_round_{prefix}']),
+                                        flexilims_session=flm_sess)
+            if flm_dataset is not None:
+                print(f'{prefix} is already projected, continuing', flush=True)
+                continue
         tileproj_job_ids, _ = iss.pipeline.project_round(data_path, prefix)
         pr_job_ids.extend(tileproj_job_ids)
 
@@ -82,19 +83,27 @@ def project_and_average(data_path, force_redo=False):
     #       This would need to take pr_job_ids and output more job_ids for csa to wait for
 
     # Something like this
-    #for prefix in to_process:
-    #    all_projected, failed_tiles = iss.pipeline.check_projection(data_path, prefix)
-    #    if not all_projected:
-    #        print(f"{prefix} is missing projected tiles, re-projecting {failed_tiles}")
-    #        for tile in failed_tiles:
-    #            iss.pipeline.project_tile(tile)
+    for prefix in to_process:
+        check_proj_job_ids = iss.pipeline.check_projection(
+            data_path,
+            prefix,
+            use_slurm=True,
+            slurm_folder=f"{Path.home()}/slurm_logs",
+            scripts_name=f"check_projection_{folder}",
+            job_dependency=','.join(pr_job_ids)
+        )
 
-    # Then create averages of projections
-    # TODO: Set csa to_do based on which data is present but not projected
-    
+    # Then run iss.pipeline.reproject_failed() which opens txt files from check projection
+    # and reprojects failed tiles, collecting job_ids for each tile 
+    reproj_job_ids = iss.pipeline.reproject_failed(data_path,
+                                                    dependency=check_proj_job_ids)
+    reproj_job_ids = reproj_job_ids if reproj_job_ids else []
+
+    # Then create averages of projections    
     csa_job_ids = iss.pipeline.create_all_single_averages(data_path,
                                                     n_batch=1,
-                                                    dependency=pr_job_ids)
+                                                    to_average=to_process,
+                                                    dependency=reproj_job_ids)
 
     # Create grand averages if all rounds are projected
     if acquisition_complete["genes_rounds"] or acquisition_complete["barcode_rounds"]:
@@ -341,6 +350,7 @@ def create_all_single_averages(
     data_path,
     n_batch,
     todo=("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"),
+    to_average=None,
     dependency=None,
 ):
     """Average all tiffs in each folder and then all folders by acquisition type
@@ -355,19 +365,20 @@ def create_all_single_averages(
     ops = iss.io.load_ops(data_path)
     metadata = iss.io.load_metadata(data_path)
     # Collect all folder names
-    to_average = []
-    for kind in todo:
-        if kind.endswith("rounds"):
-            folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
-            to_average.extend(folders)
-        elif kind in ("fluorescence", "hybridisation"):
-            if kind in metadata.keys():
-                to_average.extend(list(metadata[kind].keys()))
-        else:
-            raise IOError(
-                f"Unknown type of acquisition: {kind}.\n"
-                + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
-            )
+    if to_average is None:
+        to_average = []
+        for kind in todo:
+            if kind.endswith("rounds"):
+                folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
+                to_average.extend(folders)
+            elif kind in ("fluorescence", "hybridisation"):
+                if kind in metadata.keys():
+                    to_average.extend(list(metadata[kind].keys()))
+            else:
+                raise IOError(
+                    f"Unknown type of acquisition: {kind}.\n"
+                    + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
+                )
       
     job_ids = []
     for folder in to_average:
