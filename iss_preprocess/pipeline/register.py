@@ -29,8 +29,12 @@ def register_reference_tile(data_path, prefix="genes_round"):
         data_path (str): Relative path to data.
         prefix (str, optional): Directory prefix to register.
             Defaults to "genes_round".
+        diag (bool, optional): Whether to save diagnostic plots.
 
     """
+    if diag:
+        diag_plot_dir = iss.io.get_processed_path(data_path) / "figures" / "ref_tile"
+        diag_plot_dir.mkdir(parents=True, exist_ok=True)
     ops = load_ops(data_path)
     nrounds = ops[prefix + "s"]
     projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
@@ -52,7 +56,15 @@ def register_reference_tile(data_path, prefix="genes_round"):
         angles_between_channels,
         shifts_between_channels,
     ) = register_channels_and_rounds(
-        stack, ref_ch=ops["ref_ch"], ref_round=ops["ref_round"], max_shift=ops["rounds_max_shift"]
+        data_path,
+        stack,
+        ref_ch=ops["ref_ch"],
+        ref_round=ops["ref_round"],
+        median_filter=ops["reg_median_filter"],
+        max_shift=ops["rounds_max_shift"],
+        min_shift=ops["rounds_min_shift"],
+        diag=diag,
+        prefix=prefix,
     )
     save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
     np.savez(
@@ -70,7 +82,7 @@ def estimate_shifts_and_angles_by_coors(
     data_path,
     tile_coors=(0, 0, 0),
     prefix="hybridisation_1_1",
-    suffix="fstack",
+    suffix="max",
     reference_prefix="barcode_round",
 ):
     """Estimate shifts and rotations angles for hybridisation images.
@@ -82,6 +94,9 @@ def estimate_shifts_and_angles_by_coors(
         prefix (str, optional): Prefix of the hybridisation round. Defaults to "hybridisation_1_1".
         reference_prefix (str, optional): Prefix to use for loading precomputed
             scale factors between channels. Defaults to "barcode_round".
+        suffix (str, optional): Filename suffix specifying which z-projection to use.
+            Defaults to "max".
+        reference_prefix (str, optional): Prefix of the reference round. Defaults to "barcode_round".
 
     """
     processed_path = iss.io.get_processed_path(data_path)
@@ -92,7 +107,11 @@ def estimate_shifts_and_angles_by_coors(
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
     angles, shifts = estimate_shifts_and_angles_for_tile(
-        stack, reference_tforms["scales_between_channels"], ref_ch=ops["ref_ch"],
+        data_path,
+        stack,
+        reference_tforms["scales_between_channels"],
+        ref_ch=ops["ref_ch"],
+        max_shift=ops["rounds_max_shift"],
     )
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -107,7 +126,7 @@ def estimate_shifts_and_angles_by_coors(
 
 
 def estimate_shifts_by_coors(
-    data_path, tile_coors=(0, 0, 0), prefix="genes_round", suffix="fstack"
+    data_path, tile_coors=(0, 0, 0), prefix="genes_round", suffix="max"
 ):
     """Estimate shifts across channels and sequencing rounds using provided reference
     rotation angles and scale factors.
@@ -123,6 +142,8 @@ def estimate_shifts_by_coors(
     """
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
+
+    median_filter_size = ops["reg_median_filter"]
     nrounds = ops[prefix + "s"]
     tforms_path = processed_path / f"tforms_{prefix}.npz"
     stack = load_sequencing_rounds(
@@ -135,7 +156,10 @@ def estimate_shifts_by_coors(
         reference_tforms["scales_between_channels"],
         reference_tforms["angles_between_channels"],
         ref_ch=ops["ref_ch"],
-        ref_round=0,
+        ref_round=ops["ref_round"],
+        max_shift=ops["rounds_max_shift"],
+        min_shift=ops["rounds_min_shift"],
+        median_filter_size=median_filter_size,
     )
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -449,7 +473,6 @@ def register_tile_to_ref(
     reg_prefix,
     ref_prefix="genes_round",
     binarise_quantile=0.7,
-    max_shift=None,
     ref_tile_coors=None,
     reg_channels=None,
     ref_channels=None,
@@ -463,8 +486,6 @@ def register_tile_to_ref(
         ref_prefix (str, optional): Reference prefix. Defaults to "genes_round".
         binarise_quantile (float, optional): Quantile to binarise images before
         registration. Defaults to 0.7.
-        max_shift (int, optional): Maximum shift allowed. None for no max. Defaults to
-            None
         ref_tile_coors (tuple, optional): Tile coordinates of the reference tile.
             Usually not needed as it is assumed to be the same as the tile to register.
             Defaults to None.
@@ -482,7 +503,7 @@ def register_tile_to_ref(
         ref_tile_coors = tile_coors
     else:
         print(f"Register to {ref_tile_coors}", flush=True)
-
+    ops = load_ops(data_path)
     ref_all_channels, _ = pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=ref_tile_coors,
@@ -496,15 +517,29 @@ def register_tile_to_ref(
     if ref_channels is not None:
         ref_all_channels = ref_all_channels[:, :, ref_channels]
     ref = np.nanmean(ref_all_channels, axis=(2, 3))
-    ref = ref > np.quantile(ref, binarise_quantile)
 
     if reg_channels is not None:
+        if isinstance(reg_channels, int):
+            reg_channels = [reg_channels]
         reg_all_channels = reg_all_channels[:, :, reg_channels]
     reg = np.nanmean(reg_all_channels, axis=(2, 3))
-    reg = reg > np.quantile(reg, binarise_quantile)
+
+    if ops["reg_median_filter"]:
+        ref = median_filter(ref, size=ops["reg_median_filter"], axes=(0, 1))
+        reg = median_filter(reg, size=ops["reg_median_filter"], axes=(0, 1))
+
+    if binarise_quantile is not None:
+        reg = reg > np.quantile(reg, binarise_quantile)
+        ref = ref > np.quantile(ref, binarise_quantile)
 
     angles, shifts = estimate_rotation_translation(
-        ref, reg, angle_range=1.0, niter=3, nangles=15, min_shift=2, max_shift=max_shift
+        data_path,
+        ref,
+        reg,
+        angle_range=1.0,
+        niter=3,
+        nangles=15,
+        max_shift=ops["rounds_max_shift"],
     )
     print(f"Angle: {angles}, Shifts: {shifts}")
     processed_path = iss.io.get_processed_path(data_path)

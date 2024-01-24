@@ -125,13 +125,15 @@ def check_projection(path, prefix):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
-    "-n",
-    "--prefix",
-    help="Path prefix, e.g. 'genes_round'",
-    prompt="Enter path prefix",
+    "--diag",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Save diagnostic cross correlogram plots",
 )
-def register_ref_tile(path, prefix):
+def register_ref_tile(path, prefix, diag=True):
     """Run registration across channels and rounds for the reference tile."""
     from pathlib import Path
     from iss_preprocess.pipeline import register_reference_tile
@@ -139,7 +141,7 @@ def register_ref_tile(path, prefix):
 
     slurm_folder = f"{Path.home()}/slurm_logs"
     job_id = register_reference_tile(
-        path, prefix=prefix, use_slurm=True, slurm_folder=str(slurm_folder)
+        path, prefix=prefix, diag=diag, use_slurm=True, slurm_folder=str(slurm_folder)
     )
     check_ref_tile_registration(
         path,
@@ -152,11 +154,16 @@ def register_ref_tile(path, prefix):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def setup_omp(path):
+@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from iss_preprocess.pipeline import setup_omp
+    from pathlib import Path
 
-    setup_omp(path)
+    slurm_folder = Path.home() / "slurm_logs"
+    setup_omp(
+        path, use_slurm=use_slurm, slurm_folder=slurm_folder, scripts_name="setup_omp"
+    )
 
 
 @cli.command()
@@ -185,10 +192,8 @@ def setup_hybridisation(path):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
-)
-def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+def register_tile(path, prefix, roi, tilex, tiley, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_by_coors
 
@@ -206,10 +211,8 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="fstack", nrounds=7):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
-)
-def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
     from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
 
@@ -220,12 +223,12 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="fstack"):
 
 
 @cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
+    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
 )
-def estimate_shifts(path, prefix, suffix="fstack"):
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+def estimate_shifts(path, prefix, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
@@ -236,10 +239,8 @@ def estimate_shifts(path, prefix, suffix="fstack"):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
-@click.option(
-    "-s", "--suffix", default="fstack", help="Projection suffix, e.g. 'fstack'"
-)
-def estimate_hyb_shifts(path, prefix=None, suffix="fstack"):
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+def estimate_hyb_shifts(path, prefix=None, suffix="max"):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
     from iss_preprocess.io import load_metadata
@@ -386,13 +387,22 @@ def segment_all(path, prefix, use_gpu=False):
 @click.option("-r", "--roi", default=None, help="ROI number. None for all.")
 @click.option("-x", "--tilex", default=None, help="Tile X position. None for all.")
 @click.option("-y", "--tiley", default=None, help="Tile Y position. None for all.")
-def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
+@click.option(
+    "-c",
+    "--reg_channels",
+    default=None,
+    help="Channels to register (comma separated string of integer).",
+    type=str,
+)
+def register_to_reference(
+    path, reg_prefix, ref_prefix, roi, tilex, tiley, reg_channels
+):
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
 
-        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
+        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels}"
         batch_process_tiles(
             path, "register_tile_to_ref", additional_args=additional_args
         )
@@ -400,11 +410,15 @@ def register_to_reference(path, reg_prefix, ref_prefix, roi, tilex, tiley):
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
         from iss_preprocess.pipeline import register
 
+        if reg_channels is not None:
+            reg_channels = [int(x) for x in reg_channels.split(",")]
+
         register.register_tile_to_ref(
             data_path=path,
             tile_coors=(roi, tilex, tiley),
             reg_prefix=reg_prefix,
             ref_prefix=ref_prefix,
+            reg_channels=reg_channels,
         )
 
 
@@ -712,3 +726,18 @@ def plot_overview(
         save_raw=save_raw,
         group_channels=not separate_channels,
     )
+
+
+@cli.command()
+@click.option(
+    "--path", "-p", prompt="Enter data path", help="Data path.", required=True
+)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
+def plot_registration_correlograms(
+    path,
+    prefix,
+):
+    """Plot registration correlograms."""
+    from iss_preprocess.vis import plot_registration_correlograms
+
+    plot_registration_correlograms(data_path=path, prefix=prefix)

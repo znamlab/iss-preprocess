@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
-from matplotlib.ticker import AutoMinorLocator, FixedLocator
+from matplotlib.ticker import FixedLocator
 from scipy.cluster import hierarchy
 from skimage.measure import block_reduce
 import iss_preprocess as iss
@@ -15,7 +15,7 @@ from iss_preprocess.io import get_processed_path, load_micromanager_metadata
 
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
     """
-    Plot the cluster means and the spot colors.
+    Plot the cluster means and spot colors for each channel.
 
     Args:
         cluster_means: list of nch x nclusters cluster means.
@@ -29,6 +29,16 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
     nclusters, nch = cluster_means[0].shape
     nrounds = len(cluster_means)
 
+    # Initialize min and max values for each channel
+    global_min = np.full(nch, np.inf)
+    global_max = np.full(nch, -np.inf)
+
+    # Find global min and max values across all rounds
+    for iround in range(nrounds):
+        for ich in range(nch):
+            global_min[ich] = min(global_min[ich], np.min(spot_colors[iround, ich, :]))
+            global_max[ich] = max(global_max[ich], np.max(spot_colors[iround, ich, :]))
+
     figs = []
     for iround in range(nrounds):
         df = pd.DataFrame(
@@ -38,6 +48,15 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         g = sns.PairGrid(df, hue="cluster", palette="tab10")
         g.map_diag(sns.histplot, bins=20)
         g.map_offdiag(sns.scatterplot, size=1, alpha=0.25, edgecolor=None)
+        # Set the same number of ticks for each channel
+        for ax in g.axes.flatten():
+            ax.locator_params(axis="both", nbins=4)
+        # Set the same axis limits for each channel
+        for ich in range(nch):
+            for jch in range(nch):
+                if ich != jch:
+                    g.axes[ich, jch].set_xlim(global_min[jch], global_max[jch])
+                    g.axes[ich, jch].set_ylim(global_min[ich], global_max[ich])
         g.add_legend()
         g.figure.set_label(f"clusters_round_{iround}")
         g.figure.set_facecolor("w")
@@ -52,6 +71,7 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         plt.xlabel("rounds")
         plt.ylabel("channels")
         plt.title(f"Cluster {icluster+1}")
+        plt.locator_params(axis="both", nbins=4)
     plt.tight_layout()
     figs.append(fig)
 

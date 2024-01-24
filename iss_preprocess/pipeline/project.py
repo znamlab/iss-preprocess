@@ -113,10 +113,11 @@ def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     """
     fname = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
     tile_path = str(Path(data_path) / prefix / fname)
-    project_tile(tile_path, overwrite=overwrite)
+    ops = load_ops(data_path)
+    project_tile(tile_path, ops, overwrite=overwrite)
 
 
-def project_tile(fname, overwrite=False, sth=13):
+def project_tile(fname, ops, overwrite=False, sth=13):
     """Calculates extended depth of field and max intensity projections for a single tile.
 
     Args:
@@ -126,7 +127,10 @@ def project_tile(fname, overwrite=False, sth=13):
     """
     save_path_fstack = iss.io.get_processed_path(fname + "_fstack.tif")
     save_path_max = iss.io.get_processed_path(fname + "_max.tif")
-    if not overwrite and (save_path_fstack.exists() or save_path_max.exists()):
+    save_path_median = iss.io.get_processed_path(fname + "_median.tif")
+    if not overwrite and (
+        save_path_fstack.exists() or save_path_max.exists() or save_path_median.exists()
+    ):
         print(f"{fname} already projected...\n")
         return
     print(f"loading {fname}\n")
@@ -135,11 +139,19 @@ def project_tile(fname, overwrite=False, sth=13):
         iss.io.get_raw_path(fname + "_metadata.txt"),
     )
     print("computing projection\n")
-    im_fstack = fstack_channels(im, sth=sth)
-    im_max = np.max(im, axis=3)
     iss.io.get_processed_path(fname).parent.mkdir(parents=True, exist_ok=True)
-    write_stack(im_fstack, save_path_fstack, bigtiff=True)
-    write_stack(im_max, save_path_max, bigtiff=True)
+    if ops["make_fstack"]:
+        print("making fstack projection\n")
+        im_fstack = fstack_channels(im, sth=sth)
+        write_stack(im_fstack, save_path_fstack, bigtiff=True)
+    if ops["make_median"]:
+        print("making median projection\n")
+        im_median = np.median(im, axis=3)
+        write_stack(im_median, save_path_median, bigtiff=True)
+    if ops["make_max"]:
+        print("making max projection\n")
+        im_max = np.max(im, axis=3)
+        write_stack(im_max, save_path_max, bigtiff=True)
 
 
 def project_tile_row(data_path, prefix, tile_roi, tile_row, max_col, overwrite=False):

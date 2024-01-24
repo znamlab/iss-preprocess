@@ -113,7 +113,7 @@ def load_ops(data_path):
         metadata = {
             "camera_order": [1, 3, 4, 2],
             "genes_rounds": 7,
-            "barcode_rounds": 12,
+            "barcode_rounds": 10,
         }
         warnings.warn(f"Metadata file not found, using {metadata}.")
     ops.update(
@@ -213,7 +213,7 @@ def load_section_position(data_path):
 
 
 def load_tile_by_coors(
-    data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
+    data_path, tile_coors=(1, 0, 0), suffix="max", prefix="genes_round_1_1"
 ):
     """Load processed tile images
 
@@ -230,11 +230,24 @@ def load_tile_by_coors(
 
     """
     tile_roi, tile_x, tile_y = tile_coors
-    fname = (
-        f"{prefix}_MMStack_{tile_roi}-"
-        + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
-    )
-    return load_stack(get_processed_path(data_path) / prefix / fname)
+    if suffix != "max-median":
+        fname = (
+            f"{prefix}_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
+        )
+        stack = load_stack(get_processed_path(data_path) / prefix / fname)
+    else:
+        fname = (
+            f"{prefix}_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_max.tif"
+        )
+        stack = load_stack(get_processed_path(data_path) / prefix / fname)
+        fname = (
+            f"{prefix}_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_median.tif"
+        )
+        stack -= load_stack(get_processed_path(data_path) / prefix / fname)
+    return stack
 
 
 # TODO: add shape check? What if pages are not 2D (rgb, weird tiffs)
@@ -268,33 +281,40 @@ def get_tile_ome(fname, fmetadata):
 
     """
     stack = TiffFile(fname)
-
     with open(fmetadata) as json_file:
         metadata = json.load(json_file)
     frame_keys = list(metadata.keys())[1:]
-
-    zs = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
-    zs = sorted(list(set(zs)))
+    # Create channel and Z position arrays based on metadata
     channels = [int(metadata[frame_key]["Camera"][-1]) for frame_key in frame_keys]
     channels = sorted(list(set(channels)))
     nch = len(channels)
-    nz = len(zs)
+    # Determine Z positions
+    if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
+        zs = [metadata[frame_key]["ImageNumber"] for frame_key in frame_keys]
+    else:
+        zs = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
+    unique_zs = sorted(list(set(zs)))
+    nz = len(unique_zs)
     xpix = stack.pages[0].tags["ImageWidth"].value
     ypix = stack.pages[0].tags["ImageLength"].value
     im = np.zeros((ypix, xpix, nch, nz))
-
     for page, frame_key in zip(stack.pages, frame_keys):
-        z = zs.index(metadata[frame_key]["ZPositionUm"])
-        ch = int(
-            metadata[frame_key]["Camera"][-1]
-        )  # channel id is the last digit of camera name
-        im[:, :, ch, z] = page.asarray()
+        ch_id = int(metadata[frame_key]["Camera"][-1])  # Actual channel ID
+        if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
+            z = unique_zs.index(metadata[frame_key]["ImageNumber"])
+        else:
+            z = unique_zs.index(metadata[frame_key]["ZPositionUm"])
+
+        im[:, :, channels.index(ch_id), z] = page.asarray()
 
     return im
 
 
 def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
     """Find imaging ROIs and determine their dimensions.
+
+    The output is the maximum index of the file names, which are 0 based. It is therefore
+    the number of tiles in each dimension minus 1.
 
     Create and/or load f"{prefix}_roi_dims.npy". The default ("genes_round_1_1") should
     be used for all acquisitions that have the same ROI dimensions (everything except
@@ -326,9 +346,7 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
         ops = load_ops(data_path)
         data_dir = processed_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
-        pattern = (
-            rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['projection']}.tif"
-        )
+        pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['genes_projection']}.tif"
     else:
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
     matcher = re.compile(pattern=pattern)

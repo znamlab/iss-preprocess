@@ -79,7 +79,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
         stack = load_tile_by_coors(
             data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
         )
-        bad_pixels = np.zeros(stack.shape, dtype=bool)
+        bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
         stack = apply_illumination_correction(data_path, stack, prefix)
 
     stack[bad_pixels] = 0
@@ -211,7 +211,7 @@ def create_single_average(
         n_batch=n_batch,
         max_value=ops["average_clip_value"],
         verbose=True,
-        median_filter=ops["average_median_filter"],
+        median_filter_size=ops["average_median_filter"],
         normalise=True,
         suffix=suffix,
         combine_tilestats=combine_tilestats,
