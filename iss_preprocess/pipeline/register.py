@@ -468,6 +468,7 @@ def register_tile_to_ref(
     ref_tile_coors=None,
     reg_channels=None,
     ref_channels=None,
+    use_masked_correlation=False,
 ):
     """Register a single tile to the corresponding reference tile
 
@@ -485,6 +486,8 @@ def register_tile_to_ref(
             will use all channels. Defaults to None
         ref_channels (list, optional): Channels to use for registration. If None will
             use all channels. Defaults to None
+        use_masked_correlation (bool, optional): Use masked correlation to register.
+            Defaults to False.
 
     Returns:
         angle (float): Rotation angle
@@ -496,13 +499,13 @@ def register_tile_to_ref(
     else:
         print(f"Register to {ref_tile_coors}", flush=True)
     ops = load_ops(data_path)
-    ref_all_channels, _ = pipeline.load_and_register_tile(
+    ref_all_channels, ref_bad_pixels = pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=ref_tile_coors,
         prefix=ref_prefix,
         filter_r=False,
     )
-    reg_all_channels, _ = pipeline.load_and_register_tile(
+    reg_all_channels, reg_bad_pixels = pipeline.load_and_register_tile(
         data_path=data_path, tile_coors=tile_coors, prefix=reg_prefix, filter_r=False
     )
 
@@ -532,6 +535,8 @@ def register_tile_to_ref(
         niter=3,
         nangles=15,
         max_shift=ops["rounds_max_shift"],
+        reference_mask=~ref_bad_pixels if use_masked_correlation else None,
+        target_mask=~reg_bad_pixels if use_masked_correlation else None,
     )
     print(f"Angle: {angles}, Shifts: {shifts}")
     processed_path = iss.io.get_processed_path(data_path)
