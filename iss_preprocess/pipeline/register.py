@@ -501,6 +501,12 @@ def register_tile_to_ref(
         ref_tile_coors = tile_coors
     else:
         print(f"Register to {ref_tile_coors}", flush=True)
+
+    print("Parameters: ")
+    print(f"reg_channels: {reg_channels}")
+    print(f"ref_channels: {ref_channels}")
+    print(f"binarise_quantile: {binarise_quantile}", flush=True)
+
     ops = load_ops(data_path)
     ref_all_channels, ref_bad_pixels = pipeline.load_and_register_tile(
         data_path=data_path,
