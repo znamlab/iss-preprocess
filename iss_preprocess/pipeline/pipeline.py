@@ -69,7 +69,7 @@ def project_and_average(data_path, force_redo=False):
                 print(f"{folder} not found in raw, skipping", flush=True)
                 acquisition_complete[kind] = False
                 continue
-        to_process.append(folder)
+            to_process.append(folder)
 
     # Run projection on unprojected data
     pr_job_ids = []
