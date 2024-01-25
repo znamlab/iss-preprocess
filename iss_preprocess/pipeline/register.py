@@ -17,7 +17,7 @@ from ..io import load_tile_by_coors, load_metadata, load_ops, get_roi_dimensions
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
-def register_reference_tile(data_path, prefix="genes_round"):
+def register_reference_tile(data_path, prefix="genes_round", diag=False):
     """Estimate round and channel registration parameters for
     the specified tile, include shifts and rotations between rounds
     and shifts, rotations, and scaling between channels.
@@ -41,13 +41,6 @@ def register_reference_tile(data_path, prefix="genes_round"):
     stack = load_sequencing_rounds(
         data_path, ops["ref_tile"], prefix=prefix, suffix=projection, nrounds=nrounds
     )
-    if ops["reg_median_filter"]:
-        msize = ops["reg_median_filter"]
-        print(f"Filtering with median filter of size {msize}")
-        assert isinstance(msize, int), "reg_median_filter must be an integer"
-        for ch in range(stack.shape[2]):
-            for r in range(stack.shape[3]):
-                stack[:, :, ch, r] = median_filter(stack[:, :, ch, r], size=msize)
 
     (
         angles_within_channels,
