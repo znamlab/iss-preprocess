@@ -5,6 +5,7 @@ import click
 def cli():
     pass
 
+
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
@@ -13,13 +14,15 @@ def cli():
     is_flag=True,
     show_default=True,
     default=False,
-    help="Force redoing all steps.")
-
+    help="Force redoing all steps.",
+)
 def project_and_average(path, force_redo=False):
     """Project and average all available data then create plots."""
     from iss_preprocess.pipeline import project_and_average
+
     click.echo(f"Processing {path}")
     project_and_average(path, force_redo=force_redo)
+
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
@@ -120,12 +123,19 @@ def project_row(path, prefix, roi=1, x=0, max_col=0, overwrite=False):
     default=False,
     help="Whether to overwrite tiles if already projected.",
 )
-def project_round(path, prefix, overwrite=False):
+@click.option(
+    "--overview",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Whether to create overview images after projection.",
+)
+def project_round(path, prefix, overwrite=False, overview=True):
     """Calculate Z-projection for all tiles in a single sequencing round."""
     from iss_preprocess.pipeline import project_round
 
     click.echo(f"Projecting ROI {prefix} from {path}")
-    project_round(path, prefix, overwrite=overwrite)
+    project_round(path, prefix, overwrite=overwrite, overview=overview)
 
 
 @cli.command()
@@ -639,6 +649,7 @@ def setup_flexilims(path):
     from iss_preprocess.pipeline import setup_flexilims
 
     setup_flexilims(path)
+
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")

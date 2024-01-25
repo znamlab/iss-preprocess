@@ -13,14 +13,15 @@ from .pipeline import batch_process_tiles
 from ..decorators import updates_flexilims
 from znamutils import slurm_it
 
+
 @slurm_it(conda_env="iss-preprocess")
 def check_projection(data_path, prefix, suffixes=("max", "fstack")):
     """Check if all tiles have been projected successfully.
 
     Args:
-        data_path (str): Relative path to data.
-        prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
-        suffixes (tuple, optional): Projection suffixes to check for.
+            data_path (str): Relative path to data.
+            prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
+            suffixes (tuple, optional): Projection suffixes to check for.
             Defaults to ("max", "fstack").
 
     """
@@ -52,64 +53,74 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
                     proj_path = processed_path / prefix / f"{fname}_{suffix}.tif"
                     not_projected = []
                     if not proj_path.exists():
-                        print(f"{proj_path} missing!")
+                        print(f"{proj_path} missing!", flush=True)
                         all_projected = False
                         not_projected.append(fname)
 
     if all_projected:
-        print(f"all tiles projected for {prefix}!")
+        print(f"all tiles projected for {prefix}!", flush=True)
     else:
-       np.savetxt(
-           processed_path / prefix / "missing_tiles.txt",
-           not_projected,
-           fmt="%s",
-           )
+        np.savetxt(
+            processed_path / prefix / "missing_tiles.txt",
+            not_projected,
+            fmt="%s",
+            delimiter="\n",
+        )
+
 
 @slurm_it(conda_env="iss-preprocess")
 def reproject_failed(
     data_path,
 ):
-    """Re-project tiles that failed to project previously."""
+    """Re-project tiles that failed to project previously.
+
+    Args:
+        data_path (str): Relative path to data.
+
+    Returns:
+        job_ids (str): String of SLURM job IDs separated by commas.
+
+    """
     processed_path = iss.io.get_processed_path(data_path)
     missing_tiles = []
     for prefix in processed_path.iterdir():
-        if not prefix.is_dir():
-            continue
-        for fname in (prefix / "missing_tiles.txt").read_text().split("\n"):
-            if len(fname) == 0:
-                continue
+        for fname in (
+            (processed_path / prefix / "missing_tiles.txt").read_text().split("\n")
+        ):
             missing_tiles.append(fname)
+
     job_ids = []
-    for fname in missing_tiles:
-        for tile in missing_tiles:
-            prefix = tile.split("_MMStack")[0]
-            roi = int(tile.split("_MMStack")[1].split("-")[0])
-            ix = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[0])
-            iy = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[1])
-            args = (
+    for tile in missing_tiles:
+        prefix = tile.split("_MMStack")[0]
+        roi = int(tile.split("_MMStack_")[1].split("-")[0])
+        ix = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[0])
+        iy = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[1])
+        print(f"Reprojecting {prefix} {roi}_{ix}_{iy}!", flush=True)
+        args = (
             f"--export=DATAPATH={data_path},PREFIX={prefix},"
             f"ROI={roi},TILEX={ix},TILEY={iy},OVERWRITE=--overwrite"
-            )
-            log_fname = f"iss_reproject_{roi[0]}_{ix}_{iy}_%j"
-            args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
-            script_path = Path(__file__).parent / "project_tile.sh"
-            command = f"sbatch --parsable {args} {script_path}"
-            print(command)
-            process = subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            stdout, _ = process.communicate()
-            job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
-            job_ids.append(job_id)
+        )
+        log_fname = f"iss_reproject_{roi}_{ix}_{iy}_%j"
+        args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
+        script_path = Path(__file__).parent / "project_tile.sh"
+        command = f"sbatch --parsable {args} {script_path}"
+        print(command)
+        process = subprocess.Popen(
+            shlex.split(command),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, _ = process.communicate()
+        job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
+        job_ids.append(job_id)
     if len(missing_tiles) == 0:
-        print("No failed tiles to re-project!")
+        print("No failed tiles to re-project!", flush=True)
     else:
         return job_ids
 
+
 @updates_flexilims(name_source="prefix")
-def project_round(data_path, prefix, overwrite=False):
+def project_round(data_path, prefix, overwrite=False, overview=True):
     """Start SLURM jobs to z-project all tiles from a single imaging round.
     Also, copy one of the MicroManager metadata files from raw to processed directory.
 
@@ -152,12 +163,20 @@ def project_round(data_path, prefix, overwrite=False):
     metadata_fname = f"{prefix}_MMStack_{roi_dims[0][0]}-Pos000_000_metadata.txt"
     if not (target_path / metadata_fname).exists():
         shutil.copy(
-            raw_path / prefix / metadata_fname, target_path / metadata_fname,
+            raw_path / prefix / metadata_fname,
+            target_path / metadata_fname,
         )
- 
-    overview_job_ids = iss.vis.plot_overview_images(data_path, prefix, dependency=','.join(tileproj_job_ids))
-    
+    if overview:
+        overview_job_ids = iss.vis.plot_overview_images(
+            data_path=data_path,
+            prefix=prefix,
+            dependency=",".join(tileproj_job_ids),
+        )
+    else:
+        overview_job_ids = []
+
     return tileproj_job_ids, overview_job_ids
+
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     """Project a single tile by its coordinates.
