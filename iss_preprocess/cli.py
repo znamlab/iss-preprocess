@@ -16,13 +16,20 @@ def cli():
     default=False,
     help="Force redoing all steps.",
 )
+@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
 def project_and_average(path, force_redo=False):
     """Project and average all available data then create plots."""
     from iss_preprocess.pipeline import project_and_average
-
+    from pathlib import Path
+    slurm_folder = Path.home() / "slurm_logs"
     click.echo(f"Processing {path}")
-    project_and_average(path, force_redo=force_redo)
-
+    project_and_average(
+        path,
+        force_redo=force_redo,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        scripts_name="project_and_average",
+    )
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")

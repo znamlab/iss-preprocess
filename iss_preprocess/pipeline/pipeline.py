@@ -19,7 +19,7 @@ from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
 from .sequencing import load_and_register_sequencing_tile
 
-
+@slurm_it(conda_env="iss-preprocess")
 def project_and_average(data_path, force_redo=False):
     """Project and average all available data then create plots.
 
