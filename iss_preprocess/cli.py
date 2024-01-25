@@ -382,15 +382,32 @@ def segment_all(path, prefix, use_gpu=False):
     help="Channels to register (comma separated string of integer).",
     type=str,
 )
+@click.option(
+    "-m/",
+    "--use-masked-correlation/--no-use-masked-correlation",
+    default=False,
+    help="Whether to use masked correlation.",
+)
 def register_to_reference(
-    path, reg_prefix, ref_prefix, roi, tilex, tiley, reg_channels
+    path,
+    reg_prefix,
+    ref_prefix,
+    roi,
+    tilex,
+    tiley,
+    reg_channels,
+    use_masked_correlation,
 ):
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
 
-        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels}"
+        additional_args = (
+            f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},"
+            + f"REG_CHANNELS={reg_channels},"
+            + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
+        )
         batch_process_tiles(
             path, "register_tile_to_ref", additional_args=additional_args
         )
@@ -407,6 +424,7 @@ def register_to_reference(
             reg_prefix=reg_prefix,
             ref_prefix=ref_prefix,
             reg_channels=reg_channels,
+            use_masked_correlation=use_masked_correlation,
         )
 
 

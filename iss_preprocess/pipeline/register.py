@@ -494,6 +494,9 @@ def register_tile_to_ref(
         shifts (np.array): X and Y shifts
 
     """
+    print(f"Registering {reg_prefix} to {ref_prefix}", flush=True)
+    if use_masked_correlation:
+        print("Using masked correlation", flush=True)
     if ref_tile_coors is None:
         ref_tile_coors = tile_coors
     else:
