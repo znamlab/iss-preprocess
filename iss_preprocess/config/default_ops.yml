@@ -103,10 +103,11 @@ hybridisation:
   hybridisation_projection: max
   hybridisation_cluster_score_thresh: 0.0
 
-
 # Detection of mCherry+ cells
 mcherry:
   mcherry_projection: max
+  # Binarisation quantile for registration of mCherry to reference channel
+  mcherry_binarise_quantile: null
 
 # projection for other acquisitions
 dapi_projection: max

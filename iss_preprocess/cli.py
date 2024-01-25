@@ -399,6 +399,7 @@ def register_to_reference(
     use_masked_correlation,
 ):
     """Register an acquisition to reference tile by tile."""
+
     if any([x is None for x in [roi, tilex, tiley]]):
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
@@ -417,13 +418,21 @@ def register_to_reference(
 
         if reg_channels is not None:
             reg_channels = [int(x) for x in reg_channels.split(",")]
+        from iss_preprocess.io.load import load_ops
 
+        ops = load_ops(path)
+        ops_name = f"{reg_prefix.split('_')[0].lower()}_binarise_quantile"
+        if ops_name in ops:
+            binarise_quantile = ops[ops_name]
+        else:
+            binarise_quantile = 0.7
         register.register_tile_to_ref(
             data_path=path,
             tile_coors=(roi, tilex, tiley),
             reg_prefix=reg_prefix,
             ref_prefix=ref_prefix,
             reg_channels=reg_channels,
+            binarise_quantile=binarise_quantile,
             use_masked_correlation=use_masked_correlation,
         )
 
