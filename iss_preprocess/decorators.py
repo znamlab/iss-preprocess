@@ -37,11 +37,11 @@ def updates_flexilims(func, name_source=None, *args, **kwargs):
         if name_source is not None:
             # find the index of the args whose name is `name_source`
             arg_index = func.__code__.co_varnames.index(name_source)
-            func_name += f'_{args[arg_index]}'
+            func_name += f"_{args[arg_index]}"
         dataset_name = f"{parent_name}_{func_name}"
-        flm_attr = dict(ops) 
+        flm_attr = dict(ops)
         flm_attr.update(kwargs)
-        flm_attr['args'] = args
+        flm_attr["args"] = args
         flz.utils.clean_recursively(flm_attr)
         print("Adding dataset to flexilims")
         rep = flz.add_dataset(

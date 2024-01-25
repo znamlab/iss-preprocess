@@ -348,6 +348,7 @@ def animate_sequencing_rounds(
     plt.show()
     anim.save(savefname, writer=FFMpegWriter(fps=2))
 
+
 def plot_overview_images(
     data_path,
     prefix,
@@ -416,7 +417,7 @@ def plot_overview_images(
                     ny=roi_dim[2] + 1,
                     slurm_folder=f"{Path.home()}/slurm_logs",
                     scripts_name=f"plot_overview_{prefix}_{roi}_{ch}",
-                    job_dependency=','.join(dependency) if dependency else None,
+                    job_dependency=",".join(dependency) if dependency else None,
                 )
             )
     return job_ids
