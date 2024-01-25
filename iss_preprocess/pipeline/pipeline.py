@@ -19,23 +19,27 @@ from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
 from .sequencing import load_and_register_sequencing_tile
 
+
 def project_and_average(data_path, force_redo=False):
     """Project and average all available data then create plots.
-    
 
-    Load a tile of `prefix` with channels/rounds registered, apply illumination correction
-    and filtering.
+    Creates a list of expected acquisition folders from metadata
+    Checks for the existence of expected folders in the raw data
+    and determines the completion status of each acquisition type.
+    Runs projection on unprojected data and reprojects failed tiles.
+    Creates averages of projections and then plots overview images.
 
     Args:
-        data_path (str): Relative path to data
-        force_redo (bool): Redo all processing steps? Defaults to False
+        data_path (str): Relative path to data.
+        force_redo (bool, optional): Redo all processing steps? Defaults to False.
 
     Returns:
-        po_job_ids (list): A list of job IDs for the slurm jobs created
+        po_job_ids (list): A list of job IDs for the slurm jobs created.
     """
+
     processed_path = iss.io.get_processed_path(data_path)
     metadata = iss.io.load_metadata(data_path)
-    slurm_folder = processed_path / "slurm_scripts" 
+    slurm_folder = processed_path / "slurm_scripts"
     slurm_folder.mkdir(parents=True, exist_ok=True)
 
     # First, set up flexilims, adding chamber
@@ -47,9 +51,13 @@ def project_and_average(data_path, force_redo=False):
     acquisition_complete = {kind: True for kind in todo}
     for kind in todo:
         if kind.endswith("rounds"):
-            data_by_kind[kind] = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
+            data_by_kind[kind] = [
+                f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])
+            ]
         elif kind in ("fluorescence", "hybridisation"):
             data_by_kind[kind] = list(metadata[kind].keys())
+    print("Files expected:")
+    print(data_by_kind, flush=True)
 
     # Check for expected folders in raw_data and check acquisition types for completion
     raw_path = iss.io.get_raw_path(data_path)
@@ -62,21 +70,25 @@ def project_and_average(data_path, force_redo=False):
                 acquisition_complete[kind] = False
                 continue
         to_process.append(folder)
-            
+
     # Run projection on unprojected data
     pr_job_ids = []
     proj, mouse, chamber = data_path.split(os.sep)[:-1]
     flm_sess = flz.get_flexilims_session(project_id=proj)
-    print(f'to_process: {to_process}')
+    print(f"to_process: {to_process}")
     for prefix in to_process:
         if not force_redo:
             # Skip if already projected
-            flm_dataset = flz.get_entity(name="_".join([mouse, chamber, f'project_round_{prefix}']),
-                                        flexilims_session=flm_sess)
+            flm_dataset = flz.get_entity(
+                name="_".join([mouse, chamber, f"project_round_{prefix}"]),
+                flexilims_session=flm_sess,
+            )
             if flm_dataset is not None:
-                print(f'{prefix} is already projected, continuing', flush=True)
+                print(f"{prefix} is already projected, continuing", flush=True)
                 continue
-        tileproj_job_ids, _ = iss.pipeline.project_round(data_path, prefix)
+        tileproj_job_ids, _ = iss.pipeline.project_round(
+            data_path, prefix, overview=False
+        )
         pr_job_ids.extend(tileproj_job_ids)
 
     # TODO: Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
@@ -90,29 +102,32 @@ def project_and_average(data_path, force_redo=False):
             use_slurm=True,
             slurm_folder=f"{Path.home()}/slurm_logs",
             scripts_name=f"check_projection_{folder}",
-            job_dependency=','.join(pr_job_ids)
+            job_dependency=",".join(pr_job_ids),
         )
 
     # Then run iss.pipeline.reproject_failed() which opens txt files from check projection
-    # and reprojects failed tiles, collecting job_ids for each tile 
-    reproj_job_ids = iss.pipeline.reproject_failed(data_path,
-                                                    dependency=check_proj_job_ids)
+    # and reprojects failed tiles, collecting job_ids for each tile
+    reproj_job_ids = iss.pipeline.reproject_failed(
+        data_path, dependency=check_proj_job_ids
+    )
     reproj_job_ids = reproj_job_ids if reproj_job_ids else []
 
-    # Then create averages of projections    
-    csa_job_ids = iss.pipeline.create_all_single_averages(data_path,
-                                                    n_batch=1,
-                                                    to_average=to_process,
-                                                    dependency=reproj_job_ids)
+    # Then create averages of projections
+    csa_job_ids = iss.pipeline.create_all_single_averages(
+        data_path, n_batch=1, to_average=to_process, dependency=reproj_job_ids
+    )
 
     # Create grand averages if all rounds are projected
     if acquisition_complete["genes_rounds"] or acquisition_complete["barcode_rounds"]:
-        cga_job_ids = iss.pipeline.create_grand_averages(data_path,
-                                                        dependency=csa_job_ids)
+        cga_job_ids = iss.pipeline.create_grand_averages(
+            data_path, dependency=csa_job_ids
+        )
     else:
-        print("All rounds not yet projected, skipping grand average creation", flush=True)
+        print(
+            "All rounds not yet projected, skipping grand average creation", flush=True
+        )
         cga_job_ids = None
-    
+
     plot_job_ids = csa_job_ids if csa_job_ids else []
     if cga_job_ids:
         plot_job_ids.extend(cga_job_ids)
@@ -122,23 +137,26 @@ def project_and_average(data_path, force_redo=False):
 
     po_job_ids = []
     for prefix in to_process:
-        flm_dataset = flz.get_entity(name="_".join([mouse, chamber, f'plot_single_overview_{prefix}']),
-                                    flexilims_session=flm_sess)
+        flm_dataset = flz.get_entity(
+            name="_".join([mouse, chamber, f"plot_single_overview_{prefix}"]),
+            flexilims_session=flm_sess,
+        )
         if not force_redo:
             if flm_dataset is not None:
-                print(f'{prefix} is already plotted, continuing', flush=True)
+                print(f"{prefix} is already plotted, continuing", flush=True)
                 continue
         job_id = iss.vis.plot_overview_images(
-            data_path,
-            prefix,
+            data_path=data_path,
+            prefix=prefix,
             plot_grid=True,
             downsample_factor=25,
             save_raw=False,
             dependency=plot_job_ids,
         )
         po_job_ids.extend(job_id)
-    
+
     return po_job_ids
+
 
 def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     """Load one single tile
@@ -258,6 +276,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 job_ids.append(job_id)
 
     return job_ids
+
 
 @slurm_it(conda_env="iss-preprocess")
 def create_single_average(
@@ -379,7 +398,7 @@ def create_all_single_averages(
                     f"Unknown type of acquisition: {kind}.\n"
                     + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
                 )
-      
+
     job_ids = []
     for folder in to_average:
         data_folder = processed_path / folder
@@ -396,13 +415,13 @@ def create_all_single_averages(
                 data_path,
                 folder,
                 n_batch=n_batch,
-                subtract_black = True,
+                subtract_black=True,
                 prefix_filter=None,
                 suffix=projection,
                 use_slurm=True,
                 slurm_folder=f"{Path.home()}/slurm_logs",
                 scripts_name=f"create_single_average_{folder}",
-                job_dependency=','.join(dependency) if dependency else None
+                job_dependency=",".join(dependency) if dependency else None,
             )
         )
     return job_ids
@@ -412,9 +431,9 @@ def create_all_single_averages(
 def create_grand_averages(
     data_path,
     prefix_todo=("genes_round", "barcode_round"),
-    n_batch = 1,
+    n_batch=1,
     dependency=None,
-    ):
+):
     """Average single acquisition averages into grand average
 
     Args:
@@ -424,21 +443,21 @@ def create_grand_averages(
 
     """
     subfolder = "averages"
-    job_ids = []   
+    job_ids = []
     for kind in prefix_todo:
         job_ids.append(
             create_single_average(
                 data_path,
                 subfolder,
                 n_batch=n_batch,
-                subtract_black = False,
+                subtract_black=False,
                 prefix_filter=kind,
                 combine_tilestats=True,
                 suffix="_1_average",
                 use_slurm=True,
                 slurm_folder=f"{Path.home()}/slurm_logs",
                 scripts_name=f"create_grand_average_{kind}",
-                job_dependency=','.join(dependency) if dependency else None 
+                job_dependency=",".join(dependency) if dependency else None,
             )
         )
     return job_ids
@@ -563,6 +582,7 @@ def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
         iss.pipeline.setup_hyb_spot_calling(data_path)
         iss.pipeline.extract_hyb_spots_all(data_path)
 
+
 def setup_flexilims(path):
     data_path = Path(path)
     flm_session = flz.get_flexilims_session(project_id=data_path.parts[0])
@@ -572,6 +592,17 @@ def setup_flexilims(path):
     )
     if mouse is None:
         raise ValueError(f"Mouse {data_path.parts[1]} does not exist in flexilims")
+    else:
+        if "genealogy" or "path" not in mouse:
+            flz.update_entity(
+                datatype="mouse",
+                flexilims_session=flm_session,
+                id=mouse["id"],
+                mode="update",
+                attributes=dict(
+                    genealogy=[mouse["name"]], path="/".join(data_path.parts[:2])
+                ),
+            )
     parent_id = mouse["id"]
     for sample_name in data_path.parts[2:]:
         sample = flz.add_sample(
