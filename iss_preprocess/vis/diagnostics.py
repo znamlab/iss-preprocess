@@ -184,7 +184,7 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
     return fig
 
 
-def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
+def plot_ara_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     """Overlay reference image to ARA borders
 
     Args:
@@ -487,7 +487,7 @@ def plot_registration_correlograms(
         / prefix
         / "ref_tile"
         / "shifts_within_channels_corr.png",
-        dpi=2000,
+        dpi=300,
         transparent=True,
     )
 
