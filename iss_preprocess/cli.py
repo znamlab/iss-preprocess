@@ -127,10 +127,9 @@ def check_projection(path, prefix):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
-    "--diag",
-    is_flag=True,
+    "--diag/--no-diag",
     show_default=True,
-    default=True,
+    default=False,
     help="Save diagnostic cross correlogram plots",
 )
 def register_ref_tile(path, prefix, diag=True):

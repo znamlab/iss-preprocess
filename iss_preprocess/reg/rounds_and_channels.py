@@ -41,7 +41,7 @@ def register_channels_and_rounds(
     """
 
     # first register images across rounds within each channel
-    out = align_within_channels(
+    out_within = align_within_channels(
         stack,
         upsample=False,
         ref_round=ref_round,
@@ -51,43 +51,30 @@ def register_channels_and_rounds(
         debug=debug,
     )
     if debug:
-        angles_within_channels, shifts_within_channels, db_info = out
+        angles_within_channels, shifts_within_channels, db_info = out_within
         debug_info = {"align_within_channels": db_info}
     else:
-        angles_within_channels, shifts_within_channels = out
+        angles_within_channels, shifts_within_channels = out_within
     # use these to compute a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
-    out = estimate_correction(
-        std_stack,
-        ch_to_align=ref_ch,
-        upsample=5,
-        max_shift=max_shift,
-        debug=debug,
+    out_across = list(
+        estimate_correction(
+            std_stack,
+            ch_to_align=ref_ch,
+            upsample=5,
+            max_shift=max_shift,
+            debug=debug,
+        )
     )
     if debug:
-        (
-            scales_between_channels,
-            angles_between_channels,
-            shifts_between_channels,
-            db_info,
-        ) = out
-        debug_info["estimate_correction"] = db_info
-    else:
-        scales_between_channels,
-        angles_between_channels,
-        shifts_between_channels = out
-    out = [
-        angles_within_channels,
-        shifts_within_channels,
-        scales_between_channels,
-        angles_between_channels,
-        shifts_between_channels,
-    ]
+        debug_info["estimate_correction"] = out_across.pop(-1)
+    output = [angles_within_channels, shifts_within_channels] + out_across
+
     if debug:
-        out.append(debug_info)
-    return tuple(out)
+        output.append(debug_info)
+    return tuple(output)
 
 
 def generate_channel_round_transforms(

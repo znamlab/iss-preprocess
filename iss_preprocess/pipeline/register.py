@@ -592,9 +592,9 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
         / f"tforms_corrected_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
     )
     # always get tile shape for genes_round_1_1
-    tile_shape = np.load(
-        processed_path / "reg" / f"{ref_prefix}_shifts.npz"
-    )["tile_shape"]
+    tile_shape = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")[
+        "tile_shape"
+    ]
     spots_tform = make_transform(
         tform2ref["scales"][0][0],
         tform2ref["angles"][0][0],
