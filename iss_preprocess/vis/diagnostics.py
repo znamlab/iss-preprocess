@@ -379,116 +379,123 @@ def plot_matrix_difference(
 def plot_registration_correlograms(
     data_path,
     prefix,
+    figure_name,
+    debug_dict,
 ):
-    # Find correlogram files
+    target_folder = iss.io.get_processed_path(data_path) / "figures" / prefix
+    if not target_folder.exists():
+        target_folder.mkdir()
     ops = iss.io.load_ops(data_path)
-    corr_dir = iss.io.get_processed_path(data_path) / "figures" / prefix / "ref_tile"
-    all_files = os.listdir(corr_dir)
-    pattern = r"no_upsample_phase_corr_ref_ch_(\d)_round_(\d).npy"
-    filtered_sorted_files = sorted(
-        (file for file in all_files if re.match(pattern, file)),
-        key=lambda x: (
-            int(re.match(pattern, x).group(1)),
-            int(re.match(pattern, x).group(2)),
-        ),
-    )
+    mshift = ops["rounds_max_shift"]
+    for what, data in debug_dict.items():
+        if what == "align_within_channels":
+            _plot_within_channel_correlogram(data, target_folder, figure_name, mshift)
+        elif what == "estimate_correction":
+            _plot_across_channels_correlogram(data, target_folder, figure_name, mshift)
+        else:
+            raise NotImplementedError(f"Unknown what: {what}")
 
-    # Load files into the corr array
-    final_tforms = np.load(
-        iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
-    )
-    nchannels = len(final_tforms["angles_within_channels"])
-    individual_shape = np.load(os.path.join(corr_dir, filtered_sorted_files[0])).shape
-    corr_array = np.zeros((nchannels, ops[f"{prefix}" + "s"], *individual_shape))
-    for file in filtered_sorted_files:
-        match = re.match(pattern, file)
-        x, y = int(match.group(1)), int(match.group(2))
-        if y != ops["ref_round"]:
-            corr_array[x, y] = np.load(os.path.join(corr_dir, file))
 
-    # Filter and sort files
-    max_shift = ops["rounds_max_shift"]
-    rows, cols = nchannels, ops[f"{prefix}" + "s"]
-    max_coords = np.zeros((rows, cols, 2), dtype=int)
-    fig, axes = plt.subplots(rows, cols, figsize=(2.5 * cols, 10))
-
-    # Set column labels
-    for j in range(cols):
-        axes[0, j].set_title(f"Round {j}", size="large")
-
-    for i in range(rows):
-        for j in range(cols):
-            ax = axes[i, j]
-            ax.imshow(
-                corr_array[
-                    i,
-                    j,
-                    int((corr_array.shape[2] / 2) - max_shift) : int(
-                        (corr_array.shape[2] / 2) + max_shift
-                    ),
-                    int((corr_array.shape[3] / 2) - max_shift) : int(
-                        (corr_array.shape[3] / 2) + max_shift
-                    ),
-                ],
-                vmax=np.percentile(corr_array, 99.999),
-            )
-            ax.set_xticks([])
-            ax.set_yticks([])
-
-            # Draw horizontal and vertical lines intersecting at the center
-            ax.axhline(
-                y=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2
-            )
-            ax.axvline(
-                x=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2
-            )
-            # Draw circle at the center
-            center_circle = patches.Circle(
-                (max_shift, max_shift),
-                radius=100,
-                edgecolor="black",
-                facecolor="none",
-                linewidth=2,
-                alpha=0.3,
-            )
-            ax.add_patch(center_circle)
-            # Draw a hollow circle around the selected final transform
-            circle = patches.Circle(
-                (
-                    max_shift + final_tforms["shifts_within_channels"][i, j, 1],
-                    max_shift + final_tforms["shifts_within_channels"][i, j, 0],
-                ),
-                radius=120,
-                edgecolor="white",
-                facecolor="none",
-                linewidth=2,
-            )
-            ax.add_patch(circle)
-            # Also draw a red dot in the center of the circle
-            ax.scatter(
-                max_shift + final_tforms["shifts_within_channels"][i, j, 1],
-                max_shift + final_tforms["shifts_within_channels"][i, j, 0],
-                color="red",
-                s=0.5,
-                alpha=0.2,
-            )
-            # Set row labels
-            ax.set_xlabel(
-                f"X = {final_tforms['shifts_within_channels'][i, j, 0]}  "
-                f"Y = {final_tforms['shifts_within_channels'][i, j, 1]}",
-                size="large",
-            )
-            if j == 0:
-                ax.set_ylabel(f"Channel {i}", rotation=90, size="large", labelpad=15)
-    plt.tight_layout()
-    plt.savefig(
-        iss.io.get_processed_path(data_path)
-        / "figures"
-        / prefix
-        / "ref_tile"
-        / "shifts_within_channels_corr.png",
+def _plot_across_channels_correlogram(data, target_folder, figure_name, max_shift=100):
+    columns = set()
+    for d in data:
+        columns.update(d.keys())
+    columns = natsorted(columns)
+    nrows = len(data)
+    fig = plt.figure(figsize=(len(columns) * 3.5, nrows * 3))
+    for ich, ch_data in enumerate(data):
+        if not ch_data:
+            continue
+        for icol, col_name in enumerate(columns):
+            ax = fig.add_subplot(nrows, len(columns), 1 + icol + ich * len(columns))
+            xcorr = ch_data[col_name]["xcorr"]
+            angles = ch_data[col_name]["angles"]
+            best_angle_id = xcorr.max(axis=(1, 2)).argmax()
+            xcorr = xcorr[best_angle_id]
+            ax.set_title(f"Best angle: {angles[best_angle_id]:.2f}")
+            _draw_correlogram(ax, xcorr, max_shift, 0, np.percentile(xcorr, 99.999))
+            ax.set_xlabel(col_name)
+            if icol == 0:
+                ax.set_ylabel(f"Channel {ich}")
+    fig.tight_layout()
+    fig.savefig(
+        target_folder / f"{figure_name}_shifts_across_channels.pdf",
         dpi=300,
         transparent=True,
+    )
+
+
+def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift=100):
+    # find the number of channels and rounds
+    chan_and_round = np.vstack(tuple(data.keys()))
+    nchannels, nrounds = np.max(chan_and_round, axis=0) + 1
+    ncol = nrounds
+    fig = plt.figure()
+    for ch in range(nchannels):
+        for rnd in range(nrounds):
+            rnd_data = data[(ch, rnd)]
+            nrow = len(rnd_data)
+            fig.set_size_inches(ncol * 3.5, nrow * 3)
+            for irow, row_name in enumerate(rnd_data):
+                xcorr = rnd_data[row_name]
+                ax = fig.add_subplot(nrow, ncol, 1 + rnd + irow * ncol)
+                if rnd == 0:
+                    ax.set_ylabel(row_name)
+                if irow == nrow - 1:
+                    ax.set_xlabel(f"Round {rnd}")
+                if isinstance(xcorr, dict):
+                    angles = xcorr["angles"]
+                    xcorr = xcorr["xcorr"]
+                    best_angle_id = xcorr.max(axis=(1, 2)).argmax()
+                    xcorr = xcorr[best_angle_id]
+                    ax.set_title(f"Best angle: {angles[best_angle_id]:.2f}")
+                _draw_correlogram(ax, xcorr, max_shift, 0, np.percentile(xcorr, 99.999))
+        fig.tight_layout()
+        fig.savefig(
+            target_folder / f"{figure_name}_shifts_channel_{ch}.pdf", transparent=True
+        )
+        fig.clear()
+
+
+def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax, final_tforms=None):
+    hrow, hcol = np.asarray(xcorr.shape) // 2
+    xcorr = xcorr[
+        hrow - max_shift : hrow + max_shift, hcol - max_shift : hcol + max_shift
+    ]
+    ax.imshow(xcorr, vmin=vmin, vmax=vmax)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # Draw horizontal and vertical lines intersecting at the center
+    ax.axhline(y=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2)
+    ax.axvline(x=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2)
+    # Draw circle at the center
+    center_circle = patches.Circle(
+        (max_shift, max_shift),
+        radius=max_shift / 10,
+        edgecolor="black",
+        facecolor="none",
+        linewidth=1,
+        alpha=0.3,
+    )
+    ax.add_patch(center_circle)
+    # Draw a hollow circle around the maximum of the cross-correlation
+    max_idx = np.unravel_index(np.argmax(xcorr), xcorr.shape)
+    circle = patches.Circle(
+        (max_idx[1], max_idx[0]),
+        radius=max_shift / 11,
+        edgecolor="white",
+        facecolor="none",
+        linewidth=1,
+    )
+    ax.add_patch(circle)
+    # Also draw a red dot in the center of the circle
+    ax.scatter(
+        max_idx[1],
+        max_idx[0],
+        color="red",
+        s=0.5,
+        alpha=0.2,
     )
 
 

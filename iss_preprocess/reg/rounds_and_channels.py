@@ -7,25 +7,21 @@ from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
 from . import phase_corr, make_transform, transform_image
-from ..io import get_processed_path
 
 
 def register_channels_and_rounds(
-    data_path,
     stack,
     ref_ch=0,
     ref_round=0,
     median_filter=None,
     min_shift=None,
     max_shift=None,
-    diag=False,
-    prefix="",
+    debug=False,
 ):
     """
     Estimate transformation matrices for alignment across channels and rounds.
 
     Args:
-        data_path (str): path to data, used for saving diagnostic plots
         stack: X x Y x Nchannels x Nrounds images stack
         ref_ch (int): channel to align to
         ref_round (int): round to align to
@@ -34,8 +30,7 @@ def register_channels_and_rounds(
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
-        diag (bool): whether to save diagnostic plots
-        prefix (str): prefix for saving diagnostic plots
+        debug (bool): whether to return debug info, default: False
 
     Returns:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
@@ -44,45 +39,55 @@ def register_channels_and_rounds(
         angles_between_channels (np.array): Nchannels array of angles
         shifts_between_channels (np.array): Nchannels x 2 array of shifts
     """
-    if diag:
-        assert data_path != "", "data_path must be provided for saving diagnostic plots"
+
     # first register images across rounds within each channel
-    angles_within_channels, shifts_within_channels = align_within_channels(
-        data_path,
+    out = align_within_channels(
         stack,
         upsample=False,
         ref_round=ref_round,
         median_filter_size=median_filter,
         min_shift=min_shift,
         max_shift=max_shift,
-        diag=diag,
-        prefix=prefix,
+        debug=debug,
     )
+    if debug:
+        angles_within_channels, shifts_within_channels, db_info = out
+        debug_info = {"align_within_channels": db_info}
+    else:
+        angles_within_channels, shifts_within_channels = out
     # use these to compute a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
-    (
-        scales_between_channels,
-        angles_between_channels,
-        shifts_between_channels,
-    ) = estimate_correction(
-        data_path,
+    out = estimate_correction(
         std_stack,
         ch_to_align=ref_ch,
         upsample=5,
         max_shift=max_shift,
-        diag=diag,
-        prefix=prefix,
+        debug=debug,
     )
-
-    return (
+    if debug:
+        (
+            scales_between_channels,
+            angles_between_channels,
+            shifts_between_channels,
+            db_info,
+        ) = out
+        debug_info["estimate_correction"] = db_info
+    else:
+        scales_between_channels,
+        angles_between_channels,
+        shifts_between_channels = out
+    out = [
         angles_within_channels,
         shifts_within_channels,
         scales_between_channels,
         angles_between_channels,
         shifts_between_channels,
-    )
+    ]
+    if debug:
+        out.append(debug_info)
+    return tuple(out)
 
 
 def generate_channel_round_transforms(
@@ -162,7 +167,6 @@ def align_channels_and_rounds(stack, tforms):
 
 
 def align_within_channels(
-    data_path,
     stack,
     ref_round=0,
     angle_range=1.0,
@@ -172,13 +176,11 @@ def align_within_channels(
     median_filter_size=None,
     min_shift=None,
     max_shift=None,
-    diag=False,
-    prefix="",
+    debug=False,
 ):
     """Align images within each channel.
 
     Args:
-        data_path (str): path to data, used for saving diagnostic plots
         stack (np.array): X x Y x Nchannels x Nrounds images stack
         upsample (bool, or int): whether to use subpixel registration, and if so, how much
             to upsample
@@ -192,12 +194,12 @@ def align_within_channels(
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
-        diag (bool): whether to save diagnostic plots
-        prefix (str): prefix for saving diagnostic plots
+        debug (bool): whether to return debug info, default: False
 
     Returns:
         angles (np.array): Nchannels x Nrounds array of angles
         shifts (np.array): Nchannels x Nrounds x 2 array of shifts
+        debug_info (dict): dictionary with debug info, only if debug=True
 
     """
     nchannels, nrounds = stack.shape[2:]
@@ -222,9 +224,7 @@ def align_within_channels(
             upsample,
             min_shift,
             max_shift,
-            diag,
-            data_path,
-            prefix,
+            debug,
         )
         for ref_ch in range(nchannels)
         for iround in range(nrounds)
@@ -237,11 +237,19 @@ def align_within_channels(
     # Organize results
     angles_channels = [[None] * nrounds for _ in range(nchannels)]
     shifts_channels = [[None] * nrounds for _ in range(nchannels)]
+    if debug:
+        debug_info = {}
 
-    for ref_ch, iround, angle, shift in results:
+    for res in results:
+        if debug:
+            ref_ch, iround, angle, shift, db_info = res
+            debug_info[(ref_ch, iround)] = db_info
+        else:
+            ref_ch, iround, angle, shift = res
         angles_channels[ref_ch][iround] = angle
         shifts_channels[ref_ch][iround] = shift
-
+    if debug:
+        return angles_channels, shifts_channels, debug_info
     return angles_channels, shifts_channels
 
 
@@ -258,16 +266,13 @@ def _process_single_rotation_translation(args):
         upsample,
         min_shift,
         max_shift,
-        diag,
-        data_path,
-        prefix,
+        debug,
     ) = args
 
     print(f"Processing channel {ref_ch}, round {iround}", flush=True)
 
     if ref_round != iround:
-        angle, shift = estimate_rotation_translation(
-            data_path,
+        out = estimate_rotation_translation(
             reference,
             target,
             angle_range=angle_range,
@@ -276,60 +281,63 @@ def _process_single_rotation_translation(args):
             upsample=upsample,
             min_shift=min_shift,
             max_shift=max_shift,
-            diag=diag,
-            prefix=prefix,
-            ref_ch=ref_ch,
-            iround=iround,
+            debug=debug,
         )
-    else:
-        angle, shift = 0.0, [0.0, 0.0]
-
-    print(
-        f"Channel {ref_ch}, Round {iround}, Angle: {angle}, Shift: {shift}", flush=True
-    )
-    return ref_ch, iround, angle, shift
+        return ref_ch, iround, *out
+    elif debug:
+        return ref_ch, iround, 0.0, [0.0, 0.0], {}
+    return ref_ch, iround, 0.0, [0.0, 0.0]
 
 
 def estimate_shifts_and_angles_for_tile(
-    data_path, stack, scales, ref_ch=0, threshold_quantile=0.9, max_shift=None
+    stack, scales, ref_ch=0, threshold_quantile=0.9, max_shift=None, debug=False
 ):
     """Estimate shifts and angles. Registration is carried out on thresholded images
     using the provided quantile threshold.
 
     Args:
-        data_path (str): path to data, used for saving diagnostic plots
         stack (np.array): X x Y x Nchannels images stack
         scales (np.array): Nchannels array of scales
         ref_ch (int): reference channel
         threshold_quantile (float): quantile to use for thresholding
         max_shift (int): maximum shift to avoid spurious cross-correlations
+        debug (bool): whether to return debug info, default: False
 
     Returns:
         angles (np.array): Nchannels array of angles
         shifts (np.array): Nchannels x 2 array of shifts
+        debug_info (dict): dictionary with debug info, only if debug=True
 
     """
     nch = stack.shape[2]
     angles = []
     shifts = []
     ref_thresh = np.quantile(stack[:, :, ref_ch], threshold_quantile)
+    if debug:
+        debug_info = {"ref_threshold": ref_thresh}
     for ich in range(nch):
         if ref_ch != ich:
             thresh = np.quantile(stack[:, :, ich], threshold_quantile)
-            angle, shift = estimate_rotation_translation(
-                data_path,
+            out = estimate_rotation_translation(
                 stack[:, :, ref_ch] > ref_thresh,
                 transform_image(stack[:, :, ich] > thresh, scale=scales[ich]),
                 angle_range=2.0,
                 niter=3,
                 nangles=21,
                 max_shift=max_shift,
+                debug=debug,
             )
+            if debug:
+                angle, shift, db_info = out
+                debug_info[ich] = db_info
+                debug_info[ich]["threshold"] = thresh
         else:
             angle, shift = 0.0, [0.0, 0.0]
         angles.append(angle)
         shifts.append(shift)
         print(f"Channel {ich} angle: {angle}, shift: {shift}", flush=True)
+    if debug:
+        return angles, shifts, debug_info
     return angles, shifts
 
 
@@ -484,7 +492,6 @@ def apply_corrections(im, scales, angles, shifts, cval=0.0):
 
 
 def estimate_correction(
-    data_path,
     im,
     ch_to_align=0,
     upsample=False,
@@ -493,14 +500,12 @@ def estimate_correction(
     nangles=3,
     niter=5,
     angle_range=1.0,
-    diag=False,
-    prefix="",
+    debug=False,
 ):
     """
     Estimate scale, rotation and translation corrections for each channel of a multichannel image.
 
     Args:
-        data_path (str): path to data, used for saving diagnostic plots
         im (np.array): X x Y x Nchannels image
         ch_to_align (int): channel to align to
         upsample (bool, or int): whether to upsample the image, and if so by what factor
@@ -509,8 +514,7 @@ def estimate_correction(
         nangles (int): number of angles to search through
         niter (int): number of iterations to run
         angle_range (float): range of angles to search through
-        diag (bool): whether to save diagnostic plots
-        prefix (str): prefix for saving diagnostic plots
+        debug (bool): whether to return debug info, default: False
 
     Returns:
         scales (np.array): Nchannels array of scale factors
@@ -532,9 +536,7 @@ def estimate_correction(
             nangles,
             scale_range,
             angle_range,
-            diag,
-            data_path,
-            prefix,
+            debug,
         )
         for channel in range(nchannels)
     ]
@@ -544,6 +546,9 @@ def estimate_correction(
         results = pool.map(_process_single_scale_rotation_translation, pool_args)
 
     # Organize results
+    if debug:
+        scales, angles, shifts, debug_info = zip(*results)
+        return list(scales), list(angles), list(shifts), list(debug_info)
     scales, angles, shifts = zip(*results)
     return list(scales), list(angles), list(shifts)
 
@@ -560,15 +565,12 @@ def _process_single_scale_rotation_translation(args):
         nangles,
         scale_range,
         angle_range,
-        diag,
-        data_path,
-        prefix,
+        debug,
     ) = args
     print(f"Processing channel {channel}", flush=True)
 
     if channel != ch_to_align:
-        scale, angle, shift = estimate_scale_rotation_translation(
-            data_path,
+        return estimate_scale_rotation_translation(
             reference,
             target,
             angle_range=angle_range,
@@ -578,18 +580,14 @@ def _process_single_scale_rotation_translation(args):
             verbose=True,
             upsample=upsample,
             max_shift=max_shift,
-            diag=diag,
-            prefix=prefix,
-            channel=channel,
+            debug=debug,
         )
-    else:
-        scale, angle, shift = 1.0, 0.0, (0, 0)
-
-    return scale, angle, shift
+    elif debug:
+        return 1.0, 0.0, (0, 0), {}
+    return 1.0, 0.0, (0, 0)
 
 
 def estimate_scale_rotation_translation(
-    data_path,
     reference,
     target,
     angle_range=5.0,
@@ -600,9 +598,7 @@ def estimate_scale_rotation_translation(
     verbose=False,
     upsample=False,
     max_shift=None,
-    diag=False,
-    prefix="",
-    channel=None,
+    debug=False,
 ):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
@@ -610,7 +606,6 @@ def estimate_scale_rotation_translation(
     searching over small and smaller angle range.
 
     Args:
-        data_path (str): path to data, used for saving diagnostic plots
         reference (numpy.ndarray): X x Y reference image
         target (numpy.ndarray): X x Y target image
         angle_range (float): initial range of angles in degrees to search over
@@ -621,36 +616,41 @@ def estimate_scale_rotation_translation(
         verbose (bool): whether to print progress of registration
         upsample (bool, or int): whether to upsample the image, and if so but what factor
         max_shift (int): maximum shift to avoid spurious cross-correlations
-        diag (bool): whether to save diagnostic plots
-        prefix (str): prefix for saving diagnostic plots
-        channel (int): channel, used for saving diagnostic plots
+        debug (bool): whether to return debug info. Default: False
 
     Returns:
         best_angle (float) in degrees
         shift (tuple) of X and Y shifts
+        debug_info (dict): dictionary with debug info, only if debug=True
 
     """
     best_angle = 0
     best_scale = 1
     reference_fft = scipy.fft.fft2(reference)
-
+    if debug:
+        debug_info = {}
     for i in range(niter):
         scales = np.linspace(-scale_range, scale_range, nscales) + best_scale
         max_cc = np.empty(scales.shape)
         best_angles = np.empty(scales.shape)
         for iscale in range(nscales):
             target_rescaled = transform_image(target, scale=scales[iscale])
-            best_angles[iscale], max_cc[iscale] = estimate_rotation_angle(
-                data_path,
+            out = estimate_rotation_angle(
                 reference_fft,
                 target_rescaled,
                 angle_range,
                 best_angle,
                 nangles,
                 max_shift=max_shift,
-                debug=diag,
-                prefix=prefix,
+                debug=debug,
             )
+            if debug:
+                best_angle, max_cc[iscale], db_info = out
+                best_angles[iscale] = best_angle
+                debug_info[f"estimate_angle_iter{i}"] = db_info
+            else:
+                best_angle, max_cc[iscale] = out
+                best_angles[iscale] = best_angle
         best_scale_index = np.argmax(max_cc)
         best_scale = scales[best_scale_index]
         best_angle = best_angles[best_scale_index]
@@ -658,7 +658,7 @@ def estimate_scale_rotation_translation(
         scale_range = scale_range / 5
         if verbose:
             print(
-                f"Channel {channel}. Best scale: {best_scale}. Best angle: {best_angle}",
+                f"Best scale: {best_scale}. Best angle: {best_angle}",
                 flush=True,
             )
     if not upsample:
@@ -668,31 +668,21 @@ def estimate_scale_rotation_translation(
             fft_ref=False,
             max_shift=max_shift,
         )
-        if diag:
-            save_path = (
-                get_processed_path(data_path)
-                / "figures"
-                / prefix
-                / "ref_tile"
-                / f"no_upsample_scale_rot_trans_phase_corr.npz"
-            )
-            np.savez(
-                save_path,
-                cc=cc,
-                allow_pickle=True,
-            )
+        if debug:
+            debug_info["phase_corr"] = cc
     else:
         shift = phase_cross_correlation(
             reference,
             transform_image(target, scale=best_scale, angle=best_angle),
             upsample_factor=upsample,
         )[0]
+    if debug:
+        return best_scale, best_angle, shift, debug_info
     return best_scale, best_angle, shift
 
 
 # Numba makes no difference here
 def estimate_rotation_angle(
-    data_path,
     reference_fft,
     target,
     angle_range,
@@ -701,14 +691,12 @@ def estimate_rotation_angle(
     max_shift=None,
     min_shift=None,
     debug=False,
-    prefix="",
 ):
     """
     Estimate rotation angle that maximizes phase correlation between the target and the
     reference image.
 
     Args:
-        data_path (str): path to data, used for saving diagnostic plots
         reference_fft (numpy.ndarray): X x Y reference image in Fourier domain
         target (numpy.ndarray): X x Y target image
         angle_range (float): range of angles in degrees to search over
@@ -716,14 +704,14 @@ def estimate_rotation_angle(
         nangles (int): number of angles to try
         max_shift (int): maximum shift to avoid spurious cross-correlations
         min_shift (int): minimum shift to avoid spurious cross-correlations
-        debug (bool): whether to save diagnostic plots
-        prefix (str): prefix for saving diagnostic plots
+        debug (bool): whether to return debug info
 
     Returns:
         best_angle (float) in degrees
         max_cc (float) maximum cross correlation
-
+        debug_info (dict): dictionary with debug info, only if debug=True
     """
+
     angles = np.linspace(-angle_range, angle_range, nangles) + best_angle
     max_cc = np.empty(angles.shape)
     shifts = np.empty((nangles, 2))
@@ -743,20 +731,13 @@ def estimate_rotation_angle(
     best_angle_index = np.argmax(max_cc)
     best_angle = angles[best_angle_index]
     if debug:
-        save_path = get_processed_path(data_path) / "figures" / prefix / "ref_tile"
-        save_path.mkdir(parents=True, exist_ok=True)
-        np.save(
-            save_path / "estimate_rot_angle_all_cc.npy",
-            all_cc,
-            allow_pickle=True,
-        )
+        return best_angle, max_cc[best_angle_index], dict(xcorr=all_cc, angles=angles)
     return best_angle, max_cc[best_angle_index]
 
 
 # TODO: check if this numba is useful here.
 @jit(parallel=True, forceobj=True)
 def estimate_rotation_translation(
-    data_path,
     reference,
     target,
     angle_range=5.0,
@@ -766,10 +747,7 @@ def estimate_rotation_translation(
     min_shift=None,
     max_shift=None,
     iter_range_factor=5.0,
-    diag=False,
-    prefix="",
-    ref_ch="",
-    iround="",
+    debug=False,
 ):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
@@ -777,7 +755,6 @@ def estimate_rotation_translation(
     searching over small and smaller angle range.
 
     Args:
-        data_path (str): path to data, used for saving diagnostic plots
         reference (numpy.ndarray): X x Y reference image
         target (numpy.ndarray): X x Y target image
         angle_range (float): initial range of angles in degrees to search over
@@ -789,24 +766,20 @@ def estimate_rotation_translation(
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
         iter_range_factor (float): how much to shrink the angle range for each
             iteration. Default: 5.
-        diag (bool): whether to save diagnostic plots
-        prefix (str): prefix for saving diagnostic plots
-        ref_ch (int): reference channel, used for saving diagnostic plots
-        iround (int): round, used for saving diagnostic plots
+        debug (bool): whether to return debug info
 
     Returns:
         best_angle (float) in degrees
         shift (tuple) of X and Y shifts
 
     """
-    if diag:
-        save_path = get_processed_path(data_path) / "figures" / prefix / "ref_tile"
-        save_path.mkdir(parents=True, exist_ok=True)
+
     best_angle = 0
     reference_fft = scipy.fft.fft2(reference)
+    if debug:
+        debug_info = {}
     for i in range(niter):
-        best_angle, max_cc = estimate_rotation_angle(
-            data_path,
+        out = estimate_rotation_angle(
             reference_fft,
             target,
             angle_range,
@@ -814,17 +787,14 @@ def estimate_rotation_translation(
             nangles,
             min_shift=min_shift,
             max_shift=max_shift,
-            debug=diag,
-            prefix=prefix,
+            debug=debug,
         )
+        if debug:
+            best_angle, max_cc, db_info = out
+            debug_info[f"estimate_angle_iter{i}"] = db_info
+        else:
+            best_angle, max_cc = out
         angle_range = angle_range / iter_range_factor
-        if diag:
-            np.save(
-                save_path
-                / f"max_cc_estimate_rotation_angle_ref_ch_{ref_ch}_round_{iround}.npy",
-                max_cc,
-                allow_pickle=True,
-            )
     if not upsample:
         shift, cc_phase_corr = phase_corr(
             reference,
@@ -832,17 +802,14 @@ def estimate_rotation_translation(
             min_shift=min_shift,
             max_shift=max_shift,
         )
-        if diag:
-            np.save(
-                save_path
-                / f"no_upsample_phase_corr_ref_ch_{ref_ch}_round_{iround}.npy",
-                cc_phase_corr,
-                allow_pickle=True,
-            )
+        if debug:
+            debug_info["phase_corr"] = cc_phase_corr
     else:
         shift = phase_cross_correlation(
             reference,
             transform_image(target, angle=best_angle),
             upsample_factor=upsample,
         )[0]
+    if debug:
+        return best_angle, shift, debug_info
     return best_angle, shift
