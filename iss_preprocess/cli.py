@@ -127,17 +127,28 @@ def check_projection(path, prefix):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
-    "--diag",
-    is_flag=True,
+    "--diag/--no-diag",
     show_default=True,
-    default=True,
+    default=False,
     help="Save diagnostic cross correlogram plots",
 )
 def register_ref_tile(path, prefix, diag=True):
     """Run registration across channels and rounds for the reference tile."""
+    from pathlib import Path
     from iss_preprocess.pipeline import register_reference_tile
+    from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
-    register_reference_tile(path, prefix=prefix, diag=diag)
+    slurm_folder = f"{Path.home()}/slurm_logs"
+    job_id = register_reference_tile(
+        path, prefix=prefix, diag=diag, use_slurm=True, slurm_folder=str(slurm_folder)
+    )
+    check_ref_tile_registration(
+        path,
+        prefix,
+        use_slurm=True,
+        slurm_folder=str(slurm_folder),
+        job_dependency=job_id,
+    )
 
 
 @cli.command()
@@ -741,18 +752,3 @@ def plot_overview(
         save_raw=save_raw,
         group_channels=not separate_channels,
     )
-
-
-@cli.command()
-@click.option(
-    "--path", "-p", prompt="Enter data path", help="Data path.", required=True
-)
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
-def plot_registration_correlograms(
-    path,
-    prefix,
-):
-    """Plot registration correlograms."""
-    from iss_preprocess.vis import plot_registration_correlograms
-
-    plot_registration_correlograms(data_path=path, prefix=prefix)

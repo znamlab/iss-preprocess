@@ -1,14 +1,22 @@
-from natsort import natsorted
 import numpy as np
+import pandas as pd
 import os
 import re
+import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from natsort import natsorted
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
-import cv2
+from matplotlib.animation import FuncAnimation, FFMpegWriter
+from pathlib import Path
+
+import flexiznam as flz
+
 import iss_preprocess as iss
 from ..io import load_ops
 from iss_preprocess.pipeline import ara_registration as ara_reg
+from iss_preprocess.pipeline import sequencing
+from iss_preprocess.vis import round_to_rgb, add_bases_legend
 
 
 def plot_correction_images(
@@ -176,7 +184,7 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
     return fig
 
 
-def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
+def plot_ara_registration(data_path, roi, reference_prefix="genes_round_1_1"):
     """Overlay reference image to ARA borders
 
     Args:
@@ -202,7 +210,10 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
 
     ops = load_ops(data_path)
     stitched_stack = iss.pipeline.stitch_registered(
-        data_path, reference_prefix, roi=roi, channels=ops["ref_ch"]
+        data_path,
+        reference_prefix,
+        roi=roi,
+        channels=ops["ref_ch"],
     ).astype(np.single)
 
     fig = plt.figure()
@@ -218,7 +229,9 @@ def plot_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         cmap="gray",
     )
     atlas_utils.plot_borders_and_areas(
-        ax, area_ids, border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1)
+        ax,
+        area_ids,
+        border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
     )
     ax.set_ylim(ax.get_ylim()[::-1])
     ax.set_xticks([])
@@ -292,6 +305,8 @@ def plot_matrix_difference(
     col_labels=None,
     line_labels=("Raw", "Corrected", "Difference"),
     range_min=(5, 5, 0.1),
+    range_max=None,
+    axes=None,
 ):
     """Plot the raw, corrected matrices and their difference
 
@@ -304,13 +319,21 @@ def plot_matrix_difference(
             Defaults to ('Raw', 'Corrected', 'Difference').
         range_min (tuple, optional): N features long tuple of minimal range for color
             bars. Defaults to (5,5,0.1)
+        range_max (tuple, optional): N features long tuple of maximal range for color
+            bars. Defaults to None, no max.
+        axes (np.array, optional): 3 x n features array of axes to plot into. Defaults
+            to None.
 
     Returns:
         plt.Figure: Figure instance
     """
     ncols = raw.shape[0]
-    fig, axes = plt.subplots(3, ncols)
-    fig.set_size_inches((ncols * 3.5, 6))
+    if axes is None:
+        fig, axes = plt.subplots(3, ncols)
+        fig.set_size_inches((ncols * 3.5, 6))
+        fig.subplots_adjust(top=0.9, wspace=0.15, hspace=0)
+    else:
+        fig = axes[0, 0].figure
 
     for col in range(ncols):
         vmin = corrected[col].min()
@@ -318,6 +341,10 @@ def plot_matrix_difference(
         rng = vmax - vmin
         if rng < range_min[col]:
             rng = range_min[col]
+            vmin = vmin - rng
+            vmax = vmax + rng
+        elif (range_max is not None) and (rng > range_max[col]):
+            rng = range_max[col]
             vmin = vmin - rng
             vmax = vmax + rng
         im = axes[0, col].imshow(raw[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5)
@@ -346,121 +373,251 @@ def plot_matrix_difference(
     if line_labels is not None:
         for il, label in enumerate(line_labels):
             axes[il, 0].set_ylabel(label, fontsize=11)
-    fig.subplots_adjust(top=0.9, wspace=0.15, hspace=0)
     return fig
 
 
 def plot_registration_correlograms(
     data_path,
     prefix,
+    figure_name,
+    debug_dict,
 ):
-    # Find correlogram files
+    target_folder = iss.io.get_processed_path(data_path) / "figures" / prefix
+    if not target_folder.exists():
+        target_folder.mkdir()
     ops = iss.io.load_ops(data_path)
-    corr_dir = iss.io.get_processed_path(data_path) / "figures" / prefix / "ref_tile"
-    all_files = os.listdir(corr_dir)
-    pattern = r"no_upsample_phase_corr_ref_ch_(\d)_round_(\d).npy"
-    filtered_sorted_files = sorted(
-        (file for file in all_files if re.match(pattern, file)),
-        key=lambda x: (
-            int(re.match(pattern, x).group(1)),
-            int(re.match(pattern, x).group(2)),
-        ),
-    )
+    mshift = ops["rounds_max_shift"]
+    for what, data in debug_dict.items():
+        if what == "align_within_channels":
+            _plot_within_channel_correlogram(data, target_folder, figure_name, mshift)
+        elif what == "estimate_correction":
+            _plot_across_channels_correlogram(data, target_folder, figure_name, mshift)
+        else:
+            raise NotImplementedError(f"Unknown what: {what}")
 
-    # Load files into the corr array
-    final_tforms = np.load(
-        iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
-    )
-    nchannels = len(final_tforms["angles_within_channels"])
-    individual_shape = np.load(os.path.join(corr_dir, filtered_sorted_files[0])).shape
-    corr_array = np.zeros((nchannels, ops[f"{prefix}" + "s"], *individual_shape))
-    for file in filtered_sorted_files:
-        match = re.match(pattern, file)
-        x, y = int(match.group(1)), int(match.group(2))
-        if y != ops["ref_round"]:
-            corr_array[x, y] = np.load(os.path.join(corr_dir, file))
 
-    # Filter and sort files
-    max_shift = ops["rounds_max_shift"]
-    rows, cols = nchannels, ops[f"{prefix}" + "s"]
-    max_coords = np.zeros((rows, cols, 2), dtype=int)
-    fig, axes = plt.subplots(rows, cols, figsize=(2.5 * cols, 10))
-
-    # Set column labels
-    for j in range(cols):
-        axes[0, j].set_title(f"Round {j}", size="large")
-
-    for i in range(rows):
-        for j in range(cols):
-            ax = axes[i, j]
-            ax.imshow(
-                corr_array[
-                    i,
-                    j,
-                    int((corr_array.shape[2] / 2) - max_shift) : int(
-                        (corr_array.shape[2] / 2) + max_shift
-                    ),
-                    int((corr_array.shape[3] / 2) - max_shift) : int(
-                        (corr_array.shape[3] / 2) + max_shift
-                    ),
-                ],
-                vmax=np.percentile(corr_array, 99.999),
-            )
-            ax.set_xticks([])
-            ax.set_yticks([])
-
-            # Draw horizontal and vertical lines intersecting at the center
-            ax.axhline(
-                y=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2
-            )
-            ax.axvline(
-                x=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2
-            )
-            # Draw circle at the center
-            center_circle = patches.Circle(
-                (max_shift, max_shift),
-                radius=100,
-                edgecolor="black",
-                facecolor="none",
-                linewidth=2,
-                alpha=0.3,
-            )
-            ax.add_patch(center_circle)
-            # Draw a hollow circle around the selected final transform
-            circle = patches.Circle(
-                (
-                    max_shift + final_tforms["shifts_within_channels"][i, j, 1],
-                    max_shift + final_tforms["shifts_within_channels"][i, j, 0],
-                ),
-                radius=120,
-                edgecolor="white",
-                facecolor="none",
-                linewidth=2,
-            )
-            ax.add_patch(circle)
-            # Also draw a red dot in the center of the circle
-            ax.scatter(
-                max_shift + final_tforms["shifts_within_channels"][i, j, 1],
-                max_shift + final_tforms["shifts_within_channels"][i, j, 0],
-                color="red",
-                s=0.5,
-                alpha=0.2,
-            )
-            # Set row labels
-            ax.set_xlabel(
-                f"X = {final_tforms['shifts_within_channels'][i, j, 0]}  "
-                f"Y = {final_tforms['shifts_within_channels'][i, j, 1]}",
-                size="large",
-            )
-            if j == 0:
-                ax.set_ylabel(f"Channel {i}", rotation=90, size="large", labelpad=15)
-    plt.tight_layout()
-    plt.savefig(
-        iss.io.get_processed_path(data_path)
-        / "figures"
-        / prefix
-        / "ref_tile"
-        / "shifts_within_channels_corr.png",
-        dpi=2000,
+def _plot_across_channels_correlogram(data, target_folder, figure_name, max_shift=100):
+    columns = set()
+    for d in data:
+        columns.update(d.keys())
+    columns = natsorted(columns)
+    nrows = len(data)
+    fig = plt.figure(figsize=(len(columns) * 3.5, nrows * 3))
+    for ich, ch_data in enumerate(data):
+        if not ch_data:
+            continue
+        for icol, col_name in enumerate(columns):
+            ax = fig.add_subplot(nrows, len(columns), 1 + icol + ich * len(columns))
+            xcorr = ch_data[col_name]["xcorr"]
+            angles = ch_data[col_name]["angles"]
+            best_angle_id = xcorr.max(axis=(1, 2)).argmax()
+            xcorr = xcorr[best_angle_id]
+            ax.set_title(f"Best angle: {angles[best_angle_id]:.2f}")
+            _draw_correlogram(ax, xcorr, max_shift, 0, np.percentile(xcorr, 99.999))
+            ax.set_xlabel(col_name)
+            if icol == 0:
+                ax.set_ylabel(f"Channel {ich}")
+    fig.tight_layout()
+    fig.savefig(
+        target_folder / f"{figure_name}_shifts_across_channels.pdf",
+        dpi=300,
         transparent=True,
     )
+
+
+def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift=100):
+    # find the number of channels and rounds
+    chan_and_round = np.vstack(tuple(data.keys()))
+    nchannels, nrounds = np.max(chan_and_round, axis=0) + 1
+    ncol = nrounds
+    fig = plt.figure()
+    for ch in range(nchannels):
+        for rnd in range(nrounds):
+            rnd_data = data[(ch, rnd)]
+            nrow = len(rnd_data)
+            fig.set_size_inches(ncol * 3.5, nrow * 3)
+            for irow, row_name in enumerate(rnd_data):
+                xcorr = rnd_data[row_name]
+                ax = fig.add_subplot(nrow, ncol, 1 + rnd + irow * ncol)
+                if rnd == 0:
+                    ax.set_ylabel(row_name)
+                if irow == nrow - 1:
+                    ax.set_xlabel(f"Round {rnd}")
+                if isinstance(xcorr, dict):
+                    angles = xcorr["angles"]
+                    xcorr = xcorr["xcorr"]
+                    best_angle_id = xcorr.max(axis=(1, 2)).argmax()
+                    xcorr = xcorr[best_angle_id]
+                    ax.set_title(f"Best angle: {angles[best_angle_id]:.2f}")
+                _draw_correlogram(ax, xcorr, max_shift, 0, np.percentile(xcorr, 99.999))
+        fig.tight_layout()
+        fig.savefig(
+            target_folder / f"{figure_name}_shifts_channel_{ch}.pdf", transparent=True
+        )
+        fig.clear()
+
+
+def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax, final_tforms=None):
+    hrow, hcol = np.asarray(xcorr.shape) // 2
+    xcorr = xcorr[
+        hrow - max_shift : hrow + max_shift, hcol - max_shift : hcol + max_shift
+    ]
+    ax.imshow(xcorr, vmin=vmin, vmax=vmax)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # Draw horizontal and vertical lines intersecting at the center
+    ax.axhline(y=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2)
+    ax.axvline(x=max_shift, color="black", linestyle="-", linewidth=1, alpha=0.2)
+    # Draw circle at the center
+    center_circle = patches.Circle(
+        (max_shift, max_shift),
+        radius=max_shift / 10,
+        edgecolor="black",
+        facecolor="none",
+        linewidth=1,
+        alpha=0.3,
+    )
+    ax.add_patch(center_circle)
+    # Draw a hollow circle around the maximum of the cross-correlation
+    max_idx = np.unravel_index(np.argmax(xcorr), xcorr.shape)
+    circle = patches.Circle(
+        (max_idx[1], max_idx[0]),
+        radius=max_shift / 11,
+        edgecolor="white",
+        facecolor="none",
+        linewidth=1,
+    )
+    ax.add_patch(circle)
+    # Also draw a red dot in the center of the circle
+    ax.scatter(
+        max_idx[1],
+        max_idx[0],
+        color="red",
+        s=0.5,
+        alpha=0.2,
+    )
+
+
+def check_rolonies_registration(
+    savefname,
+    data_path,
+    tile_coors,
+    n_rolonies,
+    prefix="genes_round",
+    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    vmax=0.5,
+    correct_illumination=True,
+    corrected_shifts=True,
+):
+    """Check the registration of rolonies
+
+    Will plot a random selection of rolonies overlaid on the spot sign image circles.
+
+    Args:
+        savefname (str): Path to save the figure to
+        data_path (str): Path to the data folder
+        tile_coors (tuple): Tile coordinates
+        n_rolonies (int): Number of rolonies to plot
+        prefix (str, optional): Prefix to use. Defaults to "genes_round".
+        channel_colors (list, optional): List of colors for each channel. Defaults to
+            ([1,0,0],[0,1,0],[1,0,1],[0,1,1]).
+        vmax (float, optional): Max value image scale. Defaults to 0.5.
+        correct_illumination (bool, optional): Whether to correct for illumination.
+            Defaults to True.
+        corrected_shifts (bool, optional): Whether to use corrected shifts. Defaults to
+            True.
+
+    """
+    ops = load_ops(data_path)
+    processed_path = Path(flz.config.PARAMETERS["data_root"]["processed"])
+    spot_sign = np.load(processed_path / data_path / "spot_sign_image.npy")
+    # cut a line in the middle
+    line = spot_sign[spot_sign.shape[0] // 2, :]
+    positive_radius = np.diff(np.where(line > 0)[0][[0, -1]]) / 2 + 0.5
+    negative_radius = np.diff(np.where(line < -0.1)[0][[0, -1]]) / 2
+
+    spot_folder = processed_path / data_path / "spots"
+    spots = pd.read_pickle(
+        spot_folder
+        / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+    )
+    spots.reset_index(inplace=True)
+    nrounds = ops[f"{prefix}s"]
+    # get stack registered between channel and rounds
+    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+        data_path,
+        filter_r=ops["filter_r"],
+        correct_channels=True,
+        correct_illumination=correct_illumination,
+        corrected_shifts=corrected_shifts,
+        tile_coors=tile_coors,
+        suffix=ops[f"{prefix.split('_')[0]}_projection"],
+        prefix=prefix,
+        nrounds=nrounds,
+        specific_rounds=None,
+    )
+    extent = np.array([-1, 1]) * 100
+
+    rng = np.random.default_rng(42)
+    rolonies = rng.choice(spots.index, n_rolonies, replace=False)
+    if n_rolonies == 1:
+        fig, axes = plt.subplots(1, 1, figsize=(5, 5))
+        axes = np.array([axes])
+    else:
+        nrow = int(np.sqrt(n_rolonies))
+        ncol = int(np.ceil(n_rolonies / nrow))
+        fig, axes = plt.subplots(nrow, ncol, figsize=(ncol * 3, nrow * 3))
+    fig.subplots_adjust(
+        top=0.9, wspace=0.01, hspace=0.1, bottom=0.01, left=0.01, right=0.99
+    )
+
+    # get codebook
+    codebook = pd.read_csv(
+        Path(__file__).parent.parent / "call" / ops["codebook"],
+        header=None,
+        names=["gii", "seq", "gene"],
+    )
+    base_params = dict(color="white", fontsize=20, fontweight="bold")
+    stacks_list = []
+    sequences = []
+    labels = []
+    for i, ax in enumerate(axes.flatten()):
+        spot = spots.loc[rolonies[i]]
+        center = spot[["x", "y"]].astype(int).values
+        wx = np.clip(center[0] + extent, 0, reg_stack.shape[0])
+        wy = np.clip(center[1] + extent, 0, reg_stack.shape[1])
+        stack_part = reg_stack[slice(*wy), slice(*wx)]
+        stacks_list.append(stack_part)
+        pc = plt.Circle(center, radius=positive_radius, ec="r", fc="none", lw=2)
+        ax.add_artist(pc)
+        nc = plt.Circle(center, radius=negative_radius, ec="b", fc="none", lw=2)
+        ax.add_artist(nc)
+        ax.imshow(
+            round_to_rgb(stack_part, 0, None, channel_colors, vmax),
+            extent=np.hstack([wx, wy]),
+            origin="lower",
+        )
+        ax.axis("off")
+        ax.set_title(f"Rol #{rolonies[i]}. X: {center[0]}, Y: {center[1]}")
+        gene = spots.loc[rolonies[i], "gene"]
+        sequences.append(codebook.loc[codebook["gene"] == gene, "seq"].values[0])
+        txt = ax.text(0.05, 0.9, sequences[i][0], transform=ax.transAxes, **base_params)
+        labels.append(txt)
+
+    add_bases_legend(channel_colors=channel_colors)
+
+    def animate(iround):
+        for iax, stack in enumerate(stacks_list):
+            ax = axes.flatten()[iax]
+
+            ax.images[0].set_data(
+                round_to_rgb(stack, iround, None, channel_colors, vmax),
+            )
+            labels[iax].set_text(sequences[iax][iround])
+        fig.suptitle(
+            f"Tile {tile_coors}. Corrected shifts: {corrected_shifts}. Round {iround}"
+        )
+
+    anim = FuncAnimation(fig, animate, frames=reg_stack.shape[3], interval=200)
+    anim.save(savefname, writer=FFMpegWriter(fps=2))

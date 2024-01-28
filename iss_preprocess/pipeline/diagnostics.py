@@ -5,8 +5,235 @@ The functions in here do not compute anything useful, but create figures
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import iss_preprocess as iss
+from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.backends.backend_pdf import PdfPages
+from flexiznam.config import PARAMETERS
+from znamutils import slurm_it
+import iss_preprocess as iss
+from iss_preprocess.pipeline import sequencing
+from iss_preprocess import vis
+
+
+@slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
+def check_ref_tile_registration(data_path, prefix="genes_round"):
+    """Plot the reference tile registration and save it in the figures folder
+
+    Args:
+        data_path (str): Relative path to data folder
+        prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    target_folder = processed_path / "figures" / "registration"
+
+    target_folder.mkdir(exist_ok=True, parents=True)
+
+    ops = iss.io.load_ops(data_path)
+    nrounds = ops[f"{prefix}s"]
+
+    # get stack registered between channel and rounds
+    print("Loading and registering sequencing tile")
+    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+        data_path,
+        filter_r=False,
+        correct_channels=False,
+        correct_illumination=False,
+        corrected_shifts="reference",
+        tile_coors=ops["ref_tile"],
+        suffix=ops[f"{prefix.split('_')[0]}_projection"],
+        prefix=prefix,
+        nrounds=nrounds,
+        specific_rounds=None,
+    )
+
+    # compute vmax based on round 0
+    vmaxs = np.quantile(reg_stack[..., 0], 0.9999, axis=(0, 1))
+    center = np.array(reg_stack.shape[:2]) // 2
+    view = np.array([center - 200, center + 200]).T
+    channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+
+    print("Animating")
+    vis.animate_sequencing_rounds(
+        reg_stack,
+        savefname=target_folder / f"initial_ref_tile_registration_{prefix}.mp4",
+        vmax=vmaxs,
+        extent=(view[0], view[1]),
+        channel_colors=channel_colors,
+    )
+
+    print("Static figure")
+    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+    nrounds = stack.shape[3]
+
+    def round_image(iround):
+        vmax = np.percentile(stack[501:1000, 1501:2000, :, iround], 99.9)
+        return iss.vis.to_rgb(
+            stack[501:1000, 1501:2000, :, iround],
+            channel_colors,
+            vmin=np.array([0, 0, 0, 0]),
+            vmax=np.array([1, 1, 1, 1]) * vmax,
+        )
+
+    fig = plt.figure(figsize=(10, 8))
+    for iround in range(nrounds):
+        plt.subplot(3, 4, iround + 1)
+        plt.imshow(round_image(iround))
+        plt.axis("off")
+    plt.tight_layout()
+    print(f"Saved to {target_folder / f'initial_ref_tile_registration_{prefix}.mp4'}")
+
+
+def check_shift_correction(
+    data_path, prefix="genes_round", roi_dimension_prefix="genes_round_1_1"
+):
+    """Plot the shift correction and save it in the figures folder
+
+    Compare the ransac output to the tile-by-tile shifts and plot
+    matrix of differences
+
+    Args:
+        data_path (str): Relative path to data folder
+        prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    target_folder = processed_path / "figures" / "registration"
+
+    target_folder.mkdir(exist_ok=True, parents=True)
+
+    reg_dir = processed_path / data_path / "reg"
+    figure_folder = processed_path / data_path / "figures" / "registration"
+
+    ndims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
+    ops = iss.io.load_ops(data_path)
+    if "use_rois" in ops:
+        ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
+    nc = len(ops["camera_order"])
+    nr = ops[f"{prefix}s"]
+
+    # Now plot them.
+    def get_data(which, roi, nr):
+        if nr > 1:
+            raw = np.zeros([nc, nr, 3, *ntiles]) + np.nan
+            corrected = np.zeros([nc, nr, 3, *ntiles]) + np.nan
+        else:
+            raw = np.zeros([nc, 3, *ntiles]) + np.nan
+            corrected = np.zeros([nc, 3, *ntiles]) + np.nan
+        for ix in range(ntiles[0]):
+            for iy in range(ntiles[1]):
+                try:
+                    data = np.load(reg_dir / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz")
+                    raw[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
+                    raw[..., 2, ix, iy] = data[f"angles_{which}_channels"]
+                except FileNotFoundError:
+                    pass
+                data = np.load(
+                    reg_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
+                )
+                corrected[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
+                corrected[..., 2, ix, iy] = data[f"angles_{which}_channels"]
+        return raw, corrected
+
+    # For "within channels" we plot the shifts for each channel and each round
+    fig = plt.figure(figsize=(3 * nr * 2, 2 * 3 * nc))
+    for roi, *ntiles in ndims:
+        raw, corrected = get_data("within", roi, nr=nr)
+        corr_feature = ["Shift x", "Shift y"]
+        fig.clear()
+        axes = fig.subplots(nrows=nc * 3, ncols=nr * 2)
+        for c in range(nc):
+            for ifeat, feat in enumerate(corr_feature):
+                raw_to_plot = raw[c, :, ifeat, ...]
+                corr_to_plot = corrected[c, :, ifeat, ...]
+                iss.vis.plot_matrix_difference(
+                    raw=raw_to_plot,
+                    corrected=corr_to_plot,
+                    col_labels=[f"Round {i} {feat}" for i in np.arange(nr)],
+                    range_min=[5 if ifeat < 2 else 0.1] * nr,
+                    range_max=[10 if ifeat < 2 else 1] * nr,
+                    axes=axes[c * 3 : (c + 1) * 3, ifeat * nr : (ifeat + 1) * nr],
+                    line_labels=("Raw", f"CHANNEL {c}\nCorrected", "Difference"),
+                )
+        fig_title = f"{prefix} Correct shift within channels\n"
+        fig_title += f"ROI {roi}"
+        fig.suptitle(fig_title)
+        fig.subplots_adjust(
+            wspace=0.15, hspace=0, bottom=0.01, top=0.95, right=0.95, left=0.1
+        )
+
+        fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
+        fig.savefig(figure_folder / (fname + ".png"))
+
+    # now do "between channels"
+    nrois = len(ndims)
+    fig = plt.figure(figsize=(3 * 3 * nc, 2 * 2 * nrois))
+    axes = fig.subplots(nrows=nc * 3, ncols=nrois * 2)
+    for ir, (roi, *ntiles) in enumerate(ndims):
+        raw, corrected = get_data("between", roi, nr=1)
+        corr_feature = ["Shift x", "Shift y"]
+        for ifeat, feat in enumerate(corr_feature):
+            raw_to_plot = raw[:, ifeat, ...]
+            corr_to_plot = corrected[:, ifeat, ...]
+            iss.vis.plot_matrix_difference(
+                raw=raw_to_plot,
+                corrected=corr_to_plot,
+                col_labels=[f"Channel {i} {feat}" for i in np.arange(nc)],
+                range_min=[1 if ifeat < 2 else 0.1] * nc,
+                range_max=[5 if ifeat < 2 else 1] * nc,
+                axes=axes[ir * 3 : (ir + 1) * 3, ifeat * nc : (ifeat + 1) * nc],
+                line_labels=("Raw", f"ROI {ir}\nCorrected", "Difference"),
+            )
+    fig_title = f"{prefix} Correct shift between channels"
+    fig.suptitle(fig_title)
+    fig.subplots_adjust(
+        wspace=0.15, hspace=0, bottom=0.01, top=0.95, right=0.95, left=0.1
+    )
+    fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
+    fig.savefig(figure_folder / (fname + ".png"))
+
+
+def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_round"):
+    """Plot the a mp4 of registered tile and save it in the figures folder
+
+    This will load the data after ransac correction
+
+    Args:
+        data_path (str): Relative path to data folder
+        prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    target_folder = processed_path / "figures" / "registration"
+
+    target_folder.mkdir(exist_ok=True, parents=True)
+
+    ops = iss.io.load_ops(data_path)
+    nrounds = ops[f"{prefix}s"]
+
+    # get stack registered between channel and rounds
+    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+        data_path,
+        filter_r=False,
+        correct_channels=False,
+        correct_illumination=False,
+        corrected_shifts=True,
+        tile_coors=tile_coords,
+        suffix=ops[f"{prefix.split('_')[0]}_projection"],
+        prefix=prefix,
+        nrounds=nrounds,
+        specific_rounds=None,
+    )
+
+    # compute vmax based on round 0
+    vmaxs = np.quantile(reg_stack[..., 0], 0.9999, axis=(0, 1))
+    center = np.array(reg_stack.shape[:2]) // 2
+    view = np.array([center - 200, center + 200]).T
+
+    tilename = "_".join([str(x) for x in tile_coords])
+    vis.animate_sequencing_rounds(
+        reg_stack,
+        savefname=target_folder / f"registration_tile{tilename}_{prefix}.mp4",
+        vmax=vmaxs,
+        extent=(view[0], view[1]),
+        channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    )
 
 
 def check_hybridisation_setup(data_path):
