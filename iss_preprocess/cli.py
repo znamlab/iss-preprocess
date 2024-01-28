@@ -726,18 +726,3 @@ def plot_overview(
         save_raw=save_raw,
         group_channels=not separate_channels,
     )
-
-
-@cli.command()
-@click.option(
-    "--path", "-p", prompt="Enter data path", help="Data path.", required=True
-)
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
-def plot_registration_correlograms(
-    path,
-    prefix,
-):
-    """Plot registration correlograms."""
-    from iss_preprocess.vis import plot_registration_correlograms
-
-    plot_registration_correlograms(data_path=path, prefix=prefix)

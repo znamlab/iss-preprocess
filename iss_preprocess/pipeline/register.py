@@ -11,7 +11,6 @@ from ..reg import (
     estimate_rotation_translation,
     make_transform,
 )
-from . import pipeline
 from .sequencing import load_sequencing_rounds
 from ..io import load_tile_by_coors, load_metadata, load_ops, get_roi_dimensions
 
@@ -42,23 +41,39 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         data_path, ops["ref_tile"], prefix=prefix, suffix=projection, nrounds=nrounds
     )
 
-    (
-        angles_within_channels,
-        shifts_within_channels,
-        scales_between_channels,
-        angles_between_channels,
-        shifts_between_channels,
-    ) = register_channels_and_rounds(
-        data_path,
+    out = register_channels_and_rounds(
         stack,
         ref_ch=ops["ref_ch"],
         ref_round=ops["ref_round"],
         median_filter=ops["reg_median_filter"],
         max_shift=ops["rounds_max_shift"],
         min_shift=ops["rounds_min_shift"],
-        diag=diag,
-        prefix=prefix,
+        debug=diag,
     )
+    if diag:
+        (
+            angles_within_channels,
+            shifts_within_channels,
+            scales_between_channels,
+            angles_between_channels,
+            shifts_between_channels,
+            debug_dict,
+        ) = out
+        iss.vis.diagnostics.plot_registration_correlograms(
+            data_path,
+            prefix,
+            "register_reference_tile",
+            debug_dict,
+        )
+    else:
+        (
+            angles_within_channels,
+            shifts_within_channels,
+            scales_between_channels,
+            angles_between_channels,
+            shifts_between_channels,
+        ) = out
+
     save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
     np.savez(
         save_path,
@@ -497,13 +512,13 @@ def register_tile_to_ref(
     else:
         print(f"Register to {ref_tile_coors}", flush=True)
     ops = load_ops(data_path)
-    ref_all_channels, _ = pipeline.load_and_register_tile(
+    ref_all_channels, _ = iss.pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=ref_tile_coors,
         prefix=ref_prefix,
         filter_r=False,
     )
-    reg_all_channels, _ = pipeline.load_and_register_tile(
+    reg_all_channels, _ = iss.pipeline.load_and_register_tile(
         data_path=data_path, tile_coors=tile_coors, prefix=reg_prefix, filter_r=False
     )
 
