@@ -2,6 +2,7 @@ import numpy as np
 import scipy.fft
 import scipy.ndimage
 from scipy.ndimage import median_filter
+from skimage.morphology import disk
 import multiprocessing
 from numba import jit
 from skimage.transform import SimilarityTransform, warp
@@ -195,7 +196,7 @@ def align_within_channels(
         assert isinstance(
             median_filter_size, int
         ), "reg_median_filter must be an integer"
-        stack = median_filter(stack, size=median_filter_size, axes=(0, 1))
+        stack = median_filter(stack, size=disk(median_filter_size), axes=(0, 1))
 
     # Prepare tasks for each combination of channel and round
     pool_args = [
@@ -363,7 +364,7 @@ def estimate_shifts_for_tile(
         assert isinstance(
             median_filter_size, int
         ), "reg_median_filter must be an integer"
-        stack = median_filter(stack, size=median_filter_size, axes=(0, 1))
+        stack = median_filter(stack, size=disk(median_filter_size), axes=(0, 1))
 
     shifts_within_channels = []
     for ich in range(nchannels):

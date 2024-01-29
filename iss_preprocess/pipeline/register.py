@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import RANSACRegressor
+from skimage.morphology import disk
 from scipy.ndimage import median_filter
 from znamutils import slurm_it
 import iss_preprocess as iss
@@ -533,8 +534,8 @@ def register_tile_to_ref(
     reg = np.nanmean(reg_all_channels, axis=(2, 3))
 
     if ops["reg_median_filter"]:
-        ref = median_filter(ref, size=ops["reg_median_filter"], axes=(0, 1))
-        reg = median_filter(reg, size=ops["reg_median_filter"], axes=(0, 1))
+        ref = median_filter(ref, size=disk(ops["reg_median_filter"]), axes=(0, 1))
+        reg = median_filter(reg, size=disk(ops["reg_median_filter"]), axes=(0, 1))
 
     if binarise_quantile is not None:
         reg = reg > np.quantile(reg, binarise_quantile)

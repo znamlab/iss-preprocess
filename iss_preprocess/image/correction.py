@@ -1,10 +1,12 @@
+from pathlib import Path
 import numpy as np
 from pathlib import Path
 import cv2
 from scipy.ndimage import median_filter
+from skimage.morphology import disk
 from ..io.load import load_stack, load_ops, get_processed_path
 from ..coppafish import hanning_diff
-from pathlib import Path
+
 
 
 def apply_illumination_correction(data_path, stack, prefix, dtype=float):
@@ -228,7 +230,7 @@ def _mean_tiffs(
         mean_image += data / len(tiff_list)
 
     if median_filter_size is not None:
-        mean_image = median_filter(mean_image, size=median_filter_size, axes=(0, 1))
+        mean_image = median_filter(mean_image, size=disk(median_filter_size), axes=(0, 1))
 
     if normalise:
         max_by_chan = np.nanmax(mean_image.reshape((-1, mean_image.shape[-1])), axis=0)
