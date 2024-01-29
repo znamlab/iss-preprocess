@@ -5,6 +5,7 @@ import pandas as pd
 import warnings
 from pathlib import Path
 from scipy.ndimage import median_filter
+from skimage.measure import block_reduce
 from skimage.registration import phase_cross_correlation
 
 import iss_preprocess as iss
@@ -541,6 +542,8 @@ def stitch_and_register(
     target_ch=0,
     estimate_scale=False,
     target_suffix=None,
+    use_masked_correlation=False,
+    debug=False,
 ):
     """Stitch target and reference stacks and align target to reference
 
@@ -569,6 +572,9 @@ def stitch_and_register(
             and reference images. Defaults to False.
         target_suffix (str, optional): Suffix to use for target stack. If None, will use
             the value from ops. Defaults to None.
+        use_masked_correlation (bool, optional): Use masked correlation for registration.
+            Defaults to False.
+        debug (bool, optional): If True, return full xcorr. Defaults to False.
 
     Returns:
         numpy.ndarray: Stitched target image after registration.
@@ -576,7 +582,7 @@ def stitch_and_register(
         float: Estimate rotation angle.
         tuple: Estimated X and Y shifts.
         float: Estimated scaling factor.
-
+        dict: Debug information if `debug` is True.
     """
     ops = load_ops(data_path)
     ref_projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
@@ -602,6 +608,10 @@ def stitch_and_register(
         correct_illumination=True,
     ).astype(np.single)
 
+    if use_masked_correlation:
+        target_mask = np.ones(stitched_stack_target.shape, dtype=bool)
+        reference_mask = np.ones(stitched_stack_reference.shape, dtype=bool)
+
     # If they have different shapes, 0 pad the smallest, keeping origin at (0, 0)
     if stitched_stack_target.shape != stitched_stack_reference.shape:
         stacks_shape = np.vstack(
@@ -610,20 +620,45 @@ def stitch_and_register(
         final_shape = np.max(stacks_shape, axis=0)
         padding = final_shape[np.newaxis, :] - stacks_shape
         if padding.max() > 20:
-            warnings.warn("Large shape difference. Check that everything is fine.")
+            warnings.warn(
+                f"Large shape difference: {padding}."
+                + " Check that everything is fine."
+            )
         if np.sum(padding[0, :]):
             pad_target = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[0]]
             # if uneven, need to add one after
             stitched_stack_target = np.pad(stitched_stack_target, pad_target)
+            if use_masked_correlation:
+                target_mask = np.pad(target_mask, pad_target)
         if np.sum(padding[1, :]):
             pad_ref = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[1]]
             stitched_stack_reference = np.pad(stitched_stack_reference, pad_ref)
+            if use_masked_correlation:
+                reference_mask = np.pad(reference_mask, pad_ref)
 
+    if downsample > 1:
+        # use block_reduce to downsample
+        target = block_reduce(
+            stitched_stack_target, (downsample, downsample), np.nanmean
+        )
+        reference = block_reduce(
+            stitched_stack_reference, (downsample, downsample), np.nanmean
+        )
+        if use_masked_correlation:
+            target_mask = block_reduce(
+                target_mask, (downsample, downsample), np.all, cval=True
+            )
+            reference_mask = block_reduce(
+                reference_mask, (downsample, downsample), np.all, cval=True
+            )
+    else:
+        target = stitched_stack_target
+        reference = stitched_stack_reference
+    
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
-            data_path,
-            stitched_stack_reference[::downsample, ::downsample],
-            stitched_stack_target[::downsample, ::downsample],
+            reference,
+            target,
             niter=3,
             nangles=11,
             verbose=True,
@@ -632,22 +667,29 @@ def stitch_and_register(
             upsample=False,
         )
     else:
-        angle, shift = estimate_rotation_translation(
-            data_path,
-            stitched_stack_reference[::downsample, ::downsample],
-            stitched_stack_target[::downsample, ::downsample],
-            angle_range=1.0,
-            niter=3,
-            nangles=11,
-            upsample=None,
+        kwargs = dict(angle_range=1.0, niter=3, nangles=11, upsample=None, debug=debug)
+
+        if use_masked_correlation:
+            kwargs["target_mask"] = target_mask
+            kwargs["reference_mask"] = reference_mask
+
+        out = estimate_rotation_translation(
+            reference,
+            target,
+            **kwargs,
         )
+        if debug:
+            angle, shift, debug_dict = out
+        else:
+            angle, shift = out
         scale = 1
+
     shift *= downsample
 
     stitched_stack_target = transform_image(
         stitched_stack_target, scale=scale, angle=angle, shift=shift
     )
-
+    
     fname = f"{target_prefix}_roi{roi}_tform_to_ref.npz"
     print(f"Saving {fname} in the reg folder")
     np.savez(
@@ -657,8 +699,10 @@ def stitch_and_register(
         scale=scale,
         stitched_stack_shape=final_shape,
     )
-
-    return (stitched_stack_target, stitched_stack_reference, angle, shift, scale)
+    output = [stitched_stack_target, stitched_stack_reference, angle, shift, scale]
+    if debug:
+        output.append(debug_dict)
+    return tuple(output)
 
 
 def merge_and_align_spots(
