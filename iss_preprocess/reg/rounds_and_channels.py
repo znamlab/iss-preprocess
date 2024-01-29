@@ -26,8 +26,7 @@ def register_channels_and_rounds(
         stack: X x Y x Nchannels x Nrounds images stack
         ref_ch (int): channel to align to
         ref_round (int): round to align to
-        median_filter (int): size of median filter to apply to the stack. Only for
-            images acquired from the same camera
+        median_filter (int): size of median filter to apply to the stack.
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
@@ -66,6 +65,7 @@ def register_channels_and_rounds(
             ch_to_align=ref_ch,
             upsample=5,
             max_shift=max_shift,
+            median_filter_size=median_filter,
             debug=debug,
         )
     )
@@ -177,8 +177,7 @@ def align_within_channels(
         niter (int): number of iterations to run
         nangles (int): number of angles to search for each iteration
         upsample (bool, or int): whether to upsample the image, and if so by what factor
-        median_filter_size (int): size of median filter to apply to the stack. Only for
-            images acquired from the same camera
+        median_filter_size (int): size of median filter to apply to the stack.
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
@@ -196,7 +195,7 @@ def align_within_channels(
         assert isinstance(
             median_filter_size, int
         ), "reg_median_filter must be an integer"
-        stack = median_filter(stack, size=disk(median_filter_size), axes=(0, 1))
+        stack = median_filter(stack, footprint=disk(median_filter_size), axes=(0, 1))
 
     # Prepare tasks for each combination of channel and round
     pool_args = [
@@ -351,7 +350,7 @@ def estimate_shifts_for_tile(
         ref_round (int): reference round
         max_shift (int): maximum shift to avoid spurious cross-correlations
         min_shift (int): minimum shift to avoid spurious cross-correlations
-        median_filter_size (int): size of median filter to apply to the stack. Only for
+        median_filter_size (int): size of median filter to apply to the stack.
 
     Returns:
         shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
@@ -364,7 +363,7 @@ def estimate_shifts_for_tile(
         assert isinstance(
             median_filter_size, int
         ), "reg_median_filter must be an integer"
-        stack = median_filter(stack, size=disk(median_filter_size), axes=(0, 1))
+        stack = median_filter(stack, footprint=disk(median_filter_size), axes=(0, 1))
 
     shifts_within_channels = []
     for ich in range(nchannels):
