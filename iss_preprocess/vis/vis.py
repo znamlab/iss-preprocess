@@ -329,6 +329,7 @@ def animate_sequencing_rounds(
     stack,
     savefname,
     vmax=0.5,
+    vmin=0,
     extent=((0, 2000), (0, 2000)),
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
 ):
@@ -339,6 +340,7 @@ def animate_sequencing_rounds(
         stack (ndarray): X x Y x C x R stack
         savefname (str): filename to save animation
         vmax (float): maximum value for each channel.
+        vmin (float): minimum value for each channel.
         extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
         channel_colors (list): list of colors for each channel.
             Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
@@ -347,7 +349,7 @@ def animate_sequencing_rounds(
     fig = plt.figure(figsize=(10, 10))
     fig.patch.set_facecolor("black")
     nrounds = stack.shape[3]
-    im = plt.imshow(round_to_rgb(stack, 0, extent, channel_colors, vmax))
+    im = plt.imshow(round_to_rgb(stack, 0, extent, channel_colors, vmax, vmin))
     add_bases_legend(channel_colors)
 
     plt.axis("off")
