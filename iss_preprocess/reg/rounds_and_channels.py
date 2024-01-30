@@ -483,6 +483,7 @@ def estimate_correction(
     ch_to_align=0,
     upsample=False,
     max_shift=None,
+    median_filter_size=None,
     scale_range=0.05,
     nangles=3,
     niter=5,
@@ -497,6 +498,7 @@ def estimate_correction(
         ch_to_align (int): channel to align to
         upsample (bool, or int): whether to upsample the image, and if so by what factor
         max_shift (int): maximum shift to avoid spurious cross-correlations
+        median_filter_size (int): size of median filter to apply to the stack.
         scale_range (float): range of scale factors to search through
         nangles (int): number of angles to search through
         niter (int): number of iterations to run
@@ -510,6 +512,12 @@ def estimate_correction(
 
     """
     nchannels = im.shape[2]
+    if median_filter_size is not None:
+        print(f"Filtering with median filter of size {median_filter_size}")
+        assert isinstance(
+            median_filter_size, int
+        ), "reg_median_filter must be an integer"
+        im = median_filter(im, footprint=disk(median_filter_size), axes=(0, 1))
     # Prepare tasks for each channel
     pool_args = [
         (
