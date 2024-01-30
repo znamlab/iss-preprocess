@@ -388,41 +388,53 @@ def plot_registration_correlograms(
     ops = iss.io.load_ops(data_path)
     mshift = ops["rounds_max_shift"]
     for what, data in debug_dict.items():
+        print(f"Plotting {what}")
         if what == "align_within_channels":
             _plot_within_channel_correlogram(data, target_folder, figure_name, mshift)
         elif what == "estimate_correction":
             _plot_across_channels_correlogram(data, target_folder, figure_name, mshift)
         else:
             raise NotImplementedError(f"Unknown what: {what}")
+    plt.close("all")
+    print(f"Saved figures to {target_folder}")
 
 
 def _plot_across_channels_correlogram(data, target_folder, figure_name, max_shift=100):
-    columns = set()
+    angle_scales = set()
     for d in data:
-        columns.update(d.keys())
-    columns = natsorted(columns)
-    nrows = len(data)
-    fig = plt.figure(figsize=(len(columns) * 3.5, nrows * 3))
+        angle_scales.update(d.keys())
+    angle_scales = natsorted(angle_scales)
+    columns = natsorted(np.unique([a.split("_")[-1] for a in angle_scales]))
+    rows = natsorted(np.unique([a.split("_")[-3] for a in angle_scales]))
+    fig = plt.figure(figsize=(len(columns) * 3.5, len(rows) * 3))
     for ich, ch_data in enumerate(data):
         if not ch_data:
             continue
-        for icol, col_name in enumerate(columns):
-            ax = fig.add_subplot(nrows, len(columns), 1 + icol + ich * len(columns))
-            xcorr = ch_data[col_name]["xcorr"]
-            angles = ch_data[col_name]["angles"]
-            best_angle_id = xcorr.max(axis=(1, 2)).argmax()
-            xcorr = xcorr[best_angle_id]
-            ax.set_title(f"Best angle: {angles[best_angle_id]:.2f}")
-            _draw_correlogram(ax, xcorr, max_shift, 0, np.percentile(xcorr, 99.999))
-            ax.set_xlabel(col_name)
-            if icol == 0:
-                ax.set_ylabel(f"Channel {ich}")
-    fig.tight_layout()
-    fig.savefig(
-        target_folder / f"{figure_name}_shifts_across_channels.pdf",
-        dpi=300,
-        transparent=True,
-    )
+        for irow, row_name in enumerate(rows):
+            for icol, col_name in enumerate(columns):
+                ax = fig.add_subplot(len(rows), len(columns), 1 + icol + irow * len(columns))
+                angle_scale = f"estimate_angle_{row_name}_scale_{col_name}"
+                xcorr = ch_data[angle_scale]["xcorr"]
+                angles = ch_data[angle_scale]["angles"]
+                best_angle_id = xcorr.max(axis=(1, 2)).argmax()
+                xcorr = xcorr[best_angle_id]
+                title = f"Best angle: {angles[best_angle_id]:.2f}"
+                if icol == 0:
+                    title += f" (range {angles.min():.2f} - {angles.max():.2f})"
+                ax.set_title(title)
+                _draw_correlogram(ax, xcorr, max_shift, 0, np.percentile(xcorr, 99.999))
+                if icol == 0:
+                    ax.set_ylabel(f"Angle {row_name}")
+                if irow == len(rows) - 1:
+                    ax.set_xlabel(f"Scale {col_name}")
+            
+        fig.tight_layout()
+        fig.savefig(
+            target_folder / f"{figure_name}_register_ch{ich}_to_ref_ch.pdf",
+            dpi=300,
+            transparent=True,
+        )
+        fig.clear()
 
 
 def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift=100):
@@ -448,7 +460,16 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
                     xcorr = xcorr["xcorr"]
                     best_angle_id = xcorr.max(axis=(1, 2)).argmax()
                     xcorr = xcorr[best_angle_id]
-                    ax.set_title(f"Best angle: {angles[best_angle_id]:.2f}")
+                    ax.set_title(
+                        f"Best angle: {angles[best_angle_id]:.2f}"
+                        + f" (range {angles.min():.2f} - {angles.max():.2f})"
+                    )
+                else:
+                    # find x,y of max of xcorr
+                    hrow, hcol = np.asarray(xcorr.shape) // 2
+                    max_idx = np.unravel_index(np.argmax(xcorr), xcorr.shape)
+                    selected_shift = np.asarray(max_idx) - np.asarray([hrow, hcol])
+                    ax.set_title(f"Shift: {selected_shift[0]:.2f}, {selected_shift[1]:.2f}")
                 _draw_correlogram(ax, xcorr, max_shift, 0, np.percentile(xcorr, 99.999))
         fig.tight_layout()
         fig.savefig(
@@ -457,7 +478,7 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
         fig.clear()
 
 
-def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax, final_tforms=None):
+def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax):
     hrow, hcol = np.asarray(xcorr.shape) // 2
     xcorr = xcorr[
         hrow - max_shift : hrow + max_shift, hcol - max_shift : hcol + max_shift
