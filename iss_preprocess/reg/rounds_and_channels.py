@@ -2,6 +2,7 @@ import numpy as np
 import scipy.fft
 import scipy.ndimage
 from scipy.ndimage import median_filter
+from skimage.morphology import disk
 import multiprocessing
 from numba import jit
 from skimage.transform import SimilarityTransform, warp
@@ -25,8 +26,7 @@ def register_channels_and_rounds(
         stack: X x Y x Nchannels x Nrounds images stack
         ref_ch (int): channel to align to
         ref_round (int): round to align to
-        median_filter (int): size of median filter to apply to the stack. Only for
-            images acquired from the same camera
+        median_filter (int): size of median filter to apply to the stack.
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
@@ -65,6 +65,7 @@ def register_channels_and_rounds(
             ch_to_align=ref_ch,
             upsample=5,
             max_shift=max_shift,
+            median_filter_size=median_filter,
             debug=debug,
         )
     )
@@ -176,8 +177,7 @@ def align_within_channels(
         niter (int): number of iterations to run
         nangles (int): number of angles to search for each iteration
         upsample (bool, or int): whether to upsample the image, and if so by what factor
-        median_filter_size (int): size of median filter to apply to the stack. Only for
-            images acquired from the same camera
+        median_filter_size (int): size of median filter to apply to the stack.
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
@@ -195,7 +195,7 @@ def align_within_channels(
         assert isinstance(
             median_filter_size, int
         ), "reg_median_filter must be an integer"
-        stack = median_filter(stack, size=median_filter_size, axes=(0, 1))
+        stack = median_filter(stack, footprint=disk(median_filter_size), axes=(0, 1))
 
     # Prepare tasks for each combination of channel and round
     pool_args = [
@@ -350,7 +350,7 @@ def estimate_shifts_for_tile(
         ref_round (int): reference round
         max_shift (int): maximum shift to avoid spurious cross-correlations
         min_shift (int): minimum shift to avoid spurious cross-correlations
-        median_filter_size (int): size of median filter to apply to the stack. Only for
+        median_filter_size (int): size of median filter to apply to the stack.
 
     Returns:
         shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
@@ -363,7 +363,7 @@ def estimate_shifts_for_tile(
         assert isinstance(
             median_filter_size, int
         ), "reg_median_filter must be an integer"
-        stack = median_filter(stack, size=median_filter_size, axes=(0, 1))
+        stack = median_filter(stack, footprint=disk(median_filter_size), axes=(0, 1))
 
     shifts_within_channels = []
     for ich in range(nchannels):
@@ -483,6 +483,7 @@ def estimate_correction(
     ch_to_align=0,
     upsample=False,
     max_shift=None,
+    median_filter_size=None,
     scale_range=0.05,
     nangles=3,
     niter=5,
@@ -497,6 +498,7 @@ def estimate_correction(
         ch_to_align (int): channel to align to
         upsample (bool, or int): whether to upsample the image, and if so by what factor
         max_shift (int): maximum shift to avoid spurious cross-correlations
+        median_filter_size (int): size of median filter to apply to the stack.
         scale_range (float): range of scale factors to search through
         nangles (int): number of angles to search through
         niter (int): number of iterations to run
@@ -510,6 +512,12 @@ def estimate_correction(
 
     """
     nchannels = im.shape[2]
+    if median_filter_size is not None:
+        print(f"Filtering with median filter of size {median_filter_size}")
+        assert isinstance(
+            median_filter_size, int
+        ), "reg_median_filter must be an integer"
+        im = median_filter(im, footprint=disk(median_filter_size), axes=(0, 1))
     # Prepare tasks for each channel
     pool_args = [
         (
@@ -632,12 +640,10 @@ def estimate_scale_rotation_translation(
                 debug=debug,
             )
             if debug:
-                best_angle, max_cc[iscale], db_info = out
-                best_angles[iscale] = best_angle
-                debug_info[f"estimate_angle_iter{i}"] = db_info
+                best_angles[iscale], max_cc[iscale], db_info = out
+                debug_info[f"estimate_angle_iter{i}_scale_iter{iscale}"] = db_info
             else:
-                best_angle, max_cc[iscale] = out
-                best_angles[iscale] = best_angle
+                best_angles[iscale], max_cc[iscale] = out
         best_scale_index = np.argmax(max_cc)
         best_scale = scales[best_scale_index]
         best_angle = best_angles[best_scale_index]

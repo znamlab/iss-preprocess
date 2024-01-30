@@ -262,7 +262,7 @@ def add_bases_legend(channel_colors, transform=None):
         )
 
 
-def round_to_rgb(stack, iround, extent, channel_colors, vmax):
+def round_to_rgb(stack, iround, extent, channel_colors, vmax=None, vmin=None):
     """
     Convert a single sequencing round to RGB image.
 
@@ -273,6 +273,7 @@ def round_to_rgb(stack, iround, extent, channel_colors, vmax):
             case the full image is used.
         channel_colors (list): list of colors for each channel.
         vmax (float): maximum value for each channel.
+        vmin (float): minimum value for each channel.
 
     Returns:
         RGB image.
@@ -280,10 +281,15 @@ def round_to_rgb(stack, iround, extent, channel_colors, vmax):
     if extent is None:
         extent = ((0, stack.shape[0]), (0, stack.shape[1]))
 
+    if vmin is None:
+        vmin = 0
+    if vmax is None:
+        vmax = 1
+
     return to_rgb(
         stack[extent[0][0] : extent[0][1], extent[1][0] : extent[1][1], :, iround],
         channel_colors,
-        vmin=np.array([0, 0, 0, 0]),
+        vmin=np.array([1, 1, 1, 1]) * vmin,
         vmax=np.array([1, 1, 1, 1]) * vmax,
     )
 
@@ -323,6 +329,7 @@ def animate_sequencing_rounds(
     stack,
     savefname,
     vmax=0.5,
+    vmin=0,
     extent=((0, 2000), (0, 2000)),
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
 ):
@@ -333,6 +340,7 @@ def animate_sequencing_rounds(
         stack (ndarray): X x Y x C x R stack
         savefname (str): filename to save animation
         vmax (float): maximum value for each channel.
+        vmin (float): minimum value for each channel.
         extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
         channel_colors (list): list of colors for each channel.
             Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
@@ -341,7 +349,7 @@ def animate_sequencing_rounds(
     fig = plt.figure(figsize=(10, 10))
     fig.patch.set_facecolor("black")
     nrounds = stack.shape[3]
-    im = plt.imshow(round_to_rgb(stack, 0, extent, channel_colors, vmax))
+    im = plt.imshow(round_to_rgb(stack, 0, extent, channel_colors, vmax, vmin))
     add_bases_legend(channel_colors)
 
     plt.axis("off")

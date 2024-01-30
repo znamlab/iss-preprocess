@@ -46,7 +46,8 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     )
 
     # compute vmax based on round 0
-    vmaxs = np.quantile(reg_stack[..., 0], 0.9999, axis=(0, 1))
+    vmaxs = np.percentile(reg_stack[..., 0], 99.99, axis=(0, 1))
+    vmins = np.percentile(reg_stack[..., 0], 0.01, axis=(0, 1))
     center = np.array(reg_stack.shape[:2]) // 2
     view = np.array([center - 200, center + 200]).T
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
@@ -56,29 +57,37 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
         reg_stack,
         savefname=target_folder / f"initial_ref_tile_registration_{prefix}.mp4",
         vmax=vmaxs,
+        vmin=vmins,
         extent=(view[0], view[1]),
         channel_colors=channel_colors,
     )
 
     print("Static figure")
-    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+    stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
     nrounds = stack.shape[3]
-
+    
     def round_image(iround):
-        vmax = np.percentile(stack[501:1000, 1501:2000, :, iround], 99.9)
+        vmax = np.percentile(stack[view[0,0]:view[0,1], view[1,0]:view[1,1], :, iround], 99.99, axis=(0, 1))
+        vmin = np.percentile(stack[view[0,0]:view[0,1], view[1,0]:view[1,1], :, iround], 0.01, axis=(0, 1))
         return iss.vis.to_rgb(
-            stack[501:1000, 1501:2000, :, iround],
+            stack[view[0,0]:view[0,1], view[1,0]:view[1,1], :, iround],
             channel_colors,
-            vmin=np.array([0, 0, 0, 0]),
-            vmax=np.array([1, 1, 1, 1]) * vmax,
+            vmin=vmin,
+            vmax=vmax,
         )
 
-    fig = plt.figure(figsize=(10, 8))
+    # Make the smallest rectangle that contains `nrounds` axes
+    nrows = int(np.sqrt(nrounds))
+    ncols = int(np.ceil(nrounds / nrows))
+    fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
     for iround in range(nrounds):
-        plt.subplot(3, 4, iround + 1)
-        plt.imshow(round_image(iround))
-        plt.axis("off")
-    plt.tight_layout()
+        ax = fig.add_subplot(nrows, ncols, iround + 1)
+        ax.imshow(round_image(iround))
+        ax.axis("off")
+        ax.set_title(f"Round {iround}")
+    iss.vis.add_bases_legend(channel_colors)
+    fig.tight_layout()
+    fig.savefig(target_folder / f"initial_ref_tile_registration_{prefix}.png")
     print(f"Saved to {target_folder / f'initial_ref_tile_registration_{prefix}.mp4'}")
 
 

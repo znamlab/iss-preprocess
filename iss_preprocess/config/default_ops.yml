@@ -49,9 +49,9 @@ registration:
   x_tile_direction: left_to_right
   # Whether tile position increments from bottom to top or top to bottom
   y_tile_direction: bottom_to_top
-  #Whether to use a median filter on images before registration across rounds
-  # if None no filter is applied
-  reg_median_filter: 2
+  # Radius of disk for median filtering images before registration.
+  # if `null` no filter is applied.
+  reg_median_filter: 1
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating
 # bleedthrough matrices, calling hybridisation spots and basecalling barcodes
