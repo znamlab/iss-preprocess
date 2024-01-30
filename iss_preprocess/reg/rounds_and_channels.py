@@ -640,12 +640,10 @@ def estimate_scale_rotation_translation(
                 debug=debug,
             )
             if debug:
-                best_angle, max_cc[iscale], db_info = out
-                best_angles[iscale] = best_angle
-                debug_info[f"estimate_angle_iter{i}"] = db_info
+                best_angles[iscale], max_cc[iscale], db_info = out
+                debug_info[f"estimate_angle_iter{i}_scale_iter{iscale}"] = db_info
             else:
-                best_angle, max_cc[iscale] = out
-                best_angles[iscale] = best_angle
+                best_angles[iscale], max_cc[iscale] = out
         best_scale_index = np.argmax(max_cc)
         best_scale = scales[best_scale_index]
         best_angle = best_angles[best_scale_index]
