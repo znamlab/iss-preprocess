@@ -412,7 +412,9 @@ def _plot_across_channels_correlogram(data, target_folder, figure_name, max_shif
             continue
         for irow, row_name in enumerate(rows):
             for icol, col_name in enumerate(columns):
-                ax = fig.add_subplot(len(rows), len(columns), 1 + icol + irow * len(columns))
+                ax = fig.add_subplot(
+                    len(rows), len(columns), 1 + icol + irow * len(columns)
+                )
                 angle_scale = f"estimate_angle_{row_name}_scale_{col_name}"
                 xcorr = ch_data[angle_scale]["xcorr"]
                 angles = ch_data[angle_scale]["angles"]
@@ -427,7 +429,7 @@ def _plot_across_channels_correlogram(data, target_folder, figure_name, max_shif
                     ax.set_ylabel(f"Angle {row_name}")
                 if irow == len(rows) - 1:
                     ax.set_xlabel(f"Scale {col_name}")
-            
+
         fig.tight_layout()
         fig.savefig(
             target_folder / f"{figure_name}_register_ch{ich}_to_ref_ch.pdf",
@@ -469,7 +471,9 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
                     hrow, hcol = np.asarray(xcorr.shape) // 2
                     max_idx = np.unravel_index(np.argmax(xcorr), xcorr.shape)
                     selected_shift = np.asarray(max_idx) - np.asarray([hrow, hcol])
-                    ax.set_title(f"Shift: {selected_shift[0]:.2f}, {selected_shift[1]:.2f}")
+                    ax.set_title(
+                        f"Shift: {selected_shift[0]:.2f}, {selected_shift[1]:.2f}"
+                    )
                 _draw_correlogram(ax, xcorr, max_shift, 0, np.percentile(xcorr, 99.999))
         fig.tight_layout()
         fig.savefig(
