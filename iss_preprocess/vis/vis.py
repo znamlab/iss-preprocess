@@ -262,7 +262,7 @@ def add_bases_legend(channel_colors, transform=None):
         )
 
 
-def round_to_rgb(stack, iround, extent, channel_colors, vmax):
+def round_to_rgb(stack, iround, extent, channel_colors, vmax=None, vmin=None):
     """
     Convert a single sequencing round to RGB image.
 
@@ -273,6 +273,7 @@ def round_to_rgb(stack, iround, extent, channel_colors, vmax):
             case the full image is used.
         channel_colors (list): list of colors for each channel.
         vmax (float): maximum value for each channel.
+        vmin (float): minimum value for each channel.
 
     Returns:
         RGB image.
@@ -280,10 +281,15 @@ def round_to_rgb(stack, iround, extent, channel_colors, vmax):
     if extent is None:
         extent = ((0, stack.shape[0]), (0, stack.shape[1]))
 
+    if vmin is None:
+        vmin = 0
+    if vmax is None:
+        vmax = 1
+
     return to_rgb(
         stack[extent[0][0] : extent[0][1], extent[1][0] : extent[1][1], :, iround],
         channel_colors,
-        vmin=np.array([0, 0, 0, 0]),
+        vmin=np.array([1, 1, 1, 1]) * vmin,
         vmax=np.array([1, 1, 1, 1]) * vmax,
     )
 
