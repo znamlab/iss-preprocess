@@ -224,9 +224,9 @@ def register_adjacent_tiles(
     if ops["reg_median_filter"]:
         msize = ops["reg_median_filter"]
         assert isinstance(msize, int), "reg_median_filter must be an integer"
-        tile_ref = median_filter(tile_ref, disk(msize), axes=(0, 1))
-        tile_down = median_filter(tile_down, disk(msize), axes=(0, 1))
-        tile_right = median_filter(tile_right, disk(msize), axes=(0, 1))
+        tile_ref = median_filter(tile_ref, footprint=disk(msize), axes=(0, 1))
+        tile_down = median_filter(tile_down, footprint=disk(msize), axes=(0, 1))
+        tile_right = median_filter(tile_right, footprint=disk(msize), axes=(0, 1))
 
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
@@ -583,17 +583,20 @@ def stitch_and_register(
     ref_projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
     if target_suffix is None:
         target_suffix = ops[f"{target_prefix.split('_')[0].lower()}_projection"]
-
-    stitched_stack_target = stitch_tiles(
-        data_path,
-        target_prefix,
-        suffix=target_suffix,
-        roi=roi,
-        ich=target_ch,
-        correct_illumination=True,
-    ).astype(
-        np.single
-    )  # to save memory
+    if isinstance(target_ch, int):
+        target_ch = [target_ch]
+    stitched_stack_target = []
+    for ch in target_ch:
+        stitched_stack_target.append(stitch_tiles(
+            data_path,
+            target_prefix,
+            suffix=target_suffix,
+            roi=roi,
+            ich=ch,
+            correct_illumination=True,
+        ).astype(
+            np.single
+        ))  # to save memory
     stitched_stack_reference = stitch_tiles(
         data_path,
         reference_prefix,
