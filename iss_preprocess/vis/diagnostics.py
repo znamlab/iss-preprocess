@@ -394,7 +394,7 @@ def plot_registration_correlograms(
         elif what == "estimate_correction":
             _plot_across_channels_correlogram(data, target_folder, figure_name, mshift)
         else:
-            raise NotImplementedError(f"Unknown what: {what}")
+            raise NotImplementedError(f"Unknown correlogram output: {what}")
     plt.close("all")
     print(f"Saved figures to {target_folder}")
 
@@ -463,8 +463,8 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
                     best_angle_id = xcorr.max(axis=(1, 2)).argmax()
                     xcorr = xcorr[best_angle_id]
                     ax.set_title(
-                        f"Best angle: {angles[best_angle_id]:.2f}"
-                        + f" (range {angles.min():.2f} - {angles.max():.2f})"
+                        f"Best angle: {angles[best_angle_id]:.3f}"
+                        + f" (range {angles.min():.3f} - {angles.max():.3f})"
                     )
                 else:
                     # find x,y of max of xcorr
@@ -472,7 +472,7 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
                     max_idx = np.unravel_index(np.argmax(xcorr), xcorr.shape)
                     selected_shift = np.asarray(max_idx) - np.asarray([hrow, hcol])
                     ax.set_title(
-                        f"Shift: {selected_shift[0]:.2f}, {selected_shift[1]:.2f}"
+                        f"Shift: {selected_shift[0]:.3f}, {selected_shift[1]:.3f}"
                     )
                 _draw_correlogram(ax, xcorr, max_shift, 0, np.percentile(xcorr, 99.999))
         fig.tight_layout()
