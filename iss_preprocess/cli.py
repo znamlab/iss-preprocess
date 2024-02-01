@@ -310,6 +310,15 @@ def spot_sign_image(path, prefix="genes_round"):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def check_omp(path):
+    """Compute average spot image."""
+    from iss_preprocess.pipeline import check_omp_thresholds
+
+    check_omp_thresholds(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def basecall(path):
     """Start batch jobs to run OMP on all tiles in a dataset."""
     from iss_preprocess.pipeline import batch_process_tiles
