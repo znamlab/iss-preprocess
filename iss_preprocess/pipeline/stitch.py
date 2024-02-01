@@ -538,7 +538,7 @@ def stitch_and_register(
     reference_prefix,
     target_prefix,
     roi=1,
-    downsample=5,
+    downsample=3,
     ref_ch=0,
     target_ch=0,
     estimate_scale=False,
@@ -589,29 +589,41 @@ def stitch_and_register(
     ref_projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
     if target_suffix is None:
         target_suffix = ops[f"{target_prefix.split('_')[0].lower()}_projection"]
+    
     if isinstance(target_ch, int):
         target_ch = [target_ch]
-    
+    stitched_stack_target = None
     for ch in target_ch:
-        stitched_stack_target = stitch_tiles(
-            data_path,
-            target_prefix,
-            suffix=target_suffix,
-            roi=roi,
-            ich=ch,
-            correct_illumination=True,
-        ).astype(
-            np.single
-        )  # to save memory
-    stitched_stack_reference = stitch_tiles(
-        data_path,
-        reference_prefix,
-        suffix=ref_projection,
-        roi=roi,
-        ich=ref_ch,
-        correct_illumination=True,
-    ).astype(np.single)
-
+        stitched = stitch_tiles(
+                data_path,
+                target_prefix,
+                suffix=target_suffix,
+                roi=roi,
+                ich=ch,
+                correct_illumination=True,
+            ).astype(
+                np.single
+            )  # to save memory
+        if stitched_stack_target is None:
+            stitched_stack_target = stitched
+        else:
+            stitched_stack_target += stitched
+    stitched_stack_target /= len(target_ch)
+    
+    if isinstance(ref_ch, int):
+        ref_ch = [ref_ch]
+    stitched_stack_reference = stitch_registered(
+        data_path, 
+        prefix=reference_prefix, 
+        roi=roi, 
+        channels=ref_ch, 
+        ref_prefix=reference_prefix, 
+        filter_r=False
+    )
+    stitched_stack_reference = np.nanmean(stitched_stack_reference, axis=-1).astype(
+        np.single
+    )  # to save memory
+    
     if use_masked_correlation:
         target_mask = np.ones(stitched_stack_target.shape, dtype=bool)
         reference_mask = np.ones(stitched_stack_reference.shape, dtype=bool)
@@ -623,7 +635,7 @@ def stitch_and_register(
         )
         final_shape = np.max(stacks_shape, axis=0)
         padding = final_shape[np.newaxis, :] - stacks_shape
-        if padding.max() > 20:
+        if padding.max() > 100:
             warnings.warn(
                 f"Large shape difference: {padding}."
                 + " Check that everything is fine."
@@ -658,7 +670,7 @@ def stitch_and_register(
     else:
         target = stitched_stack_target
         reference = stitched_stack_reference
-    
+
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
             reference,
@@ -693,7 +705,10 @@ def stitch_and_register(
     stitched_stack_target = transform_image(
         stitched_stack_target, scale=scale, angle=angle, shift=shift
     )
-    
+    # Adapt shift to be able to use the same transform without padding
+    shift += padding[0]// 2
+    shift -= padding[1]// 2
+
     fname = f"{target_prefix}_roi{roi}_tform_to_ref.npz"
     print(f"Saving {fname} in the reg folder")
     np.savez(
