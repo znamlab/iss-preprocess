@@ -591,9 +591,9 @@ def stitch_and_register(
         target_suffix = ops[f"{target_prefix.split('_')[0].lower()}_projection"]
     if isinstance(target_ch, int):
         target_ch = [target_ch]
-    stitched_stack_target = []
+    
     for ch in target_ch:
-        stitched_stack_target.append(stitch_tiles(
+        stitched_stack_target = stitch_tiles(
             data_path,
             target_prefix,
             suffix=target_suffix,
@@ -602,7 +602,7 @@ def stitch_and_register(
             correct_illumination=True,
         ).astype(
             np.single
-        ))  # to save memory
+        )  # to save memory
     stitched_stack_reference = stitch_tiles(
         data_path,
         reference_prefix,
@@ -616,7 +616,7 @@ def stitch_and_register(
         target_mask = np.ones(stitched_stack_target.shape, dtype=bool)
         reference_mask = np.ones(stitched_stack_reference.shape, dtype=bool)
 
-    # If they have different shapes, 0 pad the smallest, keeping origin at (0, 0)
+    # If they have different shapes, 0 pad the smallest one
     if stitched_stack_target.shape != stitched_stack_reference.shape:
         stacks_shape = np.vstack(
             (stitched_stack_target.shape, stitched_stack_reference.shape)
@@ -687,7 +687,7 @@ def stitch_and_register(
         else:
             angle, shift = out
         scale = 1
-
+    
     shift *= downsample
 
     stitched_stack_target = transform_image(
