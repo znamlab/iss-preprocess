@@ -4,8 +4,8 @@ Module containing diagnostic plots to make sure steps of the pipeline run smooth
 The functions in here do not compute anything useful, but create figures
 """
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.backends.backend_pdf import PdfPages
 from flexiznam.config import PARAMETERS
 from znamutils import slurm_it
@@ -518,3 +518,81 @@ def check_tile_shifts(
                     pdf.savefig(fig)
                     figs[roi] = fig
     return figs
+
+
+def check_omp_thresholds(
+    data_path,
+    spot_score_thresholds=(0.05, 0.075, 0.1, 0.125, 0.15, 0.2),
+    omp_thresholds = (0.05, 0.075, 0.10, 0.125, 0.15, 0.2)
+):
+    
+    processed_path = iss.io.get_processed_path(data_path)
+    ops = iss.io.load_ops(data_path)
+
+    stack, bad_pixels = iss.pipeline.load_and_register_sequencing_tile(
+        data_path, 
+        ops["ref_tile"], 
+        filter_r=False, 
+        prefix='genes_round',
+        suffix=ops['genes_projection'],
+        nrounds=ops['genes_rounds'],
+        correct_channels=True,
+        corrected_shifts='single_tile',
+        correct_illumination=True
+    )
+    stack = stack[:, :, np.argsort(ops['camera_order']), :]
+
+    all_gene_spots = []
+    omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
+    for omp_threshold in omp_thresholds:
+        g, _, _ = iss.call.run_omp(
+            stack,
+            omp_stat["gene_dict"],
+            tol=omp_threshold,
+            weighted=True,
+            refit_background=True,
+            alpha=ops["omp_alpha"],
+            beta_squared=ops["omp_beta_squared"],
+            norm_shift=omp_stat["norm_shift"],
+            max_comp=ops["omp_max_genes"],
+            min_intensity=ops["omp_min_intensity"],
+        )
+        for igene in range(g.shape[2]):
+            g[bad_pixels, igene] = 0  
+        spot_sign_image = iss.pipeline.load_spot_sign_image(data_path, ops["spot_shape_threshold"])
+        gene_spots = iss.call.find_gene_spots(
+            g,
+            spot_sign_image,
+            rho=ops["genes_spot_rho"],
+            spot_score_threshold=0.05,
+        )
+        for df, gene in zip(gene_spots, omp_stat["gene_names"]):
+            df["gene"] = gene 
+        all_gene_spots.append(gene_spots)
+
+    im = np.std(stack, axis=(2,3))
+    vmax = np.percentile(im, 99.99)
+    # white background figure
+    plt.figure(figsize=(30, 30), facecolor='w')
+    for i in range(len(omp_thresholds)):
+        for j in range(len(spot_score_thresholds)):
+            spots = pd.concat(all_gene_spots[i])
+            spots = spots[spots.spot_score > spot_score_thresholds[j]]
+            plt.subplot(len(omp_thresholds), len(spot_score_thresholds), i * len(spot_score_thresholds) + j + 1)
+            plt.imshow(im, cmap="inferno", vmax=vmax)
+            plt.plot(spots.x, spots.y, 'xw', ms=2)
+            plt.xlim(1500, 1700)
+            plt.ylim(1500, 1700)
+            plt.axis('off')
+            plt.title(f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}")
+
+    plt.tight_layout()
+    plt.savefig(processed_path / "figures" / "omp_spot_score_thresholds.png", dpi=300)
+
+    plt.figure(figsize=(20, 20))
+    plt.imshow(im, cmap="inferno", vmax=vmax)
+    plt.xlim(1500, 1700)
+    plt.ylim(1500, 1700)
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig(processed_path / "figures" / "omp_spot_score_thresholds_image.png", dpi=300)    
