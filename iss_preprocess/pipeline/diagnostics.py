@@ -65,12 +65,20 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     print("Static figure")
     stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
     nrounds = stack.shape[3]
-    
+
     def round_image(iround):
-        vmax = np.percentile(stack[view[0,0]:view[0,1], view[1,0]:view[1,1], :, iround], 99.99, axis=(0, 1))
-        vmin = np.percentile(stack[view[0,0]:view[0,1], view[1,0]:view[1,1], :, iround], 0.01, axis=(0, 1))
+        vmax = np.percentile(
+            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+            99.99,
+            axis=(0, 1),
+        )
+        vmin = np.percentile(
+            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+            0.01,
+            axis=(0, 1),
+        )
         return iss.vis.to_rgb(
-            stack[view[0,0]:view[0,1], view[1,0]:view[1,1], :, iround],
+            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
             channel_colors,
             vmin=vmin,
             vmax=vmax,
@@ -523,24 +531,23 @@ def check_tile_shifts(
 def check_omp_thresholds(
     data_path,
     spot_score_thresholds=(0.05, 0.075, 0.1, 0.125, 0.15, 0.2),
-    omp_thresholds = (0.05, 0.075, 0.10, 0.125, 0.15, 0.2)
+    omp_thresholds=(0.05, 0.075, 0.10, 0.125, 0.15, 0.2),
 ):
-    
     processed_path = iss.io.get_processed_path(data_path)
     ops = iss.io.load_ops(data_path)
 
     stack, bad_pixels = iss.pipeline.load_and_register_sequencing_tile(
-        data_path, 
-        ops["ref_tile"], 
-        filter_r=False, 
-        prefix='genes_round',
-        suffix=ops['genes_projection'],
-        nrounds=ops['genes_rounds'],
+        data_path,
+        ops["ref_tile"],
+        filter_r=False,
+        prefix="genes_round",
+        suffix=ops["genes_projection"],
+        nrounds=ops["genes_rounds"],
         correct_channels=True,
-        corrected_shifts='single_tile',
-        correct_illumination=True
+        corrected_shifts="single_tile",
+        correct_illumination=True,
     )
-    stack = stack[:, :, np.argsort(ops['camera_order']), :]
+    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 
     all_gene_spots = []
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
@@ -558,8 +565,10 @@ def check_omp_thresholds(
             min_intensity=ops["omp_min_intensity"],
         )
         for igene in range(g.shape[2]):
-            g[bad_pixels, igene] = 0  
-        spot_sign_image = iss.pipeline.load_spot_sign_image(data_path, ops["spot_shape_threshold"])
+            g[bad_pixels, igene] = 0
+        spot_sign_image = iss.pipeline.load_spot_sign_image(
+            data_path, ops["spot_shape_threshold"]
+        )
         gene_spots = iss.call.find_gene_spots(
             g,
             spot_sign_image,
@@ -567,24 +576,30 @@ def check_omp_thresholds(
             spot_score_threshold=0.05,
         )
         for df, gene in zip(gene_spots, omp_stat["gene_names"]):
-            df["gene"] = gene 
+            df["gene"] = gene
         all_gene_spots.append(gene_spots)
 
-    im = np.std(stack, axis=(2,3))
+    im = np.std(stack, axis=(2, 3))
     vmax = np.percentile(im, 99.99)
     # white background figure
-    plt.figure(figsize=(30, 30), facecolor='w')
+    plt.figure(figsize=(30, 30), facecolor="w")
     for i in range(len(omp_thresholds)):
         for j in range(len(spot_score_thresholds)):
             spots = pd.concat(all_gene_spots[i])
             spots = spots[spots.spot_score > spot_score_thresholds[j]]
-            plt.subplot(len(omp_thresholds), len(spot_score_thresholds), i * len(spot_score_thresholds) + j + 1)
+            plt.subplot(
+                len(omp_thresholds),
+                len(spot_score_thresholds),
+                i * len(spot_score_thresholds) + j + 1,
+            )
             plt.imshow(im, cmap="inferno", vmax=vmax)
-            plt.plot(spots.x, spots.y, 'xw', ms=2)
+            plt.plot(spots.x, spots.y, "xw", ms=2)
             plt.xlim(1500, 1700)
             plt.ylim(1500, 1700)
-            plt.axis('off')
-            plt.title(f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}")
+            plt.axis("off")
+            plt.title(
+                f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}"
+            )
 
     plt.tight_layout()
     plt.savefig(processed_path / "figures" / "omp_spot_score_thresholds.png", dpi=300)
@@ -593,6 +608,8 @@ def check_omp_thresholds(
     plt.imshow(im, cmap="inferno", vmax=vmax)
     plt.xlim(1500, 1700)
     plt.ylim(1500, 1700)
-    plt.axis('off')
+    plt.axis("off")
     plt.tight_layout()
-    plt.savefig(processed_path / "figures" / "omp_spot_score_thresholds_image.png", dpi=300)    
+    plt.savefig(
+        processed_path / "figures" / "omp_spot_score_thresholds_image.png", dpi=300
+    )
