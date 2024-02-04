@@ -184,6 +184,7 @@ def estimate_shifts_by_coors(
     )
 
 
+@slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
 def correct_shifts(data_path, prefix):
     """Use robust regression to correct shifts across tiles within an ROI
     for all ROIs.
