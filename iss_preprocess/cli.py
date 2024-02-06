@@ -272,10 +272,12 @@ def estimate_hyb_shifts(path, prefix=None, suffix="max"):
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
 def correct_shifts(path, prefix, use_slurm=False):
     """Correct X-Y shifts using robust regression across tiles."""
-    
+
     from iss_preprocess.pipeline import correct_shifts
+
     if use_slurm:
         from pathlib import Path
+
         slurm_folder = f"{Path.home()}/slurm_logs"
     else:
         slurm_folder = None

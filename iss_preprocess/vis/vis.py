@@ -334,7 +334,7 @@ def animate_sequencing_rounds(
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
 ):
     """
-    Animate sequencing rounds as RGB images amd save as an MPEG file.
+    Animate sequencing rounds as RGB images amd save as an mp4 file.
 
     Args:
         stack (ndarray): X x Y x C x R stack
@@ -358,7 +358,6 @@ def animate_sequencing_rounds(
         im.set_data(round_to_rgb(stack, iround, extent, channel_colors, vmax))
 
     anim = FuncAnimation(fig, animate, frames=nrounds, interval=200)
-    plt.show()
     anim.save(savefname, writer=FFMpegWriter(fps=2))
 
 
