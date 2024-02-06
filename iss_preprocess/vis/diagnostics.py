@@ -175,6 +175,7 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
     fig_file = (
         iss.io.get_processed_path(data_path)
         / "figures"
+        / "registration"
         / f"adjacent_tile_reg_{prefix}.png"
     )
     if not fig_file.parent.exists():
@@ -533,7 +534,7 @@ def check_rolonies_registration(
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
     vmax=0.5,
     correct_illumination=True,
-    corrected_shifts=True,
+    corrected_shifts="best",
 ):
     """Check the registration of rolonies
 
@@ -550,8 +551,8 @@ def check_rolonies_registration(
         vmax (float, optional): Max value image scale. Defaults to 0.5.
         correct_illumination (bool, optional): Whether to correct for illumination.
             Defaults to True.
-        corrected_shifts (bool, optional): Whether to use corrected shifts. Defaults to
-            True.
+        corrected_shifts (str, optional): Which shifts to use. One of `best`, `ransac`,
+            `single_tile`, `reference`, Defaults to 'best'.
 
     """
     ops = load_ops(data_path)

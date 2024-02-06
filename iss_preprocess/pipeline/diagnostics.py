@@ -52,16 +52,6 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     view = np.array([center - 200, center + 200]).T
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
 
-    print("Animating")
-    vis.animate_sequencing_rounds(
-        reg_stack,
-        savefname=target_folder / f"initial_ref_tile_registration_{prefix}.mp4",
-        vmax=vmaxs,
-        vmin=vmins,
-        extent=(view[0], view[1]),
-        channel_colors=channel_colors,
-    )
-
     print("Static figure")
     stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
     nrounds = stack.shape[3]
@@ -88,15 +78,36 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     nrows = int(np.sqrt(nrounds))
     ncols = int(np.ceil(nrounds / nrows))
     fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
+    rgb_stack = np.empty(np.diff(view, axis=1).ravel().tolist() + [3, nrounds])
     for iround in range(nrounds):
         ax = fig.add_subplot(nrows, ncols, iround + 1)
-        ax.imshow(round_image(iround))
+        rgb = round_image(iround)
+        rgb_stack[..., iround] = rgb
+        ax.imshow(rgb)
         ax.axis("off")
         ax.set_title(f"Round {iround}")
     iss.vis.add_bases_legend(channel_colors)
     fig.tight_layout()
     fig.savefig(target_folder / f"initial_ref_tile_registration_{prefix}.png")
     print(f"Saved to {target_folder / f'initial_ref_tile_registration_{prefix}.mp4'}")
+
+    # also save the stack for fiji
+
+    iss.io.save.write_stack(
+        (rgb_stack * 255).astype("uint8"),
+        target_folder
+        / f"initial_ref_tile_registration_rgb_stack_{nrounds}rounds_{prefix}.tif",
+    )
+
+    print("Animating")
+    vis.animate_sequencing_rounds(
+        reg_stack,
+        savefname=target_folder / f"initial_ref_tile_registration_{prefix}.mp4",
+        vmax=vmaxs,
+        vmin=vmins,
+        extent=(view[0], view[1]),
+        channel_colors=channel_colors,
+    )
 
 
 def check_shift_correction(
