@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import os
-import re
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -106,7 +104,7 @@ def plot_correction_images(
         sub_images = np.dstack([sub_images, np.zeros_like(sub_images[:, :, 0])])
         _plot_channels_intensity(axes, sub_images, subtract_chan=4)
     plt.subplots_adjust(wspace=0.2)
-    fig.savefig(figure_folder / f"average_for_correction_other_prefix.png", dpi=600)
+    fig.savefig(figure_folder / "average_for_correction_other_prefix.png", dpi=600)
 
 
 def _plot_channels_intensity(
@@ -297,7 +295,7 @@ def plot_tilestats_distributions(
         ax.set_xlim(np.min(ops["black_level"]) - 2, 2**12)
         ax.semilogx()
     ax.legend()
-    fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)
+    fig.savefig(figure_folder / "pixel_value_distributions.png", dpi=600)
 
 
 def plot_matrix_difference(

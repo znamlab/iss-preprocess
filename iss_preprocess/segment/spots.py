@@ -1,7 +1,5 @@
 import pandas as pd
 import numpy as np
-from skimage.feature import blob_log
-from scipy.signal import medfilt2d
 from scipy.ndimage import grey_dilation
 import cv2
 import scipy

@@ -1,11 +1,8 @@
 import numpy as np
-from math import ceil
 from skimage.draw import disk
 from sklearn.mixture import GaussianMixture
 from scipy.spatial.distance import hamming
-import matplotlib.pyplot as plt
 from ..coppafish import scaled_k_means
-import seaborn as sns
 
 # BASES = np.array(['G','T','A','C'])
 # BASES = np.array(["A", "C", "T", "G"])

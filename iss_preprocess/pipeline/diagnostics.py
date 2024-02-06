@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from flexiznam.config import PARAMETERS
 from znamutils import slurm_it
 import iss_preprocess as iss
 from iss_preprocess.pipeline import sequencing
