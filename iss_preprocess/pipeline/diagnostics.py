@@ -7,10 +7,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from skimage.filters import gaussian
+from skimage.measure import block_reduce
 from znamutils import slurm_it
 import iss_preprocess as iss
 from iss_preprocess.pipeline import sequencing
 from iss_preprocess import vis
+from iss_preprocess.pipeline.stitch import stitch_registered
 
 
 @slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
@@ -623,3 +626,83 @@ def check_omp_thresholds(
     plt.savefig(
         processed_path / "figures" / "omp_spot_score_thresholds_image.png", dpi=300
     )
+
+
+def check_segmentation(
+    data_path, roi, prefix, reference="genes_round_1_1", stitched_stack=None, masks=None
+):
+    """Check that segmentation is working properly
+
+    Compare masks to the original images
+    """
+    figure_folder = iss.io.get_processed_path(data_path) / "figures" / "segmentation"
+    figure_folder.mkdir(exist_ok=True, parents=True)
+    # get a tile in the middle of roi
+    if stitched_stack is None:
+        print(f"stitching {prefix} and aligning to {reference}", flush=True)
+        stitched_stack = stitch_registered(
+            data_path, ref_prefix=reference, prefix=prefix, roi=roi
+        )[..., 0]
+    elif stitched_stack.ndim == 3:
+        stitched_stack = stitched_stack[..., 0]
+
+    # normalize the stack and downsample by 2 using block_reduce
+    stitched_stack = block_reduce(stitched_stack, (2, 2), np.mean)
+    mi, ma = np.percentile(stitched_stack, [0.01, 99.99])
+    stitched_stack = np.clip((stitched_stack - mi) / (ma - mi), 0, 1)
+
+    if masks is None:
+        print("loading segmentation", flush=True)
+        masks = np.load(iss.io.get_processed_path(data_path) / f"masks_{roi}.npy")
+    # Make the masks binary and downsample by 2
+    masks = (masks > 0)[::2, ::2]
+
+    print("plotting", flush=True)
+    half_box = 500
+    plot_boxes = stitched_stack.shape[0] > half_box * 5
+    plot_boxes = plot_boxes or stitched_stack.shape[1] > half_box * 5
+
+    fig = plt.figure(figsize=(20, 10))
+    if plot_boxes:
+        main_ax = plt.subplot2grid((2, 5), (0, 0), rowspan=2, colspan=3)
+    else:
+        main_ax = plt.subplot(111)
+
+    main_ax.imshow(stitched_stack)
+    main_ax.contour(masks, colors="orange", levels=[0.5], linewidths=0.2)
+    main_ax.axis("off")
+    main_ax.set_title(f"Segmentation of {prefix} ROI {roi}")
+
+    if plot_boxes:
+        box = np.array([-half_box, half_box])
+        # pick 6 boxes in the stiched stack. We want them uniformely distributed
+        # but at least 10% from the border
+        tile_x_center = (np.array([0.25, 0.75]) * stitched_stack.shape[0]).astype(int)
+        tile_y_center = (np.array([0.25, 0.75]) * stitched_stack.shape[1]).astype(int)
+        for i, x in enumerate(tile_x_center):
+            for j, y in enumerate(tile_y_center):
+                ax = plt.subplot2grid((2, 5), (i, j + 3))
+                xpart = slice(*np.clip(box + x, 0, stitched_stack.shape[0] - 1))
+                ypart = slice(*np.clip(box + y, 0, stitched_stack.shape[1] - 1))
+                # add a rectangle to the main plot
+                main_ax.add_patch(
+                    plt.Rectangle(
+                        (ypart.start, xpart.start),
+                        ypart.stop - ypart.start,
+                        xpart.stop - xpart.start,
+                        edgecolor="k",
+                        facecolor="none",
+                    )
+                )
+                # gaussian filter to make it look better with skimage
+                data = gaussian(stitched_stack[xpart, ypart], 2)
+                ax.imshow(data)
+                mask = masks[xpart, ypart]
+                if np.any(mask):
+                    ax.contour(mask, colors="orange", levels=[0.5], linewidths=0.3)
+                ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(figure_folder / f"segmentation_{prefix}_roi{roi}.png", dpi=600)
+    print(f"Saved to {figure_folder / f'segmentation_{prefix}_roi{roi}.png'}")
+
+

@@ -8,6 +8,7 @@ from skimage.segmentation import expand_labels
 from ..segment import cellpose_segmentation, count_spots, spot_mask_value
 from .stitch import stitch_registered
 from ..io import get_roi_dimensions, load_ops, get_pixel_size, load_metadata
+from . import diagnostics
 from . import ara_registration as ara_reg
 import warnings
 
@@ -73,6 +74,9 @@ def segment_roi(
         use_gpu=use_gpu,
     )
     np.save(iss.io.get_processed_path(data_path) / f"masks_{iroi}.npy", masks)
+    diagnostics.check_segmentation(
+        data_path, iroi, prefix, reference, stitched_stack, masks
+    )
 
 
 def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_size=10):
