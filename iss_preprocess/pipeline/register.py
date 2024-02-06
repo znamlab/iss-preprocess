@@ -525,6 +525,8 @@ def register_tile_to_ref(
     )
 
     if ref_channels is not None:
+        if isinstance(ref_channels, int):
+            ref_channels = [ref_channels]
         ref_all_channels = ref_all_channels[:, :, ref_channels]
     ref = np.nanmean(ref_all_channels, axis=(2, 3))
 
