@@ -14,7 +14,7 @@ Short version:
 ~~~~~~~~~~~~~~
 
 Final transforms for channel and round registration are saved in 
-``"reg" / f"tforms_corrected_{prefix}_{roi}_{tilex}_{tiley}.npz"``.
+``"reg" / f"tforms_best_{prefix}_{roi}_{tilex}_{tiley}.npz"``.
 The second part must be run each time.
 
 Detailed explanation part 1: Estimating angle, scale and shift
@@ -28,7 +28,7 @@ Register reference tile
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 We do that on a manually tile that has signal with
-``iss register_ref_tile``.
+``iss register-ref-tile``.
 
 This will save ``f"tforms_{prefix}.npz"`` in the main ``data_folder``. The npz contains:
 
@@ -81,8 +81,8 @@ but will **not** change ``angles_within_channels``, ``angles_between_channels`` 
 The output is saved in the `reg` subfolder as 
 ``f"tforms_{prefix}_{roi}_{tilex}_{tiley}.npz"``
 
-Final shift correction
-~~~~~~~~~~~~~~~~~~~~~~
+Correct shift with ransac
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The single tile estimation tends to fail sporadically if there is not enough signal. This
 can be corrected given that the main change of shifts from tile to tile is a linear 
@@ -92,6 +92,14 @@ re-estimate angles and scale changes, just shifts.
 
 The output is saved in the ``reg`` folder as 
 ``f"tforms_corrected_{prefix}_{roi}_{tilex}_{tiley}.npz"``
+
+However, this correction is not ideal for tiles that were already properly registered 
+and can introduce bigger shifts. Therefore, we only apply this correction to tiles
+that have a shift above a certain threshold. This threshold is currently set in
+``ops['ransac_residual_threshold']``
+
+The final transformation is then saved in the ``reg`` folder as 
+``f"tforms_best_{prefix}_{roi}_{tilex}_{tiley}.npz"``
 
 Detailed explanation part 2: Stitching tiles
 --------------------------------------------
