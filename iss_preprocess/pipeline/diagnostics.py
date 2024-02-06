@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from skimage.filters import gaussian
 from skimage.measure import block_reduce
+from skimage.morphology import disk
+from scipy.ndimage import median_filter
 from znamutils import slurm_it
 import iss_preprocess as iss
 from iss_preprocess.pipeline import sequencing
@@ -407,8 +409,84 @@ def check_illumination_correction(
         )
 
 
-def reg_to_ref_estimation(
-    data_path, prefix, rois=None, roi_dimension_prefix="genes_round_1_1"
+def debug_reg_to_ref(
+    data_path,
+    reg_prefix,
+    ref_prefix,
+    tile_coords=None,
+    ref_channels=None,
+    reg_channels=None,
+    binarise_quantile=0.7,
+):
+    """Diagnostic functions helping to debug registration to reference
+
+    This redo the steps of register_to_reference to plot intermediate figures
+    """
+    ops = iss.io.load.load_ops(data_path)
+    if tile_coords is None:
+        tile_coords = ops["ref_tile"]
+    naxes = 1
+    if ops["reg_median_filter"]:
+        naxes += 1
+    if binarise_quantile is not None:
+        naxes += 1
+
+    fig, axes = plt.subplots(2, naxes, figsize=(6 * naxes, 5))
+
+    ref_all_channels, _ = iss.pipeline.load_and_register_tile(
+        data_path=data_path,
+        tile_coors=tile_coords,
+        prefix=ref_prefix,
+        filter_r=False,
+    )
+    reg_all_channels, _ = iss.pipeline.load_and_register_tile(
+        data_path=data_path, tile_coors=tile_coords, prefix=reg_prefix, filter_r=False
+    )
+
+    if ref_channels is not None:
+        if isinstance(ref_channels, int):
+            ref_channels = [ref_channels]
+        ref_all_channels = ref_all_channels[:, :, ref_channels]
+    ref = np.nanmean(ref_all_channels, axis=(2, 3))
+    axes[0, 0].imshow(ref)
+    axes[0, 0].set_title("Reference")
+    if reg_channels is not None:
+        if isinstance(reg_channels, int):
+            reg_channels = [reg_channels]
+        reg_all_channels = reg_all_channels[:, :, reg_channels]
+    reg = np.nanmean(reg_all_channels, axis=(2, 3))
+    axes[1, 0].imshow(reg)
+    axes[1, 0].set_title("Target")
+
+    iax = 1
+    if ops["reg_median_filter"]:
+        ref = median_filter(ref, footprint=disk(ops["reg_median_filter"]), axes=(0, 1))
+        reg = median_filter(reg, footprint=disk(ops["reg_median_filter"]), axes=(0, 1))
+        axes[0, iax].imshow(ref)
+        axes[0, iax].set_title("Median filtered")
+        axes[1, iax].imshow(reg)
+        iax += 1
+
+    if binarise_quantile is not None:
+        reg = reg > np.quantile(reg, binarise_quantile)
+        ref = ref > np.quantile(ref, binarise_quantile)
+        axes[0, iax].imshow(ref)
+        axes[0, iax].set_title(f"Binarised at {binarise_quantile}")
+        axes[1, iax].imshow(reg)
+
+    for ax in fig.axes:
+        ax.axis("off")
+    fig.tight_layout()
+    figure_folder = iss.io.get_processed_path(data_path) / "figures" / "registration"
+    figure_folder.mkdir(exist_ok=True)
+    fig.savefig(figure_folder / f"debug_reg_to_ref_{reg_prefix}_to_{ref_prefix}.png")
+
+
+def check_reg_to_ref_estimation(
+    data_path,
+    prefix,
+    rois=None,
+    roi_dimension_prefix="genes_round_1_1",
 ):
     """Plot estimation of shifts/angle for registration to ref
 
@@ -706,3 +784,21 @@ def check_segmentation(
     print(f"Saved to {figure_folder / f'segmentation_{prefix}_roi{roi}.png'}")
 
 
+if __name__ == "__main__":
+    iss.pipeline.segment.segment_roi(
+        data_path="becalia_rabies_barseq/BRAC8501.6a/chamber_07",
+        iroi=11,
+        prefix="genes_round_1_1",
+        reference="genes_round_1_1",
+        use_gpu=False,
+    )
+
+    debug_reg_to_ref(
+        data_path="becalia_rabies_barseq/BRAC8501.6a/chamber_07",
+        reg_prefix="genes_round",
+        ref_prefix="barcode_round",
+        tile_coords=None,
+        ref_channels=None,
+        reg_channels=None,
+        binarise_quantile=0.7,
+    )
