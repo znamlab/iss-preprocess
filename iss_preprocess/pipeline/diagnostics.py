@@ -7,11 +7,15 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from flexiznam.config import PARAMETERS
+from skimage.filters import gaussian
+from skimage.measure import block_reduce
+from skimage.morphology import disk
+from scipy.ndimage import median_filter
 from znamutils import slurm_it
 import iss_preprocess as iss
 from iss_preprocess.pipeline import sequencing
 from iss_preprocess import vis
+from iss_preprocess.pipeline.stitch import stitch_registered
 
 
 @slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
@@ -52,25 +56,23 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     view = np.array([center - 200, center + 200]).T
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
 
-    print("Animating")
-    vis.animate_sequencing_rounds(
-        reg_stack,
-        savefname=target_folder / f"initial_ref_tile_registration_{prefix}.mp4",
-        vmax=vmaxs,
-        vmin=vmins,
-        extent=(view[0], view[1]),
-        channel_colors=channel_colors,
-    )
-
     print("Static figure")
     stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
     nrounds = stack.shape[3]
-    
+
     def round_image(iround):
-        vmax = np.percentile(stack[view[0,0]:view[0,1], view[1,0]:view[1,1], :, iround], 99.99, axis=(0, 1))
-        vmin = np.percentile(stack[view[0,0]:view[0,1], view[1,0]:view[1,1], :, iround], 0.01, axis=(0, 1))
+        vmax = np.percentile(
+            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+            99.99,
+            axis=(0, 1),
+        )
+        vmin = np.percentile(
+            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+            0.01,
+            axis=(0, 1),
+        )
         return iss.vis.to_rgb(
-            stack[view[0,0]:view[0,1], view[1,0]:view[1,1], :, iround],
+            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
             channel_colors,
             vmin=vmin,
             vmax=vmax,
@@ -80,15 +82,36 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     nrows = int(np.sqrt(nrounds))
     ncols = int(np.ceil(nrounds / nrows))
     fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
+    rgb_stack = np.empty(np.diff(view, axis=1).ravel().tolist() + [3, nrounds])
     for iround in range(nrounds):
         ax = fig.add_subplot(nrows, ncols, iround + 1)
-        ax.imshow(round_image(iround))
+        rgb = round_image(iround)
+        rgb_stack[..., iround] = rgb
+        ax.imshow(rgb)
         ax.axis("off")
         ax.set_title(f"Round {iround}")
     iss.vis.add_bases_legend(channel_colors)
     fig.tight_layout()
     fig.savefig(target_folder / f"initial_ref_tile_registration_{prefix}.png")
     print(f"Saved to {target_folder / f'initial_ref_tile_registration_{prefix}.mp4'}")
+
+    # also save the stack for fiji
+
+    iss.io.save.write_stack(
+        (rgb_stack * 255).astype("uint8"),
+        target_folder
+        / f"initial_ref_tile_registration_rgb_stack_{nrounds}rounds_{prefix}.tif",
+    )
+
+    print("Animating")
+    vis.animate_sequencing_rounds(
+        reg_stack,
+        savefname=target_folder / f"initial_ref_tile_registration_{prefix}.mp4",
+        vmax=vmaxs,
+        vmin=vmins,
+        extent=(view[0], view[1]),
+        channel_colors=channel_colors,
+    )
 
 
 def check_shift_correction(
@@ -386,8 +409,84 @@ def check_illumination_correction(
         )
 
 
-def reg_to_ref_estimation(
-    data_path, prefix, rois=None, roi_dimension_prefix="genes_round_1_1"
+def debug_reg_to_ref(
+    data_path,
+    reg_prefix,
+    ref_prefix,
+    tile_coords=None,
+    ref_channels=None,
+    reg_channels=None,
+    binarise_quantile=0.7,
+):
+    """Diagnostic functions helping to debug registration to reference
+
+    This redo the steps of register_to_reference to plot intermediate figures
+    """
+    ops = iss.io.load.load_ops(data_path)
+    if tile_coords is None:
+        tile_coords = ops["ref_tile"]
+    naxes = 1
+    if ops["reg_median_filter"]:
+        naxes += 1
+    if binarise_quantile is not None:
+        naxes += 1
+
+    fig, axes = plt.subplots(2, naxes, figsize=(6 * naxes, 5))
+
+    ref_all_channels, _ = iss.pipeline.load_and_register_tile(
+        data_path=data_path,
+        tile_coors=tile_coords,
+        prefix=ref_prefix,
+        filter_r=False,
+    )
+    reg_all_channels, _ = iss.pipeline.load_and_register_tile(
+        data_path=data_path, tile_coors=tile_coords, prefix=reg_prefix, filter_r=False
+    )
+
+    if ref_channels is not None:
+        if isinstance(ref_channels, int):
+            ref_channels = [ref_channels]
+        ref_all_channels = ref_all_channels[:, :, ref_channels]
+    ref = np.nanmean(ref_all_channels, axis=(2, 3))
+    axes[0, 0].imshow(ref)
+    axes[0, 0].set_title("Reference")
+    if reg_channels is not None:
+        if isinstance(reg_channels, int):
+            reg_channels = [reg_channels]
+        reg_all_channels = reg_all_channels[:, :, reg_channels]
+    reg = np.nanmean(reg_all_channels, axis=(2, 3))
+    axes[1, 0].imshow(reg)
+    axes[1, 0].set_title("Target")
+
+    iax = 1
+    if ops["reg_median_filter"]:
+        ref = median_filter(ref, footprint=disk(ops["reg_median_filter"]), axes=(0, 1))
+        reg = median_filter(reg, footprint=disk(ops["reg_median_filter"]), axes=(0, 1))
+        axes[0, iax].imshow(ref)
+        axes[0, iax].set_title("Median filtered")
+        axes[1, iax].imshow(reg)
+        iax += 1
+
+    if binarise_quantile is not None:
+        reg = reg > np.quantile(reg, binarise_quantile)
+        ref = ref > np.quantile(ref, binarise_quantile)
+        axes[0, iax].imshow(ref)
+        axes[0, iax].set_title(f"Binarised at {binarise_quantile}")
+        axes[1, iax].imshow(reg)
+
+    for ax in fig.axes:
+        ax.axis("off")
+    fig.tight_layout()
+    figure_folder = iss.io.get_processed_path(data_path) / "figures" / "registration"
+    figure_folder.mkdir(exist_ok=True)
+    fig.savefig(figure_folder / f"debug_reg_to_ref_{reg_prefix}_to_{ref_prefix}.png")
+
+
+def check_reg_to_ref_estimation(
+    data_path,
+    prefix,
+    rois=None,
+    roi_dimension_prefix="genes_round_1_1",
 ):
     """Plot estimation of shifts/angle for registration to ref
 
@@ -404,7 +503,7 @@ def reg_to_ref_estimation(
     """
     processed_path = iss.io.get_processed_path(data_path)
     reg_dir = processed_path / "reg"
-    figure_folder = processed_path / "figures"
+    figure_folder = processed_path / "figures" / "registration"
     figure_folder.mkdir(exist_ok=True)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = iss.io.load_ops(data_path)
@@ -464,7 +563,7 @@ def check_tile_shifts(
     """
     processed_path = iss.io.get_processed_path(data_path)
     reg_dir = processed_path / "reg"
-    figure_folder = processed_path / "figures"
+    figure_folder = processed_path / "figures" / "registration"
     figure_folder.mkdir(exist_ok=True)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = iss.io.load_ops(data_path)
@@ -523,24 +622,23 @@ def check_tile_shifts(
 def check_omp_thresholds(
     data_path,
     spot_score_thresholds=(0.05, 0.075, 0.1, 0.125, 0.15, 0.2),
-    omp_thresholds = (0.05, 0.075, 0.10, 0.125, 0.15, 0.2)
+    omp_thresholds=(0.05, 0.075, 0.10, 0.125, 0.15, 0.2),
 ):
-    
     processed_path = iss.io.get_processed_path(data_path)
     ops = iss.io.load_ops(data_path)
 
     stack, bad_pixels = iss.pipeline.load_and_register_sequencing_tile(
-        data_path, 
-        ops["ref_tile"], 
-        filter_r=False, 
-        prefix='genes_round',
-        suffix=ops['genes_projection'],
-        nrounds=ops['genes_rounds'],
+        data_path,
+        ops["ref_tile"],
+        filter_r=False,
+        prefix="genes_round",
+        suffix=ops["genes_projection"],
+        nrounds=ops["genes_rounds"],
         correct_channels=True,
-        corrected_shifts='single_tile',
-        correct_illumination=True
+        corrected_shifts="single_tile",
+        correct_illumination=True,
     )
-    stack = stack[:, :, np.argsort(ops['camera_order']), :]
+    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 
     all_gene_spots = []
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
@@ -558,8 +656,10 @@ def check_omp_thresholds(
             min_intensity=ops["omp_min_intensity"],
         )
         for igene in range(g.shape[2]):
-            g[bad_pixels, igene] = 0  
-        spot_sign_image = iss.pipeline.load_spot_sign_image(data_path, ops["spot_shape_threshold"])
+            g[bad_pixels, igene] = 0
+        spot_sign_image = iss.pipeline.load_spot_sign_image(
+            data_path, ops["spot_shape_threshold"]
+        )
         gene_spots = iss.call.find_gene_spots(
             g,
             spot_sign_image,
@@ -567,24 +667,30 @@ def check_omp_thresholds(
             spot_score_threshold=0.05,
         )
         for df, gene in zip(gene_spots, omp_stat["gene_names"]):
-            df["gene"] = gene 
+            df["gene"] = gene
         all_gene_spots.append(gene_spots)
 
-    im = np.std(stack, axis=(2,3))
+    im = np.std(stack, axis=(2, 3))
     vmax = np.percentile(im, 99.99)
     # white background figure
-    plt.figure(figsize=(30, 30), facecolor='w')
+    plt.figure(figsize=(30, 30), facecolor="w")
     for i in range(len(omp_thresholds)):
         for j in range(len(spot_score_thresholds)):
             spots = pd.concat(all_gene_spots[i])
             spots = spots[spots.spot_score > spot_score_thresholds[j]]
-            plt.subplot(len(omp_thresholds), len(spot_score_thresholds), i * len(spot_score_thresholds) + j + 1)
+            plt.subplot(
+                len(omp_thresholds),
+                len(spot_score_thresholds),
+                i * len(spot_score_thresholds) + j + 1,
+            )
             plt.imshow(im, cmap="inferno", vmax=vmax)
-            plt.plot(spots.x, spots.y, 'xw', ms=2)
+            plt.plot(spots.x, spots.y, "xw", ms=2)
             plt.xlim(1500, 1700)
             plt.ylim(1500, 1700)
-            plt.axis('off')
-            plt.title(f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}")
+            plt.axis("off")
+            plt.title(
+                f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}"
+            )
 
     plt.tight_layout()
     plt.savefig(processed_path / "figures" / "omp_spot_score_thresholds.png", dpi=300)
@@ -593,6 +699,106 @@ def check_omp_thresholds(
     plt.imshow(im, cmap="inferno", vmax=vmax)
     plt.xlim(1500, 1700)
     plt.ylim(1500, 1700)
-    plt.axis('off')
+    plt.axis("off")
     plt.tight_layout()
-    plt.savefig(processed_path / "figures" / "omp_spot_score_thresholds_image.png", dpi=300)    
+    plt.savefig(
+        processed_path / "figures" / "omp_spot_score_thresholds_image.png", dpi=300
+    )
+
+
+def check_segmentation(
+    data_path, roi, prefix, reference="genes_round_1_1", stitched_stack=None, masks=None
+):
+    """Check that segmentation is working properly
+
+    Compare masks to the original images
+    """
+    figure_folder = iss.io.get_processed_path(data_path) / "figures" / "segmentation"
+    figure_folder.mkdir(exist_ok=True, parents=True)
+    # get a tile in the middle of roi
+    if stitched_stack is None:
+        print(f"stitching {prefix} and aligning to {reference}", flush=True)
+        stitched_stack = stitch_registered(
+            data_path, ref_prefix=reference, prefix=prefix, roi=roi
+        )[..., 0]
+    elif stitched_stack.ndim == 3:
+        stitched_stack = stitched_stack[..., 0]
+
+    # normalize the stack and downsample by 2 using block_reduce
+    stitched_stack = block_reduce(stitched_stack, (2, 2), np.mean)
+    mi, ma = np.percentile(stitched_stack, [0.01, 99.99])
+    stitched_stack = np.clip((stitched_stack - mi) / (ma - mi), 0, 1)
+
+    if masks is None:
+        print("loading segmentation", flush=True)
+        masks = np.load(iss.io.get_processed_path(data_path) / f"masks_{roi}.npy")
+    # Make the masks binary and downsample by 2
+    masks = (masks > 0)[::2, ::2]
+
+    print("plotting", flush=True)
+    half_box = 500
+    plot_boxes = stitched_stack.shape[0] > half_box * 5
+    plot_boxes = plot_boxes or stitched_stack.shape[1] > half_box * 5
+
+    fig = plt.figure(figsize=(20, 10))
+    if plot_boxes:
+        main_ax = plt.subplot2grid((2, 5), (0, 0), rowspan=2, colspan=3)
+    else:
+        main_ax = plt.subplot(111)
+
+    main_ax.imshow(stitched_stack)
+    main_ax.contour(masks, colors="orange", levels=[0.5], linewidths=0.2)
+    main_ax.axis("off")
+    main_ax.set_title(f"Segmentation of {prefix} ROI {roi}")
+
+    if plot_boxes:
+        box = np.array([-half_box, half_box])
+        # pick 6 boxes in the stiched stack. We want them uniformely distributed
+        # but at least 10% from the border
+        tile_x_center = (np.array([0.25, 0.75]) * stitched_stack.shape[0]).astype(int)
+        tile_y_center = (np.array([0.25, 0.75]) * stitched_stack.shape[1]).astype(int)
+        for i, x in enumerate(tile_x_center):
+            for j, y in enumerate(tile_y_center):
+                ax = plt.subplot2grid((2, 5), (i, j + 3))
+                xpart = slice(*np.clip(box + x, 0, stitched_stack.shape[0] - 1))
+                ypart = slice(*np.clip(box + y, 0, stitched_stack.shape[1] - 1))
+                # add a rectangle to the main plot
+                main_ax.add_patch(
+                    plt.Rectangle(
+                        (ypart.start, xpart.start),
+                        ypart.stop - ypart.start,
+                        xpart.stop - xpart.start,
+                        edgecolor="k",
+                        facecolor="none",
+                    )
+                )
+                # gaussian filter to make it look better with skimage
+                data = gaussian(stitched_stack[xpart, ypart], 2)
+                ax.imshow(data)
+                mask = masks[xpart, ypart]
+                if np.any(mask):
+                    ax.contour(mask, colors="orange", levels=[0.5], linewidths=0.3)
+                ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(figure_folder / f"segmentation_{prefix}_roi{roi}.png", dpi=600)
+    print(f"Saved to {figure_folder / f'segmentation_{prefix}_roi{roi}.png'}")
+
+
+if __name__ == "__main__":
+    iss.pipeline.segment.segment_roi(
+        data_path="becalia_rabies_barseq/BRAC8501.6a/chamber_07",
+        iroi=11,
+        prefix="genes_round_1_1",
+        reference="genes_round_1_1",
+        use_gpu=False,
+    )
+
+    debug_reg_to_ref(
+        data_path="becalia_rabies_barseq/BRAC8501.6a/chamber_07",
+        reg_prefix="genes_round",
+        ref_prefix="barcode_round",
+        tile_coords=None,
+        ref_channels=None,
+        reg_channels=None,
+        binarise_quantile=0.7,
+    )

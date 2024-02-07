@@ -132,15 +132,21 @@ def check_projection(path, prefix):
     default=False,
     help="Save diagnostic cross correlogram plots",
 )
-def register_ref_tile(path, prefix, diag=True):
+def register_ref_tile(path, prefix, diag):
     """Run registration across channels and rounds for the reference tile."""
     from pathlib import Path
     from iss_preprocess.pipeline import register_reference_tile
     from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
     slurm_folder = f"{Path.home()}/slurm_logs"
+    slurm_options = {"mem": "128G"} if diag else None
     job_id = register_reference_tile(
-        path, prefix=prefix, diag=diag, use_slurm=True, slurm_folder=str(slurm_folder)
+        path,
+        prefix=prefix,
+        diag=diag,
+        use_slurm=True,
+        slurm_folder=str(slurm_folder),
+        slurm_options=slurm_options,
     )
     check_ref_tile_registration(
         path,
@@ -263,11 +269,19 @@ def estimate_hyb_shifts(path, prefix=None, suffix="max"):
     "-p", "--path", prompt="Enter data path", help="Data path.", required=True
 )
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
-def correct_shifts(path, prefix):
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+def correct_shifts(path, prefix, use_slurm=False):
     """Correct X-Y shifts using robust regression across tiles."""
+
     from iss_preprocess.pipeline import correct_shifts
 
-    correct_shifts(path, prefix)
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = f"{Path.home()}/slurm_logs"
+    else:
+        slurm_folder = None
+    correct_shifts(path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder)
 
 
 @cli.command()

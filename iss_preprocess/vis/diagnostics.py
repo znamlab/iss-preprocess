@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import os
-import re
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -106,7 +104,7 @@ def plot_correction_images(
         sub_images = np.dstack([sub_images, np.zeros_like(sub_images[:, :, 0])])
         _plot_channels_intensity(axes, sub_images, subtract_chan=4)
     plt.subplots_adjust(wspace=0.2)
-    fig.savefig(figure_folder / f"average_for_correction_other_prefix.png", dpi=600)
+    fig.savefig(figure_folder / "average_for_correction_other_prefix.png", dpi=600)
 
 
 def _plot_channels_intensity(
@@ -175,6 +173,7 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
     fig_file = (
         iss.io.get_processed_path(data_path)
         / "figures"
+        / "registration"
         / f"adjacent_tile_reg_{prefix}.png"
     )
     if not fig_file.parent.exists():
@@ -296,7 +295,7 @@ def plot_tilestats_distributions(
         ax.set_xlim(np.min(ops["black_level"]) - 2, 2**12)
         ax.semilogx()
     ax.legend()
-    fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)
+    fig.savefig(figure_folder / "pixel_value_distributions.png", dpi=600)
 
 
 def plot_matrix_difference(
@@ -533,7 +532,7 @@ def check_rolonies_registration(
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
     vmax=0.5,
     correct_illumination=True,
-    corrected_shifts=True,
+    corrected_shifts="best",
 ):
     """Check the registration of rolonies
 
@@ -550,8 +549,8 @@ def check_rolonies_registration(
         vmax (float, optional): Max value image scale. Defaults to 0.5.
         correct_illumination (bool, optional): Whether to correct for illumination.
             Defaults to True.
-        corrected_shifts (bool, optional): Whether to use corrected shifts. Defaults to
-            True.
+        corrected_shifts (str, optional): Which shifts to use. One of `best`, `ransac`,
+            `single_tile`, `reference`, Defaults to 'best'.
 
     """
     ops = load_ops(data_path)
