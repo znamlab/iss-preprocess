@@ -543,6 +543,7 @@ def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_
         suffix=ops["genes_projection"],
         correct_channels=ops["genes_correct_channels"],
         prefix=prefix,
+        corrected_shifts=ops["corrected_shifts"],
         nrounds=ops["genes_rounds"],
         correct_illumination=True,
     )
