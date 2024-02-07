@@ -1,13 +1,16 @@
 import numpy as np
+import multiprocessing
+from numba import jit
 import scipy.fft
 import scipy.ndimage
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
-import multiprocessing
-from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
-from . import phase_corr, make_transform, transform_image, masked_phase_corr
+
+from image_tools.registration import phase_correlation
+from . import phase_corr, make_transform, transform_image
+
 
 
 def register_channels_and_rounds(
@@ -371,13 +374,13 @@ def estimate_shifts_for_tile(
         reference_fft = scipy.fft.fft2(stack[:, :, ich, ref_round])
         for iround in range(nrounds):
             if iround != ref_round:
-                shift = phase_corr(
+                shift = phase_correlation(
                     reference_fft,
                     transform_image(
                         stack[:, :, ich, iround],
                         angle=angles_within_channels[ich][iround],
                     ),
-                    fft_ref=False,
+                    fixed_image_is_fft=True,
                     min_shift=min_shift,
                     max_shift=max_shift,
                 )[0]
@@ -655,10 +658,10 @@ def estimate_scale_rotation_translation(
                 flush=True,
             )
     if not upsample:
-        shift, cc = phase_corr(
+        shift, cc = phase_correlation(
             reference_fft,
             transform_image(target, scale=best_scale, angle=best_angle),
-            fft_ref=False,
+            fixed_image_is_fft=True,
             max_shift=max_shift,
         )
         if debug:
@@ -722,18 +725,18 @@ def estimate_rotation_angle(
         all_cc = np.empty((nangles, *reference_fft.shape), dtype=np.float64)
     for iangle in range(nangles):
         if reference_mask_fft is None:
-            shifts[iangle, :], cc = phase_corr(
+            shifts[iangle, :], cc = phase_correlation(
                 reference_fft,
                 transform_image(target, angle=angles[iangle]),
-                fft_ref=False,
+                fixed_image_is_fft=True,
                 min_shift=min_shift,
                 max_shift=max_shift,
             )
         else:
-            shifts[iangle, :], cc = masked_phase_corr(
+            shifts[iangle, :], cc = phase_correlation(
                 reference_fft,
                 transform_image(target, angle=angles[iangle]),
-                fft_ref=False,
+                fixed_image_is_fft=True,
                 reference_mask=reference_mask_fft,
                 target_mask=target_mask,
                 min_shift=min_shift,
@@ -827,14 +830,14 @@ def estimate_rotation_translation(
         angle_range = angle_range / iter_range_factor
     if not upsample:
         if reference_mask is None:
-            shift, cc_phase_corr = phase_corr(
+            shift, cc_phase_corr = phase_correlation(
                 reference,
                 transform_image(target, angle=best_angle),
                 min_shift=min_shift,
                 max_shift=max_shift,
             )
         else:
-            shift, cc_phase_corr = masked_phase_corr(
+            shift, cc_phase_corr = phase_correlation(
                 reference,
                 transform_image(target, angle=best_angle),
                 min_shift=min_shift,
