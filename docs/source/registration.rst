@@ -27,8 +27,18 @@ seem to vary a bit.
 Register reference tile
 ~~~~~~~~~~~~~~~~~~~~~~~
 
+
+
 We do that on a manually tile that has signal with
 ``iss register-ref-tile``.
+
+.. Diagnostics plot::
+    This command will save 3 files in the ``figures/registration`` folder:
+    - ``f"initial_ref_tile_registration_{prefix}.png"``: Static figure with an axis per round
+    - ``f"initial_ref_tile_registration_{prefix}.mp4"``: Movie of the same data.
+    - ``f"initial_ref_tile_registration_rg_stack_{x}nrounds_{prefix}.tif"``: Tif stack to load in Fiji.
+    can be transformed in hyperstack with ``Image > Hyperstacks > Stack to Hyperstack`` and
+    ``channels = 3``, ``slices = nrounds``
 
 This will save ``f"tforms_{prefix}.npz"`` in the main ``data_folder``. The npz contains:
 
@@ -65,8 +75,11 @@ while iteratively refining the search range. This will yield ``scales_between_ch
 Estimate for all tiles
 ~~~~~~~~~~~~~~~~~~~~~~
 
-We can then use the parameters estimated for the reference tile to register all tiles with 
-``iss estimate-shifts``. This is necessary for two reasons. First, dichroic wobble slightly
+We can then use the parameters estimated for the reference tile to register all tiles with:
+
+``iss estimate-shifts``
+
+This is necessary for two reasons. First, dichroic wobble slightly
 during and between acquisitions resulting in different shifts between channels. Second, the
 gain of the microscope stage seems to vary from day to day. Therefore, the microscope does not
 consistently move to the same position for each tile from round to round, resulting in different
@@ -87,10 +100,16 @@ Correct shift with ransac
 The single tile estimation tends to fail sporadically if there is not enough signal. This
 can be corrected given that the main change of shifts from tile to tile is a linear 
 function of X and Y (probably due to change in gain of the stage). We do that with
-RANSAC robust regression in ``iss correct-shifts``. Once again, this does **not** 
-re-estimate angles and scale changes, just shifts.
+RANSAC robust regression in:
 
-The output is saved in the ``reg`` folder as 
+ ``iss correct-shifts``. 
+
+.. Diagnostics plot::
+    This command will save one diagnostics figure in ``data_path / figures / registration``
+    called ``f"tile_shifts_{prefix}_roi{roi}.pdf"``
+
+Once again, this does **not** re-estimate angles and scale changes, just shifts. The 
+output is saved in the ``reg`` folder as 
 ``f"tforms_corrected_{prefix}_{roi}_{tilex}_{tiley}.npz"``
 
 However, this correction is not ideal for tiles that were already properly registered 
