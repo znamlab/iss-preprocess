@@ -346,22 +346,24 @@ def plot_matrix_difference(
             rng = range_max[col]
             vmin = vmin - rng
             vmax = vmax + rng
-        im = axes[0, col].imshow(raw[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5)
-        ax_divider = make_axes_locatable(axes[0, col])
-        cax = ax_divider.append_axes("right", size="7%", pad="2%")
-        cb = fig.colorbar(im, cax=cax)
-        im = axes[1, col].imshow(
-            corrected[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5
+        plot_matrix_with_colorbar(
+            raw[col].T, fig, axes[0, col], vmin=vmin - rng / 5, vmax=vmax + rng / 5
         )
-        ax_divider = make_axes_locatable(axes[1, col])
-        cax = ax_divider.append_axes("right", size="7%", pad="2%")
-        cb = fig.colorbar(im, cax=cax)
-        im = axes[2, col].imshow(
-            (raw[col] - corrected[col]).T, cmap="RdBu_r", vmin=-rng, vmax=rng
+        plot_matrix_with_colorbar(
+            corrected[col].T,
+            fig,
+            axes[1, col],
+            vmin=vmin - rng / 5,
+            vmax=vmax + rng / 5,
         )
-        ax_divider = make_axes_locatable(axes[2, col])
-        cax = ax_divider.append_axes("right", size="7%", pad="2%")
-        cb = fig.colorbar(im, cax=cax)
+        plot_matrix_with_colorbar(
+            (raw[col] - corrected[col]).T,
+            fig,
+            axes[2, col],
+            cmap="RdBu_r",
+            vmin=-rng,
+            vmax=rng,
+        )
 
     for x in axes.flatten():
         x.set_xticks([])
@@ -373,6 +375,25 @@ def plot_matrix_difference(
         for il, label in enumerate(line_labels):
             axes[il, 0].set_ylabel(label, fontsize=11)
     return fig
+
+
+def plot_matrix_with_colorbar(mtx, fig, ax, **kwargs):
+    """Plot a matrix with a colorbar just on the side
+    
+    Args:
+        mtx (np.array): Matrix to plot
+        fig (plt.Figure): Figure instance
+        ax (plt.Axes): Axes instance
+        
+    Returns:
+        plt.Axes: Colorbar axes
+        plt.colorbar: Colorbar instance
+        """
+    im = ax.imshow(mtx, **kwargs)
+    ax_divider = make_axes_locatable(ax)
+    cax = ax_divider.append_axes("right", size="7%", pad="2%")
+    cb = fig.colorbar(im, cax=cax)
+    return cax, cb
 
 
 def plot_registration_correlograms(

@@ -131,9 +131,7 @@ def check_shift_correction(
 
     target_folder.mkdir(exist_ok=True, parents=True)
 
-    reg_dir = processed_path / data_path / "reg"
-    figure_folder = processed_path / data_path / "figures" / "registration"
-
+    reg_dir = processed_path / "reg"
     ndims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = iss.io.load_ops(data_path)
     if "use_rois" in ops:
@@ -142,13 +140,14 @@ def check_shift_correction(
     nr = ops[f"{prefix}s"]
 
     # Now plot them.
-    def get_data(which, roi, nr):
+    def get_data(which, roi, nr, ntiles):
         if nr > 1:
             raw = np.zeros([nc, nr, 3, *ntiles]) + np.nan
-            corrected = np.zeros([nc, nr, 3, *ntiles]) + np.nan
         else:
             raw = np.zeros([nc, 3, *ntiles]) + np.nan
-            corrected = np.zeros([nc, 3, *ntiles]) + np.nan
+        corrected = np.zeros_like(raw) + np.nan
+        best = np.zeros_like(raw) + np.nan
+
         for ix in range(ntiles[0]):
             for iy in range(ntiles[1]):
                 try:
@@ -162,28 +161,50 @@ def check_shift_correction(
                 )
                 corrected[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
                 corrected[..., 2, ix, iy] = data[f"angles_{which}_channels"]
-        return raw, corrected
+                tf_best = reg_dir / f"tforms_best_{prefix}_{roi}_{ix}_{iy}.npz"
+                if tf_best.exists():
+                    data = np.load(tf_best)
+                    best[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
+                    best[..., 2, ix, iy] = data[f"angles_{which}_channels"]
+        return raw, corrected, best
 
     # For "within channels" we plot the shifts for each channel and each round
-    fig = plt.figure(figsize=(3 * nr * 2, 2 * 3 * nc))
+    fig = plt.figure(figsize=(4 * nr * 2, 2 * 4 * nc))
     for roi, *ntiles in ndims:
-        raw, corrected = get_data("within", roi, nr=nr)
+        raw, corrected, best = get_data("within", roi, nr=nr, ntiles=ntiles)
         corr_feature = ["Shift x", "Shift y"]
         fig.clear()
-        axes = fig.subplots(nrows=nc * 3, ncols=nr * 2)
+        axes = fig.subplots(nrows=nc * 4, ncols=nr * 2)
         for c in range(nc):
             for ifeat, feat in enumerate(corr_feature):
                 raw_to_plot = raw[c, :, ifeat, ...]
                 corr_to_plot = corrected[c, :, ifeat, ...]
+                best_to_plot = best[c, :, ifeat, ...]
                 iss.vis.plot_matrix_difference(
                     raw=raw_to_plot,
                     corrected=corr_to_plot,
                     col_labels=[f"Round {i} {feat}" for i in np.arange(nr)],
                     range_min=[5 if ifeat < 2 else 0.1] * nr,
                     range_max=[10 if ifeat < 2 else 1] * nr,
-                    axes=axes[c * 3 : (c + 1) * 3, ifeat * nr : (ifeat + 1) * nr],
+                    axes=axes[c * 4 : c * 4 + 3, ifeat * nr : (ifeat + 1) * nr],
                     line_labels=("Raw", f"CHANNEL {c}\nCorrected", "Difference"),
                 )
+                # also plot best
+                for ir in range(nr):
+                    ax = axes[c * 4 + 3, ifeat * nr + ir]
+                    data = best_to_plot[ir]
+                    vmin, vmax = data.min(), data.max()
+                    rng = vmin - vmax
+                    rng_min = 5 if ifeat < 2 else 0.1
+                    if rng < rng_min:
+                        vmin -= (rng_min - rng) / 2
+                        vmax += (rng_min - rng) / 2
+                    iss.vis.plot_matrix_with_colorbar(
+                        best_to_plot[ir].T, fig, ax, vmin=vmin, vmax=vmax
+                    )
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                axes[c * 4 + 3, ifeat * nr].set_ylabel("Best")
         fig_title = f"{prefix} Correct shift within channels\n"
         fig_title += f"ROI {roi}"
         fig.suptitle(fig_title)
@@ -192,34 +213,53 @@ def check_shift_correction(
         )
 
         fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
-        fig.savefig(figure_folder / (fname + ".png"))
+        fig.savefig(target_folder / (fname + ".png"))
 
     # now do "between channels"
     nrois = len(ndims)
-    fig = plt.figure(figsize=(3 * 3 * nc, 2 * 2 * nrois))
-    axes = fig.subplots(nrows=nc * 3, ncols=nrois * 2)
+    nrows = nrois * 4
+    ncols = 2 * nc
+    fig = plt.figure(figsize=(4 * ncols, 2 * nrows))
+    axes = fig.subplots(nrows=nrows, ncols=ncols)
     for ir, (roi, *ntiles) in enumerate(ndims):
-        raw, corrected = get_data("between", roi, nr=1)
+        raw, corrected, best = get_data("between", roi, nr=1, ntiles=ntiles)
         corr_feature = ["Shift x", "Shift y"]
         for ifeat, feat in enumerate(corr_feature):
             raw_to_plot = raw[:, ifeat, ...]
             corr_to_plot = corrected[:, ifeat, ...]
+            best_to_plot = best[:, ifeat, ...]
             iss.vis.plot_matrix_difference(
                 raw=raw_to_plot,
                 corrected=corr_to_plot,
                 col_labels=[f"Channel {i} {feat}" for i in np.arange(nc)],
                 range_min=[1 if ifeat < 2 else 0.1] * nc,
                 range_max=[5 if ifeat < 2 else 1] * nc,
-                axes=axes[ir * 3 : (ir + 1) * 3, ifeat * nc : (ifeat + 1) * nc],
+                axes=axes[ir * 4 : ir * 4 + 3, ifeat * nc : (ifeat + 1) * nc],
                 line_labels=("Raw", f"ROI {ir}\nCorrected", "Difference"),
             )
+            # also plot best
+            for ic in range(nc):
+                ax = axes[ir * 4 + 3, ifeat * nc + ic]
+                data = best_to_plot[ic]
+                vmin, vmax = data.min(), data.max()
+                rng = vmin - vmax
+                rng_min = 1 if ifeat < 2 else 0.1
+                if rng < rng_min:
+                    vmin -= (rng_min - rng) / 2
+                    vmax += (rng_min - rng) / 2
+                iss.vis.plot_matrix_with_colorbar(
+                    best_to_plot[ic].T, fig, ax, vmin=vmin, vmax=vmax
+                )
+                ax.set_xticks([])
+                ax.set_yticks([])
+            axes[ir * 4 + 3, ifeat * nc].set_ylabel("Best")
     fig_title = f"{prefix} Correct shift between channels"
     fig.suptitle(fig_title)
     fig.subplots_adjust(
         wspace=0.15, hspace=0, bottom=0.01, top=0.95, right=0.95, left=0.1
     )
     fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
-    fig.savefig(figure_folder / (fname + ".png"))
+    fig.savefig(target_folder / (fname + ".png"))
 
 
 def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_round"):
