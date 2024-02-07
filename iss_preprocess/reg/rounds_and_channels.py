@@ -12,7 +12,6 @@ from image_tools.registration import phase_correlation
 from . import phase_corr, make_transform, transform_image
 
 
-
 def register_channels_and_rounds(
     stack,
     ref_ch=0,
@@ -658,7 +657,7 @@ def estimate_scale_rotation_translation(
                 flush=True,
             )
     if not upsample:
-        shift, cc = phase_correlation(
+        shift, _, cc, _ = phase_correlation(
             reference_fft,
             transform_image(target, scale=best_scale, angle=best_angle),
             fixed_image_is_fft=True,
@@ -725,7 +724,7 @@ def estimate_rotation_angle(
         all_cc = np.empty((nangles, *reference_fft.shape), dtype=np.float64)
     for iangle in range(nangles):
         if reference_mask_fft is None:
-            shifts[iangle, :], cc = phase_correlation(
+            shifts[iangle, :], _, cc, _ = phase_correlation(
                 reference_fft,
                 transform_image(target, angle=angles[iangle]),
                 fixed_image_is_fft=True,
@@ -733,7 +732,7 @@ def estimate_rotation_angle(
                 max_shift=max_shift,
             )
         else:
-            shifts[iangle, :], cc = phase_correlation(
+            shifts[iangle, :], _, cc, _ = phase_correlation(
                 reference_fft,
                 transform_image(target, angle=angles[iangle]),
                 fixed_image_is_fft=True,
@@ -830,14 +829,14 @@ def estimate_rotation_translation(
         angle_range = angle_range / iter_range_factor
     if not upsample:
         if reference_mask is None:
-            shift, cc_phase_corr = phase_correlation(
+            shift, _, cc_phase_corr, _ = phase_correlation(
                 reference,
                 transform_image(target, angle=best_angle),
                 min_shift=min_shift,
                 max_shift=max_shift,
             )
         else:
-            shift, cc_phase_corr = phase_correlation(
+            shift, _, cc_phase_corr, _ = phase_correlation(
                 reference,
                 transform_image(target, angle=best_angle),
                 min_shift=min_shift,
