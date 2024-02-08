@@ -63,15 +63,17 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         figs.append(g.figure)
 
     fig, ax = plt.subplots(
-        nrows=1, ncols=nclusters, facecolor="w", label="cluster_means"
+        nrows=1, ncols=nclusters, facecolor="w", label="cluster_means", figsize=(8, 2)
     )
     for icluster in range(nclusters):
         plt.sca(ax[icluster])
         plt.imshow(np.stack(cluster_means, axis=2)[icluster, :, :])
         plt.xlabel("rounds")
         plt.ylabel("channels")
+        plt.xticks(np.arange(nrounds), np.arange(1, nrounds + 1, dtype=int))
+        plt.yticks(np.arange(nch), np.arange(nch, dtype=int))
         plt.title(f"Cluster {icluster+1}")
-        plt.locator_params(axis="both", nbins=4)
+
     plt.tight_layout()
     figs.append(fig)
 

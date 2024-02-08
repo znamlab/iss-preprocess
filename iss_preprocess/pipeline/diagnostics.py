@@ -411,7 +411,7 @@ def check_barcode_calling(data_path):
 
     """
     processed_path = iss.io.get_processed_path(data_path)
-    figure_folder = processed_path / "figures"
+    figure_folder = processed_path / "figures" / "barcode_round"
     figure_folder.mkdir(exist_ok=True)
     reference_barcode_spots = np.load(
         processed_path / "reference_barcode_spots.npz", allow_pickle=True
