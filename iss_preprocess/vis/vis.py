@@ -332,30 +332,54 @@ def animate_sequencing_rounds(
     vmin=0,
     extent=((0, 2000), (0, 2000)),
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    axes_titles=None,
 ):
     """
     Animate sequencing rounds as RGB images amd save as an mp4 file.
 
     Args:
-        stack (ndarray): X x Y x C x R stack
+        stack (ndarray): X x Y x C x R stack or list of such stacks
         savefname (str): filename to save animation
         vmax (float): maximum value for each channel.
         vmin (float): minimum value for each channel.
         extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
         channel_colors (list): list of colors for each channel.
             Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+        axes_titles (list, optional): list of titles for each stack
 
     """
-    fig = plt.figure(figsize=(10, 10))
-    fig.patch.set_facecolor("black")
-    nrounds = stack.shape[3]
-    im = plt.imshow(round_to_rgb(stack, 0, extent, channel_colors, vmax, vmin))
-    add_bases_legend(channel_colors)
+    if not isinstance(stack, list):
+        stack = [stack]
+    nimg = len(stack)
+    nrounds = [s.shape[3] for s in stack]
+    assert len(set(nrounds)) == 1, "All stacks must have the same number of rounds"
+    nrounds = nrounds[0]
 
-    plt.axis("off")
+    fig, axes = plt.subplots(1, nimg, figsize=(10 * nimg, 10))
+    fig.patch.set_facecolor("black")
+
+    imgs = []
+    for iax, s in enumerate(stack):
+        im = axes[iax].imshow(round_to_rgb(s, 0, extent, channel_colors, vmax, vmin))
+        imgs.append(im)
+        axes[iax].axis("off")
+        if axes_titles is not None:
+            axes[iax].text(
+                0.01,
+                0.95,
+                axes_titles[iax],
+                color="white",
+                transform=axes[iax].transAxes,
+                horizontalalignment="left",
+                verticalalignment="top",
+                fontsize=20,
+            )
+    add_bases_legend(channel_colors, transform=axes[-1].transAxes)
+    fig.tight_layout()
 
     def animate(iround):
-        im.set_data(round_to_rgb(stack, iround, extent, channel_colors, vmax))
+        for iax, im in enumerate(imgs):
+            im.set_data(round_to_rgb(stack[iax], iround, extent, channel_colors, vmax))
 
     anim = FuncAnimation(fig, animate, frames=nrounds, interval=200)
     anim.save(savefname, writer=FFMpegWriter(fps=2))

@@ -28,9 +28,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     """
     processed_path = iss.io.get_processed_path(data_path)
     target_folder = processed_path / "figures" / "registration"
-
     target_folder.mkdir(exist_ok=True, parents=True)
-
     ops = iss.io.load_ops(data_path)
     nrounds = ops[f"{prefix}s"]
 
@@ -48,6 +46,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
         nrounds=nrounds,
         specific_rounds=None,
     )
+    reg_stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
 
     # compute vmax based on round 0
     vmaxs = np.percentile(reg_stack[..., 0], 99.99, axis=(0, 1))
@@ -57,40 +56,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
 
     print("Static figure")
-    stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
-    nrounds = stack.shape[3]
-
-    def round_image(iround):
-        vmax = np.percentile(
-            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
-            99.99,
-            axis=(0, 1),
-        )
-        vmin = np.percentile(
-            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
-            0.01,
-            axis=(0, 1),
-        )
-        return iss.vis.to_rgb(
-            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
-            channel_colors,
-            vmin=vmin,
-            vmax=vmax,
-        )
-
-    # Make the smallest rectangle that contains `nrounds` axes
-    nrows = int(np.sqrt(nrounds))
-    ncols = int(np.ceil(nrounds / nrows))
-    fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
-    rgb_stack = np.empty(np.diff(view, axis=1).ravel().tolist() + [3, nrounds])
-    for iround in range(nrounds):
-        ax = fig.add_subplot(nrows, ncols, iround + 1)
-        rgb = round_image(iround)
-        rgb_stack[..., iround] = rgb
-        ax.imshow(rgb)
-        ax.axis("off")
-        ax.set_title(f"Round {iround}")
-    iss.vis.add_bases_legend(channel_colors)
+    fig, rgb_stack = vis.plot_all_rounds(reg_stack, view, channel_colors)
     fig.tight_layout()
     fig.savefig(target_folder / f"initial_ref_tile_registration_{prefix}.png")
     print(f"Saved to {target_folder / f'initial_ref_tile_registration_{prefix}.mp4'}")
@@ -114,6 +80,110 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     )
 
 
+@slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
+def check_tile_registration(
+    data_path,
+    prefix="genes_round",
+    corrections=("best"),
+    tile_coords=None,
+):
+    """Check the registration for some tiles
+
+    If `tile_coords` is None, will select 10 tiles. If `ops` has a `xx_ref_tiles`
+    matching prefix, these will be part of the 10 tiles. The remaining tiles will be
+    selected randomly.
+
+    Args:
+        data_path (str): Relative path to data folder
+        prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
+        corrections (tuple, optional): Corrections to plot. Defaults to ('best').
+        tile_coords (list, optional): List of tile coordinates to process. If None, will
+            select 10 tiles. Defaults to None.
+    """
+    if isinstance(corrections, str):
+        corrections = [corrections]
+    processed_path = iss.io.get_processed_path(data_path)
+    target_folder = processed_path / "figures" / "registration" / prefix
+    target_folder.mkdir(exist_ok=True, parents=True)
+    ops = iss.io.load_ops(data_path)
+    nrounds = ops[f"{prefix}s"]
+
+    # get stack registered between channel and rounds
+    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
+    if tile_coords is None:
+        # check if ops has a ref tile
+        if f"{prefix.split('_')[0]}_ref_tiles" in ops:
+            tile_coords = ops[f"{prefix.split('_')[0]}_ref_tiles"]
+            nrandom = 10 - len(tile_coords)
+        else:
+            tile_coords = []
+            nrandom = 10
+        # select random tiles
+        if nrandom > 0:
+            for i in range(nrandom):
+                # pick a roi randomly
+                roi = np.random.choice(roi_dims[:, 0])
+                # pick a tile inside that roi
+                ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0]
+                tile_coords.append([roi, *np.random.randint(0, ntiles)])
+    elif isinstance(tile_coords[0], int):
+        tile_coords = [tile_coords]
+
+    for tile in tile_coords:
+        all_stacks = []
+        all_vmaxs = []
+        all_vmins = []
+        for correction in corrections:
+            reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+                data_path,
+                filter_r=False,
+                correct_channels=False,
+                correct_illumination=True,
+                corrected_shifts=correction,
+                tile_coors=tile,
+                suffix=ops[f"{prefix.split('_')[0]}_projection"],
+                prefix=prefix,
+                nrounds=nrounds,
+                specific_rounds=None,
+            )
+            reg_stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
+            all_stacks.append(reg_stack)
+            # compute vmax based on round 0
+            vmaxs = np.percentile(reg_stack[..., 0], 99.99, axis=(0, 1))
+            all_vmaxs.append(vmaxs)
+            vmins = np.percentile(reg_stack[..., 0], 0.01, axis=(0, 1))
+            all_vmins.append(vmins)
+            center = np.array(reg_stack.shape[:2]) // 2
+            view = np.array([center - 200, center + 200]).T
+            channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+
+            print("Static figure")
+
+            fig, rgb_stack = vis.plot_all_rounds(reg_stack, view, channel_colors)
+            fig.tight_layout()
+            fname = f"check_reg_{prefix}_{tile[0]}_{tile[1]}_{tile[2]}_{correction}"
+            fig.savefig(target_folder / f"{fname}.png")
+            print(f"Saved to {target_folder / f'{fname}.mp4'}")
+
+            # also save the stack for fiji
+            iss.io.save.write_stack(
+                (rgb_stack * 255).astype("uint8"),
+                target_folder / f"{fname}.tif",
+            )
+
+        fname = f"check_reg_{prefix}_{tile[0]}_{tile[1]}_{tile[2]}"
+        vis.animate_sequencing_rounds(
+            all_stacks,
+            savefname=target_folder / f"{fname}.mp4",
+            vmax=np.stack(all_vmaxs).max(axis=0),
+            vmin=np.stack(all_vmins).min(axis=0),
+            extent=(view[0], view[1]),
+            channel_colors=channel_colors,
+            axes_titles=corrections,
+        )
+
+
+@slurm_it(conda_env="iss-preprocess")
 def check_shift_correction(
     data_path, prefix="genes_round", roi_dimension_prefix="genes_round_1_1"
 ):
