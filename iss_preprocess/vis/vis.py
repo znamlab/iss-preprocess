@@ -264,18 +264,26 @@ def add_bases_legend(channel_colors, transform=None):
         )
 
 
-def round_to_rgb(stack, iround, extent, channel_colors, vmax=None, vmin=None):
+def round_to_rgb(
+    stack,
+    iround,
+    extent=None,
+    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    vmax=None,
+    vmin=None,
+):
     """
     Convert a single sequencing round to RGB image.
 
     Args:
         stack (ndarray): X x Y x C x R stack
         iround (int): sequencing round to visualize
-        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]] or None, in which
-            case the full image is used.
-        channel_colors (list): list of colors for each channel.
-        vmax (float): maximum value for each channel.
-        vmin (float): minimum value for each channel.
+        extent (list, optional): extent of plot. [[xmin, xmax], [ymin, ymax]] or None,
+             in which case the full image is used. Default: None
+        channel_colors (list, optinal): list of colors for each channel. Default to
+            red, green, magenta, cyan
+        vmax (float, optional): maximum value for each channel.
+        vmin (float, optional): minimum value for each channel.
 
     Returns:
         RGB image.
