@@ -357,10 +357,27 @@ def check_omp(path):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def basecall(path):
-    """Start batch jobs to run OMP on all tiles in a dataset."""
+    """Start batch jobs to run basecalling for barcodes on all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
     batch_process_tiles(path, "basecall_tile")
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+def check_basecall(path, use_slurm=False):
+    """Check if basecalling has completed for all tiles."""
+    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
+
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs"
+    else:
+        slurm_folder = None
+
+    check_barcode_basecall(path, use_slurm=use_slurm, slurm_folder=slurm_folder)
 
 
 @cli.command()

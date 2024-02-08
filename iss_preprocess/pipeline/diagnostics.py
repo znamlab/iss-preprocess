@@ -426,6 +426,96 @@ def check_barcode_calling(data_path):
         fig.savefig(figure_folder / f"barcode_{fig.get_label()}.png")
 
 
+@slurm_it(conda_env="iss-preprocess")
+def check_barcode_basecall(data_path):
+    """Check that the basecall is correct
+
+    Args:
+        path (str): Path to data folder
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    figure_folder = processed_path / "figures" / "barcode_round"
+    figure_folder.mkdir(exist_ok=True)
+
+    # get one of the reference tiles
+    ops = iss.io.load_ops(data_path)
+    ref_tile = ops["barcode_ref_tiles"][0]
+    stack, spot_sign_image, spots = iss.pipeline.sequencing.basecall_tile(
+        data_path, ref_tile, save_spots=False
+    )
+
+    # Find the place with the highest density of spots
+    x, y = spots["x"].values, spots["y"].values
+    # Create a grid of potential disk centers
+    x_grid, y_grid = np.meshgrid(
+        np.arange(200, stack.shape[1] - 200, 50),
+        np.arange(200, stack.shape[0] - 200, 50),
+    )
+    # Compute the Euclidean distance from each spot to each potential center
+    distances = np.sqrt(
+        (x[:, None, None] - x_grid) ** 2 + (y[:, None, None] - y_grid) ** 2
+    )
+    # Count the number of spots within a 200px radius for each potential center
+    counts = np.sum(distances <= 100, axis=0)
+    center = np.unravel_index(counts.argmax(), counts.shape)
+    center = (x_grid[center], y_grid[center])
+
+    nr = ops["barcode_rounds"]
+    window = 200
+    stack_part = stack[
+        center[1] - window : center[1] + window, center[0] - window : center[0] + window
+    ]
+    valid_spots = spots[
+        (spots.x > center[0] - window)
+        & (spots.x < center[0] + window)
+        & (spots.y > center[1] - window)
+        & (spots.y < center[1] + window)
+    ]
+
+    # Do the plot
+    fig, axes = plt.subplots(3, nr, figsize=(3 * nr, 9))
+    channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+    base_color = {b: c for b, c in zip(iss.call.BASES, channel_colors)}
+    for iround in range(nr):
+        rgb_stack = iss.vis.round_to_rgb(
+            stack_part, iround, extent=None, channel_colors=channel_colors
+        )
+        axes[0, iround].imshow(rgb_stack)
+        for i, spot in valid_spots.iterrows():
+            base = spot["bases"][iround]
+
+            axes[1, iround].text(
+                spot["x"] - (center[0] - window),
+                spot["y"] - (center[1] - window),
+                base,
+                color=base_color[base],
+                fontsize=6,
+                verticalalignment="center",
+                horizontalalignment="center",
+            )
+        sc = axes[2, iround].scatter(
+            valid_spots.x - (center[0] - window),
+            valid_spots.y - (center[1] - window),
+            c=valid_spots.spot_score,
+            s=5,
+        )
+
+    for ax in axes.flat:
+        ax.set_aspect("equal")
+        ax.set_xlim(0, 2 * window)
+        ax.set_ylim(2 * window, 0)
+        ax.set_facecolor("black")
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.tight_layout()
+    cbw = 1 / nr * 0.05
+    cax = fig.add_axes([1 - cbw * 3, 0.01, cbw, 0.25])
+    fig.colorbar(sc, cax=cax)
+
+    fig.savefig(figure_folder / f"barcode_basecall_example.png")
+    return fig
+
+
 def check_omp_setup(data_path):
     """Plot the OMP setup, including clustering of reference gene spots and
     gene templates, and save them in the figures folder
