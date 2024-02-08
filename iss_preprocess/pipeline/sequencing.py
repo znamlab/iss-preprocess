@@ -127,12 +127,14 @@ def setup_barcode_calling(data_path):
     return cluster_means, all_spots
 
 
-def basecall_tile(data_path, tile_coors):
+def basecall_tile(data_path, tile_coors, save_spots=True):
     """Detect and basecall barcodes for a given tile.
 
     Args:
         data_path (str): Relative path to data.
         tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
+        save_spots (bool, optional): Whether to save the detected spots. Used to run
+            without erasing during diagnostics. Defaults to True.
 
     """
     processed_path = iss.io.get_processed_path(data_path)
@@ -186,12 +188,14 @@ def basecall_tile(data_path, tile_coors):
     spots["bases"] = ["".join(BASES[seq]) for seq in spots["sequence"]]
     spots["dot_product_score"] = barcode_spots_dot_product(spots, cluster_means)
     spots["mean_intensity"] = [np.mean(np.abs(trace)) for trace in spots["trace"]]
-    save_dir = processed_path / "spots"
-    save_dir.mkdir(parents=True, exist_ok=True)
-    spots.to_pickle(
-        save_dir
-        / f"barcode_round_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
-    )
+    if save_spots:
+        save_dir = processed_path / "spots"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        spots.to_pickle(
+            save_dir
+            / f"barcode_round_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+        )
+    return stack, spot_sign_image, spots
 
 
 @slurm_it(conda_env="iss-preprocess")
