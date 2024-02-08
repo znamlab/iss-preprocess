@@ -371,8 +371,9 @@ def load_and_register_sequencing_tile(
             to use. Defaults to "fstack".
         filter_r (tuple, optional): Inner and out radius for the hanning filter.
             If `False`, stack is not filtered. Defaults to (2, 4).
-        correct_channels (bool, optional): Whether to normalize channel brightness.
-            Defaults to False.
+        correct_channels (bool or str, optional): Whether to normalize channel
+            brightness. If 'round1_only', normalise by round 1 correction factor,
+            otherwise, if True use all norm_factors. Defaults to False.
         corrected_shifts (str, optional): Which shift to use. One of `reference`,
             `single_tile`, `ransac`, or `best`. Defaults to 'best'.
         correct_illumination (bool, optional): Whether to correct vignetting.
