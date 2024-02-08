@@ -435,7 +435,7 @@ def correct_shifts_single_round_roi(
                 )
                 shifts.append(tforms["shifts"])
                 angles.append(tforms["angles"])
-            except:
+            except FileNotFoundError:
                 print(f"couldn't load tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
                 angles.append(np.array(np.nan, ndmin=2))
