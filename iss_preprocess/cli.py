@@ -272,16 +272,39 @@ def estimate_hyb_shifts(path, prefix=None, suffix="max"):
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
 def correct_shifts(path, prefix, use_slurm=False):
     """Correct X-Y shifts using robust regression across tiles."""
-
-    from iss_preprocess.pipeline import correct_shifts
+    # import with different name to not get confused with the cli function name
+    from iss_preprocess.pipeline import correct_shifts as corr_shifts
+    from iss_preprocess.pipeline import diagnostics as diag
 
     if use_slurm:
         from pathlib import Path
 
-        slurm_folder = f"{Path.home()}/slurm_logs"
+        slurm_folder = Path.home() / "slurm_logs"
     else:
         slurm_folder = None
-    correct_shifts(path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder)
+    job_id = corr_shifts(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_shifts_{prefix}",
+    )
+    diag.check_shift_correction(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_shift_correction_{prefix}",
+    )
+    diag.check_tile_registration(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_tile_registration_{prefix}",
+    )
 
 
 @cli.command()
