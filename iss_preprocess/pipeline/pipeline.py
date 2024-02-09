@@ -124,12 +124,11 @@ def project_and_average(data_path, force_redo=False):
     csa_job_ids = iss.pipeline.create_all_single_averages(
         data_path, n_batch=1, to_average=to_process, dependency=reproj_job_ids
     )
-    csa_job_ids = csa_job_ids if csa_job_ids else None
 
     # Create grand averages if all rounds are projected
     if acquisition_complete["genes_rounds"] or acquisition_complete["barcode_rounds"]:
         cga_job_ids = iss.pipeline.create_grand_averages(
-            data_path, dependency=csa_job_ids
+            data_path, dependency= csa_job_ids if csa_job_ids else None
         )
     else:
         print(
@@ -151,7 +150,7 @@ def project_and_average(data_path, force_redo=False):
             flexilims_session=flm_sess,
         )
         if not force_redo:
-            if flm_dataset is not None:
+            if flm_dataset:
                 print(f"{prefix} is already plotted, continuing", flush=True)
                 continue
         job_id = iss.vis.plot_overview_images(

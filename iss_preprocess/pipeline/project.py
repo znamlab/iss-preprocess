@@ -77,9 +77,6 @@ def reproject_failed(
     Args:
         data_path (str): Relative path to data.
 
-    Returns:
-        job_ids (str): String of SLURM job IDs separated by commas.
-
     """
     processed_path = iss.io.get_processed_path(data_path)
     missing_tiles = []
@@ -89,34 +86,15 @@ def reproject_failed(
         ):
             missing_tiles.append(fname)
 
-    job_ids = []
     for tile in missing_tiles:
         prefix = tile.split("_MMStack")[0]
         roi = int(tile.split("_MMStack_")[1].split("-")[0])
         ix = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[0])
         iy = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[1])
         print(f"Reprojecting {prefix} {roi}_{ix}_{iy}!", flush=True)
-        args = (
-            f"--export=DATAPATH={data_path},PREFIX={prefix},"
-            f"ROI={roi},TILEX={ix},TILEY={iy},OVERWRITE=--overwrite"
-        )
-        log_fname = f"iss_reproject_{roi}_{ix}_{iy}_%j"
-        args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
-        script_path = Path(__file__).parent / "project_tile.sh"
-        command = f"sbatch --parsable {args} {script_path}"
-        print(command)
-        process = subprocess.Popen(
-            shlex.split(command),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout, _ = process.communicate()
-        job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
-        job_ids.append(job_id)
+        project_tile(data_path, prefix, roi, ix, iy, overwrite=True)
     if len(missing_tiles) == 0:
         print("No failed tiles to re-project!", flush=True)
-    else:
-        return job_ids
 
 
 @updates_flexilims(name_source="prefix")
