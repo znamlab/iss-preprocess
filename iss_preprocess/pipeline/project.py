@@ -15,14 +15,14 @@ from znamutils import slurm_it
 
 
 @slurm_it(conda_env="iss-preprocess")
-def check_projection(data_path, prefix, suffixes=("max", "fstack")):
+def check_projection(data_path, prefix, suffixes=("max", "median")):
     """Check if all tiles have been projected successfully.
 
     Args:
             data_path (str): Relative path to data.
             prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
             suffixes (tuple, optional): Projection suffixes to check for.
-            Defaults to ("max", "fstack").
+            Defaults to ("max", "median").
 
     """
     processed_path = iss.io.get_processed_path(data_path)
@@ -56,16 +56,16 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
                         print(f"{proj_path} missing!", flush=True)
                         all_projected = False
                         not_projected.append(fname)
+    
+    np.savetxt(
+        processed_path / prefix / "missing_tiles.txt",
+        not_projected,
+        fmt="%s",
+        delimiter="\n",
+    )
 
     if all_projected:
         print(f"all tiles projected for {prefix}!", flush=True)
-    else:
-        np.savetxt(
-            processed_path / prefix / "missing_tiles.txt",
-            not_projected,
-            fmt="%s",
-            delimiter="\n",
-        )
 
 
 @slurm_it(conda_env="iss-preprocess")
