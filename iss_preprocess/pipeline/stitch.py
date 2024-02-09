@@ -224,9 +224,9 @@ def register_adjacent_tiles(
     if ops["reg_median_filter"]:
         msize = ops["reg_median_filter"]
         assert isinstance(msize, int), "reg_median_filter must be an integer"
-        tile_ref = median_filter(tile_ref, disk(msize), axes=(0, 1))
-        tile_down = median_filter(tile_down, disk(msize), axes=(0, 1))
-        tile_right = median_filter(tile_right, disk(msize), axes=(0, 1))
+        tile_ref = median_filter(tile_ref, footprint=disk(msize), axes=(0, 1))
+        tile_down = median_filter(tile_down, footprint=disk(msize), axes=(0, 1))
+        tile_right = median_filter(tile_right, footprint=disk(msize), axes=(0, 1))
 
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
