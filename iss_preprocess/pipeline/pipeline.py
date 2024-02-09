@@ -62,20 +62,21 @@ def project_and_average(data_path, force_redo=False):
     # Check for expected folders in raw_data and check acquisition types for completion
     raw_path = iss.io.get_raw_path(data_path)
     to_process = []
-    print(f"Checking for expected folders in {raw_path}", flush=True)
+    print(f"\nChecking for expected folders in {raw_path}", flush=True)
     for kind in todo:
         for folder in data_by_kind[kind]:
             if not (raw_path / folder).exists():
                 print(f"{folder} not found in raw, skipping", flush=True)
                 acquisition_complete[kind] = False
                 continue
+            print(f"{folder} found in raw", flush=True)
             to_process.append(folder)
 
     # Run projection on unprojected data
     pr_job_ids = []
     proj, mouse, chamber = data_path.split(os.sep)[:-1]
     flm_sess = flz.get_flexilims_session(project_id=proj)
-    print(f"to_process: {to_process}")
+    print(f"\nto_process: {to_process}")
     for prefix in to_process:
         if not force_redo:
             # Skip if already projected
@@ -90,32 +91,40 @@ def project_and_average(data_path, force_redo=False):
             data_path, prefix, overview=False
         )
         pr_job_ids.extend(tileproj_job_ids)
-
+    pr_job_ids = pr_job_ids if pr_job_ids else None
     # TODO: Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
     #       This would need to take pr_job_ids and output more job_ids for csa to wait for
 
     # Something like this
+    all_check_proj_job_ids = []
     for prefix in to_process:
         check_proj_job_ids = iss.pipeline.check_projection(
             data_path,
             prefix,
             use_slurm=True,
             slurm_folder=f"{Path.home()}/slurm_logs",
-            scripts_name=f"check_projection_{folder}",
-            job_dependency=",".join(pr_job_ids),
+            scripts_name=f"check_projection_{prefix}",
+            job_dependency=pr_job_ids,
         )
+        all_check_proj_job_ids.extend(check_proj_job_ids)
+    all_check_proj_job_ids = all_check_proj_job_ids if all_check_proj_job_ids else None
 
     # Then run iss.pipeline.reproject_failed() which opens txt files from check projection
     # and reprojects failed tiles, collecting job_ids for each tile
     reproj_job_ids = iss.pipeline.reproject_failed(
-        data_path, dependency=check_proj_job_ids
+        data_path,
+        use_slurm=True,
+        slurm_folder=f"{Path.home()}/slurm_logs",
+        scripts_name=f"reproject_failed",
+        job_dependency=all_check_proj_job_ids
     )
-    reproj_job_ids = reproj_job_ids if reproj_job_ids else []
+    reproj_job_ids = reproj_job_ids if reproj_job_ids else None
 
     # Then create averages of projections
     csa_job_ids = iss.pipeline.create_all_single_averages(
         data_path, n_batch=1, to_average=to_process, dependency=reproj_job_ids
     )
+    csa_job_ids = csa_job_ids if csa_job_ids else None
 
     # Create grand averages if all rounds are projected
     if acquisition_complete["genes_rounds"] or acquisition_complete["barcode_rounds"]:
@@ -128,7 +137,7 @@ def project_and_average(data_path, force_redo=False):
         )
         cga_job_ids = None
 
-    plot_job_ids = csa_job_ids if csa_job_ids else []
+    plot_job_ids = csa_job_ids if csa_job_ids else None
     if cga_job_ids:
         plot_job_ids.extend(cga_job_ids)
 
@@ -146,8 +155,8 @@ def project_and_average(data_path, force_redo=False):
                 print(f"{prefix} is already plotted, continuing", flush=True)
                 continue
         job_id = iss.vis.plot_overview_images(
-            data_path=data_path,
-            prefix=prefix,
+            data_path,
+            prefix,
             plot_grid=True,
             downsample_factor=25,
             save_raw=False,
@@ -421,7 +430,7 @@ def create_all_single_averages(
                 use_slurm=True,
                 slurm_folder=f"{Path.home()}/slurm_logs",
                 scripts_name=f"create_single_average_{folder}",
-                job_dependency=",".join(dependency) if dependency else None,
+                job_dependency=dependency if dependency else None,
             )
         )
     return job_ids
@@ -457,7 +466,7 @@ def create_grand_averages(
                 use_slurm=True,
                 slurm_folder=f"{Path.home()}/slurm_logs",
                 scripts_name=f"create_grand_average_{kind}",
-                job_dependency=",".join(dependency) if dependency else None,
+                job_dependency=dependency if dependency else None,
             )
         )
     return job_ids

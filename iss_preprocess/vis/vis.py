@@ -425,13 +425,20 @@ def plot_overview_images(
                 scripts_name = f"plot_overview_{prefix}_{roi}_channel_{ch}"
             job_ids.append(
                 plot_single_overview(
+                    data_path=data_path,
+                    prefix=prefix,
                     roi=roi,
                     ch=ch,
                     nx=roi_dim[1] + 1,
                     ny=roi_dim[2] + 1,
+                    plot_grid=plot_grid,
+                    downsample_factor=downsample_factor,
+                    save_raw=save_raw,
+                    correct_illumination=correct_illumination,
+                    use_slurm=True,
                     slurm_folder=f"{Path.home()}/slurm_logs",
-                    scripts_name=f"plot_overview_{prefix}_{roi}_{ch}",
-                    job_dependency=",".join(dependency) if dependency else None,
+                    scripts_name=scripts_name,
+                    job_dependency=dependency if dependency else None,
                 )
             )
     return job_ids
