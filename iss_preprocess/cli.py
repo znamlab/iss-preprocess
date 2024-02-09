@@ -164,15 +164,21 @@ def check_projection(path, prefix):
     default=False,
     help="Save diagnostic cross correlogram plots",
 )
-def register_ref_tile(path, prefix, diag=True):
+def register_ref_tile(path, prefix, diag):
     """Run registration across channels and rounds for the reference tile."""
     from pathlib import Path
     from iss_preprocess.pipeline import register_reference_tile
     from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
     slurm_folder = f"{Path.home()}/slurm_logs"
+    slurm_options = {"mem": "128G"} if diag else None
     job_id = register_reference_tile(
-        path, prefix=prefix, diag=diag, use_slurm=True, slurm_folder=str(slurm_folder)
+        path,
+        prefix=prefix,
+        diag=diag,
+        use_slurm=True,
+        slurm_folder=str(slurm_folder),
+        slurm_options=slurm_options,
     )
     check_ref_tile_registration(
         path,
@@ -295,11 +301,42 @@ def estimate_hyb_shifts(path, prefix=None, suffix="max"):
     "-p", "--path", prompt="Enter data path", help="Data path.", required=True
 )
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
-def correct_shifts(path, prefix):
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+def correct_shifts(path, prefix, use_slurm=False):
     """Correct X-Y shifts using robust regression across tiles."""
-    from iss_preprocess.pipeline import correct_shifts
+    # import with different name to not get confused with the cli function name
+    from iss_preprocess.pipeline import correct_shifts as corr_shifts
+    from iss_preprocess.pipeline import diagnostics as diag
 
-    correct_shifts(path, prefix)
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs"
+    else:
+        slurm_folder = None
+    job_id = corr_shifts(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_shifts_{prefix}",
+    )
+    diag.check_shift_correction(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_shift_correction_{prefix}",
+    )
+    diag.check_tile_registration(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_tile_registration_{prefix}",
+    )
 
 
 @cli.command()
@@ -342,11 +379,37 @@ def spot_sign_image(path, prefix="genes_round"):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def check_omp(path):
+    """Compute average spot image."""
+    from iss_preprocess.pipeline import check_omp_thresholds
+
+    check_omp_thresholds(path)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def basecall(path):
-    """Start batch jobs to run OMP on all tiles in a dataset."""
+    """Start batch jobs to run basecalling for barcodes on all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
     batch_process_tiles(path, "basecall_tile")
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+def check_basecall(path, use_slurm=False):
+    """Check if basecalling has completed for all tiles."""
+    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
+
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs"
+    else:
+        slurm_folder = None
+
+    check_barcode_basecall(path, use_slurm=use_slurm, slurm_folder=slurm_folder)
 
 
 @cli.command()

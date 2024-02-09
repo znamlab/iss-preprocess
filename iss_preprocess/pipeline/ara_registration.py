@@ -269,14 +269,14 @@ def overview_single_roi(
     pixel_size *= ratio
     log["pixel_size"] = pixel_size
 
-    print(f"   ..... resizing", flush=True)
+    print("   ..... resizing", flush=True)
     stitched_stack = cv2.resize(
         stitched_stack,
         new_shape[::-1],  # cv2 has (width, height), not (x, y)
         interpolation=cv2.INTER_CUBIC,
     )
 
-    print(f"   ..... filtering", flush=True)
+    print("   ..... filtering", flush=True)
 
     stitched_stack = gaussian_filter(stitched_stack, sigma_blur)
 

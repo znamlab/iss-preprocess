@@ -64,15 +64,17 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         figs.append(g.figure)
 
     fig, ax = plt.subplots(
-        nrows=1, ncols=nclusters, facecolor="w", label="cluster_means"
+        nrows=1, ncols=nclusters, facecolor="w", label="cluster_means", figsize=(8, 2)
     )
     for icluster in range(nclusters):
         plt.sca(ax[icluster])
         plt.imshow(np.stack(cluster_means, axis=2)[icluster, :, :])
         plt.xlabel("rounds")
         plt.ylabel("channels")
+        plt.xticks(np.arange(nrounds), np.arange(1, nrounds + 1, dtype=int))
+        plt.yticks(np.arange(nch), np.arange(nch, dtype=int))
         plt.title(f"Cluster {icluster+1}")
-        plt.locator_params(axis="both", nbins=4)
+
     plt.tight_layout()
     figs.append(fig)
 
@@ -263,18 +265,26 @@ def add_bases_legend(channel_colors, transform=None):
         )
 
 
-def round_to_rgb(stack, iround, extent, channel_colors, vmax=None, vmin=None):
+def round_to_rgb(
+    stack,
+    iround,
+    extent=None,
+    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    vmax=None,
+    vmin=None,
+):
     """
     Convert a single sequencing round to RGB image.
 
     Args:
         stack (ndarray): X x Y x C x R stack
         iround (int): sequencing round to visualize
-        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]] or None, in which
-            case the full image is used.
-        channel_colors (list): list of colors for each channel.
-        vmax (float): maximum value for each channel.
-        vmin (float): minimum value for each channel.
+        extent (list, optional): extent of plot. [[xmin, xmax], [ymin, ymax]] or None,
+             in which case the full image is used. Default: None
+        channel_colors (list, optinal): list of colors for each channel. Default to
+            red, green, magenta, cyan
+        vmax (float, optional): maximum value for each channel.
+        vmin (float, optional): minimum value for each channel.
 
     Returns:
         RGB image.
@@ -333,33 +343,56 @@ def animate_sequencing_rounds(
     vmin=0,
     extent=((0, 2000), (0, 2000)),
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    axes_titles=None,
 ):
     """
-    Animate sequencing rounds as RGB images amd save as an MPEG file.
+    Animate sequencing rounds as RGB images amd save as an mp4 file.
 
     Args:
-        stack (ndarray): X x Y x C x R stack
+        stack (ndarray): X x Y x C x R stack or list of such stacks
         savefname (str): filename to save animation
         vmax (float): maximum value for each channel.
         vmin (float): minimum value for each channel.
         extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
         channel_colors (list): list of colors for each channel.
             Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+        axes_titles (list, optional): list of titles for each stack
 
     """
-    fig = plt.figure(figsize=(10, 10))
-    fig.patch.set_facecolor("black")
-    nrounds = stack.shape[3]
-    im = plt.imshow(round_to_rgb(stack, 0, extent, channel_colors, vmax, vmin))
-    add_bases_legend(channel_colors)
+    if not isinstance(stack, list):
+        stack = [stack]
+    nimg = len(stack)
+    nrounds = [s.shape[3] for s in stack]
+    assert len(set(nrounds)) == 1, "All stacks must have the same number of rounds"
+    nrounds = nrounds[0]
 
-    plt.axis("off")
+    fig, axes = plt.subplots(1, nimg, figsize=(10 * nimg, 10))
+    fig.patch.set_facecolor("black")
+
+    imgs = []
+    for iax, s in enumerate(stack):
+        im = axes[iax].imshow(round_to_rgb(s, 0, extent, channel_colors, vmax, vmin))
+        imgs.append(im)
+        axes[iax].axis("off")
+        if axes_titles is not None:
+            axes[iax].text(
+                0.01,
+                0.95,
+                axes_titles[iax],
+                color="white",
+                transform=axes[iax].transAxes,
+                horizontalalignment="left",
+                verticalalignment="top",
+                fontsize=20,
+            )
+    add_bases_legend(channel_colors, transform=axes[-1].transAxes)
+    fig.tight_layout()
 
     def animate(iround):
-        im.set_data(round_to_rgb(stack, iround, extent, channel_colors, vmax))
+        for iax, im in enumerate(imgs):
+            im.set_data(round_to_rgb(stack[iax], iround, extent, channel_colors, vmax))
 
     anim = FuncAnimation(fig, animate, frames=nrounds, interval=200)
-    plt.show()
     anim.save(savefname, writer=FFMpegWriter(fps=2))
 
 

@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import os
-import re
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -106,7 +104,7 @@ def plot_correction_images(
         sub_images = np.dstack([sub_images, np.zeros_like(sub_images[:, :, 0])])
         _plot_channels_intensity(axes, sub_images, subtract_chan=4)
     plt.subplots_adjust(wspace=0.2)
-    fig.savefig(figure_folder / f"average_for_correction_other_prefix.png", dpi=600)
+    fig.savefig(figure_folder / "average_for_correction_other_prefix.png", dpi=600)
 
 
 def _plot_channels_intensity(
@@ -175,6 +173,7 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
     fig_file = (
         iss.io.get_processed_path(data_path)
         / "figures"
+        / "registration"
         / f"adjacent_tile_reg_{prefix}.png"
     )
     if not fig_file.parent.exists():
@@ -296,7 +295,7 @@ def plot_tilestats_distributions(
         ax.set_xlim(np.min(ops["black_level"]) - 2, 2**12)
         ax.semilogx()
     ax.legend()
-    fig.savefig(figure_folder / f"pixel_value_distributions.png", dpi=600)
+    fig.savefig(figure_folder / "pixel_value_distributions.png", dpi=600)
 
 
 def plot_matrix_difference(
@@ -347,22 +346,24 @@ def plot_matrix_difference(
             rng = range_max[col]
             vmin = vmin - rng
             vmax = vmax + rng
-        im = axes[0, col].imshow(raw[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5)
-        ax_divider = make_axes_locatable(axes[0, col])
-        cax = ax_divider.append_axes("right", size="7%", pad="2%")
-        cb = fig.colorbar(im, cax=cax)
-        im = axes[1, col].imshow(
-            corrected[col].T, vmin=vmin - rng / 5, vmax=vmax + rng / 5
+        plot_matrix_with_colorbar(
+            raw[col].T, fig, axes[0, col], vmin=vmin - rng / 5, vmax=vmax + rng / 5
         )
-        ax_divider = make_axes_locatable(axes[1, col])
-        cax = ax_divider.append_axes("right", size="7%", pad="2%")
-        cb = fig.colorbar(im, cax=cax)
-        im = axes[2, col].imshow(
-            (raw[col] - corrected[col]).T, cmap="RdBu_r", vmin=-rng, vmax=rng
+        plot_matrix_with_colorbar(
+            corrected[col].T,
+            fig,
+            axes[1, col],
+            vmin=vmin - rng / 5,
+            vmax=vmax + rng / 5,
         )
-        ax_divider = make_axes_locatable(axes[2, col])
-        cax = ax_divider.append_axes("right", size="7%", pad="2%")
-        cb = fig.colorbar(im, cax=cax)
+        plot_matrix_with_colorbar(
+            (raw[col] - corrected[col]).T,
+            fig,
+            axes[2, col],
+            cmap="RdBu_r",
+            vmin=-rng,
+            vmax=rng,
+        )
 
     for x in axes.flatten():
         x.set_xticks([])
@@ -374,6 +375,83 @@ def plot_matrix_difference(
         for il, label in enumerate(line_labels):
             axes[il, 0].set_ylabel(label, fontsize=11)
     return fig
+
+
+def plot_all_rounds(stack, view=None, channel_colors=None, grid=True):
+    """Plot all rounds of a stack in a grid
+
+    Args:
+        stack (np.array): Image stack to plot (x y z round)
+        view (np.array, optional): View to plot. Defaults to None, full view.
+        channel_colors (list, optional): List of colors for each channel. Defaults to
+            None, which will use the default colors (r, g, m, c).
+        grid (bool, optional): Whether to plot a grid. Defaults to True.
+
+    Returns:
+        plt.Figure: Figure instance
+        np.array: RGB stack
+    """
+    if channel_colors is None:
+        channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+    if view is None:
+        view = np.array([[0, stack.shape[0]], [0, stack.shape[1]]])
+    nrounds = stack.shape[3]
+
+    def round_image(iround):
+        vmax = np.percentile(
+            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+            99.99,
+            axis=(0, 1),
+        )
+        vmin = np.percentile(
+            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+            0.01,
+            axis=(0, 1),
+        )
+        return iss.vis.to_rgb(
+            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+            channel_colors,
+            vmin=vmin,
+            vmax=vmax,
+        )
+
+    # Make the smallest rectangle that contains `nrounds` axes
+    nrows = int(np.sqrt(nrounds))
+    ncols = int(np.ceil(nrounds / nrows))
+    fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
+    rgb_stack = np.empty(np.diff(view, axis=1).ravel().tolist() + [3, nrounds])
+    for iround in range(nrounds):
+        ax = fig.add_subplot(nrows, ncols, iround + 1)
+        rgb = round_image(iround)
+        rgb_stack[..., iround] = rgb
+        ax.imshow(rgb)
+        ax.set_title(f"Round {iround}")
+        if grid:
+            ax.grid(color="w", linestyle="--", linewidth=0.5, alpha=0.5)
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+    fig.tight_layout()
+    iss.vis.add_bases_legend(channel_colors)
+    return fig, rgb_stack
+
+
+def plot_matrix_with_colorbar(mtx, fig, ax, **kwargs):
+    """Plot a matrix with a colorbar just on the side
+
+    Args:
+        mtx (np.array): Matrix to plot
+        fig (plt.Figure): Figure instance
+        ax (plt.Axes): Axes instance
+
+    Returns:
+        plt.Axes: Colorbar axes
+        plt.colorbar: Colorbar instance
+    """
+    im = ax.imshow(mtx, **kwargs)
+    ax_divider = make_axes_locatable(ax)
+    cax = ax_divider.append_axes("right", size="7%", pad="2%")
+    cb = fig.colorbar(im, cax=cax)
+    return cax, cb
 
 
 def plot_registration_correlograms(
@@ -533,7 +611,7 @@ def check_rolonies_registration(
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
     vmax=0.5,
     correct_illumination=True,
-    corrected_shifts=True,
+    corrected_shifts="best",
 ):
     """Check the registration of rolonies
 
@@ -550,8 +628,8 @@ def check_rolonies_registration(
         vmax (float, optional): Max value image scale. Defaults to 0.5.
         correct_illumination (bool, optional): Whether to correct for illumination.
             Defaults to True.
-        corrected_shifts (bool, optional): Whether to use corrected shifts. Defaults to
-            True.
+        corrected_shifts (str, optional): Which shifts to use. One of `best`, `ransac`,
+            `single_tile`, `reference`, Defaults to 'best'.
 
     """
     ops = load_ops(data_path)

@@ -184,6 +184,7 @@ def estimate_shifts_by_coors(
     )
 
 
+@slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
 def correct_shifts(data_path, prefix):
     """Use robust regression to correct shifts across tiles within an ROI
     for all ROIs.
@@ -434,7 +435,7 @@ def correct_shifts_single_round_roi(
                 )
                 shifts.append(tforms["shifts"])
                 angles.append(tforms["angles"])
-            except:
+            except FileNotFoundError:
                 print(f"couldn't load tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
                 angles.append(np.array(np.nan, ndmin=2))
@@ -524,6 +525,8 @@ def register_tile_to_ref(
     )
 
     if ref_channels is not None:
+        if isinstance(ref_channels, int):
+            ref_channels = [ref_channels]
         ref_all_channels = ref_all_channels[:, :, ref_channels]
     ref = np.nanmean(ref_all_channels, axis=(2, 3))
 
