@@ -347,18 +347,16 @@ def plot_matrix_difference(
             vmin = vmin - rng
             vmax = vmax + rng
         plot_matrix_with_colorbar(
-            raw[col].T, fig, axes[0, col], vmin=vmin - rng / 5, vmax=vmax + rng / 5
+            raw[col].T,  axes[0, col], vmin=vmin - rng / 5, vmax=vmax + rng / 5
         )
         plot_matrix_with_colorbar(
             corrected[col].T,
-            fig,
             axes[1, col],
             vmin=vmin - rng / 5,
             vmax=vmax + rng / 5,
         )
         plot_matrix_with_colorbar(
             (raw[col] - corrected[col]).T,
-            fig,
             axes[2, col],
             cmap="RdBu_r",
             vmin=-rng,
@@ -435,22 +433,25 @@ def plot_all_rounds(stack, view=None, channel_colors=None, grid=True):
     return fig, rgb_stack
 
 
-def plot_matrix_with_colorbar(mtx, fig, ax, **kwargs):
+def plot_matrix_with_colorbar(mtx, ax=None, **kwargs):
     """Plot a matrix with a colorbar just on the side
 
     Args:
         mtx (np.array): Matrix to plot
-        fig (plt.Figure): Figure instance
-        ax (plt.Axes): Axes instance
+        ax (plt.Axes, optional): Axes instance. Will be created if None. Defaults to
+            None.
 
     Returns:
         plt.Axes: Colorbar axes
         plt.colorbar: Colorbar instance
     """
+    if ax is None:
+        ax = plt.subplot(1,1,1)
+    
     im = ax.imshow(mtx, **kwargs)
     ax_divider = make_axes_locatable(ax)
     cax = ax_divider.append_axes("right", size="7%", pad="2%")
-    cb = fig.colorbar(im, cax=cax)
+    cb = ax.figure.colorbar(im, cax=cax)
     return cax, cb
 
 
