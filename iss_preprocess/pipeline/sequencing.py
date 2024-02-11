@@ -495,7 +495,7 @@ def compute_spot_sign_image(data_path, prefix="genes_round"):
     iss.pipeline.check_spot_sign_image(data_path)
 
 
-def load_spot_sign_image(data_path, threshold):
+def load_spot_sign_image(data_path, threshold, return_raw_image=False):
     """Load the reference spot sign image to use in spot calling. First, check
     if the spot sign image has been computed for the current dataset and use it
     if available. Otherwise, use the spot sign image saved in the repo.
@@ -504,6 +504,8 @@ def load_spot_sign_image(data_path, threshold):
         data_path (str): Relative path to data.
         threshold (float): Absolute value threshold used to binarize the spot
             sign image.
+        return_raw_image (bool, optional): Whether to return the raw spot sign
+            image. Defaults to False.
 
     Returns:
         numpy.ndarray: Spot sign image after thresholding, containing -1, 0, or 1s.
@@ -518,6 +520,9 @@ def load_spot_sign_image(data_path, threshold):
         spot_sign_image = np.load(
             Path(__file__).parent.parent / "call/spot_sign_image.npy"
         )
+    if return_raw_image:
+        return spot_sign_image
+    
     spot_sign_image[np.abs(spot_sign_image) < threshold] = 0
     return spot_sign_image
 
