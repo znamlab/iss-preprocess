@@ -31,7 +31,7 @@ All `barcode_ref_tiles` are processed sequencialy. They are loaded and registere
 between channel and rounds. Then a reference image is created by taking the standard
 deviation of the stack. This image is used to detect spots by simple thresholding. 
 
-.. image:: resources/barcode_spot_detection.png
+.. image:: resources/barcode_spot_detection_bleedthrough.png
   :width: 700
   :alt: Detection of barcode rolonies
 
