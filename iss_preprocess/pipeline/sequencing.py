@@ -168,11 +168,13 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
 
     # TODO: perhaps we should apply background correction before basecalling?
     for iround in range(ops["barcode_rounds"]):
-        this_round_means = cluster_means[iround]
-        this_round_means = this_round_means / np.linalg.norm(this_round_means, axis=1)
-        x_norm = (
-            x[iround, :, :].T / np.linalg.norm(x[iround, :, :].T, axis=1)[:, np.newaxis]
+        this_round_means = cluster_means[iround] / np.linalg.norm(
+            cluster_means[iround], axis=1, keepdims=True
         )
+        x_norm = x[iround, :, :].T / np.linalg.norm(
+            x[iround, :, :].T, axis=1, keepdims=True
+        )
+
         # should be Spots x Channels matrix @ Channels x Clusters matrix
         score = x_norm @ this_round_means.T
         cluster_ind = np.argmax(score, axis=1)
@@ -522,7 +524,7 @@ def load_spot_sign_image(data_path, threshold, return_raw_image=False):
         )
     if return_raw_image:
         return spot_sign_image
-    
+
     spot_sign_image[np.abs(spot_sign_image) < threshold] = 0
     return spot_sign_image
 
