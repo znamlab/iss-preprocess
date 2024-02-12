@@ -347,7 +347,7 @@ def plot_matrix_difference(
             vmin = vmin - rng
             vmax = vmax + rng
         plot_matrix_with_colorbar(
-            raw[col].T,  axes[0, col], vmin=vmin - rng / 5, vmax=vmax + rng / 5
+            raw[col].T, axes[0, col], vmin=vmin - rng / 5, vmax=vmax + rng / 5
         )
         plot_matrix_with_colorbar(
             corrected[col].T,
@@ -446,8 +446,8 @@ def plot_matrix_with_colorbar(mtx, ax=None, **kwargs):
         plt.colorbar: Colorbar instance
     """
     if ax is None:
-        ax = plt.subplot(1,1,1)
-    
+        ax = plt.subplot(1, 1, 1)
+
     im = ax.imshow(mtx, **kwargs)
     ax_divider = make_axes_locatable(ax)
     cax = ax_divider.append_axes("right", size="7%", pad="2%")

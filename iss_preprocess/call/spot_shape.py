@@ -128,7 +128,7 @@ def detect_spots_by_shape(im, spot_sign_image, threshold=0, rho=2):
 
     """
     spots = detect_spots(im, threshold=threshold)
-    
+
     neg_max = np.sum(np.sign(spot_sign_image) == -1)
     pos_max = np.sum(np.sign(spot_sign_image) == 1)
     pos_filter = (np.sign(spot_sign_image) == 1).astype(float)

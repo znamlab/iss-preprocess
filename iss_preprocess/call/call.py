@@ -64,8 +64,8 @@ def extract_spots(spots, stack, spot_radius=2):
     traces = []
     spot_footprint = disk(spot_radius)
     drr, dcc = np.where(spot_footprint)
-    drr -= spot_footprint.shape[0]//2
-    dcc -= spot_footprint.shape[1]//2
+    drr -= spot_footprint.shape[0] // 2
+    dcc -= spot_footprint.shape[1] // 2
     for _, spot in spots.iterrows():
         rr = np.clip(drr + spot["y"], 0, stack.shape[0]).astype(int)
         cc = np.clip(dcc + spot["x"], 0, stack.shape[1]).astype(int)

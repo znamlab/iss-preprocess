@@ -318,7 +318,7 @@ def check_shift_correction(
                     vmin -= (rng_min - rng) / 2
                     vmax += (rng_min - rng) / 2
                 iss.vis.plot_matrix_with_colorbar(
-                    best_to_plot[ic].T,  ax, vmin=vmin, vmax=vmax
+                    best_to_plot[ic].T, ax, vmin=vmin, vmax=vmax
                 )
                 ax.set_xticks([])
                 ax.set_yticks([])
