@@ -1,5 +1,5 @@
 import numpy as np
-from skimage.draw import disk
+from skimage.morphology import disk
 from sklearn.mixture import GaussianMixture
 from scipy.spatial.distance import hamming
 from ..coppafish import scaled_k_means
@@ -62,8 +62,13 @@ def extract_spots(spots, stack, spot_radius=2):
 
     """
     traces = []
+    spot_footprint = disk(spot_radius)
+    drr, dcc = np.where(spot_footprint)
+    drr -= spot_footprint.shape[0]//2
+    dcc -= spot_footprint.shape[1]//2
     for _, spot in spots.iterrows():
-        rr, cc = disk((spot["y"], spot["x"]), spot_radius, shape=stack.shape[0:2])
+        rr = np.clip(drr + spot["y"], 0, stack.shape[0]).astype(int)
+        cc = np.clip(dcc + spot["x"], 0, stack.shape[1]).astype(int)
         traces.append(stack[rr, cc, :, :].mean(axis=0).T)
     spots["trace"] = traces
 
