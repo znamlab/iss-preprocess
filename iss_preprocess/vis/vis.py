@@ -241,15 +241,21 @@ def plot_gene_templates(gene_dict, gene_names, BASES, nrounds=7, nchannels=4):
     return fig
 
 
-def add_bases_legend(channel_colors, transform=None):
+def add_bases_legend(channel_colors, transform=None, **kwargs):
     """
     Add legend for base colors to a plot.
 
     Args:
         channel_colors (list): list of colors for each channel.
         transform (matplotlib.transforms.Transform): transform for legend.
+        kwargs: additional keyword arguments for plt.text.
 
     """
+    default_kwargs = dict(
+        fontweight="bold",
+        fontsize=32,
+    )
+    default_kwargs.update(kwargs)
     if transform is None:
         transform = plt.gca().transAxes
     for i, (color, base) in enumerate(zip(channel_colors, iss.call.BASES)):
@@ -258,9 +264,8 @@ def add_bases_legend(channel_colors, transform=None):
             0.05,
             base,
             color=color,
-            fontweight="bold",
-            fontsize=32,
             transform=transform,
+            **default_kwargs,
         )
 
 
