@@ -427,11 +427,15 @@ def check_barcode_calling(data_path):
 
 
 @slurm_it(conda_env="iss-preprocess")
-def check_barcode_basecall(data_path):
+def check_barcode_basecall(data_path, tile_coords=None, ref_tile_index=0):
     """Check that the basecall is correct
 
     Args:
         path (str): Path to data folder
+        tile_coords (list, optional): Tile coordinates to use. Defaults to None.
+        ref_tile_index (int, optional): Index of the reference tile to use if
+            tile_coords is None. Defaults to 0.
+
     """
     processed_path = iss.io.get_processed_path(data_path)
     figure_folder = processed_path / "figures" / "barcode_round"
@@ -439,9 +443,11 @@ def check_barcode_basecall(data_path):
 
     # get one of the reference tiles
     ops = iss.io.load_ops(data_path)
-    ref_tile = ops["barcode_ref_tiles"][0]
+    if tile_coords is None:
+        tile_coords = ops["barcode_ref_tiles"][ref_tile_index]
+
     stack, spot_sign_image, spots = iss.pipeline.sequencing.basecall_tile(
-        data_path, ref_tile, save_spots=False
+        data_path, tile_coords, save_spots=False
     )
 
     # Find the place with the highest density of spots
@@ -473,18 +479,29 @@ def check_barcode_basecall(data_path):
     ]
 
     # Do the plot
-    fig, axes = plt.subplots(3, nr, figsize=(3 * nr, 9))
+    fig = plt.figure(figsize=(3 * nr, 10))
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
     base_color = {b: c for b, c in zip(iss.call.BASES, channel_colors)}
+    axes = []
     for iround in range(nr):
         rgb_stack = iss.vis.round_to_rgb(
             stack_part, iround, extent=None, channel_colors=channel_colors
         )
-        axes[0, iround].imshow(rgb_stack)
+        # plot raw fluo
+        ax = fig.add_subplot(3, nr, iround + 1)
+        axes.append(ax)
+        ax.imshow(rgb_stack)
+        ax.set_title(f"Round {iround}")
+        if iround == nr - 1:
+            iss.vis.add_bases_legend(channel_colors, ax.transAxes, fontsize=14)
+
+        # plot basecall, a letter per spot
+        ax = fig.add_subplot(3, nr, nr + iround + 1)
+        axes.append(ax)
         for i, spot in valid_spots.iterrows():
             base = spot["bases"][iround]
 
-            axes[1, iround].text(
+            ax.text(
                 spot["x"] - (center[0] - window),
                 spot["y"] - (center[1] - window),
                 base,
@@ -493,26 +510,39 @@ def check_barcode_basecall(data_path):
                 verticalalignment="center",
                 horizontalalignment="center",
             )
-        sc = axes[2, iround].scatter(
+
+    # plot spot scores
+    scores = ["dot_product_score", "spot_score", "mean_score", "mean_intensity"]
+    empty = np.zeros(stack_part.shape[:2]) + np.nan
+    cmap = plt.cm.viridis
+    cmap.set_bad("black")
+
+    for isc, score in enumerate(scores):
+        ax = fig.add_subplot(3, len(scores), 2 * len(scores) + isc + 1)
+        axes.append(ax)
+        sc = ax.scatter(
             valid_spots.x - (center[0] - window),
             valid_spots.y - (center[1] - window),
-            c=valid_spots.spot_score,
+            c=valid_spots[score],
             s=5,
         )
+        cax, cb = iss.vis.plot_matrix_with_colorbar(empty, ax, cmap=cmap)
+        cax.clear()
+        cb = fig.colorbar(sc, cax=cax)
+        cb.set_label(score.replace("_", " "))
 
-    for ax in axes.flat:
+    for ax in axes:
         ax.set_aspect("equal")
         ax.set_xlim(0, 2 * window)
-        ax.set_ylim(2 * window, 0)
         ax.set_facecolor("black")
+        ax.set_ylim(2 * window, 0)
         ax.set_xticks([])
         ax.set_yticks([])
-    fig.tight_layout()
-    cbw = 1 / nr * 0.05
-    cax = fig.add_axes([1 - cbw * 3, 0.01, cbw, 0.25])
-    fig.colorbar(sc, cax=cax)
-
-    fig.savefig(figure_folder / f"barcode_basecall_example.png")
+    fig.subplots_adjust(
+        left=1e-3, right=0.98, bottom=1e-3, top=0.98, wspace=0.05, hspace=0.05
+    )
+    tc = "_".join([str(x) for x in tile_coords])
+    fig.savefig(figure_folder / f"barcode_basecall_example_tile_{tc}.png")
     return fig
 
 
