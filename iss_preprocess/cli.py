@@ -513,9 +513,9 @@ def register_to_reference(
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
         from iss_preprocess.pipeline import register
-        
+
         if reg_channels is not None:
-            if reg_channels.lower() == 'none':
+            if reg_channels.lower() == "none":
                 reg_channels = None
             else:
                 reg_channels = [int(x) for x in reg_channels.split(",")]

@@ -833,7 +833,7 @@ def estimate_rotation_translation(
             print(target_mask.dtype)
             target_mask = transform_image(target_mask, angle=best_angle)
             print(target_mask.dtype)
-        
+
         shift, _, cc_phase_corr, _ = phase_correlation(
             reference_fft,
             transform_image(target, angle=best_angle),
