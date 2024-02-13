@@ -159,7 +159,7 @@ def register_ref_tile(path, prefix, diag):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+@click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from iss_preprocess.pipeline import setup_omp
