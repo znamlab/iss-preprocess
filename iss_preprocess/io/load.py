@@ -346,7 +346,8 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
         ops = load_ops(data_path)
         data_dir = processed_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
-        pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['genes_projection']}.tif"
+        proj = ops["genes_projection"]
+        pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{proj}.tif"
     else:
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
     matcher = re.compile(pattern=pattern)
