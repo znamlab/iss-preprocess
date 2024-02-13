@@ -557,7 +557,6 @@ def register_tile_to_ref(
         ref = ref > np.quantile(ref, binarise_quantile)
 
     angles, shifts = estimate_rotation_translation(
-        data_path,
         ref,
         reg,
         angle_range=1.0,
