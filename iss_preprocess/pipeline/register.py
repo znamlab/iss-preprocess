@@ -401,6 +401,7 @@ def correct_shifts_to_ref(data_path, prefix, fit_angle=False):
         correct_shifts_single_round_roi(
             data_path, roi_dim, prefix=prefix_to_reg, fit_angle=fit_angle
         )
+        filter_ransac_shifts_to_ref(data_path, prefix, roi_dim, max_residuals=10)
 
 
 def correct_shifts_single_round_roi(
@@ -430,13 +431,19 @@ def correct_shifts_single_round_roi(
     angles = []
     for iy in range(ny):
         for ix in range(nx):
+            fname = processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+            if not fname.exists():
+                print(f"Not tforms for tile {roi} {ix} {iy}")
+                shifts.append(np.array([[np.nan, np.nan]]))
+                angles.append(np.array(np.nan, ndmin=2))
+                continue
             try:
                 tforms = np.load(
                     processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
                 shifts.append(tforms["shifts"])
                 angles.append(tforms["angles"])
-            except FileNotFoundError:
+            except ValueError:
                 print(f"couldn't load tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
                 angles.append(np.array(np.nan, ndmin=2))
@@ -453,8 +460,6 @@ def correct_shifts_single_round_roi(
     for ich in range(shifts.shape[0]):
         for idim in range(2):
             inliers = np.all(np.abs(shifts[ich, :, :]) < max_shift, axis=0)
-            if np.sum(inliers) <= 2:
-                print(f"not enough inliers for {ich} {idim}")
             reg = RANSACRegressor(random_state=0).fit(
                 X[inliers, :], shifts[ich, idim, inliers]
             )
@@ -569,6 +574,62 @@ def register_tile_to_ref(
         scales=np.array([[1]]),
     )
     return angles, shifts
+
+
+def filter_ransac_shifts_to_ref(data_path, prefix, roi_dims, max_residuals=10):
+    """Filter shifts to use RANSAC shifts only if the initial shifts are off
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Directory prefix to use, e.g. "genes_round"
+        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles, Ytiles)
+        max_residuals (int, optional): Threshold on residuals above which the RANSAC shifts are used. Defaults to 10
+
+    """
+    roi = roi_dims[0]
+    nx = roi_dims[1] + 1
+    ny = roi_dims[2] + 1
+    save_dir = iss.io.get_processed_path(data_path) / "reg"
+    for iy in range(ny):
+        for ix in range(nx):
+            fname = save_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+            if not fname.exists():
+                print(f"Skipping {fname}")
+                continue
+            try:
+                tforms_init = np.load(
+                    save_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                )
+            except ValueError:
+                print(f"couldn't load {fname}, using corrected")
+                tforms_init = np.load(
+                    save_dir / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                )
+            tforms_corrected = np.load(
+                save_dir / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+            )
+            tforms_best = {key: tforms_init[key] for key in tforms_init.keys()}
+
+            shifts_init = tforms_init[f"shifts"]
+            shifts_corrected = tforms_corrected[f"shifts"]
+            residuals = np.max(np.abs(shifts_init - shifts_corrected))
+            shifts_best = np.array(shifts_init, copy=True)
+            angles_best = np.array(tforms_corrected[f"angles"], copy=True)
+            scales_best = np.array(tforms_corrected[f"scales"], copy=True)
+            to_replace = residuals > max_residuals
+            shifts_best[to_replace] = shifts_corrected[to_replace]
+            angles_best[to_replace] = tforms_corrected[f"angles"][to_replace]
+            scales_best[to_replace] = tforms_corrected[f"scales"][to_replace]
+
+            tforms_best[f"shifts"] = shifts_best
+            tforms_best[f"angles"] = angles_best
+            tforms_best[f"scales"] = scales_best
+            tforms_best.update({"allow_pickle": True})
+
+            np.savez(
+                save_dir / f"tforms_best_to_ref_{prefix}_{roi}_{ix}_{iy}.npz",
+                **tforms_best,
+            )
 
 
 def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):

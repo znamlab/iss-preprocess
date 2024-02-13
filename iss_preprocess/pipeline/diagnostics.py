@@ -702,7 +702,7 @@ def debug_reg_to_ref(
 
 
 @slurm_it(conda_env="iss-preprocess")
-def check_reg_to_ref_estimation(
+def check_reg_to_ref_correction(
     data_path,
     prefix,
     rois=None,
@@ -735,28 +735,44 @@ def check_reg_to_ref_estimation(
     roi_dims[:, 1:] = roi_dims[:, 1:] + 1
     for roi, *ntiles in roi_dims:
         raw = np.zeros([3, *ntiles]) + np.nan
-        corrected = np.zeros([3, *ntiles]) + np.nan
+        corrected = np.zeros_like(raw) + np.nan
+        best = np.zeros_like(raw) + np.nan
         for ix in range(ntiles[0]):
             for iy in range(ntiles[1]):
+                fname = reg_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                if not fname.exists():
+                    continue
                 try:
-                    data = np.load(
-                        reg_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
-                    )
+                    data = np.load(fname)
                     raw[:2, ix, iy] = data["shifts"]
                     raw[2, ix, iy] = data["angles"]
-                except FileNotFoundError:
-                    pass
+                except ValueError:
+                    print(f"Could not load {fname}. Skipping.")
+                    continue
                 data = np.load(
                     reg_dir / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
                 corrected[:2, ix, iy] = data["shifts"]
                 corrected[2, ix, iy] = data["angles"]
+                data_best = np.load(
+                    reg_dir / f"tforms_best_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                )
+                best[:2, ix, iy] = data_best["shifts"]
+                best[2, ix, iy] = data_best["angles"]
+        fig, axes = plt.subplots(4, 3, figsize=(12, 8))
         fig = iss.vis.plot_matrix_difference(
             raw=raw,
             corrected=corrected,
             col_labels=["Shift x", "Shift y", "Angle"],
             line_labels=["Raw", "Corrected", "Difference"],
+            axes=axes[:3, :],
         )
+        for i in range(3):
+            # get the clim from the `raw` plot
+            vmin, vmax = axes[0, i].get_images()[0].get_clim()
+            iss.vis.plot_matrix_with_colorbar(best[i].T, axes[3, i], vmin=vmin, vmax=vmax)
+        axes[3, 0].set_ylabel("Best")
+        fig.tight_layout()
         fig.suptitle(f"Registration to reference. {prefix} ROI {roi}")
         fig.savefig(
             figure_folder / f"registration_to_ref_estimation_{prefix}_roi{roi}.png"
