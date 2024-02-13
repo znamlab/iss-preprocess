@@ -701,6 +701,7 @@ def debug_reg_to_ref(
     fig.savefig(figure_folder / f"debug_reg_to_ref_{reg_prefix}_to_{ref_prefix}.png")
 
 
+@slurm_it(conda_env="iss-preprocess")
 def check_reg_to_ref_estimation(
     data_path,
     prefix,

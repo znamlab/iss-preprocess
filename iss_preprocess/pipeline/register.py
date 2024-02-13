@@ -379,6 +379,7 @@ def correct_hyb_shifts(data_path, prefix=None):
                 correct_shifts_single_round_roi(data_path, roi, prefix=hyb_round)
 
 
+@slurm_it(conda_env="iss-preprocess")
 def correct_shifts_to_ref(data_path, prefix, fit_angle=False):
     """Use robust regression across tiles to correct shifts to reference acquisition
 
@@ -429,13 +430,17 @@ def correct_shifts_single_round_roi(
     angles = []
     for iy in range(ny):
         for ix in range(nx):
+            fname = processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+            if not fname.exists():
+                print(f"couldn't load tile {roi} {ix} {iy}")
+                shifts.append(np.array([[np.nan, np.nan]]))
+                angles.append(np.array(np.nan, ndmin=2))
+                continue
             try:
-                tforms = np.load(
-                    processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
-                )
+                tforms = np.load(fname)
                 shifts.append(tforms["shifts"])
                 angles.append(tforms["angles"])
-            except FileNotFoundError:
+            except ValueError:
                 print(f"couldn't load tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
                 angles.append(np.array(np.nan, ndmin=2))
@@ -452,6 +457,8 @@ def correct_shifts_single_round_roi(
     for ich in range(shifts.shape[0]):
         for idim in range(2):
             inliers = np.all(np.abs(shifts[ich, :, :]) < max_shift, axis=0)
+            if np.sum(inliers) <= 2:
+                print(f"not enough inliers for {ich} {idim}")
             reg = RANSACRegressor(random_state=0).fit(
                 X[inliers, :], shifts[ich, idim, inliers]
             )
