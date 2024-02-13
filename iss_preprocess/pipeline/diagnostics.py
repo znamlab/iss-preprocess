@@ -196,8 +196,7 @@ def check_shift_correction(
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
     """
     processed_path = iss.io.get_processed_path(data_path)
-    target_folder = processed_path / "figures" / "registration"
-
+    target_folder = processed_path / "figures" / "registration" / prefix
     target_folder.mkdir(exist_ok=True, parents=True)
 
     reg_dir = processed_path / "reg"
@@ -723,8 +722,8 @@ def check_reg_to_ref_estimation(
     """
     processed_path = iss.io.get_processed_path(data_path)
     reg_dir = processed_path / "reg"
-    figure_folder = processed_path / "figures" / "registration"
-    figure_folder.mkdir(exist_ok=True)
+    figure_folder = processed_path / "figures" / "registration" / f"{prefix}_to_ref"
+    figure_folder.mkdir(exist_ok=True, parents=True)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = iss.io.load_ops(data_path)
     if rois is not None:
@@ -783,8 +782,8 @@ def check_tile_shifts(
     """
     processed_path = iss.io.get_processed_path(data_path)
     reg_dir = processed_path / "reg"
-    figure_folder = processed_path / "figures" / "registration"
-    figure_folder.mkdir(exist_ok=True)
+    figure_folder = processed_path / "figures" / "registration" / prefix
+    figure_folder.mkdir(exist_ok=True, parents=True)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = iss.io.load_ops(data_path)
     if rois is not None:
