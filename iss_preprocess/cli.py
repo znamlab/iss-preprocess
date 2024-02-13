@@ -366,7 +366,8 @@ def basecall(path):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
-def check_basecall(path, use_slurm=False):
+@click.option("--ref-tile-index", default=0, help="Reference tile index")
+def check_basecall(path, use_slurm=False, ref_tile_index=0):
     """Check if basecalling has completed for all tiles."""
     from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
 
@@ -376,8 +377,12 @@ def check_basecall(path, use_slurm=False):
         slurm_folder = Path.home() / "slurm_logs"
     else:
         slurm_folder = None
-
-    check_barcode_basecall(path, use_slurm=use_slurm, slurm_folder=slurm_folder)
+    check_barcode_basecall(
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        ref_tile_index=ref_tile_index,
+    )
 
 
 @cli.command()

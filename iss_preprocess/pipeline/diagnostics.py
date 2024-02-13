@@ -453,9 +453,10 @@ def check_barcode_basecall(data_path, tile_coords=None, ref_tile_index=0):
     # Find the place with the highest density of spots
     x, y = spots["x"].values, spots["y"].values
     # Create a grid of potential disk centers
+    window = 200
     x_grid, y_grid = np.meshgrid(
-        np.arange(200, stack.shape[1] - 200, 50),
-        np.arange(200, stack.shape[0] - 200, 50),
+        np.arange(window, stack.shape[1] - window, 50),
+        np.arange(window, stack.shape[0] - window, 50),
     )
     # Compute the Euclidean distance from each spot to each potential center
     distances = np.sqrt(
@@ -467,7 +468,6 @@ def check_barcode_basecall(data_path, tile_coords=None, ref_tile_index=0):
     center = (x_grid[center], y_grid[center])
 
     nr = ops["barcode_rounds"]
-    window = 200
     stack_part = stack[
         center[1] - window : center[1] + window, center[0] - window : center[0] + window
     ]
