@@ -371,6 +371,8 @@ def animate_sequencing_rounds(
     nrounds = nrounds[0]
 
     fig, axes = plt.subplots(1, nimg, figsize=(10 * nimg, 10))
+    if nimg == 1:
+        axes = [axes]
     fig.patch.set_facecolor("black")
 
     imgs = []

@@ -34,7 +34,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
 
     # get stack registered between channel and rounds
     print("Loading and registering sequencing tile")
-    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+    reg_stack, _ = sequencing.load_and_register_sequencing_tile(
         data_path,
         filter_r=False,
         correct_channels=False,
@@ -49,8 +49,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     reg_stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
 
     # compute vmax based on round 0
-    vmaxs = np.percentile(reg_stack[..., 0], 99.99, axis=(0, 1))
-    vmins = np.percentile(reg_stack[..., 0], 0.01, axis=(0, 1))
+    vmins, vmaxs = np.percentile(reg_stack[..., 0], (0.01, 99.99), axis=(0, 1))
     center = np.array(reg_stack.shape[:2]) // 2
     view = np.array([center - 200, center + 200]).T
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
@@ -58,11 +57,11 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     print("Static figure")
     fig, rgb_stack = vis.plot_all_rounds(reg_stack, view, channel_colors)
     fig.tight_layout()
-    fig.savefig(target_folder / f"initial_ref_tile_registration_{prefix}.png")
-    print(f"Saved to {target_folder / f'initial_ref_tile_registration_{prefix}.mp4'}")
+    fname = target_folder / f"initial_ref_tile_registration_{prefix}.png"
+    fig.savefig(fname)
+    print(f"Saved to {fname}")
 
     # also save the stack for fiji
-
     iss.io.save.write_stack(
         (rgb_stack * 255).astype("uint8"),
         target_folder
