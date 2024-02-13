@@ -127,9 +127,10 @@ def detect_spots_by_shape(im, spot_sign_image, threshold=0, rho=2):
         pandas.DataFrame: spot coordinates and scores
 
     """
+    spots = detect_spots(im, threshold=threshold)
+
     neg_max = np.sum(np.sign(spot_sign_image) == -1)
     pos_max = np.sum(np.sign(spot_sign_image) == 1)
-    spots = detect_spots(im, threshold=threshold)
     pos_filter = (np.sign(spot_sign_image) == 1).astype(float)
     neg_filter = (np.sign(spot_sign_image) == -1).astype(float)
     filt_pos = cv2.filter2D(

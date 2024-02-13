@@ -272,16 +272,39 @@ def estimate_hyb_shifts(path, prefix=None, suffix="max"):
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
 def correct_shifts(path, prefix, use_slurm=False):
     """Correct X-Y shifts using robust regression across tiles."""
-
-    from iss_preprocess.pipeline import correct_shifts
+    # import with different name to not get confused with the cli function name
+    from iss_preprocess.pipeline import correct_shifts as corr_shifts
+    from iss_preprocess.pipeline import diagnostics as diag
 
     if use_slurm:
         from pathlib import Path
 
-        slurm_folder = f"{Path.home()}/slurm_logs"
+        slurm_folder = Path.home() / "slurm_logs"
     else:
         slurm_folder = None
-    correct_shifts(path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder)
+    job_id = corr_shifts(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_shifts_{prefix}",
+    )
+    diag.check_shift_correction(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_shift_correction_{prefix}",
+    )
+    diag.check_tile_registration(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_tile_registration_{prefix}",
+    )
 
 
 @cli.command()
@@ -334,10 +357,51 @@ def check_omp(path):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def basecall(path):
-    """Start batch jobs to run OMP on all tiles in a dataset."""
+    """Start batch jobs to run basecalling for barcodes on all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
-    batch_process_tiles(path, "basecall_tile")
+    job_ids = batch_process_tiles(path, "basecall_tile")
+    click.echo(f"Basecalling started for {len(job_ids)} tiles.")
+    click.echo(f"Last job id: {job_ids[-1]}")
+
+    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
+    from iss_preprocess.io.load import load_ops
+    from pathlib import Path
+
+    ops = load_ops(path)
+    slurm_folder = Path.home() / "slurm_logs" / "barcode_round"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    for index in range(len(ops["barcode_ref_tiles"])):
+        check_barcode_basecall(
+            path,
+            ref_tile_index=index,
+            use_slurm=True,
+            job_dependency=job_ids,
+            slurm_folder=slurm_folder,
+            scripts_name=f"check_basecall_{index}",
+        )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+@click.option("--ref-tile-index", default=0, help="Reference tile index")
+def check_basecall(path, use_slurm=False, ref_tile_index=0):
+    """Check if basecalling has completed for all tiles."""
+    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
+
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs"
+    else:
+        slurm_folder = None
+    check_barcode_basecall(
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        ref_tile_index=ref_tile_index,
+    )
 
 
 @cli.command()

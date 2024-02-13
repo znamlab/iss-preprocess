@@ -136,7 +136,9 @@ def barcode_spots_dot_product(
             y = spot["trace"].flatten()
             norm_y = np.linalg.norm(y)
             y /= norm_y + norm_shift
-            coefs_background, _, _, _ = np.linalg.lstsq(background_vectors, y)
+            coefs_background, _, _, _ = np.linalg.lstsq(
+                background_vectors, y, rcond=None
+            )
             r = y - np.dot(background_vectors, coefs_background)
             dot_product_scores.append(np.dot(r, synthetic_trace))
         else:

@@ -63,15 +63,17 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         figs.append(g.figure)
 
     fig, ax = plt.subplots(
-        nrows=1, ncols=nclusters, facecolor="w", label="cluster_means"
+        nrows=1, ncols=nclusters, facecolor="w", label="cluster_means", figsize=(8, 2)
     )
     for icluster in range(nclusters):
         plt.sca(ax[icluster])
         plt.imshow(np.stack(cluster_means, axis=2)[icluster, :, :])
         plt.xlabel("rounds")
         plt.ylabel("channels")
+        plt.xticks(np.arange(nrounds), np.arange(1, nrounds + 1, dtype=int))
+        plt.yticks(np.arange(nch), np.arange(nch, dtype=int))
         plt.title(f"Cluster {icluster+1}")
-        plt.locator_params(axis="both", nbins=4)
+
     plt.tight_layout()
     figs.append(fig)
 
@@ -239,15 +241,21 @@ def plot_gene_templates(gene_dict, gene_names, BASES, nrounds=7, nchannels=4):
     return fig
 
 
-def add_bases_legend(channel_colors, transform=None):
+def add_bases_legend(channel_colors, transform=None, **kwargs):
     """
     Add legend for base colors to a plot.
 
     Args:
         channel_colors (list): list of colors for each channel.
         transform (matplotlib.transforms.Transform): transform for legend.
+        kwargs: additional keyword arguments for plt.text.
 
     """
+    default_kwargs = dict(
+        fontweight="bold",
+        fontsize=32,
+    )
+    default_kwargs.update(kwargs)
     if transform is None:
         transform = plt.gca().transAxes
     for i, (color, base) in enumerate(zip(channel_colors, iss.call.BASES)):
@@ -256,24 +264,31 @@ def add_bases_legend(channel_colors, transform=None):
             0.05,
             base,
             color=color,
-            fontweight="bold",
-            fontsize=32,
             transform=transform,
+            **default_kwargs,
         )
 
 
-def round_to_rgb(stack, iround, extent, channel_colors, vmax=None, vmin=None):
+def round_to_rgb(
+    stack,
+    iround,
+    extent=None,
+    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    vmax=None,
+    vmin=None,
+):
     """
     Convert a single sequencing round to RGB image.
 
     Args:
         stack (ndarray): X x Y x C x R stack
         iround (int): sequencing round to visualize
-        extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]] or None, in which
-            case the full image is used.
-        channel_colors (list): list of colors for each channel.
-        vmax (float): maximum value for each channel.
-        vmin (float): minimum value for each channel.
+        extent (list, optional): extent of plot. [[xmin, xmax], [ymin, ymax]] or None,
+             in which case the full image is used. Default: None
+        channel_colors (list, optinal): list of colors for each channel. Default to
+            red, green, magenta, cyan
+        vmax (float, optional): maximum value for each channel.
+        vmin (float, optional): minimum value for each channel.
 
     Returns:
         RGB image.
@@ -332,30 +347,54 @@ def animate_sequencing_rounds(
     vmin=0,
     extent=((0, 2000), (0, 2000)),
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
+    axes_titles=None,
 ):
     """
     Animate sequencing rounds as RGB images amd save as an mp4 file.
 
     Args:
-        stack (ndarray): X x Y x C x R stack
+        stack (ndarray): X x Y x C x R stack or list of such stacks
         savefname (str): filename to save animation
         vmax (float): maximum value for each channel.
         vmin (float): minimum value for each channel.
         extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
         channel_colors (list): list of colors for each channel.
             Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+        axes_titles (list, optional): list of titles for each stack
 
     """
-    fig = plt.figure(figsize=(10, 10))
-    fig.patch.set_facecolor("black")
-    nrounds = stack.shape[3]
-    im = plt.imshow(round_to_rgb(stack, 0, extent, channel_colors, vmax, vmin))
-    add_bases_legend(channel_colors)
+    if not isinstance(stack, list):
+        stack = [stack]
+    nimg = len(stack)
+    nrounds = [s.shape[3] for s in stack]
+    assert len(set(nrounds)) == 1, "All stacks must have the same number of rounds"
+    nrounds = nrounds[0]
 
-    plt.axis("off")
+    fig, axes = plt.subplots(1, nimg, figsize=(10 * nimg, 10))
+    fig.patch.set_facecolor("black")
+
+    imgs = []
+    for iax, s in enumerate(stack):
+        im = axes[iax].imshow(round_to_rgb(s, 0, extent, channel_colors, vmax, vmin))
+        imgs.append(im)
+        axes[iax].axis("off")
+        if axes_titles is not None:
+            axes[iax].text(
+                0.01,
+                0.95,
+                axes_titles[iax],
+                color="white",
+                transform=axes[iax].transAxes,
+                horizontalalignment="left",
+                verticalalignment="top",
+                fontsize=20,
+            )
+    add_bases_legend(channel_colors, transform=axes[-1].transAxes)
+    fig.tight_layout()
 
     def animate(iround):
-        im.set_data(round_to_rgb(stack, iround, extent, channel_colors, vmax))
+        for iax, im in enumerate(imgs):
+            im.set_data(round_to_rgb(stack[iax], iround, extent, channel_colors, vmax))
 
     anim = FuncAnimation(fig, animate, frames=nrounds, interval=200)
     anim.save(savefname, writer=FFMpegWriter(fps=2))
@@ -578,3 +617,42 @@ def plot_single_overview(
     )
     print("   ... done", flush=True)
     return fig
+
+
+def plot_spot_called_base(spots, ax, iround, base_color=None, **kwargs):
+    """Plot called base for each spot.
+
+    This will write a single base, as colored letter, for each spot at the given round.
+
+    Args:
+        spots (DataFrame): table of spots.
+        ax (matplotlib.axes.Axes): axis to plot on.
+        iround (int): round to plot.
+        base_color (dict, optional): dictionary of base colors. Defaults to None.
+        kwargs: additional keyword arguments for plt.text.
+
+    Returns:
+        None
+
+    """
+    if base_color is None:
+        channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+        base_color = {b: c for b, c in zip(iss.call.BASES, channel_colors)}
+    
+    default_kwargs = dict(
+        fontweight="bold",
+        fontsize=6,
+        verticalalignment="center",
+        horizontalalignment="center",
+    )
+    default_kwargs.update(kwargs)
+    for i, spot in spots.iterrows():
+        base = spot["bases"][iround]
+
+        ax.text(
+            spot["x"],
+            spot["y"],
+            base,
+            color=base_color[base],
+            **default_kwargs,
+        )
