@@ -104,10 +104,8 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
         regionprops_table(big_masks, properties=("label", "centroid", "area", "bbox"))
     )
     cell_df.set_index("label", drop=False, inplace=True)
-    new_names = {f"bbox-{i}": l for i, l in enumerate(("ymin", "xcol", "ymax", "xmax"))}
-    new_names.update({"centroid-0": "y", "centroid-1": "x"})
-    cell_df.rename(columns=new_names, inplace=True)
-    new_names = {f"bbox-{i}": l for i, l in enumerate(("ymin", "xcol", "ymax", "xmax"))}
+    bbox = ("ymin", "xcol", "ymax", "xmax")
+    new_names = {f"bbox-{i}": col_name for i, col_name in enumerate(bbox)}
     new_names.update({"centroid-0": "y", "centroid-1": "x"})
     cell_df.rename(columns=new_names, inplace=True)
     cell_df["roi"] = roi
