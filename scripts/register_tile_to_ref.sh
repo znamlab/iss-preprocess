@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=iss_regr_to_ref
+#SBATCH --job-name=iss_reg_to_ref
 #SBATCH --ntasks=1
 #SBATCH --time=10:00
 #SBATCH --mem=16G
