@@ -199,16 +199,16 @@ def correct_shifts(data_path, prefix):
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
-    for roi in roi_dims[use_rois, :]:
+    for roi_dim in roi_dims[use_rois, :]:
         correct_shifts_roi(
             data_path,
-            roi,
+            roi_dim,
             prefix=prefix,
             max_shift=ops["ransac_max_shift"],
             min_tiles=ops["ransac_min_tiles"],
         )
         filter_ransac_shifts(
-            data_path, prefix, roi, max_residuals=ops["ransac_residual_threshold"]
+            data_path, prefix, roi_dim, max_residuals=ops["ransac_residual_threshold"]
         )
     iss.pipeline.check_tile_shifts(data_path, prefix)
 
@@ -396,10 +396,10 @@ def correct_shifts_to_ref(data_path, prefix, fit_angle=False):
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     prefix_to_reg = f"to_ref_{prefix}"
-    for roi in roi_dims[use_rois, :]:
-        print(f"correcting shifts for ROI {roi}, {prefix_to_reg} from {data_path}")
+    for roi_dim in roi_dims[use_rois, :]:
+        print(f"correcting shifts for ROI {roi_dim}, {prefix_to_reg} from {data_path}")
         correct_shifts_single_round_roi(
-            data_path, roi, prefix=prefix_to_reg, fit_angle=fit_angle
+            data_path, roi_dim, prefix=prefix_to_reg, fit_angle=fit_angle
         )
 
 
