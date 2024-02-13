@@ -430,17 +430,13 @@ def correct_shifts_single_round_roi(
     angles = []
     for iy in range(ny):
         for ix in range(nx):
-            fname = processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
-            if not fname.exists():
-                print(f"couldn't load tile {roi} {ix} {iy}")
-                shifts.append(np.array([[np.nan, np.nan]]))
-                angles.append(np.array(np.nan, ndmin=2))
-                continue
             try:
-                tforms = np.load(fname)
+                tforms = np.load(
+                    processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+                )
                 shifts.append(tforms["shifts"])
                 angles.append(tforms["angles"])
-            except ValueError:
+            except FileNotFoundError:
                 print(f"couldn't load tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
                 angles.append(np.array(np.nan, ndmin=2))
