@@ -617,3 +617,42 @@ def plot_single_overview(
     )
     print("   ... done", flush=True)
     return fig
+
+
+def plot_spot_called_base(spots, ax, iround, base_color=None, **kwargs):
+    """Plot called base for each spot.
+
+    This will write a single base, as colored letter, for each spot at the given round.
+
+    Args:
+        spots (DataFrame): table of spots.
+        ax (matplotlib.axes.Axes): axis to plot on.
+        iround (int): round to plot.
+        base_color (dict, optional): dictionary of base colors. Defaults to None.
+        kwargs: additional keyword arguments for plt.text.
+
+    Returns:
+        None
+
+    """
+    if base_color is None:
+        channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+        base_color = {b: c for b, c in zip(iss.call.BASES, channel_colors)}
+    
+    default_kwargs = dict(
+        fontweight="bold",
+        fontsize=6,
+        verticalalignment="center",
+        horizontalalignment="center",
+    )
+    default_kwargs.update(kwargs)
+    for i, spot in spots.iterrows():
+        base = spot["bases"][iround]
+
+        ax.text(
+            spot["x"],
+            spot["y"],
+            base,
+            color=base_color[base],
+            **default_kwargs,
+        )

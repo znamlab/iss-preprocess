@@ -481,7 +481,6 @@ def check_barcode_basecall(data_path, tile_coords=None, ref_tile_index=0):
     # Do the plot
     fig = plt.figure(figsize=(3 * nr, 10))
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
-    base_color = {b: c for b, c in zip(iss.call.BASES, channel_colors)}
     axes = []
     for iround in range(nr):
         rgb_stack = iss.vis.round_to_rgb(
@@ -498,18 +497,10 @@ def check_barcode_basecall(data_path, tile_coords=None, ref_tile_index=0):
         # plot basecall, a letter per spot
         ax = fig.add_subplot(3, nr, nr + iround + 1)
         axes.append(ax)
-        for i, spot in valid_spots.iterrows():
-            base = spot["bases"][iround]
-
-            ax.text(
-                spot["x"] - (center[0] - window),
-                spot["y"] - (center[1] - window),
-                base,
-                color=base_color[base],
-                fontsize=6,
-                verticalalignment="center",
-                horizontalalignment="center",
-            )
+        spots_in_frame = valid_spots.copy()
+        spots_in_frame["x"] -= center[0] - window
+        spots_in_frame["y"] -= center[1] - window
+        vis.plot_spot_called_base(spots_in_frame, ax, iround)
 
     # plot spot scores
     scores = ["dot_product_score", "spot_score", "mean_score", "mean_intensity"]
@@ -539,7 +530,7 @@ def check_barcode_basecall(data_path, tile_coords=None, ref_tile_index=0):
         ax.set_xticks([])
         ax.set_yticks([])
     fig.subplots_adjust(
-        left=1e-3, right=0.98, bottom=1e-3, top=0.98, wspace=0.05, hspace=0.05
+        left=1e-3, right=0.99, bottom=0.01, top=0.98, wspace=0.05, hspace=0.05
     )
     tc = "_".join([str(x) for x in tile_coords])
     fig.savefig(figure_folder / f"barcode_basecall_example_tile_{tc}.png")
