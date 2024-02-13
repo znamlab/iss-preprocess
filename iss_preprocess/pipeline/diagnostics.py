@@ -770,7 +770,9 @@ def check_reg_to_ref_correction(
         for i in range(3):
             # get the clim from the `raw` plot
             vmin, vmax = axes[0, i].get_images()[0].get_clim()
-            iss.vis.plot_matrix_with_colorbar(best[i].T, axes[3, i], vmin=vmin, vmax=vmax)
+            iss.vis.plot_matrix_with_colorbar(
+                best[i].T, axes[3, i], vmin=vmin, vmax=vmax
+            )
         axes[3, 0].set_ylabel("Best")
         fig.tight_layout()
         fig.suptitle(f"Registration to reference. {prefix} ROI {roi}")
