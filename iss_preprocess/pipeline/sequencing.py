@@ -162,6 +162,9 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         rho=ops["barcode_spot_rho"],
     )
     extract_spots(spots, stack, ops["spot_extraction_radius"])
+    if len(spots) == 0:
+        print(f"No spots detected in tile {tile_coors}")
+        return stack, spot_sign_image, spots
     x = np.stack(spots["trace"], axis=2)
     cluster_inds = []
     top_score = []
@@ -179,7 +182,7 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         score = x_norm @ this_round_means.T
         cluster_ind = np.argmax(score, axis=1)
         cluster_inds.append(cluster_ind)
-        top_score.append(np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind]))
+        top_score.append(score[np.arange(x_norm.shape[0]), cluster_ind])
 
     mean_score = np.mean(np.stack(top_score, axis=1), axis=1)
     sequences = np.stack(cluster_inds, axis=1)
