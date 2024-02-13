@@ -360,7 +360,26 @@ def basecall(path):
     """Start batch jobs to run basecalling for barcodes on all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
-    batch_process_tiles(path, "basecall_tile")
+    job_ids = batch_process_tiles(path, "basecall_tile")
+    click.echo(f"Basecalling started for {len(job_ids)} tiles.")
+    click.echo(f"Last job id: {job_ids[-1]}")
+
+    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
+    from iss_preprocess.io.load import load_ops
+    from pathlib import Path
+
+    ops = load_ops(path)
+    slurm_folder = Path.home() / "slurm_logs" / "barcode_round"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    for index in range(len(ops["barcode_ref_tiles"])):
+        check_barcode_basecall(
+            path,
+            ref_tile_index=index,
+            use_slurm=True,
+            job_dependency=job_ids,
+            slurm_folder=slurm_folder,
+            scripts_name=f"check_basecall_{index}",
+        )
 
 
 @cli.command()
