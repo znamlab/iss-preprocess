@@ -8,7 +8,7 @@ from skimage.morphology import disk
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
 
-from image_tools.registration import phase_correlation
+from image_tools.registration.phase_correlation import phase_correlation
 from . import phase_corr, make_transform, transform_image
 
 
@@ -735,12 +735,13 @@ def estimate_rotation_angle(
             shifts[iangle, :], _, cc, _ = phase_correlation(
                 reference_fft,
                 transform_image(target, angle=angles[iangle]),
-                fixed_image_is_fft=True,
-                reference_mask=reference_mask_fft,
-                target_mask=target_mask,
+                fixed_mask=reference_mask_fft,
+                moving_mask=target_mask,
                 min_shift=min_shift,
                 max_shift=max_shift,
-                reference_squared_fft=reference_squared_fft,
+                fixed_image_is_fft=True,
+                fixed_mask_is_fft=True,
+                fixed_squared_fft=reference_squared_fft,
             )
         max_cc[iangle] = np.max(cc)
         if debug:
@@ -829,21 +830,21 @@ def estimate_rotation_translation(
         angle_range = angle_range / iter_range_factor
     if not upsample:
         if reference_mask is None:
-            shift, _, cc_phase_corr, _ = phase_correlation(
-                reference,
-                transform_image(target, angle=best_angle),
-                min_shift=min_shift,
-                max_shift=max_shift,
-            )
-        else:
-            shift, _, cc_phase_corr, _ = phase_correlation(
-                reference,
-                transform_image(target, angle=best_angle),
-                min_shift=min_shift,
-                max_shift=max_shift,
-                reference_mask=reference_mask,
-                target_mask=target_mask,
-            )
+            print(target_mask.dtype)
+            target_mask = transform_image(target_mask, angle=best_angle)
+            print(target_mask.dtype)
+        
+        shift, _, cc_phase_corr, _ = phase_correlation(
+            reference_fft,
+            transform_image(target, angle=best_angle),
+            min_shift=min_shift,
+            max_shift=max_shift,
+            fixed_mask=reference_mask_fft,
+            moving_mask=target_mask,
+            fixed_image_is_fft=True,
+            fixed_mask_is_fft=True,
+            fixed_squared_fft=fixed_squared_fft,
+        )
         if debug:
             debug_info["phase_corr"] = cc_phase_corr
     else:
