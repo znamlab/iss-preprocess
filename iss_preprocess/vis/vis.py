@@ -638,7 +638,7 @@ def plot_spot_called_base(spots, ax, iround, base_color=None, **kwargs):
     if base_color is None:
         channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
         base_color = {b: c for b, c in zip(iss.call.BASES, channel_colors)}
-    
+
     default_kwargs = dict(
         fontweight="bold",
         fontsize=6,

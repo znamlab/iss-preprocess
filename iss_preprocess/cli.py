@@ -524,6 +524,14 @@ def register_to_reference(
             binarise_quantile = ops[ops_name]
         else:
             binarise_quantile = 0.7
+        from iss_preprocess.io.load import load_ops
+
+        ops = load_ops(path)
+        ops_name = f"{reg_prefix.split('_')[0].lower()}_binarise_quantile"
+        if ops_name in ops:
+            binarise_quantile = ops[ops_name]
+        else:
+            binarise_quantile = 0.7
         register.register_tile_to_ref(
             data_path=path,
             tile_coors=(roi, tilex, tiley),
