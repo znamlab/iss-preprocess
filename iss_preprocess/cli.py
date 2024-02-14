@@ -159,7 +159,7 @@ def register_ref_tile(path, prefix, diag):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+@click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from iss_preprocess.pipeline import setup_omp
@@ -323,14 +323,34 @@ def correct_hyb_shifts(path, prefix=None):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
-def correct_ref_shifts(path, prefix=None):
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+def correct_ref_shifts(path, prefix=None, use_slurm=False):
     """
     Correct X-Y shifts for registration to reference using robust regression
     across tiles.
     """
     from iss_preprocess.pipeline import correct_shifts_to_ref
+    from iss_preprocess.pipeline.diagnostics import check_reg_to_ref_estimation
 
-    correct_shifts_to_ref(path, prefix)
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs"
+    else:
+        slurm_folder = None
+
+    job_id = correct_shifts_to_ref(
+        path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder
+    )
+    check_reg_to_ref_estimation(
+        path,
+        prefix,
+        rois=None,
+        roi_dimension_prefix="genes_round_1_1",
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+    )
 
 
 @cli.command()
