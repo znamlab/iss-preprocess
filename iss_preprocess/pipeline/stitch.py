@@ -45,7 +45,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
         data_path, tile_coors, prefix, filter_r=filter_r
     )
 
-    if prefix == "genes_round_1_1":
+    if prefix.startswith("genes_round"):
         # No need to register to ref
         return stack, bad_pixels
 
