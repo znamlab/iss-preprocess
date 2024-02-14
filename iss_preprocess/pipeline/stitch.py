@@ -425,7 +425,7 @@ def stitch_tiles(
 
 
 def stitch_registered(
-    data_path, prefix, roi, channels=0, ref_prefix="genes_round_1_1", filter_r=False
+    data_path, prefix, roi, channels=0, ref_prefix="genes_round", filter_r=False
 ):
     """Load registered stack and stitch them
 
@@ -444,12 +444,18 @@ def stitch_registered(
         np.array: stitched stack
 
     """
+    ops = load_ops(data_path)
     if isinstance(channels, int):
         channels = [channels]
+    elif channels is None:
+        channels = np.arange(len(ops["camera_order"]))
     else:
         channels = list(channels)
+
     processed_path = iss.io.get_processed_path(data_path)
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
+    if ref_prefix == 'genes_round':
+        ref_prefix = f"{ref_prefix}_{ops['ref_round']}_1"
     shifts = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     tile_shape = shifts["tile_shape"]
