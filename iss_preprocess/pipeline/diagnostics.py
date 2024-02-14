@@ -1031,21 +1031,146 @@ def check_segmentation(
     print(f"Saved to {figure_folder / f'segmentation_{prefix}_roi{roi}.png'}")
 
 
-if __name__ == "__main__":
-    iss.pipeline.segment.segment_roi(
-        data_path="becalia_rabies_barseq/BRAC8501.6a/chamber_07",
-        iroi=11,
-        prefix="genes_round_1_1",
-        reference="genes_round_1_1",
-        use_gpu=False,
-    )
+@slurm_it(conda_env="iss-preprocess")
+def check_tile_reg2ref(
+    data_path,
+    reg_prefix="barcode_round",
+    ref_prefix="genes_round",
+    correction="best",
+    tile_coords=None,
+    reg_channels=None,
+    ref_channels=None,
+    binarise_quantile=0.7,
+    window=None,
+):
+    """Check the registration to reference for some tiles
 
-    debug_reg_to_ref(
-        data_path="becalia_rabies_barseq/BRAC8501.6a/chamber_07",
-        reg_prefix="genes_round",
-        ref_prefix="barcode_round",
-        tile_coords=None,
-        ref_channels=None,
-        reg_channels=None,
-        binarise_quantile=0.7,
-    )
+    If `tile_coords` is None, will select 10 tiles. If `ops` has a `xx_ref_tiles`
+    matching prefix, these will be part of the 10 tiles. The remaining tiles will be
+    selected randomly.
+
+    Args:
+        data_path (str): Relative path to data folder
+        prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
+        correction (str, optional): Corrections to plot. Defaults to 'best'.
+        tile_coords (list, optional): List of tile coordinates to process. If None, will
+            select 10 tiles. Defaults to None.
+        reg_channels (list, optional): List of channels to plot for the registered images.
+            If None, will use the average of all channels. Defaults to None.
+        ref_channels (list, optional): List of channels to plot for the reference images.
+            If None, will use the average of all channels. Defaults to None.
+        binarise_quantile (float, optional): Quantile to binarise the images. Defaults to
+            0.7.
+        window (int, optional): Size of the window to plot around the center of the
+            image. Full image if None. Defaults to None.
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    target_folder = processed_path / "figures" / "registration" / f"{reg_prefix}_to_ref"
+    target_folder.mkdir(exist_ok=True, parents=True)
+    ops = iss.io.load_ops(data_path)
+
+    # get stack registered between channel and rounds
+    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{reg_prefix}_1_1")
+    if tile_coords is None:
+        # check if ops has a ref tile
+        if f"{reg_prefix.split('_')[0]}_ref_tiles" in ops:
+            tile_coords = ops[f"{reg_prefix.split('_')[0]}_ref_tiles"]
+            nrandom = 10 - len(tile_coords)
+        else:
+            tile_coords = []
+            nrandom = 10
+        # select random tiles
+        if nrandom > 0:
+            for i in range(nrandom):
+                # pick a roi randomly
+                roi = np.random.choice(roi_dims[:, 0])
+                # pick a tile inside that roi
+                ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0]
+                tile_coords.append([roi, *np.random.randint(0, ntiles)])
+    elif isinstance(tile_coords[0], int):
+        tile_coords = [tile_coords]
+
+    for tile in tile_coords:
+        # get the data with default correction for within prefix registration
+        ref_all_channels, _ = iss.pipeline.load_and_register_tile(
+            data_path=data_path,
+            tile_coors=tile,
+            prefix=ref_prefix,
+            filter_r=False,
+        )
+        reg_all_channels, _ = iss.pipeline.load_and_register_tile(
+            data_path=data_path, tile_coors=tile, prefix=reg_prefix, filter_r=False
+        )
+
+        if ref_channels is not None:
+            if isinstance(ref_channels, int):
+                ref_channels = [ref_channels]
+            ref_all_channels = ref_all_channels[:, :, ref_channels]
+        ref = np.nanmean(ref_all_channels, axis=(2, 3))
+
+        if reg_channels is not None:
+            if isinstance(reg_channels, int):
+                reg_channels = [reg_channels]
+            reg_all_channels = reg_all_channels[:, :, reg_channels]
+        reg = np.nanmean(reg_all_channels, axis=(2, 3))
+
+        reg_b = reg > np.quantile(reg, binarise_quantile)
+        ref_b = ref > np.quantile(ref, binarise_quantile)
+
+        print("Loading shifts and angle")
+        tname = f"{reg_prefix}_{tile[0]}_{tile[1]}_{tile[2]}"
+        fname = processed_path / "reg" / f"tforms_{correction}_to_ref_{tname}.npz"
+        assert fname.exists(), f"File {fname} does not exist"
+        t_form = np.load(fname)
+        angle = t_form["angles"][0]
+        shift = t_form["shifts"][0]
+
+        # transform the reg image to match the ref
+        reg_t = iss.reg.transform_image(reg, angle=angle, shift=shift)
+        reg_bt = iss.reg.transform_image(reg_b, angle=angle, shift=shift)
+
+        # add an rgb overlay
+        vmins = [np.percentile(ref, 1), np.percentile(reg_t, 1)]
+        vmaxs = [np.percentile(ref, 99.5), np.percentile(reg_t, 99.5)]
+        rgb = iss.vis.to_rgb(
+            np.stack([ref, reg_t], axis=2),
+            colors=([1, 0, 0], [0, 1, 0]),
+            vmin=vmins,
+            vmax=vmaxs,
+        )
+        rgb_b = iss.vis.to_rgb(
+            np.stack([ref_b, reg_bt], axis=2),
+            colors=([1, 0, 0], [0, 1, 0]),
+            vmin=[0, 0],
+            vmax=[1, 1],
+        )
+
+        # Plot it
+        fig, axes = plt.subplots(2, 4, figsize=(15, 7))
+        axes[0, 0].imshow(ref, cmap="inferno", vmin=vmins[0], vmax=vmaxs[0])
+        axes[0, 0].set_title("Reference")
+        axes[0, 1].imshow(reg, cmap="inferno", vmin=vmins[1], vmax=vmaxs[1])
+        axes[0, 1].set_title("Target")
+        axes[0, 2].imshow(reg_t, cmap="inferno", vmin=vmins[1], vmax=vmaxs[1])
+        axes[0, 2].set_title("Transformed")
+        axes[0, 3].imshow(rgb)
+        axes[0, 3].set_title("Overlay")
+        axes[1, 0].imshow(ref_b, cmap="gray")
+        axes[1, 0].set_title("Reference")
+        axes[1, 1].imshow(reg_b, cmap="gray")
+        axes[1, 1].set_title("Target")
+        axes[1, 2].imshow(reg_bt, cmap="gray")
+        axes[1, 2].set_title("Transformed")
+        axes[1, 3].imshow(rgb_b)
+        axes[1, 3].set_title("Overlay")
+
+        center = (ref.shape[0] // 2, ref.shape[1] // 2)
+        for ax in axes.flatten():
+            ax.axis("off")
+            if window is not None:
+                ax.set_xlim(center[1] - window, center[1] + window)
+                ax.set_ylim(center[0] + window, center[0] - window)
+        fig.tight_layout()
+        fname = f"check_reg2ref_{tname}_{correction}"
+        fig.savefig(target_folder / f"{fname}.png")
+        plt.close(fig)  # close the figure to avoid memory leak
