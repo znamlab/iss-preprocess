@@ -753,8 +753,6 @@ def estimate_rotation_angle(
     return best_angle, max_cc[best_angle_index]
 
 
-# TODO: check if this numba is useful here.
-@jit(parallel=True, forceobj=True)
 def estimate_rotation_translation(
     reference,
     target,
