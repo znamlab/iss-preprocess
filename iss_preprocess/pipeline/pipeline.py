@@ -309,7 +309,9 @@ def create_grand_averages(data_path, prefix_todo=("genes_round", "barcode_round"
         )
 
 
-def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
+def overview_for_ara_registration(
+    data_path, prefix, rois_to_do=None, sigma_blur=10, ref_prefix="genes_round"
+):
     """Generate a stitched overview for registering to the ARA
 
     ABBA requires pyramidal OME-TIFF with resolution information. We will generate such
@@ -317,12 +319,13 @@ def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
 
     Args:
         data_path (str): Relative path to the data folder
+        prefix (str): Acquisition to use for the overview. `genes_round_1_1` for instance
         rois_to_do (list, optional): ROIs to process. If None (default), process all
             ROIs
-        max_pixel_size (float, optional): Pixel size in um for the highest level of the
-            pyramid. None to keep original size. Defaults to 1
         sigma_blur (float, optional): sigma of the gaussian filter, in downsampled
             pixel size. Defaults to 10
+        ref_prefix (str, optional): Prefix of the reference coordinates. Defaults to
+            `genes_round`
 
     """
     processed_path = iss.io.get_processed_path(data_path)
@@ -351,6 +354,8 @@ def overview_for_ara_registration(data_path, rois_to_do=None, sigma_blur=10):
             ROI=roi,
             SIGMA=sigma_blur,
             SLICE_ID=roi2section_order[roi],
+            PREFIX=prefix,
+            REF_PREFIX=ref_prefix,
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (

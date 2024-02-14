@@ -30,6 +30,7 @@ def save_ome_tiff_pyramid(
     pixel_size,
     subresolutions=3,
     dtype="uint16",
+    rescale=True,
     verbose=True,
     save_thumbnail=False,
 ):
@@ -54,6 +55,10 @@ def save_ome_tiff_pyramid(
         raise NotImplementedError("`dtype` must be uint8 or uint16")
     nbits = int(dtype[4:])
     max_val = 2**nbits - 1
+    if rescale:
+        if verbose:
+            print("... Rescaling image")
+        image = (image - image.min()) * (max_val / (image.max() - image.min()))
     if verbose:
         print("... Clipping array")
     image = np.clip(image, 0, max_val).astype(dtype)  # clip to avoid overflow
