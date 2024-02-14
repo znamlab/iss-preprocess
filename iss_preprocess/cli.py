@@ -757,8 +757,23 @@ def create_single_average(
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-r", "--roi", help="Roi id", type=int)
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
+@click.option(
+    "-n",
+    "--prefix",
+    help="Path prefix, e.g. 'genes_round_1_1'",
+    default="genes_round_1_1",
+    show_default=True,
+)
 @click.option("--sigma", help="Sigma for gaussian blur")
-def overview_for_ara_registration(path, roi, slice_id, sigma=10.0):
+@click.option(
+    "--ref_prefix",
+    help="Path prefix for reference, e.g. 'genes_round'",
+    default="genes_round",
+    show_default=True,
+)
+def overview_for_ara_registration(
+    path, roi, slice_id, prefix, sigma=10.0, ref_prefix="genes_round"
+):
     """Generate the overview of one ROI used for registration
 
     Args:
@@ -770,7 +785,14 @@ def overview_for_ara_registration(path, roi, slice_id, sigma=10.0):
     from iss_preprocess.pipeline.ara_registration import overview_single_roi
 
     print("Calling")
-    overview_single_roi(data_path=path, roi=roi, slice_id=slice_id, sigma_blur=sigma)
+    overview_single_roi(
+        data_path=path,
+        roi=roi,
+        slice_id=slice_id,
+        sigma_blur=sigma,
+        prefix=prefix,
+        ref_prefix=ref_prefix,
+    )
 
 
 @cli.command()

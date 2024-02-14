@@ -43,7 +43,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
 
     """
     ops = load_ops(data_path)
-    corrected_shifts = ops['corrected_shifts2ref']
+    corrected_shifts = ops["corrected_shifts2ref"]
 
     valid_shifts = ["single_tile", "ransac", "best"]
     assert corrected_shifts in valid_shifts, (
@@ -468,9 +468,10 @@ def stitch_registered(
         channels = list(channels)
 
     processed_path = iss.io.get_processed_path(data_path)
-    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
-    if ref_prefix == 'genes_round':
+    if ref_prefix == "genes_round":
         ref_prefix = f"{ref_prefix}_{ops['ref_round']}_1"
+
+    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     shifts = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     tile_shape = shifts["tile_shape"]

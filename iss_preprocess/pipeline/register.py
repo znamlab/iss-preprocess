@@ -504,7 +504,7 @@ def register_tile_to_ref(
         reg_prefix (str): Prefix to register, "barcode_round" for instance
         ref_prefix (str, optional): Reference prefix. Defaults to "genes_round".
         binarise_quantile (float, optional): Quantile to binarise images before
-        registration. Defaults to 0.7.
+            registration. Defaults to 0.7.
         ref_tile_coors (tuple, optional): Tile coordinates of the reference tile.
             Usually not needed as it is assumed to be the same as the tile to register.
             Defaults to None.
