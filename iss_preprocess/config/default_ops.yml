@@ -53,6 +53,11 @@ registration:
   # if `null` no filter is applied.
   reg_median_filter: 1
 
+# Parameters for registration to reference channel (usually DAPI)
+registration_to_reference:
+  corrected_shifts2ref: best
+
+
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating
 # bleedthrough matrices, calling hybridisation spots and basecalling barcodes
 spot_extraction_radius: 2

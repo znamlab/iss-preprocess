@@ -41,6 +41,14 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
             registration
 
     """
+    ops = load_ops(data_path)
+    corrected_shifts = ops['corrected_shifts2ref']
+
+    valid_shifts = ["single_tile", "ransac", "best"]
+    assert corrected_shifts in valid_shifts, (
+        f"unknown shifts2ref correction method, must be one of {valid_shifts}",
+    )
+
     stack, bad_pixels = pipeline.load_and_register_tile(
         data_path, tile_coors, prefix, filter_r=filter_r
     )
@@ -61,10 +69,16 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
         reg_prefix = prefix
 
     stack[bad_pixels] = np.nan
+    if corrected_shifts == "single_tile":
+        correction_fname = "tforms_to_ref"
+    elif corrected_shifts == "ransac":
+        correction_fname = "tforms_corrected_to_ref"
+    elif corrected_shifts == "best":
+        correction_fname = "tforms_best_to_ref"
     reg2ref = np.load(
         iss.io.get_processed_path(data_path)
         / "reg"
-        / f"tforms_corrected_to_ref_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
+        / f"{correction_fname}_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
     # TODO: we are warping the image twice - in `load_and_register_tile` and here
     # if we ever use this function for downstream analyses (e.g. detecting spots)
