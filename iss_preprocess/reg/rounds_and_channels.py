@@ -827,10 +827,8 @@ def estimate_rotation_translation(
             best_angle, max_cc = out
         angle_range = angle_range / iter_range_factor
     if not upsample:
-        if reference_mask is None:
-            print(target_mask.dtype)
+        if reference_mask is not None:
             target_mask = transform_image(target_mask, angle=best_angle)
-            print(target_mask.dtype)
 
         shift, _, cc_phase_corr, _ = phase_correlation(
             reference_fft,
