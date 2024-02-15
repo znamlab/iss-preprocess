@@ -318,6 +318,8 @@ def estimate_shifts_and_angles_for_tile(
                 angle, shift, db_info = out
                 debug_info[ich] = db_info
                 debug_info[ich]["threshold"] = thresh
+            else:
+                angle, shift = out
         else:
             angle, shift = 0.0, [0.0, 0.0]
         angles.append(angle)
