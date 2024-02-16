@@ -217,7 +217,7 @@ def overview_single_roi(
     chan2use=(0, 1, 2, 3),
     sigma_blur=10,
     agg_func=np.nanmean,
-    reference_prefix="genes_round",
+    ref_prefix="genes_round",
     subresolutions=5,
     max_pixel_size=2,
 ):
@@ -232,7 +232,7 @@ def overview_single_roi(
         sigma_blur (int, optional): Sigma for gaussian blur. Defaults to 10.
         agg_func (function, optional): Aggregation function for stitching. Defaults to
             np.nanmean.
-        reference_prefix (str, optional): Prefix of the reference image. Defaults to
+        ref_prefix (str, optional): Prefix of the reference image. Defaults to
             "genes_round".
         subresolutions (int, optional): Number of subresolutions to save. Defaults to 5.
         max_pixel_size (int, optional): Maximum pixel size for the pyramid. Defaults to 2.
@@ -250,7 +250,7 @@ def overview_single_roi(
     ops = load_ops(data_path)
 
     print("Finding pixel size")
-    if reference_prefix == "genes_round":
+    if ref_prefix == "genes_round":
         ref_round_prefix = f"genes_round_{ops['ref_round']}_1"
     pixel_size = get_pixel_size(data_path, ref_round_prefix)
 
@@ -267,7 +267,7 @@ def overview_single_roi(
         roi=roi,
         filter_r=False,
         channels=chan2use,
-        ref_prefix=reference_prefix,
+        ref_prefix=ref_prefix,
     )
     print("Aggregating", flush=True)
     stitched_stack = agg_func(stitched_stack, axis=2)

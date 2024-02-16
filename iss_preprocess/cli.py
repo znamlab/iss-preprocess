@@ -367,11 +367,18 @@ def spot_sign_image(path, prefix="genes_round"):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def check_omp(path):
+@click.option(
+    "-r", "--roi", default=None, help="Number of the ROI.."
+)
+@click.option("-x", "--tilex", default=None, help="Tile X position")
+@click.option("-y", "--tiley", default=None, help="Tile Y position.")
+def check_omp(path, roi, tilex, tiley):
     """Compute average spot image."""
     from iss_preprocess.pipeline import check_omp_thresholds
-
-    check_omp_thresholds(path)
+    if roi is not None and tilex is not None and tiley is not None:
+        check_omp_thresholds(path, tile_coors=(roi, tilex, tiley))
+    else:
+        check_omp_thresholds(path)
 
 
 @cli.command()

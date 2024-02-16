@@ -633,7 +633,7 @@ def stitch_and_register(
 
     if isinstance(ref_ch, int):
         ref_ch = [ref_ch]
-    stitched_stack_reference = stitch_registered(
+    stitched_stack_reference = stitch_tiles(
         data_path,
         prefix=reference_prefix,
         roi=roi,
