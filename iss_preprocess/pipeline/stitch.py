@@ -633,17 +633,21 @@ def stitch_and_register(
 
     if isinstance(ref_ch, int):
         ref_ch = [ref_ch]
-    stitched_stack_reference = stitch_tiles(
-        data_path,
-        prefix=reference_prefix,
-        roi=roi,
-        channels=ref_ch,
-        ref_prefix=reference_prefix,
-        filter_r=False,
-    )
-    stitched_stack_reference = np.nanmean(stitched_stack_reference, axis=-1).astype(
-        np.single
-    )  # to save memory
+    stitched_stack_reference = None
+    for ch in ref_ch:
+        stitched = stitch_tiles(
+            data_path,
+            prefix=reference_prefix,
+            roi=roi,
+            channels=ch,
+            ref_prefix=reference_prefix,
+            filter_r=False,
+        ).astype(np.single)
+        if stitched_stack_reference is None:
+            stitched_stack_reference = stitched
+        else:
+            stitched_stack_reference += stitched
+    stitched_stack_reference /= len(ref_ch)    
 
     if use_masked_correlation:
         target_mask = np.ones(stitched_stack_target.shape, dtype=bool)
