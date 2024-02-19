@@ -618,6 +618,8 @@ def stitch_and_register(
                 correct_illumination=True,
             ).astype(np.single)
         )  # to save memory
+    stitched_stack_target = np.mean(stitched_stack_target, axis=0)
+    
     stitched_stack_reference = stitch_tiles(
         data_path,
         reference_prefix,
