@@ -116,7 +116,6 @@ def estimate_shifts_and_angles_by_coors(
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
     angles, shifts = estimate_shifts_and_angles_for_tile(
-        data_path,
         stack,
         reference_tforms["scales_between_channels"],
         ref_ch=ops["ref_ch"],
