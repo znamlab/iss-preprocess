@@ -431,19 +431,6 @@ def plot_overview_images(
         processed_path / "averages" / f"{prefix}_average.tif"
     ).exists()
     job_ids = []
-    kwargs = dict(
-        data_path=data_path,
-        prefix=prefix,
-        plot_grid=plot_grid,
-        downsample_factor=downsample_factor,
-        save_raw=save_raw,
-        correct_illumination=correct_illumination,
-        use_slurm=use_slurm,
-        job_dependency=dependency,
-        vmin=vmin,
-        vmax=vmax,
-    )
-
     for roi_dim in roi_dims:
         roi = roi_dim[0]
         if group_channels:
@@ -456,6 +443,8 @@ def plot_overview_images(
                 scripts_name = f"plot_overview_{prefix}_{roi}_channels_{'_'.join([str(c) for c in ch])}"
             else:
                 scripts_name = f"plot_overview_{prefix}_{roi}_channel_{ch}"
+            slurm_folder=f"{Path.home()}/slurm_logs/{data_path}/plot_overview/"
+            slurm_folder.mkdir(parents=True, exist_ok=True)
             job_ids.append(
                 plot_single_overview(
                     data_path=data_path,
@@ -468,8 +457,10 @@ def plot_overview_images(
                     downsample_factor=downsample_factor,
                     save_raw=save_raw,
                     correct_illumination=correct_illumination,
-                    use_slurm=True,
-                    slurm_folder=f"{Path.home()}/slurm_logs",
+                    vmin=vmin,
+                    vmax=vmax,
+                    use_slurm=use_slurm,
+                    slurm_folder=slurm_folder,
                     scripts_name=scripts_name,
                     job_dependency=dependency if dependency else None,
                 )
@@ -574,10 +565,10 @@ def plot_single_overview(
 
     if single_channel:
         if vmax is None:
-            vmax = np.percentile(stack, 98)
+            vmax = np.percentile(stack, 99.9)
         plt.imshow(stack, vmax=vmax, vmin=vmin)
     else:
-        rgb = to_rgb(stack, channel_colors, vmax=vmax, vmin=vmin)
+        rgb = to_rgb(stack, channel_colors, vmax=np.percentile(stack, 99.9), vmin=vmin)
         plt.imshow(rgb)
     ax = plt.gca()
     ax.set_aspect("equal")
