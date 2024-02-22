@@ -4,6 +4,7 @@ import shutil
 import shlex
 import iss_preprocess as iss
 import subprocess
+import os
 from warnings import warn
 from functools import partial
 from pathlib import Path
@@ -42,7 +43,7 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
-    all_projected = True
+    not_projected = []
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
         ny = roi[2] + 1
@@ -51,10 +52,8 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
                 fname = f"{prefix}_MMStack_{roi[0]}-Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}"
                 for suffix in suffixes:
                     proj_path = processed_path / prefix / f"{fname}_{suffix}.tif"
-                    not_projected = []
                     if not proj_path.exists():
                         print(f"{proj_path} missing!", flush=True)
-                        all_projected = False
                         not_projected.append(fname)
     
     np.savetxt(
@@ -64,8 +63,8 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
         delimiter="\n",
     )
 
-    if all_projected:
-        print(f"all tiles projected for {prefix}!", flush=True)
+    if not not_projected:
+        print(f"all tiles projected for {data_path} {prefix}!", flush=True)
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -80,19 +79,21 @@ def reproject_failed(
     """
     processed_path = iss.io.get_processed_path(data_path)
     missing_tiles = []
-    for prefix in processed_path.iterdir():
+    for prefix in [d for root, dirs, _ in os.walk(processed_path) for d in dirs if d.endswith("_1")]:
         for fname in (
             (processed_path / prefix / "missing_tiles.txt").read_text().split("\n")
         ):
             missing_tiles.append(fname)
 
     for tile in missing_tiles:
+        if len(tile) == 0:
+            continue
         prefix = tile.split("_MMStack")[0]
         roi = int(tile.split("_MMStack_")[1].split("-")[0])
         ix = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[0])
         iy = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[1])
         print(f"Reprojecting {prefix} {roi}_{ix}_{iy}!", flush=True)
-        project_tile(data_path, prefix, roi, ix, iy, overwrite=True)
+        iss.pipeline.project_tile_by_coors((roi, ix, iy), data_path, prefix, overwrite=True)
     if len(missing_tiles) == 0:
         print("No failed tiles to re-project!", flush=True)
 
