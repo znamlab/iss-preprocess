@@ -289,7 +289,7 @@ def get_tile_ome(fname, fmetadata):
     channels = sorted(list(set(channels)))
     nch = len(channels)
     # Determine Z positions
-    if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
+    if metadata[frame_keys[0]]["ROI"] == "394-174-3290-2460":
         zs = [metadata[frame_key]["ImageNumber"] for frame_key in frame_keys]
     else:
         zs = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
