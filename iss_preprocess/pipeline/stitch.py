@@ -41,11 +41,19 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
             registration
 
     """
+    ops = load_ops(data_path)
+    corrected_shifts = ops["corrected_shifts2ref"]
+
+    valid_shifts = ["single_tile", "ransac", "best"]
+    assert corrected_shifts in valid_shifts, (
+        f"unknown shifts2ref correction method, must be one of {valid_shifts}",
+    )
+
     stack, bad_pixels = pipeline.load_and_register_tile(
         data_path, tile_coors, prefix, filter_r=filter_r
     )
 
-    if prefix == "genes_round_1_1":
+    if prefix.startswith("genes_round"):
         # No need to register to ref
         return stack, bad_pixels
 
@@ -61,10 +69,16 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
         reg_prefix = prefix
 
     stack[bad_pixels] = np.nan
+    if corrected_shifts == "single_tile":
+        correction_fname = "tforms_to_ref"
+    elif corrected_shifts == "ransac":
+        correction_fname = "tforms_corrected_to_ref"
+    elif corrected_shifts == "best":
+        correction_fname = "tforms_best_to_ref"
     reg2ref = np.load(
         iss.io.get_processed_path(data_path)
         / "reg"
-        / f"tforms_corrected_to_ref_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
+        / f"{correction_fname}_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
     # TODO: we are warping the image twice - in `load_and_register_tile` and here
     # if we ever use this function for downstream analyses (e.g. detecting spots)
@@ -425,7 +439,7 @@ def stitch_tiles(
 
 
 def stitch_registered(
-    data_path, prefix, roi, channels=0, ref_prefix="genes_round_1_1", filter_r=False
+    data_path, prefix, roi, channels=0, ref_prefix="genes_round", filter_r=False
 ):
     """Load registered stack and stitch them
 
@@ -444,11 +458,18 @@ def stitch_registered(
         np.array: stitched stack
 
     """
+    ops = load_ops(data_path)
     if isinstance(channels, int):
         channels = [channels]
+    elif channels is None:
+        channels = np.arange(len(ops["camera_order"]))
     else:
         channels = list(channels)
+
     processed_path = iss.io.get_processed_path(data_path)
+    if ref_prefix == "genes_round":
+        ref_prefix = f"{ref_prefix}_{ops['ref_round']}_1"
+
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     shifts = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
@@ -597,6 +618,8 @@ def stitch_and_register(
                 correct_illumination=True,
             ).astype(np.single)
         )  # to save memory
+    stitched_stack_target = np.mean(stitched_stack_target, axis=0)
+    
     stitched_stack_reference = stitch_tiles(
         data_path,
         reference_prefix,

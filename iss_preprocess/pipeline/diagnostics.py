@@ -34,7 +34,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
 
     # get stack registered between channel and rounds
     print("Loading and registering sequencing tile")
-    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+    reg_stack, _ = sequencing.load_and_register_sequencing_tile(
         data_path,
         filter_r=False,
         correct_channels=False,
@@ -49,8 +49,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     reg_stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
 
     # compute vmax based on round 0
-    vmaxs = np.percentile(reg_stack[..., 0], 99.99, axis=(0, 1))
-    vmins = np.percentile(reg_stack[..., 0], 0.01, axis=(0, 1))
+    vmins, vmaxs = np.percentile(reg_stack[..., 0], (0.01, 99.99), axis=(0, 1))
     center = np.array(reg_stack.shape[:2]) // 2
     view = np.array([center - 200, center + 200]).T
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
@@ -58,11 +57,11 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
     print("Static figure")
     fig, rgb_stack = vis.plot_all_rounds(reg_stack, view, channel_colors)
     fig.tight_layout()
-    fig.savefig(target_folder / f"initial_ref_tile_registration_{prefix}.png")
-    print(f"Saved to {target_folder / f'initial_ref_tile_registration_{prefix}.mp4'}")
+    fname = target_folder / f"initial_ref_tile_registration_{prefix}.png"
+    fig.savefig(fname)
+    print(f"Saved to {fname}")
 
     # also save the stack for fiji
-
     iss.io.save.write_stack(
         (rgb_stack * 255).astype("uint8"),
         target_folder
@@ -182,7 +181,6 @@ def check_tile_registration(
             axes_titles=corrections,
         )
 
-
 @slurm_it(conda_env="iss-preprocess")
 def check_shift_correction(
     data_path, prefix="genes_round", roi_dimension_prefix="genes_round_1_1"
@@ -197,8 +195,7 @@ def check_shift_correction(
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
     """
     processed_path = iss.io.get_processed_path(data_path)
-    target_folder = processed_path / "figures" / "registration"
-
+    target_folder = processed_path / "figures" / "registration" / prefix
     target_folder.mkdir(exist_ok=True, parents=True)
 
     reg_dir = processed_path / "reg"
@@ -270,7 +267,7 @@ def check_shift_correction(
                         vmin -= (rng_min - rng) / 2
                         vmax += (rng_min - rng) / 2
                     iss.vis.plot_matrix_with_colorbar(
-                        best_to_plot[ir].T, fig, ax, vmin=vmin, vmax=vmax
+                        best_to_plot[ir].T, ax, vmin=vmin, vmax=vmax
                     )
                     ax.set_xticks([])
                     ax.set_yticks([])
@@ -318,7 +315,7 @@ def check_shift_correction(
                     vmin -= (rng_min - rng) / 2
                     vmax += (rng_min - rng) / 2
                 iss.vis.plot_matrix_with_colorbar(
-                    best_to_plot[ic].T, fig, ax, vmin=vmin, vmax=vmax
+                    best_to_plot[ic].T, ax, vmin=vmin, vmax=vmax
                 )
                 ax.set_xticks([])
                 ax.set_yticks([])
@@ -427,11 +424,15 @@ def check_barcode_calling(data_path):
 
 
 @slurm_it(conda_env="iss-preprocess")
-def check_barcode_basecall(data_path):
+def check_barcode_basecall(data_path, tile_coords=None, ref_tile_index=0):
     """Check that the basecall is correct
 
     Args:
         path (str): Path to data folder
+        tile_coords (list, optional): Tile coordinates to use. Defaults to None.
+        ref_tile_index (int, optional): Index of the reference tile to use if
+            tile_coords is None. Defaults to 0.
+
     """
     processed_path = iss.io.get_processed_path(data_path)
     figure_folder = processed_path / "figures" / "barcode_round"
@@ -439,17 +440,20 @@ def check_barcode_basecall(data_path):
 
     # get one of the reference tiles
     ops = iss.io.load_ops(data_path)
-    ref_tile = ops["barcode_ref_tiles"][0]
+    if tile_coords is None:
+        tile_coords = ops["barcode_ref_tiles"][ref_tile_index]
+
     stack, spot_sign_image, spots = iss.pipeline.sequencing.basecall_tile(
-        data_path, ref_tile, save_spots=False
+        data_path, tile_coords, save_spots=False
     )
 
     # Find the place with the highest density of spots
     x, y = spots["x"].values, spots["y"].values
     # Create a grid of potential disk centers
+    window = 200
     x_grid, y_grid = np.meshgrid(
-        np.arange(200, stack.shape[1] - 200, 50),
-        np.arange(200, stack.shape[0] - 200, 50),
+        np.arange(window, stack.shape[1] - window, 50),
+        np.arange(window, stack.shape[0] - window, 50),
     )
     # Compute the Euclidean distance from each spot to each potential center
     distances = np.sqrt(
@@ -461,7 +465,6 @@ def check_barcode_basecall(data_path):
     center = (x_grid[center], y_grid[center])
 
     nr = ops["barcode_rounds"]
-    window = 200
     stack_part = stack[
         center[1] - window : center[1] + window, center[0] - window : center[0] + window
     ]
@@ -473,46 +476,61 @@ def check_barcode_basecall(data_path):
     ]
 
     # Do the plot
-    fig, axes = plt.subplots(3, nr, figsize=(3 * nr, 9))
+    fig = plt.figure(figsize=(3 * nr, 10))
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
-    base_color = {b: c for b, c in zip(iss.call.BASES, channel_colors)}
+    axes = []
     for iround in range(nr):
         rgb_stack = iss.vis.round_to_rgb(
             stack_part, iround, extent=None, channel_colors=channel_colors
         )
-        axes[0, iround].imshow(rgb_stack)
-        for i, spot in valid_spots.iterrows():
-            base = spot["bases"][iround]
+        # plot raw fluo
+        ax = fig.add_subplot(3, nr, iround + 1)
+        axes.append(ax)
+        ax.imshow(rgb_stack)
+        ax.set_title(f"Round {iround}")
+        if iround == nr - 1:
+            iss.vis.add_bases_legend(channel_colors, ax.transAxes, fontsize=14)
 
-            axes[1, iround].text(
-                spot["x"] - (center[0] - window),
-                spot["y"] - (center[1] - window),
-                base,
-                color=base_color[base],
-                fontsize=6,
-                verticalalignment="center",
-                horizontalalignment="center",
-            )
-        sc = axes[2, iround].scatter(
+        # plot basecall, a letter per spot
+        ax = fig.add_subplot(3, nr, nr + iround + 1)
+        axes.append(ax)
+        spots_in_frame = valid_spots.copy()
+        spots_in_frame["x"] -= center[0] - window
+        spots_in_frame["y"] -= center[1] - window
+        vis.plot_spot_called_base(spots_in_frame, ax, iround)
+
+    # plot spot scores
+    scores = ["dot_product_score", "spot_score", "mean_score", "mean_intensity"]
+    empty = np.zeros(stack_part.shape[:2]) + np.nan
+    cmap = plt.cm.viridis
+    cmap.set_bad("black")
+
+    for isc, score in enumerate(scores):
+        ax = fig.add_subplot(3, len(scores), 2 * len(scores) + isc + 1)
+        axes.append(ax)
+        sc = ax.scatter(
             valid_spots.x - (center[0] - window),
             valid_spots.y - (center[1] - window),
-            c=valid_spots.spot_score,
+            c=valid_spots[score],
             s=5,
         )
+        cax, cb = iss.vis.plot_matrix_with_colorbar(empty, ax, cmap=cmap)
+        cax.clear()
+        cb = fig.colorbar(sc, cax=cax)
+        cb.set_label(score.replace("_", " "))
 
-    for ax in axes.flat:
+    for ax in axes:
         ax.set_aspect("equal")
         ax.set_xlim(0, 2 * window)
-        ax.set_ylim(2 * window, 0)
         ax.set_facecolor("black")
+        ax.set_ylim(2 * window, 0)
         ax.set_xticks([])
         ax.set_yticks([])
-    fig.tight_layout()
-    cbw = 1 / nr * 0.05
-    cax = fig.add_axes([1 - cbw * 3, 0.01, cbw, 0.25])
-    fig.colorbar(sc, cax=cax)
-
-    fig.savefig(figure_folder / f"barcode_basecall_example.png")
+    fig.subplots_adjust(
+        left=1e-3, right=0.99, bottom=0.01, top=0.98, wspace=0.05, hspace=0.05
+    )
+    tc = "_".join([str(x) for x in tile_coords])
+    fig.savefig(figure_folder / f"barcode_basecall_example_tile_{tc}.png")
     return fig
 
 
@@ -682,7 +700,8 @@ def debug_reg_to_ref(
     fig.savefig(figure_folder / f"debug_reg_to_ref_{reg_prefix}_to_{ref_prefix}.png")
 
 
-def check_reg_to_ref_estimation(
+@slurm_it(conda_env="iss-preprocess")
+def check_reg_to_ref_correction(
     data_path,
     prefix,
     rois=None,
@@ -703,8 +722,8 @@ def check_reg_to_ref_estimation(
     """
     processed_path = iss.io.get_processed_path(data_path)
     reg_dir = processed_path / "reg"
-    figure_folder = processed_path / "figures" / "registration"
-    figure_folder.mkdir(exist_ok=True)
+    figure_folder = processed_path / "figures" / "registration" / f"{prefix}_to_ref"
+    figure_folder.mkdir(exist_ok=True, parents=True)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = iss.io.load_ops(data_path)
     if rois is not None:
@@ -715,28 +734,46 @@ def check_reg_to_ref_estimation(
     roi_dims[:, 1:] = roi_dims[:, 1:] + 1
     for roi, *ntiles in roi_dims:
         raw = np.zeros([3, *ntiles]) + np.nan
-        corrected = np.zeros([3, *ntiles]) + np.nan
+        corrected = np.zeros_like(raw) + np.nan
+        best = np.zeros_like(raw) + np.nan
         for ix in range(ntiles[0]):
             for iy in range(ntiles[1]):
+                fname = reg_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                if not fname.exists():
+                    continue
                 try:
-                    data = np.load(
-                        reg_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
-                    )
+                    data = np.load(fname)
                     raw[:2, ix, iy] = data["shifts"]
                     raw[2, ix, iy] = data["angles"]
-                except FileNotFoundError:
-                    pass
+                except ValueError:
+                    print(f"Could not load {fname}. Skipping.")
+                    continue
                 data = np.load(
                     reg_dir / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
                 corrected[:2, ix, iy] = data["shifts"]
                 corrected[2, ix, iy] = data["angles"]
+                data_best = np.load(
+                    reg_dir / f"tforms_best_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                )
+                best[:2, ix, iy] = data_best["shifts"]
+                best[2, ix, iy] = data_best["angles"]
+        fig, axes = plt.subplots(4, 3, figsize=(12, 8))
         fig = iss.vis.plot_matrix_difference(
             raw=raw,
             corrected=corrected,
             col_labels=["Shift x", "Shift y", "Angle"],
             line_labels=["Raw", "Corrected", "Difference"],
+            axes=axes[:3, :],
         )
+        for i in range(3):
+            # get the clim from the `raw` plot
+            vmin, vmax = axes[0, i].get_images()[0].get_clim()
+            iss.vis.plot_matrix_with_colorbar(
+                best[i].T, axes[3, i], vmin=vmin, vmax=vmax
+            )
+        axes[3, 0].set_ylabel("Best")
+        fig.tight_layout()
         fig.suptitle(f"Registration to reference. {prefix} ROI {roi}")
         fig.savefig(
             figure_folder / f"registration_to_ref_estimation_{prefix}_roi{roi}.png"
@@ -763,8 +800,8 @@ def check_tile_shifts(
     """
     processed_path = iss.io.get_processed_path(data_path)
     reg_dir = processed_path / "reg"
-    figure_folder = processed_path / "figures" / "registration"
-    figure_folder.mkdir(exist_ok=True)
+    figure_folder = processed_path / "figures" / "registration" / prefix
+    figure_folder.mkdir(exist_ok=True, parents=True)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = iss.io.load_ops(data_path)
     if rois is not None:
@@ -822,23 +859,26 @@ def check_tile_shifts(
 def check_omp_thresholds(
     data_path,
     spot_score_thresholds=(0.05, 0.075, 0.1, 0.125, 0.15, 0.2),
-    omp_thresholds=(0.05, 0.075, 0.10, 0.125, 0.15, 0.2),
+    omp_thresholds=(0.10, 0.125, 0.15, 0.2, 0.25, 0.3),
+    rhos=(0.5, 1.0, 2.0, 4.0, 8.0),
+    tile_coors=None,
 ):
     processed_path = iss.io.get_processed_path(data_path)
     ops = iss.io.load_ops(data_path)
-
+    if tile_coors is None:
+        tile_coors = ops["ref_tile"]
     stack, bad_pixels = iss.pipeline.load_and_register_sequencing_tile(
         data_path,
-        ops["ref_tile"],
-        filter_r=False,
+        tile_coors,
+        filter_r=ops["filter_r"],
         prefix="genes_round",
         suffix=ops["genes_projection"],
         nrounds=ops["genes_rounds"],
-        correct_channels=True,
-        corrected_shifts="single_tile",
+        correct_channels=ops["genes_correct_channels"],
+        corrected_shifts=ops["corrected_shifts"],
         correct_illumination=True,
     )
-    stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+    stack = stack[1400:1800, 1400:1800, np.argsort(ops["camera_order"]), :]
 
     all_gene_spots = []
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
@@ -855,8 +895,6 @@ def check_omp_thresholds(
             max_comp=ops["omp_max_genes"],
             min_intensity=ops["omp_min_intensity"],
         )
-        for igene in range(g.shape[2]):
-            g[bad_pixels, igene] = 0
         spot_sign_image = iss.pipeline.load_spot_sign_image(
             data_path, ops["spot_shape_threshold"]
         )
@@ -872,33 +910,37 @@ def check_omp_thresholds(
 
     im = np.std(stack, axis=(2, 3))
     vmax = np.percentile(im, 99.99)
+    neg_max = np.sum(np.sign(spot_sign_image) == -1)
+    pos_max = np.sum(np.sign(spot_sign_image) == 1)
     # white background figure
-    plt.figure(figsize=(30, 30), facecolor="w")
-    for i in range(len(omp_thresholds)):
-        for j in range(len(spot_score_thresholds)):
-            spots = pd.concat(all_gene_spots[i])
-            spots = spots[spots.spot_score > spot_score_thresholds[j]]
-            plt.subplot(
-                len(omp_thresholds),
-                len(spot_score_thresholds),
-                i * len(spot_score_thresholds) + j + 1,
-            )
-            plt.imshow(im, cmap="inferno", vmax=vmax)
-            plt.plot(spots.x, spots.y, "xw", ms=2)
-            plt.xlim(1500, 1700)
-            plt.ylim(1500, 1700)
-            plt.axis("off")
-            plt.title(
-                f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}"
-            )
-
-    plt.tight_layout()
-    plt.savefig(processed_path / "figures" / "omp_spot_score_thresholds.png", dpi=300)
+    for rho in rhos:
+        plt.figure(figsize=(30, 30), facecolor="w")
+        for i in range(len(omp_thresholds)):
+            for j in range(len(spot_score_thresholds)):
+                spots = pd.concat(all_gene_spots[i])
+                spots["spot_score"] = (
+                    spots["neg_pixels"] + spots["pos_pixels"] * rho
+                ) / (neg_max + pos_max * rho)
+                spots = spots[spots["spot_score"] > spot_score_thresholds[j]]
+                plt.subplot(
+                    len(omp_thresholds),
+                    len(spot_score_thresholds),
+                    i * len(spot_score_thresholds) + j + 1,
+                )
+                plt.imshow(im, cmap="bwr", vmax=vmax, vmin=-vmax)
+                plt.plot(spots.x, spots.y, "xk", ms=2)
+                plt.axis("off")
+                plt.title(
+                    f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}"
+                )
+        plt.tight_layout()
+        plt.savefig(
+            processed_path / "figures" / f"omp_spot_score_thresholds_rho_{rho}.png",
+            dpi=300,
+        )
 
     plt.figure(figsize=(20, 20))
     plt.imshow(im, cmap="inferno", vmax=vmax)
-    plt.xlim(1500, 1700)
-    plt.ylim(1500, 1700)
     plt.axis("off")
     plt.tight_layout()
     plt.savefig(
@@ -984,21 +1026,146 @@ def check_segmentation(
     print(f"Saved to {figure_folder / f'segmentation_{prefix}_roi{roi}.png'}")
 
 
-if __name__ == "__main__":
-    iss.pipeline.segment.segment_roi(
-        data_path="becalia_rabies_barseq/BRAC8501.6a/chamber_07",
-        iroi=11,
-        prefix="genes_round_1_1",
-        reference="genes_round_1_1",
-        use_gpu=False,
-    )
+@slurm_it(conda_env="iss-preprocess")
+def check_tile_reg2ref(
+    data_path,
+    reg_prefix="barcode_round",
+    ref_prefix="genes_round",
+    correction="best",
+    tile_coords=None,
+    reg_channels=None,
+    ref_channels=None,
+    binarise_quantile=0.7,
+    window=None,
+):
+    """Check the registration to reference for some tiles
 
-    debug_reg_to_ref(
-        data_path="becalia_rabies_barseq/BRAC8501.6a/chamber_07",
-        reg_prefix="genes_round",
-        ref_prefix="barcode_round",
-        tile_coords=None,
-        ref_channels=None,
-        reg_channels=None,
-        binarise_quantile=0.7,
-    )
+    If `tile_coords` is None, will select 10 tiles. If `ops` has a `xx_ref_tiles`
+    matching prefix, these will be part of the 10 tiles. The remaining tiles will be
+    selected randomly.
+
+    Args:
+        data_path (str): Relative path to data folder
+        prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
+        correction (str, optional): Corrections to plot. Defaults to 'best'.
+        tile_coords (list, optional): List of tile coordinates to process. If None, will
+            select 10 tiles. Defaults to None.
+        reg_channels (list, optional): List of channels to plot for the registered images.
+            If None, will use the average of all channels. Defaults to None.
+        ref_channels (list, optional): List of channels to plot for the reference images.
+            If None, will use the average of all channels. Defaults to None.
+        binarise_quantile (float, optional): Quantile to binarise the images. Defaults to
+            0.7.
+        window (int, optional): Size of the window to plot around the center of the
+            image. Full image if None. Defaults to None.
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    target_folder = processed_path / "figures" / "registration" / f"{reg_prefix}_to_ref"
+    target_folder.mkdir(exist_ok=True, parents=True)
+    ops = iss.io.load_ops(data_path)
+
+    # get stack registered between channel and rounds
+    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{reg_prefix}_1_1")
+    if tile_coords is None:
+        # check if ops has a ref tile
+        if f"{reg_prefix.split('_')[0]}_ref_tiles" in ops:
+            tile_coords = ops[f"{reg_prefix.split('_')[0]}_ref_tiles"]
+            nrandom = 10 - len(tile_coords)
+        else:
+            tile_coords = []
+            nrandom = 10
+        # select random tiles
+        if nrandom > 0:
+            for i in range(nrandom):
+                # pick a roi randomly
+                roi = np.random.choice(roi_dims[:, 0])
+                # pick a tile inside that roi
+                ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0]
+                tile_coords.append([roi, *np.random.randint(0, ntiles)])
+    elif isinstance(tile_coords[0], int):
+        tile_coords = [tile_coords]
+
+    for tile in tile_coords:
+        # get the data with default correction for within prefix registration
+        ref_all_channels, _ = iss.pipeline.load_and_register_tile(
+            data_path=data_path,
+            tile_coors=tile,
+            prefix=ref_prefix,
+            filter_r=False,
+        )
+        reg_all_channels, _ = iss.pipeline.load_and_register_tile(
+            data_path=data_path, tile_coors=tile, prefix=reg_prefix, filter_r=False
+        )
+
+        if ref_channels is not None:
+            if isinstance(ref_channels, int):
+                ref_channels = [ref_channels]
+            ref_all_channels = ref_all_channels[:, :, ref_channels]
+        ref = np.nanmean(ref_all_channels, axis=(2, 3))
+
+        if reg_channels is not None:
+            if isinstance(reg_channels, int):
+                reg_channels = [reg_channels]
+            reg_all_channels = reg_all_channels[:, :, reg_channels]
+        reg = np.nanmean(reg_all_channels, axis=(2, 3))
+
+        reg_b = reg > np.quantile(reg, binarise_quantile)
+        ref_b = ref > np.quantile(ref, binarise_quantile)
+
+        print("Loading shifts and angle")
+        tname = f"{reg_prefix}_{tile[0]}_{tile[1]}_{tile[2]}"
+        fname = processed_path / "reg" / f"tforms_{correction}_to_ref_{tname}.npz"
+        assert fname.exists(), f"File {fname} does not exist"
+        t_form = np.load(fname)
+        angle = t_form["angles"][0]
+        shift = t_form["shifts"][0]
+
+        # transform the reg image to match the ref
+        reg_t = iss.reg.transform_image(reg, angle=angle, shift=shift)
+        reg_bt = iss.reg.transform_image(reg_b, angle=angle, shift=shift)
+
+        # add an rgb overlay
+        vmins = [np.percentile(ref, 1), np.percentile(reg_t, 1)]
+        vmaxs = [np.percentile(ref, 99.5), np.percentile(reg_t, 99.5)]
+        rgb = iss.vis.to_rgb(
+            np.stack([ref, reg_t], axis=2),
+            colors=([1, 0, 0], [0, 1, 0]),
+            vmin=vmins,
+            vmax=vmaxs,
+        )
+        rgb_b = iss.vis.to_rgb(
+            np.stack([ref_b, reg_bt], axis=2),
+            colors=([1, 0, 0], [0, 1, 0]),
+            vmin=[0, 0],
+            vmax=[1, 1],
+        )
+
+        # Plot it
+        fig, axes = plt.subplots(2, 4, figsize=(15, 7))
+        axes[0, 0].imshow(ref, cmap="inferno", vmin=vmins[0], vmax=vmaxs[0])
+        axes[0, 0].set_title("Reference")
+        axes[0, 1].imshow(reg, cmap="inferno", vmin=vmins[1], vmax=vmaxs[1])
+        axes[0, 1].set_title("Target")
+        axes[0, 2].imshow(reg_t, cmap="inferno", vmin=vmins[1], vmax=vmaxs[1])
+        axes[0, 2].set_title("Transformed")
+        axes[0, 3].imshow(rgb)
+        axes[0, 3].set_title("Overlay")
+        axes[1, 0].imshow(ref_b, cmap="gray")
+        axes[1, 0].set_title("Reference")
+        axes[1, 1].imshow(reg_b, cmap="gray")
+        axes[1, 1].set_title("Target")
+        axes[1, 2].imshow(reg_bt, cmap="gray")
+        axes[1, 2].set_title("Transformed")
+        axes[1, 3].imshow(rgb_b)
+        axes[1, 3].set_title("Overlay")
+
+        center = (ref.shape[0] // 2, ref.shape[1] // 2)
+        for ax in axes.flatten():
+            ax.axis("off")
+            if window is not None:
+                ax.set_xlim(center[1] - window, center[1] + window)
+                ax.set_ylim(center[0] + window, center[0] - window)
+        fig.tight_layout()
+        fname = f"check_reg2ref_{tname}_{correction}"
+        fig.savefig(target_folder / f"{fname}.png")
+        plt.close(fig)  # close the figure to avoid memory leak

@@ -192,7 +192,7 @@ def register_ref_tile(path, prefix, diag):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+@click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from iss_preprocess.pipeline import setup_omp
@@ -311,8 +311,8 @@ def correct_shifts(path, prefix, use_slurm=False):
 
     if use_slurm:
         from pathlib import Path
-
-        slurm_folder = Path.home() / "slurm_logs"
+        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder.mkdir(parents=True, exist_ok=True) 
     else:
         slurm_folder = None
     job_id = corr_shifts(
@@ -356,14 +356,34 @@ def correct_hyb_shifts(path, prefix=None):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
-def correct_ref_shifts(path, prefix=None):
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+def correct_ref_shifts(path, prefix=None, use_slurm=False):
     """
     Correct X-Y shifts for registration to reference using robust regression
     across tiles.
     """
     from iss_preprocess.pipeline import correct_shifts_to_ref
+    from iss_preprocess.pipeline.diagnostics import check_reg_to_ref_estimation
 
-    correct_shifts_to_ref(path, prefix)
+    if use_slurm:
+        from pathlib import Path
+        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+
+    job_id = correct_shifts_to_ref(
+        path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder
+    )
+    check_reg_to_ref_estimation(
+        path,
+        prefix,
+        rois=None,
+        roi_dimension_prefix="genes_round_1_1",
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+    )
 
 
 @cli.command()
@@ -380,11 +400,18 @@ def spot_sign_image(path, prefix="genes_round"):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def check_omp(path):
+@click.option(
+    "-r", "--roi", default=None, help="Number of the ROI.."
+)
+@click.option("-x", "--tilex", default=None, help="Tile X position")
+@click.option("-y", "--tiley", default=None, help="Tile Y position.")
+def check_omp(path, roi, tilex, tiley):
     """Compute average spot image."""
     from iss_preprocess.pipeline import check_omp_thresholds
-
-    check_omp_thresholds(path)
+    if roi is not None and tilex is not None and tiley is not None:
+        check_omp_thresholds(path, tile_coors=(roi, tilex, tiley))
+    else:
+        check_omp_thresholds(path)
 
 
 @cli.command()
@@ -393,24 +420,48 @@ def basecall(path):
     """Start batch jobs to run basecalling for barcodes on all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
-    batch_process_tiles(path, "basecall_tile")
+    job_ids = batch_process_tiles(path, "basecall_tile")
+    click.echo(f"Basecalling started for {len(job_ids)} tiles.")
+    click.echo(f"Last job id: {job_ids[-1]}")
+
+    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
+    from iss_preprocess.io.load import load_ops
+    from pathlib import Path
+
+    ops = load_ops(path)
+    slurm_folder = Path.home() / "slurm_logs" / path / "barcode_round"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    for index in range(len(ops["barcode_ref_tiles"])):
+        check_barcode_basecall(
+            path,
+            ref_tile_index=index,
+            use_slurm=True,
+            job_dependency=job_ids,
+            slurm_folder=slurm_folder,
+            scripts_name=f"check_basecall_{index}",
+        )
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
-def check_basecall(path, use_slurm=False):
+@click.option("--ref-tile-index", default=0, help="Reference tile index")
+def check_basecall(path, use_slurm=False, ref_tile_index=0):
     """Check if basecalling has completed for all tiles."""
     from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
 
     if use_slurm:
         from pathlib import Path
-
-        slurm_folder = Path.home() / "slurm_logs"
+        slurm_folder = Path.home() / "slurm_logs" / path / "barcode_round"
+        slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
         slurm_folder = None
-
-    check_barcode_basecall(path, use_slurm=use_slurm, slurm_folder=slurm_folder)
+    check_barcode_basecall(
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        ref_tile_index=ref_tile_index,
+    )
 
 
 @cli.command()
@@ -493,6 +544,7 @@ def register_to_reference(
     path, reg_prefix, ref_prefix, roi, tilex, tiley, reg_channels
 ):
     """Register an acquisition to reference tile by tile."""
+
     if any([x is None for x in [roi, tilex, tiley]]):
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
@@ -507,13 +559,21 @@ def register_to_reference(
 
         if reg_channels is not None:
             reg_channels = [int(x) for x in reg_channels.split(",")]
+        from iss_preprocess.io.load import load_ops
 
+        ops = load_ops(path)
+        ops_name = f"{reg_prefix.split('_')[0].lower()}_binarise_quantile"
+        if ops_name in ops:
+            binarise_quantile = ops[ops_name]
+        else:
+            binarise_quantile = 0.7
         register.register_tile_to_ref(
             data_path=path,
             tile_coors=(roi, tilex, tiley),
             reg_prefix=reg_prefix,
             ref_prefix=ref_prefix,
             reg_channels=reg_channels,
+            binarise_quantile=binarise_quantile,
         )
 
 
@@ -708,8 +768,23 @@ def create_single_average(
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-r", "--roi", help="Roi id", type=int)
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
+@click.option(
+    "-n",
+    "--prefix",
+    help="Path prefix, e.g. 'genes_round_1_1'",
+    default="genes_round_1_1",
+    show_default=True,
+)
 @click.option("--sigma", help="Sigma for gaussian blur")
-def overview_for_ara_registration(path, roi, slice_id, sigma=10.0):
+@click.option(
+    "--ref_prefix",
+    help="Path prefix for reference, e.g. 'genes_round'",
+    default="genes_round",
+    show_default=True,
+)
+def overview_for_ara_registration(
+    path, roi, slice_id, prefix, sigma=10.0, ref_prefix="genes_round"
+):
     """Generate the overview of one ROI used for registration
 
     Args:
@@ -721,7 +796,14 @@ def overview_for_ara_registration(path, roi, slice_id, sigma=10.0):
     from iss_preprocess.pipeline.ara_registration import overview_single_roi
 
     print("Calling")
-    overview_single_roi(data_path=path, roi=roi, slice_id=slice_id, sigma_blur=sigma)
+    overview_single_roi(
+        data_path=path,
+        roi=roi,
+        slice_id=slice_id,
+        sigma_blur=sigma,
+        prefix=prefix,
+        ref_prefix=ref_prefix,
+    )
 
 
 @cli.command()

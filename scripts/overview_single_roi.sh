@@ -11,4 +11,4 @@ source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 
 conda activate iss-preprocess
 
-iss overview-for-ara-registration -p $DATAPATH -r $ROI -s $SLICE_ID --sigma $SIGMA
+iss overview-for-ara-registration -p $DATAPATH -r $ROI -s $SLICE_ID --sigma $SIGMA -n $PREFIX --ref_prefix $REF_PREFIX

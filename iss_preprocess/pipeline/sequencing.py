@@ -162,22 +162,27 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         rho=ops["barcode_spot_rho"],
     )
     extract_spots(spots, stack, ops["spot_extraction_radius"])
+    if len(spots) == 0:
+        print(f"No spots detected in tile {tile_coors}")
+        return stack, spot_sign_image, spots
     x = np.stack(spots["trace"], axis=2)
     cluster_inds = []
     top_score = []
 
     # TODO: perhaps we should apply background correction before basecalling?
     for iround in range(ops["barcode_rounds"]):
-        this_round_means = cluster_means[iround]
-        this_round_means = this_round_means / np.linalg.norm(this_round_means, axis=1)
-        x_norm = (
-            x[iround, :, :].T / np.linalg.norm(x[iround, :, :].T, axis=1)[:, np.newaxis]
+        this_round_means = cluster_means[iround] / np.linalg.norm(
+            cluster_means[iround], axis=1, keepdims=True
         )
+        x_norm = x[iround, :, :].T / np.linalg.norm(
+            x[iround, :, :].T, axis=1, keepdims=True
+        )
+
         # should be Spots x Channels matrix @ Channels x Clusters matrix
         score = x_norm @ this_round_means.T
         cluster_ind = np.argmax(score, axis=1)
         cluster_inds.append(cluster_ind)
-        top_score.append(np.squeeze(score[np.arange(x_norm.shape[0]), cluster_ind]))
+        top_score.append(score[np.arange(x_norm.shape[0]), cluster_ind])
 
     mean_score = np.mean(np.stack(top_score, axis=1), axis=1)
     sequences = np.stack(cluster_inds, axis=1)
@@ -495,7 +500,7 @@ def compute_spot_sign_image(data_path, prefix="genes_round"):
     iss.pipeline.check_spot_sign_image(data_path)
 
 
-def load_spot_sign_image(data_path, threshold):
+def load_spot_sign_image(data_path, threshold, return_raw_image=False):
     """Load the reference spot sign image to use in spot calling. First, check
     if the spot sign image has been computed for the current dataset and use it
     if available. Otherwise, use the spot sign image saved in the repo.
@@ -504,6 +509,8 @@ def load_spot_sign_image(data_path, threshold):
         data_path (str): Relative path to data.
         threshold (float): Absolute value threshold used to binarize the spot
             sign image.
+        return_raw_image (bool, optional): Whether to return the raw spot sign
+            image. Defaults to False.
 
     Returns:
         numpy.ndarray: Spot sign image after thresholding, containing -1, 0, or 1s.
@@ -518,6 +525,9 @@ def load_spot_sign_image(data_path, threshold):
         spot_sign_image = np.load(
             Path(__file__).parent.parent / "call/spot_sign_image.npy"
         )
+    if return_raw_image:
+        return spot_sign_image
+
     spot_sign_image[np.abs(spot_sign_image) < threshold] = 0
     return spot_sign_image
 

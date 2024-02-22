@@ -213,13 +213,31 @@ def overview_single_roi(
     data_path,
     roi,
     slice_id,
+    prefix,
     chan2use=(0, 1, 2, 3),
     sigma_blur=10,
     agg_func=np.nanmean,
-    reference_prefix="genes_round_1_1",
+    ref_prefix="genes_round",
     subresolutions=5,
     max_pixel_size=2,
 ):
+    """Stitch and save a single ROI
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): Number of the ROI
+        slice_id (int): Slice number to stitch
+        prefix (str, optional): Prefix of the acquisition to plot.
+        chan2use (tuple, optional): Channels to use for stitching. Defaults to (0, 1, 2, 3).
+        sigma_blur (int, optional): Sigma for gaussian blur. Defaults to 10.
+        agg_func (function, optional): Aggregation function for stitching. Defaults to
+            np.nanmean.
+        ref_prefix (str, optional): Prefix of the reference image. Defaults to
+            "genes_round".
+        subresolutions (int, optional): Number of subresolutions to save. Defaults to 5.
+        max_pixel_size (int, optional): Maximum pixel size for the pyramid. Defaults to 2.
+
+    """
     print(f"Data path: {data_path}")
     print(f"Roi: {roi}", flush=True)
     print(f"Slice id: {slice_id}", flush=True)
@@ -232,7 +250,9 @@ def overview_single_roi(
     ops = load_ops(data_path)
 
     print("Finding pixel size")
-    pixel_size = get_pixel_size(data_path, reference_prefix)
+    if ref_prefix == "genes_round":
+        ref_round_prefix = f"genes_round_{ops['ref_round']}_1"
+    pixel_size = get_pixel_size(data_path, ref_round_prefix)
 
     if chan2use is None:
         chan2use = [ops["ref_ch"]]
@@ -242,11 +262,12 @@ def overview_single_roi(
 
     print("Stitching ROI")
     stitched_stack = stitch.stitch_registered(
+        data_path=data_path,
+        prefix=prefix,
         roi=roi,
         filter_r=False,
-        data_path=data_path,
-        prefix=reference_prefix,
         channels=chan2use,
+        ref_prefix=ref_prefix,
     )
     print("Aggregating", flush=True)
     stitched_stack = agg_func(stitched_stack, axis=2)
