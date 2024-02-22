@@ -41,9 +41,10 @@ def project_and_average(data_path, force_redo=False):
     metadata = iss.io.load_metadata(data_path)
     slurm_folder = processed_path / "slurm_scripts"
     slurm_folder.mkdir(parents=True, exist_ok=True)
-
+    ops = iss.io.load_ops(data_path)
     # First, set up flexilims, adding chamber
-    iss.pipeline.setup_flexilims(data_path)
+    if ops['use_flexilims']:
+        iss.pipeline.setup_flexilims(data_path)
 
     # Make a list of expected acquisition folders using metadata.yml
     todo = ("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation")
@@ -75,18 +76,24 @@ def project_and_average(data_path, force_redo=False):
     # Run projection on unprojected data
     pr_job_ids = []
     proj, mouse, chamber = data_path.split(os.sep)[:-1]
-    flm_sess = flz.get_flexilims_session(project_id=proj)
+    if ops["use_flexilims"]:
+        flm_sess = flz.get_flexilims_session(project_id=proj)
     print(f"\nto_process: {to_process}")
     for prefix in to_process:
         if not force_redo:
             # Skip if already projected
-            flm_dataset = flz.get_entity(
-                name="_".join([mouse, chamber, f"project_round_{prefix}"]),
-                flexilims_session=flm_sess,
-            )
-            if flm_dataset is not None:
-                print(f"{prefix} is already projected, continuing", flush=True)
-                continue
+            if ops["use_flexilims"]:
+                flm_dataset = flz.get_entity(
+                    name="_".join([mouse, chamber, f"project_round_{prefix}"]),
+                    flexilims_session=flm_sess,
+                )
+                if flm_dataset is not None:
+                    print(f"{prefix} is already projected, continuing", flush=True)
+                    continue
+            else:
+                if (processed_path / prefix / "missing_tiles.txt").exists():
+                    print(f"{prefix} is already projected, continuing", flush=True)
+                    continue
         tileproj_job_ids, _ = iss.pipeline.project_round(
             data_path, prefix, overview=False
         )
@@ -106,7 +113,7 @@ def project_and_average(data_path, force_redo=False):
             scripts_name=f"check_projection_{prefix}",
             job_dependency=pr_job_ids,
         )
-        all_check_proj_job_ids.extend(check_proj_job_ids)
+        all_check_proj_job_ids.append(check_proj_job_ids)
     all_check_proj_job_ids = all_check_proj_job_ids if all_check_proj_job_ids else None
 
     # Then run iss.pipeline.reproject_failed() which opens txt files from check projection
@@ -145,12 +152,17 @@ def project_and_average(data_path, force_redo=False):
 
     po_job_ids = []
     for prefix in to_process:
-        flm_dataset = flz.get_entity(
-            name="_".join([mouse, chamber, f"plot_single_overview_{prefix}"]),
-            flexilims_session=flm_sess,
-        )
-        if not force_redo:
-            if flm_dataset:
+        if ops["use_flexilims"]:
+            flm_dataset = flz.get_entity(
+                name="_".join([mouse, chamber, f"plot_single_overview_{prefix}"]),
+                flexilims_session=flm_sess,
+            )
+            if not force_redo:
+                if flm_dataset:
+                    print(f"{prefix} is already plotted, continuing", flush=True)
+                    continue
+        else:
+            if (processed_path / "figures" / "round_overviews" / f"{Path(data_path).parts[2]}_roi_01_{prefix}_channels_0_1_2_3.png").exists():
                 print(f"{prefix} is already plotted, continuing", flush=True)
                 continue
         job_id = iss.vis.plot_overview_images(
@@ -270,8 +282,15 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                     f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
                 )
                 args = args + additional_args
-                log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
-                args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
+                import re
+                # Regular expression to find prefix
+                pattern = r",PREFIX=([^,]+)"
+                match = re.search(pattern, additional_args)
+                prefix = match.group(1) if match else None
+                log_fname = f"iss_{script}_{prefix}_{roi[0]}_{ix}_{iy}_%j"
+                log_dir = Path.home() / "slurm_logs"/ data_path / prefix
+                log_dir.mkdir(parents=True, exist_ok=True)
+                args = args + f" --output={log_dir}_{log_fname}.out"
                 command = f"sbatch --parsable {args} {script_path}"
                 print(command)
                 process = subprocess.Popen(
@@ -417,6 +436,7 @@ def create_all_single_averages(
         if average_image.exists():
             print(f"{folder} average already exists. Skipping")
             continue
+        print(f"Creating single average {folder}", flush=True)
         projection = ops[f"{folder.split('_')[0].lower()}_projection"]
         job_ids.append(
             create_single_average(
@@ -453,6 +473,7 @@ def create_grand_averages(
     subfolder = "averages"
     job_ids = []
     for kind in prefix_todo:
+        print(f"Creating grand average {kind}", flush=True)
         job_ids.append(
             create_single_average(
                 data_path,
