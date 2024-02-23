@@ -300,7 +300,7 @@ def get_tile_ome(fname, fmetadata):
     im = np.zeros((ypix, xpix, nch, nz))
     for page, frame_key in zip(stack.pages, frame_keys):
         ch_id = int(metadata[frame_key]["Camera"][-1])  # Actual channel ID
-        if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
+        if metadata[frame_keys[0]]["ROI"] == "394-174-3290-2460":
             z = unique_zs.index(metadata[frame_key]["ImageNumber"])
         else:
             z = unique_zs.index(metadata[frame_key]["ZPositionUm"])
