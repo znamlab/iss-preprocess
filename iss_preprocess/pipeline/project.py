@@ -15,7 +15,7 @@ from ..decorators import updates_flexilims
 from znamutils import slurm_it
 
 
-@slurm_it(conda_env="iss-preprocess")
+@slurm_it(conda_env="iss-preprocess", slurm_options={"time": "00:30:00", "mem": "8G"})
 def check_projection(data_path, prefix, suffixes=("max", "median")):
     """Check if all tiles have been projected successfully.
 
@@ -92,7 +92,7 @@ def reproject_failed(
         roi = int(tile.split("_MMStack_")[1].split("-")[0])
         ix = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[0])
         iy = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[1])
-        print(f"Reprojecting {prefix} {roi}_{ix}_{iy}!", flush=True)
+        print(f"Reprojecting {prefix} {roi}_{ix}_{iy}", flush=True)
         iss.pipeline.project_tile_by_coors((roi, ix, iy), data_path, prefix, overwrite=True)
     if len(missing_tiles) == 0:
         print("No failed tiles to re-project!", flush=True)
