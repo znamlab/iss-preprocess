@@ -101,16 +101,18 @@ def project_and_average(data_path, force_redo=False):
     pr_job_ids = pr_job_ids if pr_job_ids else None
     # TODO: Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
     #       This would need to take pr_job_ids and output more job_ids for csa to wait for
-
     # Something like this
     all_check_proj_job_ids = []
     for prefix in to_process:
+        slurm_folder = Path.home() / "slurm_logs" / data_path / prefix
+        slurm_folder.mkdir(parents=True, exist_ok=True)
         check_proj_job_ids = iss.pipeline.check_projection(
             data_path,
             prefix,
             use_slurm=True,
-            slurm_folder=f"{Path.home()}/slurm_logs",
+            slurm_folder=slurm_folder,
             scripts_name=f"check_projection_{prefix}",
+            dependency_type="afterany",
             job_dependency=pr_job_ids,
         )
         all_check_proj_job_ids.append(check_proj_job_ids)
@@ -118,11 +120,14 @@ def project_and_average(data_path, force_redo=False):
 
     # Then run iss.pipeline.reproject_failed() which opens txt files from check projection
     # and reprojects failed tiles, collecting job_ids for each tile
+    slurm_folder = Path.home() / "slurm_logs" / data_path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
     reproj_job_ids = iss.pipeline.reproject_failed(
         data_path,
         use_slurm=True,
-        slurm_folder=f"{Path.home()}/slurm_logs",
+        slurm_folder=slurm_folder,
         scripts_name=f"reproject_failed",
+        dependency_type="afterany",
         job_dependency=all_check_proj_job_ids
     )
     reproj_job_ids = reproj_job_ids if reproj_job_ids else None
@@ -287,10 +292,10 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 pattern = r",PREFIX=([^,]+)"
                 match = re.search(pattern, additional_args)
                 prefix = match.group(1) if match else None
-                log_fname = f"iss_{script}_{prefix}_{roi[0]}_{ix}_{iy}_%j"
+                log_fname = f"{prefix}_iss_{script}_{roi[0]}_{ix}_{iy}_%j"
                 log_dir = Path.home() / "slurm_logs"/ data_path / prefix
                 log_dir.mkdir(parents=True, exist_ok=True)
-                args = args + f" --output={log_dir}_{log_fname}.out"
+                args = args + f" --output={log_dir}/{log_fname}.out"
                 command = f"sbatch --parsable {args} {script_path}"
                 print(command)
                 process = subprocess.Popen(
@@ -438,6 +443,8 @@ def create_all_single_averages(
             continue
         print(f"Creating single average {folder}", flush=True)
         projection = ops[f"{folder.split('_')[0].lower()}_projection"]
+        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
         job_ids.append(
             create_single_average(
                 data_path,
@@ -447,7 +454,7 @@ def create_all_single_averages(
                 prefix_filter=None,
                 suffix=projection,
                 use_slurm=True,
-                slurm_folder=f"{Path.home()}/slurm_logs",
+                slurm_folder=slurm_folder,
                 scripts_name=f"create_single_average_{folder}",
                 job_dependency=dependency if dependency else None,
             )
@@ -472,6 +479,8 @@ def create_grand_averages(
     """
     subfolder = "averages"
     job_ids = []
+    slurm_folder = Path.home() / "slurm_logs" / data_path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
     for kind in prefix_todo:
         print(f"Creating grand average {kind}", flush=True)
         job_ids.append(
@@ -484,7 +493,7 @@ def create_grand_averages(
                 combine_tilestats=True,
                 suffix="_1_average",
                 use_slurm=True,
-                slurm_folder=f"{Path.home()}/slurm_logs",
+                slurm_folder=slurm_folder,
                 scripts_name=f"create_grand_average_{kind}",
                 job_dependency=dependency if dependency else None,
             )
@@ -543,8 +552,8 @@ def overview_for_ara_registration(
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         args = (
             args
-            + f" --output={Path.home()}/slurm_logs/iss_overview_roi_%j.out"
-            + f" --error={Path.home()}/slurm_logs/iss_overview_roi_%j.err"
+            + f" --output={Path.home()}/slurm_logs/{data_path}/iss_overview_roi_%j.out"
+            + f" --error={Path.home()}/slurm_logs/{data_path}/iss_overview_roi_%j.err"
         )
         command = f"sbatch {args} {script_path}"
         print(command)
@@ -563,7 +572,7 @@ def setup_channel_correction(data_path, use_slurm=True):
 
     """
     ops = load_ops(data_path)
-    slurm_folder = Path.home() / "slurm_logs"
+    slurm_folder = Path.home() / "slurm_logs" / data_path
     if ops["barcode_rounds"] > 0:
         iss.pipeline.estimate_channel_correction(
             data_path,
