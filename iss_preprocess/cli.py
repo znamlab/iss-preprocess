@@ -171,7 +171,8 @@ def register_ref_tile(path, prefix, diag):
     from iss_preprocess.pipeline import register_reference_tile
     from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
-    slurm_folder = f"{Path.home()}/slurm_logs"
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
     slurm_options = {"mem": "128G"} if diag else None
     job_id = register_reference_tile(
         path,
@@ -198,7 +199,8 @@ def setup_omp(path, use_slurm=True):
     from iss_preprocess.pipeline import setup_omp
     from pathlib import Path
 
-    slurm_folder = Path.home() / "slurm_logs"
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
     setup_omp(
         path, use_slurm=use_slurm, slurm_folder=slurm_folder, scripts_name="setup_omp"
     )
@@ -429,7 +431,7 @@ def basecall(path):
     from pathlib import Path
 
     ops = load_ops(path)
-    slurm_folder = Path.home() / "slurm_logs" / path / "barcode_round"
+    slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     for index in range(len(ops["barcode_ref_tiles"])):
         check_barcode_basecall(
@@ -452,7 +454,7 @@ def check_basecall(path, use_slurm=False, ref_tile_index=0):
 
     if use_slurm:
         from pathlib import Path
-        slurm_folder = Path.home() / "slurm_logs" / path / "barcode_round"
+        slurm_folder = Path.home() / "slurm_logs" / path
         slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
         slurm_folder = None

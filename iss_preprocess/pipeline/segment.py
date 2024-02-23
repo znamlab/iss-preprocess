@@ -33,7 +33,7 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
             args = args + ",USE_GPU=--use-gpu --partition=gpu --gpus-per-node=1"
         else:
             args = args + " --partition=cpu"
-        args = args + f" --output={Path.home()}/slurm_logs/iss_segment_%j.out"
+        args = args + f" --output={Path.home()}/slurm_logs/{data_path}/iss_segment_%j.out"
 
         command = f"sbatch {args} {script_path}"
         print(command)

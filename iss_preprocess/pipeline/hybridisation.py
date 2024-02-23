@@ -250,7 +250,7 @@ def extract_hyb_spots_all(data_path):
     for hyb_round in metadata["hybridisation"].keys():
         for roi in roi_dims[use_rois, :]:
             args = f"--export=DATAPATH={data_path},ROI={roi[0]},PREFIX={hyb_round}"
-            args = args + f" --output={Path.home()}/slurm_logs/iss_hyb_spots_%j.out"
+            args = args + f" --output={Path.home()}/{data_path}/slurm_logs/iss_hyb_spots_%j.out"
             command = f"sbatch {args} {script_path}"
             print(command)
             subprocess.Popen(

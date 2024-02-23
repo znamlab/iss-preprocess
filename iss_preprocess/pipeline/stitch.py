@@ -784,8 +784,8 @@ def merge_and_align_spots_all_rois(
     for roi in roi_dims[use_rois, 0]:
         args = f"--export=DATAPATH={data_path},ROI={roi},"
         args += f"SPOTS_PREFIX={spots_prefix},REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
-        args += f" --output={Path.home()}/slurm_logs/iss_align_spots_%j.out"
-        args += f" --error={Path.home()}/slurm_logs/iss_align_spots_%j.err"
+        args += f" --output={Path.home()}/slurm_logs/{data_path}/iss_align_spots_%j.out"
+        args += f" --error={Path.home()}/slurm_logs/{data_path}/iss_align_spots_%j.err"
         command = f"sbatch {args} {script_path}"
         print(command)
         system(command)
