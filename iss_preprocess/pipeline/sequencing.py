@@ -374,8 +374,8 @@ def load_and_register_sequencing_tile(
         data_path (str): Relative path to data.
         tile_coors (tuple, options): Coordinates of tile to load: ROI, Xpos, Ypos.
             Defaults to (1, 0, 0).
-        prefix (str, optional): Prefix of the hybridisation round.
-            Defaults to "hybridisation_1_1".
+        prefix (str, optional): Prefix of the sequencing round.
+            Defaults to "genes_round".
         suffix (str, optional): Filename suffix corresponding to the z-projection
             to use. Defaults to "fstack".
         filter_r (tuple, optional): Inner and out radius for the hanning filter.
@@ -423,24 +423,8 @@ def load_and_register_sequencing_tile(
     if correct_illumination:
         stack = apply_illumination_correction(data_path, stack, prefix)
 
-    if corrected_shifts == "reference":
-        tforms_fname = f"tforms_{prefix}.npz"
-        tforms_path = processed_path / tforms_fname
-    elif corrected_shifts == "single_tile":
-        tforms_fname = (
-            f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
-        )
-        tforms_path = processed_path / "reg" / tforms_fname
-    elif corrected_shifts == "ransac":
-        tforms_fname = f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
-        tforms_path = processed_path / "reg" / tforms_fname
-    elif corrected_shifts == "best":
-        tforms_fname = (
-            f"tforms_best_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
-        )
-        tforms_path = processed_path / "reg" / tforms_fname
     ops = iss.io.load_ops(data_path)
-    tforms = np.load(tforms_path, allow_pickle=True)
+    tforms = get_channel_round_shifts(data_path, prefix, tile_coors, corrected_shifts)
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],
@@ -469,6 +453,41 @@ def load_and_register_sequencing_tile(
             stack = stack / norm_factors[np.newaxis, np.newaxis, :, specific_rounds - 1]
 
     return stack, bad_pixels
+
+
+def get_channel_round_shifts(data_path, prefix, tile_coors, corrected_shifts):
+    """Load the channel and round shifts for a given tile and sequencing acquisition.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Prefix of the sequencing round.
+        tile_coors (tuple): Coordinates of the tile to process.
+        corrected_shifts (str): Which shift to use. One of `reference`, `single_tile`,
+            `ransac`, or `best`.
+
+    Returns:
+        np.ndarray: Array of channel and round shifts.
+
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
+    match corrected_shifts:
+        case "reference":
+            tforms_fname = f"tforms_{prefix}.npz"
+            tforms_path = processed_path
+        case "single_tile":
+            tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
+            tforms_path = processed_path / "reg"
+        case "ransac":
+            tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
+            tforms_path = processed_path / "reg"
+        case "best":
+            tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
+            tforms_path = processed_path / "reg"
+        case _:
+            raise ValueError(f"unknown shift correction method: {corrected_shifts}")
+    tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
+    return tforms
 
 
 def compute_spot_sign_image(data_path, prefix="genes_round"):
