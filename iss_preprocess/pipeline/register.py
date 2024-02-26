@@ -654,7 +654,7 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
     if ref_prefix.startswith(prefix):
         # it is the ref, no need to register
         return spots
-    
+
     ops = load_ops(data_path)
     match ops["corrected_shifts"]:
         case "single_tile":

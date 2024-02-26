@@ -623,6 +623,7 @@ def align_spots_roi(
         merge_and_align_spots,
         stitch_and_register,
     )
+
     click.echo(f"Registering ROI {roi} to {ref_prefix} using {reg_prefix}")
     if ref_prefix != reg_prefix:
         stitch_and_register(
