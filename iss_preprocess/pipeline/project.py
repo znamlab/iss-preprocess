@@ -66,6 +66,32 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
     if not not_projected:
         print(f"all tiles projected for {data_path} {prefix}!", flush=True)
 
+@slurm_it(conda_env="iss-preprocess")
+def check_roi_dims(data_path):
+    """
+    Check if all ROI dimensions are the same across rounds.
+    
+    Raises:
+        ValueError: If ROI dimensions are not the same across rounds.
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    rounds_info = []
+    for root, dirs, _ in os.walk(processed_path):
+        dirs.sort()
+        for d in dirs:
+            if d.endswith(f"_1"):
+                roi_dims = iss.io.get_roi_dimensions(data_path, d)
+                rounds_info.append((d, roi_dims))
+
+    all_same = all(np.array_equal(rounds_info[0][1], roi_dim) for _, roi_dim in rounds_info)
+    if not all_same:
+        differences = ""
+        for i, (round_name, roi_dims) in enumerate(rounds_info):
+            if not np.array_equal(rounds_info[0][1], roi_dims):
+                differences += f"{round_name} \n{roi_dims} \n{rounds_info[0][0]} \n{rounds_info[0][1]}\n"
+        raise ValueError(f"Differences in roi_dims found across rounds:\n{differences}")
+    else:
+        print("All ROI dimensions are the same across rounds.", flush=True)
 
 @slurm_it(conda_env="iss-preprocess")
 def reproject_failed(

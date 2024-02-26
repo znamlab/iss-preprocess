@@ -99,9 +99,19 @@ def project_and_average(data_path, force_redo=False):
         )
         pr_job_ids.extend(tileproj_job_ids)
     pr_job_ids = pr_job_ids if pr_job_ids else None
-    # TODO: Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
-    #       This would need to take pr_job_ids and output more job_ids for csa to wait for
-    # Something like this
+
+    # Now check that all roi_dims are the same, can sometimes be truncated
+    # if project_round occurs during data transfer
+    roi_dim_job_ids = iss.pipeline.check_roi_dims(
+        data_path,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        scripts_name=f"check_roi_dims_{prefix}",
+        dependency_type="afterany",
+        job_dependency=pr_job_ids
+        )
+
+    # Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
     all_check_proj_job_ids = []
     for prefix in to_process:
         slurm_folder = Path.home() / "slurm_logs" / data_path / prefix
@@ -112,8 +122,7 @@ def project_and_average(data_path, force_redo=False):
             use_slurm=True,
             slurm_folder=slurm_folder,
             scripts_name=f"check_projection_{prefix}",
-            dependency_type="afterany",
-            job_dependency=pr_job_ids,
+            job_dependency=roi_dim_job_ids,
         )
         all_check_proj_job_ids.append(check_proj_job_ids)
     all_check_proj_job_ids = all_check_proj_job_ids if all_check_proj_job_ids else None
@@ -137,7 +146,7 @@ def project_and_average(data_path, force_redo=False):
         data_path, n_batch=1, to_average=to_process, dependency=reproj_job_ids
     )
 
-    # Create grand averages if all rounds are projected
+    # Create grand averages if all rounds of a certain type are projected
     if acquisition_complete["genes_rounds"] or acquisition_complete["barcode_rounds"]:
         cga_job_ids = iss.pipeline.create_grand_averages(
             data_path, dependency= csa_job_ids if csa_job_ids else None
@@ -154,7 +163,6 @@ def project_and_average(data_path, force_redo=False):
 
     # TODO: When plotting overview, check whether grand average has occured if it is a
     # 'round' type, use it if so, otherwise use single average.
-
     po_job_ids = []
     for prefix in to_process:
         if ops["use_flexilims"]:
