@@ -648,7 +648,6 @@ def stitch_and_register(
 
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
-            data_path,
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
             niter=3,
@@ -660,7 +659,6 @@ def stitch_and_register(
         )
     else:
         angle, shift = estimate_rotation_translation(
-            data_path,
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
             angle_range=1.0,
