@@ -450,7 +450,7 @@ def plot_overview_images(
                 scripts_name = f"plot_overview_{prefix}_{roi}_channels_{'_'.join([str(c) for c in ch])}"
             else:
                 scripts_name = f"plot_overview_{prefix}_{roi}_channel_{ch}"
-            slurm_folder= Path.home() / "slurm_logs" / data_path / "plot_overview/"
+            slurm_folder = Path.home() / "slurm_logs" / data_path / "plot_overview/"
             slurm_folder.mkdir(parents=True, exist_ok=True)
             job_ids.append(
                 plot_single_overview(

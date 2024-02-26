@@ -19,6 +19,7 @@ from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
 from .sequencing import load_and_register_sequencing_tile
 
+
 @slurm_it(conda_env="iss-preprocess")
 def project_and_average(data_path, force_redo=False):
     """Project and average all available data then create plots.
@@ -43,7 +44,7 @@ def project_and_average(data_path, force_redo=False):
     slurm_folder.mkdir(parents=True, exist_ok=True)
     ops = iss.io.load_ops(data_path)
     # First, set up flexilims, adding chamber
-    if ops['use_flexilims']:
+    if ops["use_flexilims"]:
         iss.pipeline.setup_flexilims(data_path)
 
     # Make a list of expected acquisition folders using metadata.yml
@@ -108,8 +109,8 @@ def project_and_average(data_path, force_redo=False):
         slurm_folder=slurm_folder,
         scripts_name=f"check_roi_dims_{prefix}",
         dependency_type="afterany",
-        job_dependency=pr_job_ids
-        )
+        job_dependency=pr_job_ids,
+    )
 
     # Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
     all_check_proj_job_ids = []
@@ -137,7 +138,7 @@ def project_and_average(data_path, force_redo=False):
         slurm_folder=slurm_folder,
         scripts_name=f"reproject_failed",
         dependency_type="afterany",
-        job_dependency=all_check_proj_job_ids
+        job_dependency=all_check_proj_job_ids,
     )
     reproj_job_ids = reproj_job_ids if reproj_job_ids else None
 
@@ -149,7 +150,7 @@ def project_and_average(data_path, force_redo=False):
     # Create grand averages if all rounds of a certain type are projected
     if acquisition_complete["genes_rounds"] or acquisition_complete["barcode_rounds"]:
         cga_job_ids = iss.pipeline.create_grand_averages(
-            data_path, dependency= csa_job_ids if csa_job_ids else None
+            data_path, dependency=csa_job_ids if csa_job_ids else None
         )
     else:
         print(
@@ -175,7 +176,12 @@ def project_and_average(data_path, force_redo=False):
                     print(f"{prefix} is already plotted, continuing", flush=True)
                     continue
         else:
-            if (processed_path / "figures" / "round_overviews" / f"{Path(data_path).parts[2]}_roi_01_{prefix}_channels_0_1_2_3.png").exists():
+            if (
+                processed_path
+                / "figures"
+                / "round_overviews"
+                / f"{Path(data_path).parts[2]}_roi_01_{prefix}_channels_0_1_2_3.png"
+            ).exists():
                 print(f"{prefix} is already plotted, continuing", flush=True)
                 continue
         job_id = iss.vis.plot_overview_images(
@@ -296,12 +302,13 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 )
                 args = args + additional_args
                 import re
+
                 # Regular expression to find prefix
                 pattern = r",PREFIX=([^,]+)"
                 match = re.search(pattern, additional_args)
                 prefix = match.group(1) if match else None
                 log_fname = f"{prefix}_iss_{script}_{roi[0]}_{ix}_{iy}_%j"
-                log_dir = Path.home() / "slurm_logs"/ data_path / prefix
+                log_dir = Path.home() / "slurm_logs" / data_path / prefix
                 log_dir.mkdir(parents=True, exist_ok=True)
                 args = args + f" --output={log_dir}/{log_fname}.out"
                 command = f"sbatch --parsable {args} {script_path}"

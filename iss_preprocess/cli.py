@@ -21,6 +21,7 @@ def project_and_average(path, force_redo=False, use_slurm=True):
     """Project and average all available data then create plots."""
     from iss_preprocess.pipeline import project_and_average
     from pathlib import Path
+
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     click.echo(f"Processing {path}")
@@ -31,6 +32,7 @@ def project_and_average(path, force_redo=False, use_slurm=True):
         slurm_folder=slurm_folder,
         scripts_name="project_and_average",
     )
+
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
@@ -313,8 +315,9 @@ def correct_shifts(path, prefix, use_slurm=False):
 
     if use_slurm:
         from pathlib import Path
+
         slurm_folder = Path.home() / "slurm_logs" / path
-        slurm_folder.mkdir(parents=True, exist_ok=True) 
+        slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
         slurm_folder = None
     job_id = corr_shifts(
@@ -369,6 +372,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
 
     if use_slurm:
         from pathlib import Path
+
         slurm_folder = Path.home() / "slurm_logs" / path
         slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
@@ -402,14 +406,13 @@ def spot_sign_image(path, prefix="genes_round"):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option(
-    "-r", "--roi", default=None, help="Number of the ROI.."
-)
+@click.option("-r", "--roi", default=None, help="Number of the ROI..")
 @click.option("-x", "--tilex", default=None, help="Tile X position")
 @click.option("-y", "--tiley", default=None, help="Tile Y position.")
 def check_omp(path, roi, tilex, tiley):
     """Compute average spot image."""
     from iss_preprocess.pipeline import check_omp_thresholds
+
     if roi is not None and tilex is not None and tiley is not None:
         check_omp_thresholds(path, tile_coors=(roi, tilex, tiley))
     else:
@@ -454,6 +457,7 @@ def check_basecall(path, use_slurm=False, ref_tile_index=0):
 
     if use_slurm:
         from pathlib import Path
+
         slurm_folder = Path.home() / "slurm_logs" / path
         slurm_folder.mkdir(parents=True, exist_ok=True)
     else:

@@ -181,6 +181,7 @@ def check_tile_registration(
             axes_titles=corrections,
         )
 
+
 @slurm_it(conda_env="iss-preprocess")
 def check_shift_correction(
     data_path, prefix="genes_round", roi_dimension_prefix="genes_round_1_1"

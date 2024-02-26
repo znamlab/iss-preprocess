@@ -186,7 +186,9 @@ def load_micromanager_metadata(data_path, prefix):
     # the metadata for the first ROI is always copied. Just in case the first ROI is not
     # ROI 1, we find whichever is available
     fmetadata = list(acq_folder.glob("*_metadata.txt"))
-    assert len(fmetadata) > 0, f"No image metadata files found for {data_path} / {prefix}"
+    assert (
+        len(fmetadata) > 0
+    ), f"No image metadata files found for {data_path} / {prefix}"
     fmetadata = fmetadata[0]
     with open(fmetadata) as json_file:
         metadata = json.load(json_file)

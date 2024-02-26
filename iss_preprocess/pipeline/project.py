@@ -55,7 +55,7 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
                     if not proj_path.exists():
                         print(f"{proj_path} missing!", flush=True)
                         not_projected.append(fname)
-    
+
     np.savetxt(
         processed_path / prefix / "missing_tiles.txt",
         not_projected,
@@ -66,11 +66,13 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
     if not not_projected:
         print(f"all tiles projected for {data_path} {prefix}!", flush=True)
 
+
 @slurm_it(conda_env="iss-preprocess")
 def check_roi_dims(data_path):
     """
     Check if all ROI dimensions are the same across rounds.
-    
+    Args:
+        data_path (str): Relative path to data.
     Raises:
         ValueError: If ROI dimensions are not the same across rounds.
     """
@@ -83,7 +85,9 @@ def check_roi_dims(data_path):
                 roi_dims = iss.io.get_roi_dimensions(data_path, d)
                 rounds_info.append((d, roi_dims))
 
-    all_same = all(np.array_equal(rounds_info[0][1], roi_dim) for _, roi_dim in rounds_info)
+    all_same = all(
+        np.array_equal(rounds_info[0][1], roi_dim) for _, roi_dim in rounds_info
+    )
     if not all_same:
         differences = ""
         for i, (round_name, roi_dims) in enumerate(rounds_info):
@@ -92,6 +96,7 @@ def check_roi_dims(data_path):
         raise ValueError(f"Differences in roi_dims found across rounds:\n{differences}")
     else:
         print("All ROI dimensions are the same across rounds.", flush=True)
+
 
 @slurm_it(conda_env="iss-preprocess")
 def reproject_failed(
@@ -105,7 +110,9 @@ def reproject_failed(
     """
     processed_path = iss.io.get_processed_path(data_path)
     missing_tiles = []
-    for prefix in [d for root, dirs, _ in os.walk(processed_path) for d in dirs if d.endswith("_1")]:
+    for prefix in [
+        d for root, dirs, _ in os.walk(processed_path) for d in dirs if d.endswith("_1")
+    ]:
         for fname in (
             (processed_path / prefix / "missing_tiles.txt").read_text().split("\n")
         ):
@@ -119,7 +126,9 @@ def reproject_failed(
         ix = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[0])
         iy = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[1])
         print(f"Reprojecting {prefix} {roi}_{ix}_{iy}", flush=True)
-        iss.pipeline.project_tile_by_coors((roi, ix, iy), data_path, prefix, overwrite=True)
+        iss.pipeline.project_tile_by_coors(
+            (roi, ix, iy), data_path, prefix, overwrite=True
+        )
     if len(missing_tiles) == 0:
         print("No failed tiles to re-project!", flush=True)
 

@@ -94,6 +94,7 @@ def tilestats_and_mean_image(
     normalise=False,
     combine_tilestats=False,
     exclude_tiffs=None,
+    row_filter=None,
 ):
     """
     Compute tile statistics and mean image to use for illumination correction.
@@ -120,6 +121,7 @@ def tilestats_and_mean_image(
         combine_tilestats (bool, optional): If False, compute tilestats, if True, load
             already created tilestats for each tif and sum them.
         exclude_tiffs (list, optional): List of str filter to exclude tiffs from average
+        row_filter (str, optional): If "even"/"odd", only average tiffs on even/odd rows
 
     Returns:
         numpy.ndarray: correction image
@@ -138,6 +140,12 @@ def tilestats_and_mean_image(
         tiffs = [t for t in tiffs if not any([f in t.name for f in exclude_tiffs])]
     if not len(tiffs):
         raise IOError(f"NO valid tifs in folder {data_folder}")
+    # Filter tiffs to only even or odd numbered tiffs
+    if row_filter == "even":
+        # Search tif for even number in
+        tiffs = [t for t in tiffs if int(t.stem.split("_")[-1]) % 2 == 0]
+    elif row_filter == "odd":
+        tiffs = [t for t in tiffs if int(t.stem.split("_")[-1]) % 2 == 1]
 
     black_level = np.asarray(black_level)  # in case we have just a float
     if verbose:
