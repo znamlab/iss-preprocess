@@ -458,7 +458,7 @@ def create_all_single_averages(
             continue
         print(f"Creating single average {folder}", flush=True)
         projection = ops[f"{folder.split('_')[0].lower()}_projection"]
-        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
         slurm_folder.mkdir(parents=True, exist_ok=True)
         job_ids.append(
             create_single_average(
@@ -494,7 +494,7 @@ def create_grand_averages(
     """
     subfolder = "averages"
     job_ids = []
-    slurm_folder = Path.home() / "slurm_logs" / data_path
+    slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
     slurm_folder.mkdir(parents=True, exist_ok=True)
     for kind in prefix_todo:
         print(f"Creating grand average {kind}", flush=True)
