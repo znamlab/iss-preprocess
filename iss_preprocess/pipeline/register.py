@@ -655,24 +655,8 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
         # it is the ref, no need to register
         return spots
 
-    ops = load_ops(data_path)
-    match ops["corrected_shifts"]:
-        case "single_tile":
-            corrected_shifts = ""
-        case "ransac":
-            corrected_shifts = "_corrected"
-        case "best":
-            corrected_shifts = "_best"
-        case _:
-            raise ValueError(
-                f"Corrected shifts {ops['corrected_shifts']} not recognised"
-            )
+    tform2ref = get_shifts_to_ref(data_path, prefix, roi, tilex, tiley)
 
-    tform2ref = np.load(
-        processed_path
-        / "reg"
-        / f"tforms{corrected_shifts}_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
-    )
     # always get tile shape for ref_prefix
     tile_shape = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")[
         "tile_shape"
@@ -689,3 +673,39 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
     spots["x"] = [x for x in transformed_coors[0, :]]
     spots["y"] = [y for y in transformed_coors[1, :]]
     return spots
+
+
+def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
+    """Get the shifts to reference coordinates for a given tile
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of the tile to register
+        roi (int): ROI ID
+        tilex (int): X coordinate of the tile
+        tiley (int): Y coordinate of the tile
+
+    Returns:
+        np.NpzFile: The transformation parameter to reference coordinates
+
+    """
+
+    ops = load_ops(data_path)
+    match ops["corrected_shifts"]:
+        case "single_tile":
+            corrected_shifts = ""
+        case "ransac":
+            corrected_shifts = "_corrected"
+        case "best":
+            corrected_shifts = "_best"
+        case _:
+            raise ValueError(
+                f"Corrected shifts {ops['corrected_shifts']} not recognised"
+            )
+    processed_path = iss.io.get_processed_path(data_path)
+    tform2ref = np.load(
+        processed_path
+        / "reg"
+        / f"tforms{corrected_shifts}_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
+    )
+    return tform2ref

@@ -621,8 +621,6 @@ def detect_genes_on_tile(data_path, tile_coors, save_stack=False, prefix="genes_
         tile_coors (tuple): Coordinates of tile to load: ROI, Xpos, Ypos.
         save_stack (bool, optional): Whether to save registered and preprocessed images.
             Defaults to False.
-        correct_channels (bool or str, optional): Whether to apply channel normalization.
-            If not False, can specify normalization method, e.g. "round1_only". Defaults to False.
         prefix (str, optional): Prefix of the sequencing read to analyse.
             Defaults to "genes_round".
 
