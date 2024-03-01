@@ -60,11 +60,18 @@ def segment_roi(
     ops = load_ops(data_path)
     print(f"stitching {prefix} and aligning to {reference}", flush=True)
     stitched_stack = stitch_registered(
-        data_path, ref_prefix=reference, prefix=prefix, roi=iroi
+        data_path,
+        ref_prefix=reference,
+        prefix=prefix,
+        roi=iroi,
+        channels=ops["segmentation_channels"],
     )
+    if stitched_stack.ndim == 3:
+        stitched_stack = np.nanmean(stitched_stack, axis=-1)
+
     print("starting segmentation", flush=True)
     masks = cellpose_segmentation(
-        stitched_stack[..., 0],
+        stitched_stack,
         channels=(0, 0),
         flow_threshold=ops["cellpose_flow_threshold"],
         min_pix=0,

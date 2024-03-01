@@ -68,8 +68,8 @@ def detect_spots(im, threshold=100, spot_size=2):
 def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None):
     """Make an image by convolving spots with a gaussian
 
-    A single isolated rolony results in a gaussian with sd about `kernel_size / 3` and
-    an amplitude of 1
+    A single isolated rolony results in a gaussian with sigma `gaussian_width` 
+    and an amplitude of 1
 
     Args:
         spots (pandas.DataFrame): Spots DataFrame. Must have `x` and `y` columns
