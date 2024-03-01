@@ -534,8 +534,6 @@ def merge_roi_spots(
         for iy in range(ntiles[1]):
             try:
                 spots = align_spots(data_path, tile_coors=(iroi, ix, iy), prefix=prefix)
-                # calculate distance to tile centers
-
                 spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
                 spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
@@ -701,13 +699,15 @@ def merge_and_align_spots(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
+    keep_all_spots=False,
 ):
     """Combine spots across tiles and align to reference coordinates for a single ROI.
 
-    We first generate a DataFrame containing all spots in global coordinates
-    of the acquisition they were detected in using `merge_roi_spots`. We then
-    transform their coordinates into coordinates of the reference genes round
-    using the transformation estimated by `stitch_and_register`.
+    For each tile, spots will be registered to the reference coordinates using
+    `iss.pipeline.register.align_spots`. The spots will then be merged together using
+    `merge_roi_spots`. To avoid duplicate spots, we define a set of tile centers and
+    keep only the spots that are closest to the center of the tile they were detected on.
+
 
     Args:
         data_path (str): Relative path to data.
@@ -718,6 +718,8 @@ def merge_and_align_spots(
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
         ref_prefix (str, optional): Acquisition prefix of the reference acquistion
             to transform spot coordinates to. Defaults to "genes_round_1_1".
+        keep_all_spots (bool, optional): If True, keep all spots. Otherwise, keep only
+            spots which are closer to the tile_centers. Defaults to False.
 
     Returns:
         pandas.DataFrame: DataFrame containing all spots in reference coordinates.
@@ -755,6 +757,7 @@ def merge_and_align_spots(
         tile_centers=trans_centers,
         tile_origins=ref_origins,
         iroi=roi,
+        keep_all_spots=keep_all_spots,
     )
 
     spots.to_pickle(processed_path / f"{spots_prefix}_spots_{roi}.pkl")
