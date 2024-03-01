@@ -651,6 +651,7 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
     spots = pd.read_pickle(
         processed_path / "spots" / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
     )
+    spots['tile'] = f"{roi}_{tilex}_{tiley}"
     if ref_prefix.startswith(prefix):
         # it is the ref, no need to register
         return spots
