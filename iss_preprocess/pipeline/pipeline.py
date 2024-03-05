@@ -115,7 +115,7 @@ def project_and_average(data_path, force_redo=False):
     # Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
     all_check_proj_job_ids = []
     for prefix in to_process:
-        slurm_folder = Path.home() / "slurm_logs" / data_path / prefix
+        slurm_folder = Path.home() / "slurm_logs" / data_path
         slurm_folder.mkdir(parents=True, exist_ok=True)
         check_proj_job_ids = iss.pipeline.check_projection(
             data_path,
@@ -123,6 +123,7 @@ def project_and_average(data_path, force_redo=False):
             use_slurm=True,
             slurm_folder=slurm_folder,
             scripts_name=f"check_projection_{prefix}",
+            dependency_type="afterany",
             job_dependency=roi_dim_job_ids,
         )
         all_check_proj_job_ids.append(check_proj_job_ids)
@@ -160,7 +161,8 @@ def project_and_average(data_path, force_redo=False):
 
     plot_job_ids = csa_job_ids if csa_job_ids else None
     if cga_job_ids:
-        plot_job_ids.extend(cga_job_ids)
+        if plot_job_ids:
+            plot_job_ids.extend(cga_job_ids)
 
     # TODO: When plotting overview, check whether grand average has occured if it is a
     # 'round' type, use it if so, otherwise use single average.
@@ -190,6 +192,7 @@ def project_and_average(data_path, force_redo=False):
             plot_grid=True,
             downsample_factor=25,
             save_raw=False,
+            dependency_type="afterany",
             dependency=plot_job_ids,
         )
         po_job_ids.extend(job_id)
@@ -471,6 +474,7 @@ def create_all_single_averages(
                 use_slurm=True,
                 slurm_folder=slurm_folder,
                 scripts_name=f"create_single_average_{folder}",
+                dependency_type="afterany",
                 job_dependency=dependency if dependency else None,
             )
         )
