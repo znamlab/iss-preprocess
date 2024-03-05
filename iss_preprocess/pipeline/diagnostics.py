@@ -950,11 +950,31 @@ def check_omp_thresholds(
 
 
 def check_segmentation(
-    data_path, roi, prefix, reference="genes_round_1_1", stitched_stack=None, masks=None
+    data_path,
+    roi,
+    prefix,
+    reference="genes_round_1_1",
+    stitched_stack=None,
+    masks=None,
+    save_fig=True,
 ):
     """Check that segmentation is working properly
 
     Compare masks to the original images
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): ROI to process
+        prefix (str): Acquisition prefix, "barcode_round" for instance.
+        reference (str, optional): Reference prefix. Defaults to "genes_round_1_1".
+        stitched_stack (np.ndarray, optional): Stitched stack to use. If None, will
+            stitch and align the images. Defaults to None.
+        masks (np.ndarray, optional): Masks to use. If None, will load them. Defaults
+            to None.
+        save_fig (bool, optional): Save the figure. Defaults to True.
+
+    Returns:
+        plt.Figure: Figure
     """
     figure_folder = iss.io.get_processed_path(data_path) / "figures" / "segmentation"
     figure_folder.mkdir(exist_ok=True, parents=True)
@@ -1023,8 +1043,10 @@ def check_segmentation(
                     ax.contour(mask, colors="orange", levels=[0.5], linewidths=0.3)
                 ax.axis("off")
     fig.tight_layout()
-    fig.savefig(figure_folder / f"segmentation_{prefix}_roi{roi}.png", dpi=600)
-    print(f"Saved to {figure_folder / f'segmentation_{prefix}_roi{roi}.png'}")
+    if save_fig:
+        fig.savefig(figure_folder / f"segmentation_{prefix}_roi{roi}.png", dpi=600)
+        print(f"Saved to {figure_folder / f'segmentation_{prefix}_roi{roi}.png'}")
+    return fig
 
 
 @slurm_it(conda_env="iss-preprocess")

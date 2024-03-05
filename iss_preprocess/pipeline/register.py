@@ -632,12 +632,15 @@ def filter_ransac_shifts_to_ref(data_path, prefix, roi_dims, max_residuals=10):
 
 
 def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
-    """Use previously computed transformation matrices to align spots to reference coordinates.
+    """Use previously computed transformation matrices to align spots to reference
+    coordinates.
 
     Args:
         data_path (str): Relative path to data
         tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates
         prefix (str): Prefix of spots to load
+        ref_prefix (str, optional): Prefix of the reference spots. Defaults to
+            "genes_round_1_1".
 
     Returns:
         pd.DataFrame: The spot dataframe with x and y registered to reference tile.
@@ -648,16 +651,14 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
     spots = pd.read_pickle(
         processed_path / "spots" / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
     )
+    spots['tile'] = f"{roi}_{tilex}_{tiley}"
     if ref_prefix.startswith(prefix):
         # it is the ref, no need to register
         return spots
 
-    tform2ref = np.load(
-        processed_path
-        / "reg"
-        / f"tforms_corrected_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
-    )
-    # always get tile shape for genes_round_1_1
+    tform2ref = get_shifts_to_ref(data_path, prefix, roi, tilex, tiley)
+
+    # always get tile shape for ref_prefix
     tile_shape = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")[
         "tile_shape"
     ]
@@ -673,3 +674,39 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
     spots["x"] = [x for x in transformed_coors[0, :]]
     spots["y"] = [y for y in transformed_coors[1, :]]
     return spots
+
+
+def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
+    """Get the shifts to reference coordinates for a given tile
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of the tile to register
+        roi (int): ROI ID
+        tilex (int): X coordinate of the tile
+        tiley (int): Y coordinate of the tile
+
+    Returns:
+        np.NpzFile: The transformation parameter to reference coordinates
+
+    """
+
+    ops = load_ops(data_path)
+    match ops["corrected_shifts"]:
+        case "single_tile":
+            corrected_shifts = ""
+        case "ransac":
+            corrected_shifts = "_corrected"
+        case "best":
+            corrected_shifts = "_best"
+        case _:
+            raise ValueError(
+                f"Corrected shifts {ops['corrected_shifts']} not recognised"
+            )
+    processed_path = iss.io.get_processed_path(data_path)
+    tform2ref = np.load(
+        processed_path
+        / "reg"
+        / f"tforms{corrected_shifts}_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
+    )
+    return tform2ref

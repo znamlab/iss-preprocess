@@ -594,13 +594,13 @@ def register_to_reference(
 )
 @click.option(
     "-g",
-    "--reg_prefix",
+    "--reg-prefix",
     default="barcode_round_1_1",
     help="Directory prefix to registration target.",
 )
 @click.option(
     "-r",
-    "--ref_prefix",
+    "--ref-prefix",
     default="genes_round_1_1",
     help="Directory prefix to registration reference.",
 )
@@ -665,6 +665,7 @@ def align_spots_roi(
         stitch_and_register,
     )
 
+    click.echo(f"Registering ROI {roi} to {ref_prefix} using {reg_prefix}")
     if ref_prefix != reg_prefix:
         stitch_and_register(
             path,

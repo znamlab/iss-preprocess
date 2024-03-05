@@ -499,7 +499,9 @@ def stitch_registered(
     return stitched_stack
 
 
-def merge_roi_spots(data_path, prefix, tile_origins, tile_centers, iroi=1):
+def merge_roi_spots(
+    data_path, prefix, tile_origins, tile_centers, iroi=1, keep_all_spots=False
+):
     """Load and combine spot locations across all tiles for an ROI.
 
     To avoid duplicate spots from tile overlap, we determine which tile center
@@ -515,6 +517,9 @@ def merge_roi_spots(data_path, prefix, tile_origins, tile_centers, iroi=1):
         tile_origins (numpy.arry): origin of each tile
         tile_centers (numpy array): center of each tile for ROI duplication detection.
         iroi (int, optional): ID of ROI to load. Defaults to 1.
+        keep_all_spots (bool, optional): If True, keep all spots. Otherwise, keep only
+            spots which are closer to the tile_centers. Defaults to False.
+
 
 
     Returns:
@@ -529,22 +534,24 @@ def merge_roi_spots(data_path, prefix, tile_origins, tile_centers, iroi=1):
         for iy in range(ntiles[1]):
             try:
                 spots = align_spots(data_path, tile_coors=(iroi, ix, iy), prefix=prefix)
-                # calculate distance to tile centers
-
                 spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
                 spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
-                spot_dist = (
-                    spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
-                    - tile_centers[np.newaxis, :, :, 1]
-                ) ** 2 + (
-                    spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
-                    - tile_centers[np.newaxis, :, :, 0]
-                ) ** 2
-                home_tile_dist = (spot_dist[:, ix, iy]).copy()
-                spot_dist[:, ix, iy] = np.inf
-                min_spot_dist = np.min(spot_dist, axis=(1, 2))
-                keep_spots = home_tile_dist < min_spot_dist
+                if not keep_all_spots:
+                    # calculate distance to tile centers
+                    spot_dist = (
+                        spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
+                        - tile_centers[np.newaxis, :, :, 1]
+                    ) ** 2 + (
+                        spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
+                        - tile_centers[np.newaxis, :, :, 0]
+                    ) ** 2
+                    home_tile_dist = (spot_dist[:, ix, iy]).copy()
+                    spot_dist[:, ix, iy] = np.inf
+                    min_spot_dist = np.min(spot_dist, axis=(1, 2))
+                    keep_spots = home_tile_dist < min_spot_dist
+                else:
+                    keep_spots = np.ones(spots.shape[0], dtype=bool)
                 all_spots.append(spots[keep_spots])
             except FileNotFoundError:
                 print(f"could not load roi {iroi}, tile {ix}, {iy}")
@@ -648,7 +655,6 @@ def stitch_and_register(
 
     if estimate_scale:
         scale, angle, shift = estimate_scale_rotation_translation(
-            data_path,
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
             niter=3,
@@ -660,7 +666,6 @@ def stitch_and_register(
         )
     else:
         angle, shift = estimate_rotation_translation(
-            data_path,
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
             angle_range=1.0,
@@ -694,13 +699,15 @@ def merge_and_align_spots(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
+    keep_all_spots=False,
 ):
     """Combine spots across tiles and align to reference coordinates for a single ROI.
 
-    We first generate a DataFrame containing all spots in global coordinates
-    of the acquisition they were detected in using `merge_roi_spots`. We then
-    transform their coordinates into coordinates of the reference genes round
-    using the transformation estimated by `stitch_and_register`.
+    For each tile, spots will be registered to the reference coordinates using
+    `iss.pipeline.register.align_spots`. The spots will then be merged together using
+    `merge_roi_spots`. To avoid duplicate spots, we define a set of tile centers and
+    keep only the spots that are closest to the center of the tile they were detected on.
+
 
     Args:
         data_path (str): Relative path to data.
@@ -711,6 +718,8 @@ def merge_and_align_spots(
             estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
         ref_prefix (str, optional): Acquisition prefix of the reference acquistion
             to transform spot coordinates to. Defaults to "genes_round_1_1".
+        keep_all_spots (bool, optional): If True, keep all spots. Otherwise, keep only
+            spots which are closer to the tile_centers. Defaults to False.
 
     Returns:
         pandas.DataFrame: DataFrame containing all spots in reference coordinates.
@@ -748,6 +757,7 @@ def merge_and_align_spots(
         tile_centers=trans_centers,
         tile_origins=ref_origins,
         iroi=roi,
+        keep_all_spots=keep_all_spots,
     )
 
     spots.to_pickle(processed_path / f"{spots_prefix}_spots_{roi}.pkl")
