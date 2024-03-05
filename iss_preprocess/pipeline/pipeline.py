@@ -111,6 +111,7 @@ def project_and_average(data_path, force_redo=False):
         dependency_type="afterany",
         job_dependency=pr_job_ids,
     )
+    print(f"check_roi_dims job ids: {roi_dim_job_ids}", flush=True)
 
     # Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
     all_check_proj_job_ids = []
@@ -128,6 +129,7 @@ def project_and_average(data_path, force_redo=False):
         )
         all_check_proj_job_ids.append(check_proj_job_ids)
     all_check_proj_job_ids = all_check_proj_job_ids if all_check_proj_job_ids else None
+    print(f"check_projection job ids: {all_check_proj_job_ids}", flush=True)
 
     # Then run iss.pipeline.reproject_failed() which opens txt files from check projection
     # and reprojects failed tiles, collecting job_ids for each tile
@@ -142,6 +144,7 @@ def project_and_average(data_path, force_redo=False):
         job_dependency=all_check_proj_job_ids,
     )
     reproj_job_ids = reproj_job_ids if reproj_job_ids else None
+    print(f"reproject_failed job ids: {reproj_job_ids}", flush=True)
 
     # Then create averages of projections
     csa_job_ids = iss.pipeline.create_all_single_averages(
@@ -158,6 +161,8 @@ def project_and_average(data_path, force_redo=False):
             "All rounds not yet projected, skipping grand average creation", flush=True
         )
         cga_job_ids = None
+    print(f"create_single_average job ids: {csa_job_ids}", flush=True)
+    print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
 
     plot_job_ids = csa_job_ids if csa_job_ids else None
     if cga_job_ids:
@@ -196,8 +201,8 @@ def project_and_average(data_path, force_redo=False):
             dependency=plot_job_ids,
         )
         po_job_ids.extend(job_id)
-
-    return po_job_ids
+    print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
+    print("All jobs submitted", flush=True)
 
 
 def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
