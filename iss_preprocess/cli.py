@@ -21,7 +21,8 @@ def project_and_average(path, force_redo=False, use_slurm=True):
     """Project and average all available data then create plots."""
     from iss_preprocess.pipeline import project_and_average
     from pathlib import Path
-
+    from datetime import datetime
+    time = str(datetime.now().strftime('%Y-%m-%d_%H-%M'))
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     click.echo(f"Processing {path}")
@@ -30,7 +31,7 @@ def project_and_average(path, force_redo=False, use_slurm=True):
         force_redo=force_redo,
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
-        scripts_name="project_and_average",
+        scripts_name=f"project_and_average_{time}",
     )
 
 
