@@ -196,8 +196,7 @@ def project_and_average(data_path, force_redo=False):
             prefix,
             plot_grid=True,
             downsample_factor=25,
-            save_raw=False,
-            dependency_type="afterany",
+            save_raw=True,
             dependency=plot_job_ids,
         )
         po_job_ids.extend(job_id)
@@ -519,6 +518,7 @@ def create_grand_averages(
                 use_slurm=True,
                 slurm_folder=slurm_folder,
                 scripts_name=f"create_grand_average_{kind}",
+                dependency_type="afterany",
                 job_dependency=dependency if dependency else None,
             )
         )

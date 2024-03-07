@@ -659,6 +659,7 @@ def plot_spot_called_base(spots, ax, iround, base_color=None, **kwargs):
             **default_kwargs,
         )
 
+
 def combine_overview_plots(data_path, prefix, chamber_list):
     """
     Combine all the round overviews into a single figure
@@ -667,31 +668,44 @@ def combine_overview_plots(data_path, prefix, chamber_list):
         data_path (str): path to the data
         prefix (str): prefix for the round overview files, e.g. "genes_round", "barcode_round", "DAPI"
         chamber_list (list): list of chambers to include
-    """  
+    """
     processed_path = iss.io.get_processed_path(data_path)
     metadata = iss.io.load_metadata(data_path)
     if prefix in ("genes_round", "barcode_round"):
         rounds = metadata[f"{prefix}s"]
     else:
-        rounds = 1    
+        rounds = 1
     for round in range(1, rounds + 1):
         fig, axs = plt.subplots(8, 5, figsize=(10, 12), dpi=500)
         chamber_count = 0
         for chamber in chamber_list:
-            processed_path = iss.io.get_processed_path(data_path).parent / f"chamber_{chamber}"
+            processed_path = (
+                iss.io.get_processed_path(data_path).parent / f"chamber_{chamber}"
+            )
             roi_dims = iss.io.get_roi_dimensions(data_path, f"{prefix}_1_1")
-            num_rois = len(roi_dims)            
+            num_rois = len(roi_dims)
             for roi in tqdm(range(1, num_rois + 1)):
-                #Initialize empty image
+                # Initialize empty image
                 row_index = chamber_count * 2 + (roi - 1) // 5
                 column_index = (roi - 1) % 5
                 empty_img = np.zeros((1000, 1200))
-                axs[row_index, column_index].set_title(f"Chamber {chamber} ROI {roi}", loc='center',  backgroundcolor='white', fontsize=6, y=0.05)
+                axs[row_index, column_index].set_title(
+                    f"Chamber {chamber} ROI {roi}",
+                    loc="center",
+                    backgroundcolor="white",
+                    fontsize=6,
+                    y=0.05,
+                )
                 axs[row_index, column_index].imshow(empty_img, cmap="gray", vmax=1500)
-                axs[row_index, column_index].axis('off')
+                axs[row_index, column_index].axis("off")
                 try:
                     roi_str = str(roi).zfill(2)
-                    img = tifffile.TiffFile(processed_path / "figures" / "round_overviews" / f"chamber_{chamber}_roi_{roi_str}_{prefix}_{round}_1_channels_0_1_2_3.ome.tif").asarray()
+                    img = tifffile.TiffFile(
+                        processed_path
+                        / "figures"
+                        / "round_overviews"
+                        / f"chamber_{chamber}_roi_{roi_str}_{prefix}_{round}_1_channels_0_1_2_3.ome.tif"
+                    ).asarray()
                     img = np.rot90(img, k=1, axes=(1, 2))
                     img = np.moveaxis(img, 0, 2)
                     colors = ([0, 1, 1], [1, 0, 1], [1, 0, 0], [0, 1, 0])
@@ -701,13 +715,13 @@ def combine_overview_plots(data_path, prefix, chamber_list):
                         "barcode_round": (2500, 1000, 1000, 2000),
                         "genes_round": (2000, 2000, 2000, 2000),
                         "DAPI": (2000, 2000, 2000, 2000),
-                        "mCherry": (3000, 2000, 800, 800)
+                        "mCherry": (3000, 2000, 800, 800),
                     }
                     vmax = vmax_mapping.get(prefix, vmax_defaults)
                     # Convert to RGB using the determined colors and vmax
                     rgb = iss.vis.to_rgb(img, colors=colors, vmax=vmax)
                     axs[row_index, column_index].imshow(rgb)
-                    axs[row_index, column_index].axis('off')
+                    axs[row_index, column_index].axis("off")
                 except FileNotFoundError:
                     print(f"Chamber {chamber} roi {roi} round {round} not found")
             chamber_count += 1
