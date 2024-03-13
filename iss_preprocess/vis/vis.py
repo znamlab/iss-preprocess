@@ -684,7 +684,7 @@ def combine_overview_plots(data_path, prefix, chamber_list):
             )
             roi_dims = iss.io.get_roi_dimensions(data_path, f"{prefix}_1_1")
             num_rois = len(roi_dims)
-            for roi in tqdm(range(1, num_rois + 1)):
+            for roi in range(1, num_rois + 1):
                 # Initialize empty image
                 row_index = chamber_count * 2 + (roi - 1) // 5
                 column_index = (roi - 1) % 5

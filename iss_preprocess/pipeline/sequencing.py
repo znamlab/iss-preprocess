@@ -75,7 +75,7 @@ def load_sequencing_rounds(
         )
     return np.stack(ims, axis=3)
 
-
+@slurm_it(conda_env="iss-preprocess")
 def setup_barcode_calling(data_path):
     """Detect spots and compute cluster means
 
