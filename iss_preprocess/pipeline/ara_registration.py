@@ -220,6 +220,7 @@ def overview_single_roi(
     ref_prefix="genes_round",
     subresolutions=5,
     max_pixel_size=2,
+    non_similar_overview=False,
 ):
     """Stitch and save a single ROI
 
@@ -252,7 +253,7 @@ def overview_single_roi(
     print("Finding pixel size")
     if ref_prefix == "genes_round":
         ref_round_prefix = f"genes_round_{ops['ref_round']}_1"
-    pixel_size = get_pixel_size(data_path, ref_round_prefix)
+    pixel_size = get_pixel_size(data_path, ref_prefix)
 
     if chan2use is None:
         chan2use = [ops["ref_ch"]]
@@ -260,17 +261,28 @@ def overview_single_roi(
         chan2use = [chan2use]
     chan2use = [int(c) for c in chan2use]
 
-    print("Stitching ROI")
-    stitched_stack = stitch.stitch_registered(
-        data_path=data_path,
-        prefix=prefix,
-        roi=roi,
-        filter_r=False,
-        channels=chan2use,
-        ref_prefix=ref_prefix,
-    )
-    print("Aggregating", flush=True)
-    stitched_stack = agg_func(stitched_stack, axis=2)
+    if non_similar_overview:
+        print("Stitching ROI")
+        stitched_stack = stitch.stitch_tiles(
+            data_path=data_path,
+            prefix=prefix,
+            roi=roi,
+            filter_r=False,
+            channels=chan2use,
+            ref_prefix=ref_prefix,
+        )
+    else:
+        print("Stitching ROI")
+        stitched_stack = stitch.stitch_registered(
+            data_path=data_path,
+            prefix=prefix,
+            roi=roi,
+            filter_r=False,
+            channels=chan2use,
+            ref_prefix=ref_prefix,
+        )
+        print("Aggregating", flush=True)
+        stitched_stack = agg_func(stitched_stack, axis=2)
 
     # get chamber position, and then section position
     log = dict(
