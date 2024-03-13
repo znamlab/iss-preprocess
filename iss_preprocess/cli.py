@@ -212,11 +212,15 @@ def setup_omp(path, use_slurm=True):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def setup_barcodes(path):
+@click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
+def setup_barcodes(path, use_slurm=True):
     """Estimate bleedthrough matrices for barcode calling."""
     from iss_preprocess.pipeline import setup_barcode_calling
-
-    setup_barcode_calling(path)
+    from pathlib import Path
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    setup_barcode_calling(
+        path, use_slurm=use_slurm, slurm_folder=slurm_folder, scripts_name="setup_barcodes")
 
 
 @cli.command()
@@ -370,7 +374,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     across tiles.
     """
     from iss_preprocess.pipeline import correct_shifts_to_ref
-    from iss_preprocess.pipeline.diagnostics import check_reg_to_ref_estimation
+    from iss_preprocess.pipeline.diagnostics import check_reg_to_ref_correction
 
     if use_slurm:
         from pathlib import Path
@@ -383,7 +387,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     job_id = correct_shifts_to_ref(
         path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder
     )
-    check_reg_to_ref_estimation(
+    check_reg_to_ref_correction(
         path,
         prefix,
         rois=None,
@@ -545,26 +549,26 @@ def segment_all(path, prefix, use_gpu=False):
     "-c",
     "--reg_channels",
     default=None,
-    help="Channels to register (comma separated string of integer).",
-    type=str,
+    help="Channels to register (comma separated string of integer)."
 )
 def register_to_reference(
     path, reg_prefix, ref_prefix, roi, tilex, tiley, reg_channels
 ):
     """Register an acquisition to reference tile by tile."""
-
     if any([x is None for x in [roi, tilex, tiley]]):
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
-
+        from iss_preprocess.io import get_roi_dimensions
+        roi_dims = get_roi_dimensions(path, reg_prefix)
         additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels}"
         batch_process_tiles(
-            path, "register_tile_to_ref", additional_args=additional_args
+            path, "register_tile_to_ref", additional_args=additional_args, roi_dims=roi_dims,
         )
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
         from iss_preprocess.pipeline import register
-
+        if reg_channels == 'None':
+            reg_channels = None
         if reg_channels is not None:
             reg_channels = [int(x) for x in reg_channels.split(",")]
         from iss_preprocess.io.load import load_ops
@@ -792,7 +796,7 @@ def create_single_average(
     show_default=True,
 )
 def overview_for_ara_registration(
-    path, roi, slice_id, prefix, sigma=10.0, ref_prefix="genes_round"
+    path, roi, slice_id, prefix, sigma=10.0, ref_prefix="genes_round",non_similar_overview=False,
 ):
     """Generate the overview of one ROI used for registration
 
@@ -812,6 +816,7 @@ def overview_for_ara_registration(
         sigma_blur=sigma,
         prefix=prefix,
         ref_prefix=ref_prefix,
+        non_similar_overview=non_similar_overview,
     )
 
 
