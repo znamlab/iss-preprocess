@@ -313,7 +313,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 # Regular expression to find prefix
                 pattern = r",PREFIX=([^,]+)"
                 match = re.search(pattern, additional_args)
-                prefix = match.group(1) if match else None
+                prefix = match.group(1) if match else script
                 log_fname = f"{prefix}_iss_{script}_{roi[0]}_{ix}_{iy}_%j"
                 log_dir = Path.home() / "slurm_logs" / data_path / prefix
                 log_dir.mkdir(parents=True, exist_ok=True)
@@ -524,9 +524,8 @@ def create_grand_averages(
         )
     return job_ids
 
-
 def overview_for_ara_registration(
-    data_path, prefix, rois_to_do=None, sigma_blur=10, ref_prefix="genes_round"
+    data_path, prefix, rois_to_do=None, sigma_blur=10, ref_prefix="genes_round", non_similar_overview=False
 ):
     """Generate a stitched overview for registering to the ARA
 
@@ -572,12 +571,15 @@ def overview_for_ara_registration(
             SLICE_ID=roi2section_order[roi],
             PREFIX=prefix,
             REF_PREFIX=ref_prefix,
+            NON_SIMILAR_OVERVIEW=non_similar_overview,
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+        slurm_folder = Path.home() / "slurm_logs" / data_path / "ara"
+        slurm_folder.mkdir(parents=True, exist_ok=True) 
         args = (
             args
-            + f" --output={Path.home()}/slurm_logs/{data_path}/iss_overview_roi_%j.out"
-            + f" --error={Path.home()}/slurm_logs/{data_path}/iss_overview_roi_%j.err"
+            + f" --output={slurm_folder}iss_overview_roi_{roi}_%j.out"
+            + f" --error={slurm_folder}iss_overview_roi_{roi}_%j.err"
         )
         command = f"sbatch {args} {script_path}"
         print(command)
