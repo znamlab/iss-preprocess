@@ -277,7 +277,7 @@ def _process_single_rotation_translation(args):
 
 
 def estimate_shifts_and_angles_for_tile(
-    stack, scales, ref_ch=0, threshold_quantile=0.9, max_shift=None, debug=False
+    stack, scales, ref_ch=0, binarise_quantile=0.9, max_shift=None, debug=False
 ):
     """Estimate shifts and angles. Registration is carried out on thresholded images
     using the provided quantile threshold.
@@ -286,7 +286,7 @@ def estimate_shifts_and_angles_for_tile(
         stack (np.array): X x Y x Nchannels images stack
         scales (np.array): Nchannels array of scales
         ref_ch (int): reference channel
-        threshold_quantile (float): quantile to use for thresholding
+        binarise_quantile (float): quantile to use for thresholding
         max_shift (int): maximum shift to avoid spurious cross-correlations
         debug (bool): whether to return debug info, default: False
 
@@ -299,15 +299,17 @@ def estimate_shifts_and_angles_for_tile(
     nch = stack.shape[2]
     angles = []
     shifts = []
-    ref_thresh = np.quantile(stack[:, :, ref_ch], threshold_quantile)
+    if binarise_quantile is not None:
+        for ich in range(nch):
+            ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
+            stack[:, :, ich] = stack[:, :, ich] > ref_thresh
     if debug:
-        debug_info = {"ref_threshold": ref_thresh}
+        debug_info = {}
     for ich in range(nch):
         if ref_ch != ich:
-            thresh = np.quantile(stack[:, :, ich], threshold_quantile)
             out = estimate_rotation_translation(
-                stack[:, :, ref_ch] > ref_thresh,
-                transform_image(stack[:, :, ich] > thresh, scale=scales[ich]),
+                stack[:, :, ref_ch],
+                transform_image(stack[:, :, ich], scale=scales[ich]),
                 angle_range=2.0,
                 niter=3,
                 nangles=21,
@@ -317,7 +319,6 @@ def estimate_shifts_and_angles_for_tile(
             if debug:
                 angle, shift, db_info = out
                 debug_info[ich] = db_info
-                debug_info[ich]["threshold"] = thresh
             else:
                 angle, shift = out
         else:

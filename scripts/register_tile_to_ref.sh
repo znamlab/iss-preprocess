@@ -11,4 +11,4 @@ source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
 
 conda activate iss-preprocess
 
-iss register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY -f $REF_PREFIX -c $REG_CHANNELS
+iss register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY -f $REF_PREFIX -c $REG_CHANNELS --ref-channels $REF_CHANNELS
