@@ -251,7 +251,7 @@ def load_tile_by_coors(
 
 
 # TODO: add shape check? What if pages are not 2D (rgb, weird tiffs)
-def load_stack(fname):
+def load_stack(fname, use_indexmap=False):
     """
     Load TIFF stack.
 
@@ -262,10 +262,22 @@ def load_stack(fname):
         numpy.ndarray: X x Y x Z stack.
     """
     with TiffFile(fname) as stack:
-        ims = []
-        for page in stack.pages:
-            ims.append(page.asarray())
-    return np.stack(ims, axis=2)
+        if use_indexmap:
+            pages = stack.pages
+            umeta = stack.micromanager_metadata
+            indexmap = umeta['IndexMap']
+            nchannels = indexmap[:,0].max() + 1
+            nz = indexmap[:,1].max() + 1
+            data = np.zeros((*pages[0].shape, nchannels, nz), dtype=pages[0].dtype)
+            for i, page in enumerate(pages):
+                c, z = indexmap[i, :2]
+                data[:,:, c, z] = page.asarray()
+            return data
+        else:
+            ims = []
+            for page in stack.pages:
+                ims.append(page.asarray())
+            return np.stack(ims, axis=2)
 
 
 def get_tile_ome(fname, fmetadata):
