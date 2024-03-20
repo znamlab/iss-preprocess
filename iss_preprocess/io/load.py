@@ -294,14 +294,17 @@ def get_tile_ome(fname, fmetadata):
             zs = indexmap[:,1]
             channels = indexmap[:,0]
             unique_channels = sorted(list(set(channels)))
+            unique_zs = sorted(list(set(zs)))
+
         else:
-            zs = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
+            z_ids = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
+            unique_zs = sorted(list(set(z_ids)))
+            zs = [unique_zs.index(z) for z in z_ids]
             # Create channel and Z position arrays based on metadata
             channel_ids = [int(metadata[f_key]["Camera"][-1]) for f_key in frame_keys]
             unique_channels = sorted(list(set(channel_ids)))
             channels = [unique_channels.index(ch) for ch in channel_ids]
 
-        unique_zs = sorted(list(set(zs)))
         nz = len(unique_zs)
         nch = len(unique_channels)
         xpix = stack.pages[0].tags["ImageWidth"].value
