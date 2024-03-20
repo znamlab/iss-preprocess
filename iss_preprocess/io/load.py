@@ -251,7 +251,7 @@ def load_tile_by_coors(
 
 
 # TODO: add shape check? What if pages are not 2D (rgb, weird tiffs)
-def load_stack(fname, use_indexmap=False):
+def load_stack(fname):
     """
     Load TIFF stack.
 
@@ -259,25 +259,13 @@ def load_stack(fname, use_indexmap=False):
         fname (str): path to TIFF
 
     Returns:
-        numpy.ndarray: X x Y x Z stack.
+        numpy.ndarray: X x Y x Z stack 
     """
     with TiffFile(fname) as stack:
-        if use_indexmap:
-            pages = stack.pages
-            umeta = stack.micromanager_metadata
-            indexmap = umeta['IndexMap']
-            nchannels = indexmap[:,0].max() + 1
-            nz = indexmap[:,1].max() + 1
-            data = np.zeros((*pages[0].shape, nchannels, nz), dtype=pages[0].dtype)
-            for i, page in enumerate(pages):
-                c, z = indexmap[i, :2]
-                data[:,:, c, z] = page.asarray()
-            return data
-        else:
-            ims = []
-            for page in stack.pages:
-                ims.append(page.asarray())
-            return np.stack(ims, axis=2)
+        ims = []
+        for page in stack.pages:
+            ims.append(page.asarray())
+        return np.stack(ims, axis=2)
 
 
 def get_tile_ome(fname, fmetadata):
@@ -292,33 +280,35 @@ def get_tile_ome(fname, fmetadata):
         numpy.ndarray: X x Y x C x Z z-stack.
 
     """
-    stack = TiffFile(fname)
-    with open(fmetadata) as json_file:
-        metadata = json.load(json_file)
-    frame_keys = list(metadata.keys())[1:]
-    # Create channel and Z position arrays based on metadata
-    channels = [int(metadata[frame_key]["Camera"][-1]) for frame_key in frame_keys]
-    channels = sorted(list(set(channels)))
-    nch = len(channels)
-    # Determine Z positions
-    if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
-        zs = [metadata[frame_key]["ImageNumber"] for frame_key in frame_keys]
-    else:
-        zs = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
-    unique_zs = sorted(list(set(zs)))
-    nz = len(unique_zs)
-    xpix = stack.pages[0].tags["ImageWidth"].value
-    ypix = stack.pages[0].tags["ImageLength"].value
-    im = np.zeros((ypix, xpix, nch, nz))
-    for page, frame_key in zip(stack.pages, frame_keys):
-        ch_id = int(metadata[frame_key]["Camera"][-1])  # Actual channel ID
+    with TiffFile(fname) as stack:
+        with open(fmetadata) as json_file:
+            metadata = json.load(json_file)
+
+        frame_keys = list(metadata.keys())[1:]
         if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
-            z = unique_zs.index(metadata[frame_key]["ImageNumber"])
+            # THIS IS CRAP. 
+            # There is an issue with micromanager and the ome metadata are not always correct
+            # use indexmap instead (which is from micromanager but is correct)
+            umeta = stack.micromanager_metadata
+            indexmap = umeta['IndexMap']
+            zs = indexmap[:,1]
+            channels = indexmap[:,0]
+            unique_channels = sorted(list(set(channels)))
         else:
-            z = unique_zs.index(metadata[frame_key]["ZPositionUm"])
+            zs = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
+            # Create channel and Z position arrays based on metadata
+            channel_ids = [int(metadata[f_key]["Camera"][-1]) for f_key in frame_keys]
+            unique_channels = sorted(list(set(channel_ids)))
+            channels = [unique_channels.index(ch) for ch in channel_ids]
 
-        im[:, :, channels.index(ch_id), z] = page.asarray()
-
+        unique_zs = sorted(list(set(zs)))
+        nz = len(unique_zs)
+        nch = len(unique_channels)
+        xpix = stack.pages[0].tags["ImageWidth"].value
+        ypix = stack.pages[0].tags["ImageLength"].value
+        im = np.zeros((ypix, xpix, nch, nz), dtype=stack.pages[0].dtype)
+        for ip, page in enumerate(stack.pages):
+            im[:, :, channels[ip], zs[ip]] = page.asarray()
     return im
 
 
