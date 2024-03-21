@@ -532,13 +532,13 @@ def segment_all(path, prefix, use_gpu=False):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n",
-    "--reg_prefix",
+    "--reg-prefix",
     default="barcode_round",
     help="Directory prefix to registration target.",
 )
 @click.option(
     "-f",
-    "--ref_prefix",
+    "--ref-prefix",
     default="genes_round",
     help="Directory prefix to registration reference.",
 )
@@ -547,12 +547,19 @@ def segment_all(path, prefix, use_gpu=False):
 @click.option("-y", "--tiley", default=None, help="Tile Y position. None for all.")
 @click.option(
     "-c",
-    "--reg_channels",
+    "--reg-channels",
     default=None,
-    help="Channels to register (comma separated string of integer)."
+    help="Channels of the target to register (comma separated string of integer).",
+    type=str,
+)
+@click.option(
+    "--ref-channels",
+    default=None,
+    help="Channels of the reference to register (comma separated string of integer).",
+    type=str,
 )
 def register_to_reference(
-    path, reg_prefix, ref_prefix, roi, tilex, tiley, reg_channels
+    path, reg_prefix, ref_prefix, roi, tilex, tiley, reg_channels, ref_channels
 ):
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
@@ -561,6 +568,8 @@ def register_to_reference(
         from iss_preprocess.io import get_roi_dimensions
         roi_dims = get_roi_dimensions(path, reg_prefix)
         additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels}"
+
+        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels}"
         batch_process_tiles(
             path, "register_tile_to_ref", additional_args=additional_args, roi_dims=roi_dims,
         )
@@ -571,6 +580,8 @@ def register_to_reference(
             reg_channels = None
         if reg_channels is not None:
             reg_channels = [int(x) for x in reg_channels.split(",")]
+        if ref_channels is not None:
+            ref_channels = [int(x) for x in ref_channels.split(",")]
         from iss_preprocess.io.load import load_ops
 
         ops = load_ops(path)
@@ -585,6 +596,7 @@ def register_to_reference(
             reg_prefix=reg_prefix,
             ref_prefix=ref_prefix,
             reg_channels=reg_channels,
+            ref_channels=ref_channels,
             binarise_quantile=binarise_quantile,
         )
 

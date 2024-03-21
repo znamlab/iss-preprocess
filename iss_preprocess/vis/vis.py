@@ -595,8 +595,15 @@ def plot_single_overview(
             getattr(ax, f"{x}axis").set_minor_locator(minor_locator)
 
         # Adjust tick labels to display between the ticks
-        ax.set_xticklabels(np.arange(0, len(ax.get_xticks())), rotation=90)
-        ax.set_yticklabels(np.arange(0, len(ax.get_yticks()))[::-1])
+        ops = iss.io.load_ops(data_path)
+        if ops["x_tile_direction"] == "left_to_right":
+            ax.set_xticklabels(np.arange(0, len(ax.get_xticks())), rotation=90)
+        else:
+            ax.set_xticklabels(np.arange(0, len(ax.get_xticks()))[::-1], rotation=90)
+        if ops["y_tile_direction"] == "top_to_bottom":
+            ax.set_yticklabels(np.arange(0, len(ax.get_yticks())))
+        else:
+            ax.set_yticklabels(np.arange(0, len(ax.get_yticks()))[::-1])
 
         ax.grid(which="minor", color="lightgrey")
         ax.tick_params(

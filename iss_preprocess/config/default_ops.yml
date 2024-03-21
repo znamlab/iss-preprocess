@@ -135,7 +135,7 @@ cellpose:
   cellpose_model: cyto
   cellpose_rescale: 0.55
   # Channels to use for segmentation, will average across these channels before running cellpose
-  segmentation_channels: [0, 1, 2, 3]
+  segmentation_channels: [0, 0]
 
 # Database integration. 
 # If true will upload ops to flexilims when performing a batch operation
