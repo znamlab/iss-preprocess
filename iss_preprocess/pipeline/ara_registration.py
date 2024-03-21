@@ -231,7 +231,7 @@ def overview_single_roi(
         prefix (str, optional): Prefix of the acquisition to plot.
         chan2use (tuple, optional): Channels to use for stitching. Defaults to (0, 1, 2, 3).
         sigma_blur (int, optional): Sigma for gaussian blur. Defaults to 10.
-        agg_func (function, optional): Aggregation function to apply across rounds. 
+        agg_func (function, optional): Aggregation function to apply across channels. 
             Defaults to np.nanmean. Unused if `non_similar_overview` is True.
         ref_prefix (str, optional): Prefix of the reference image. Defaults to
             "genes_round".
