@@ -255,7 +255,7 @@ def register_adjacent_tiles(
     )
     if any(np.abs(shift_right) >= reg_pix_x * 0.1):
         warnings.warn(
-            f"Shift to right tile is large: {shift_right}"
+            f"Shift to right tile ({right_coors}) is large: {shift_right}"
             f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is fine."
         )
     shift_right += [0, xpix - reg_pix_x]
@@ -268,7 +268,7 @@ def register_adjacent_tiles(
     )
     if any(np.abs(shift_down) >= reg_pix_y * 0.1):
         warnings.warn(
-            f"Shift to down tile is large: {shift_down}"
+            f"Shift to down tile ({down_coors}) is large: {shift_down}"
             f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is fine."
         )
     shift_down -= [ypix - reg_pix_y, 0]
