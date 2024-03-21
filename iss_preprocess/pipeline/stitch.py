@@ -144,19 +144,19 @@ def register_within_acquisition(
         ref_roi = ops["ref_tile"][0]
     ndim = get_roi_dimensions(data_path, dimension_prefix)
 
-    ntiles = ndim[ndim[:, 0] == ref_roi][0][1:]
-    output = np.zeros((ntiles[0], ntiles[1], 4))
+    ntiles = ndim[ndim[:, 0] == ref_roi][0][1:] + 1
+    output = np.zeros((ntiles[0], ntiles[1], 4)) + np.nan
 
     # skip the first x position in case tile direction is right to left
     if ops["x_tile_direction"] == "right_to_left":
-        rangex = range(1, ntiles[0] + 1)
+        rangex = range(1, ntiles[0])
     else:
-        rangex = range(ntiles[0])
+        rangex = range(ntiles[0] - 1)
     # skip the first y position in case tile direction is top to bottom
     if ops["y_tile_direction"] == "top_to_bottom":
-        rangey = range(1, ntiles[1] + 1)
+        rangey = range(1, ntiles[1])
     else:
-        rangey = range(ntiles[1])
+        rangey = range(ntiles[1] - 1)
 
     for tilex in rangex:
         for tiley in rangey:
