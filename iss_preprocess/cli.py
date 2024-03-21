@@ -330,7 +330,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     across tiles.
     """
     from iss_preprocess.pipeline import correct_shifts_to_ref
-    from iss_preprocess.pipeline.diagnostics import check_reg_to_ref_estimation
+    from iss_preprocess.pipeline.diagnostics import check_reg_to_ref_correction
 
     if use_slurm:
         from pathlib import Path
@@ -342,7 +342,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     job_id = correct_shifts_to_ref(
         path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder
     )
-    check_reg_to_ref_estimation(
+    check_reg_to_ref_correction(
         path,
         prefix,
         rois=None,
@@ -486,13 +486,13 @@ def segment_all(path, prefix, use_gpu=False):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n",
-    "--reg_prefix",
+    "--reg-prefix",
     default="barcode_round",
     help="Directory prefix to registration target.",
 )
 @click.option(
     "-f",
-    "--ref_prefix",
+    "--ref-prefix",
     default="genes_round",
     help="Directory prefix to registration reference.",
 )
@@ -501,9 +501,15 @@ def segment_all(path, prefix, use_gpu=False):
 @click.option("-y", "--tiley", default=None, help="Tile Y position. None for all.")
 @click.option(
     "-c",
-    "--reg_channels",
+    "--reg-channels",
     default=None,
-    help="Channels to register (comma separated string of integer).",
+    help="Channels of the target to register (comma separated string of integer).",
+    type=str,
+)
+@click.option(
+    "--ref-channels",
+    default=None,
+    help="Channels of the reference to register (comma separated string of integer).",
     type=str,
 )
 @click.option(
@@ -521,6 +527,7 @@ def register_to_reference(
     tiley,
     reg_channels,
     use_masked_correlation,
+    ref_channels
 ):
     """Register an acquisition to reference tile by tile."""
 
@@ -530,7 +537,7 @@ def register_to_reference(
 
         additional_args = (
             f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},"
-            + f"REG_CHANNELS={reg_channels},"
+            + f"REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels},"
             + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
         )
         batch_process_tiles(
@@ -541,10 +548,9 @@ def register_to_reference(
         from iss_preprocess.pipeline import register
 
         if reg_channels is not None:
-            if reg_channels.lower() == "none":
-                reg_channels = None
-            else:
-                reg_channels = [int(x) for x in reg_channels.split(",")]
+            reg_channels = [int(x) for x in reg_channels.split(",")]
+        if ref_channels is not None:
+            ref_channels = [int(x) for x in ref_channels.split(",")]
         from iss_preprocess.io.load import load_ops
 
         ops = load_ops(path)
@@ -567,6 +573,7 @@ def register_to_reference(
             reg_prefix=reg_prefix,
             ref_prefix=ref_prefix,
             reg_channels=reg_channels,
+            ref_channels=ref_channels,
             binarise_quantile=binarise_quantile,
             use_masked_correlation=use_masked_correlation,
         )

@@ -92,7 +92,7 @@ def estimate_shifts_and_angles_by_coors(
     tile_coors=(0, 0, 0),
     prefix="hybridisation_1_1",
     suffix="max",
-    reference_prefix="barcode_round",
+    reference_prefix="genes_round",
 ):
     """Estimate shifts and rotations angles for hybridisation images.
 
@@ -115,11 +115,13 @@ def estimate_shifts_and_angles_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
+    threshold_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
     angles, shifts = estimate_shifts_and_angles_for_tile(
         stack,
         reference_tforms["scales_between_channels"],
         ref_ch=ops["ref_ch"],
         max_shift=ops["rounds_max_shift"],
+        binarise_quantile=threshold_quantile,
     )
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -665,7 +667,7 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
     spots = pd.read_pickle(
         processed_path / "spots" / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
     )
-    spots['tile'] = f"{roi}_{tilex}_{tiley}"
+    spots["tile"] = f"{roi}_{tilex}_{tiley}"
     if ref_prefix.startswith(prefix):
         # it is the ref, no need to register
         return spots
