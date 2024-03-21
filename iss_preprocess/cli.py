@@ -217,10 +217,15 @@ def setup_barcodes(path, use_slurm=True):
     """Estimate bleedthrough matrices for barcode calling."""
     from iss_preprocess.pipeline import setup_barcode_calling
     from pathlib import Path
+
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     setup_barcode_calling(
-        path, use_slurm=use_slurm, slurm_folder=slurm_folder, scripts_name="setup_barcodes")
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name="setup_barcodes",
+    )
 
 
 @cli.command()
