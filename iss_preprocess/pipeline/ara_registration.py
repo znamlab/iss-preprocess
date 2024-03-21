@@ -246,6 +246,7 @@ def overview_single_roi(
     sigma_blur = float(sigma_blur)
     chamber = Path(data_path).name
     registration_folder = get_processed_path(data_path) / "register_to_ara"
+    registration_folder.mkdir(exist_ok=True)
 
     print("Finding shifts")
     ops = load_ops(data_path)
@@ -267,9 +268,9 @@ def overview_single_roi(
             data_path=data_path,
             prefix=prefix,
             roi=roi,
-            filter_r=False,
-            channels=chan2use,
-            ref_prefix=ref_prefix,
+            ich=chan2use,
+            correct_illumination=True,
+            shifts_prefix=ref_prefix,
         )
     else:
         print("Stitching ROI")
