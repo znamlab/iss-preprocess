@@ -142,7 +142,9 @@ def project_tile(fname, ops, overwrite=False, sth=13):
     iss.io.get_processed_path(fname).parent.mkdir(parents=True, exist_ok=True)
     if ops["make_fstack"]:
         print("making fstack projection\n")
-        im_fstack = fstack_channels(im.astype(float), sth=sth) # TODO check if float is usefull here
+        im_fstack = fstack_channels(
+            im.astype(float), sth=sth
+        )  # TODO check if float is usefull here
         write_stack(im_fstack, save_path_fstack, bigtiff=True)
     if ops["make_median"]:
         print("making median projection\n")

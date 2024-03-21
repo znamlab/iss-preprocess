@@ -259,7 +259,7 @@ def load_stack(fname):
         fname (str): path to TIFF
 
     Returns:
-        numpy.ndarray: X x Y x Z stack 
+        numpy.ndarray: X x Y x Z stack
     """
     with TiffFile(fname) as stack:
         ims = []
@@ -286,13 +286,13 @@ def get_tile_ome(fname, fmetadata):
 
         frame_keys = list(metadata.keys())[1:]
         if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
-            # THIS IS CRAP. 
+            # THIS IS CRAP.
             # There is an issue with micromanager and the ome metadata are not always correct
             # use indexmap instead (which is from micromanager but is correct)
             umeta = stack.micromanager_metadata
-            indexmap = umeta['IndexMap']
-            zs = indexmap[:,1]
-            channels = indexmap[:,0]
+            indexmap = umeta["IndexMap"]
+            zs = indexmap[:, 1]
+            channels = indexmap[:, 0]
             unique_channels = sorted(list(set(channels)))
             unique_zs = sorted(list(set(zs)))
 
