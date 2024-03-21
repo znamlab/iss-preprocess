@@ -400,7 +400,11 @@ def correct_shifts_to_ref(data_path, prefix, max_shift=500, fit_angle=False):
     for roi_dim in roi_dims[use_rois, :]:
         print(f"correcting shifts for ROI {roi_dim}, {prefix_to_reg} from {data_path}")
         correct_shifts_single_round_roi(
-            data_path, roi_dim, prefix=prefix_to_reg, fit_angle=fit_angle, max_shift=max_shift,
+            data_path,
+            roi_dim,
+            prefix=prefix_to_reg,
+            fit_angle=fit_angle,
+            max_shift=max_shift,
         )
         filter_ransac_shifts_to_ref(data_path, prefix, roi_dim, max_residuals=10)
 
@@ -523,12 +527,16 @@ def register_tile_to_ref(
         print(f"Converting DAPI overview image shift to tile shifts")
         processed_path = iss.io.get_processed_path(data_path)
         r, x, y = tile_coors
-        image_shifts = np.load(processed_path / "reg" / f"{reg_prefix}_roi{r}_tform_to_ref.npz")
+        image_shifts = np.load(
+            processed_path / "reg" / f"{reg_prefix}_roi{r}_tform_to_ref.npz"
+        )
         shifts = image_shifts["shift"]
         angles = image_shifts["angle"]
         scales = image_shifts["scale"]
         print(f"Angle: {angles}, Shifts: {shifts}")
-        save_dir = processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
+        save_dir = (
+            processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
+        )
         print(f"Saving results to {save_dir}")
         np.savez(
             save_dir,
@@ -537,7 +545,7 @@ def register_tile_to_ref(
             scales=np.array([[scales]]),
         )
         return angles, shifts
-    
+
     if ref_tile_coors is None:
         ref_tile_coors = tile_coors
     else:

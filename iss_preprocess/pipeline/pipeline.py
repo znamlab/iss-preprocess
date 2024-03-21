@@ -524,8 +524,14 @@ def create_grand_averages(
         )
     return job_ids
 
+
 def overview_for_ara_registration(
-    data_path, prefix, rois_to_do=None, sigma_blur=10, ref_prefix="genes_round", non_similar_overview=False
+    data_path,
+    prefix,
+    rois_to_do=None,
+    sigma_blur=10,
+    ref_prefix="genes_round",
+    non_similar_overview=False,
 ):
     """Generate a stitched overview for registering to the ARA
 
@@ -575,7 +581,7 @@ def overview_for_ara_registration(
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         slurm_folder = Path.home() / "slurm_logs" / data_path / "ara"
-        slurm_folder.mkdir(parents=True, exist_ok=True) 
+        slurm_folder.mkdir(parents=True, exist_ok=True)
         args = (
             args
             + f" --output={slurm_folder}iss_overview_roi_{roi}_%j.out"
