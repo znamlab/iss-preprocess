@@ -77,11 +77,14 @@ def check_roi_dims(data_path):
         ValueError: If ROI dimensions are not the same across rounds.
     """
     processed_path = iss.io.get_processed_path(data_path)
+    ops = iss.io.load_ops(data_path)
     rounds_info = []
     for root, dirs, _ in os.walk(processed_path):
         dirs.sort()
         for d in dirs:
             if d.endswith(f"_1"):
+                if d in ops["overview_round"]:
+                    continue
                 roi_dims = iss.io.get_roi_dimensions(data_path, d)
                 rounds_info.append((d, roi_dims))
 
@@ -110,9 +113,10 @@ def reproject_failed(
     """
     processed_path = iss.io.get_processed_path(data_path)
     missing_tiles = []
-    for prefix in [
-        d for root, dirs, _ in os.walk(processed_path) for d in dirs if d.endswith("_1")
-    ]:
+    for d in processed_path.iterdir():  
+        if not d.is_dir() or not d.name.endswith("_1"):  
+            continue  
+        prefix = d.name
         for fname in (
             (processed_path / prefix / "missing_tiles.txt").read_text().split("\n")
         ):
@@ -184,7 +188,7 @@ def project_round(data_path, prefix, overwrite=False, overview=True):
         overview_job_ids = iss.vis.plot_overview_images(
             data_path=data_path,
             prefix=prefix,
-            dependency=",".join(tileproj_job_ids),
+            dependency=tileproj_job_ids,
         )
     else:
         overview_job_ids = []
