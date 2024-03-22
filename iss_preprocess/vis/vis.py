@@ -10,7 +10,7 @@ import pandas as pd
 from pathlib import Path
 import tifffile
 from znamutils import slurm_it
-from iss_preprocess.io import get_processed_path, load_micromanager_metadata
+from ..io import get_processed_path, load_micromanager_metadata
 
 
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
@@ -437,19 +437,6 @@ def plot_overview_images(
         processed_path / "averages" / f"{prefix}_average.tif"
     ).exists()
     job_ids = []
-    kwargs = dict(
-        data_path=data_path,
-        prefix=prefix,
-        plot_grid=plot_grid,
-        downsample_factor=downsample_factor,
-        save_raw=save_raw,
-        correct_illumination=correct_illumination,
-        use_slurm=use_slurm,
-        job_dependency=dependency,
-        vmin=vmin,
-        vmax=vmax,
-    )
-
     for roi_dim in roi_dims:
         roi = roi_dim[0]
         if group_channels:
@@ -462,15 +449,27 @@ def plot_overview_images(
                 scripts_name = f"plot_overview_{prefix}_{roi}_channels_{'_'.join([str(c) for c in ch])}"
             else:
                 scripts_name = f"plot_overview_{prefix}_{roi}_channel_{ch}"
+            slurm_folder = Path.home() / "slurm_logs" / data_path / "plot_overview/"
+            slurm_folder.mkdir(parents=True, exist_ok=True)
             job_ids.append(
                 plot_single_overview(
+                    data_path=data_path,
+                    prefix=prefix,
                     roi=roi,
                     ch=ch,
                     nx=roi_dim[1] + 1,
                     ny=roi_dim[2] + 1,
-                    slurm_folder=f"{Path.home()}/slurm_logs",
+                    plot_grid=plot_grid,
+                    downsample_factor=downsample_factor,
+                    save_raw=save_raw,
+                    correct_illumination=correct_illumination,
+                    vmin=vmin,
+                    vmax=vmax,
+                    use_slurm=use_slurm,
+                    slurm_folder=slurm_folder,
                     scripts_name=scripts_name,
-                    **kwargs,
+                    dependency_type="afterany",
+                    job_dependency=dependency if dependency else None,
                 )
             )
     return job_ids
@@ -573,10 +572,15 @@ def plot_single_overview(
 
     if single_channel:
         if vmax is None:
-            vmax = np.percentile(stack, 98)
+            vmax = np.percentile(stack, 99.9)
         plt.imshow(stack, vmax=vmax, vmin=vmin)
     else:
-        rgb = to_rgb(stack, channel_colors, vmax=vmax, vmin=vmin)
+        if vmax is None:
+            nch = stack.shape[2]
+            vmax = [np.percentile(stack[:, :, ic], 99.9) for ic in range(nch)]
+            rgb = to_rgb(stack, channel_colors, vmax=vmax, vmin=vmin)
+        else:
+            rgb = to_rgb(stack, channel_colors, vmax=vmax, vmin=vmin)
         plt.imshow(rgb)
     ax = plt.gca()
     ax.set_aspect("equal")
@@ -665,3 +669,73 @@ def plot_spot_called_base(spots, ax, iround, base_color=None, **kwargs):
             color=base_color[base],
             **default_kwargs,
         )
+
+
+def combine_overview_plots(data_path, prefix, chamber_list):
+    """
+    Combine all the round overviews into a single figure
+
+    Args:
+        data_path (str): path to the data
+        prefix (str): prefix for the round overview files, e.g. "genes_round", "barcode_round", "DAPI"
+        chamber_list (list): list of chambers to include
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    metadata = iss.io.load_metadata(data_path)
+    if prefix in ("genes_round", "barcode_round"):
+        rounds = metadata[f"{prefix}s"]
+    else:
+        rounds = 1
+    for round in range(1, rounds + 1):
+        fig, axs = plt.subplots(8, 5, figsize=(10, 12), dpi=500)
+        chamber_count = 0
+        for chamber in chamber_list:
+            processed_path = (
+                iss.io.get_processed_path(data_path).parent / f"chamber_{chamber}"
+            )
+            roi_dims = iss.io.get_roi_dimensions(data_path, f"{prefix}_1_1")
+            num_rois = len(roi_dims)
+            for roi in range(1, num_rois + 1):
+                # Initialize empty image
+                row_index = chamber_count * 2 + (roi - 1) // 5
+                column_index = (roi - 1) % 5
+                empty_img = np.zeros((1000, 1200))
+                axs[row_index, column_index].set_title(
+                    f"Chamber {chamber} ROI {roi}",
+                    loc="center",
+                    backgroundcolor="white",
+                    fontsize=6,
+                    y=0.05,
+                )
+                axs[row_index, column_index].imshow(empty_img, cmap="gray", vmax=1500)
+                axs[row_index, column_index].axis("off")
+                try:
+                    roi_str = str(roi).zfill(2)
+                    img = tifffile.TiffFile(
+                        processed_path
+                        / "figures"
+                        / "round_overviews"
+                        / f"chamber_{chamber}_roi_{roi_str}_{prefix}_{round}_1_channels_0_1_2_3.ome.tif"
+                    ).asarray()
+                    img = np.rot90(img, k=1, axes=(1, 2))
+                    img = np.moveaxis(img, 0, 2)
+                    colors = ([0, 1, 1], [1, 0, 1], [1, 0, 0], [0, 1, 0])
+                    vmax_defaults = (1000, 1000, 1000, 1000)
+                    # Adjust vmax based on prefix
+                    vmax_mapping = {
+                        "barcode_round": (2500, 1000, 1000, 2000),
+                        "genes_round": (2000, 2000, 2000, 2000),
+                        "DAPI": (2000, 2000, 2000, 2000),
+                        "mCherry": (3000, 2000, 800, 800),
+                    }
+                    vmax = vmax_mapping.get(prefix, vmax_defaults)
+                    # Convert to RGB using the determined colors and vmax
+                    rgb = iss.vis.to_rgb(img, colors=colors, vmax=vmax)
+                    axs[row_index, column_index].imshow(rgb)
+                    axs[row_index, column_index].axis("off")
+                except FileNotFoundError:
+                    print(f"Chamber {chamber} roi {roi} round {round} not found")
+            chamber_count += 1
+        plt.tight_layout()
+        plt.savefig(processed_path / "figures" / f"{prefix}_{round}.png", dpi=500)
+        plt.close()

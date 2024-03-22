@@ -9,6 +9,36 @@ def cli():
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
+    "-f",
+    "--force-redo",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Force redoing all steps.",
+)
+@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+def project_and_average(path, force_redo=False, use_slurm=True):
+    """Project and average all available data then create plots."""
+    from iss_preprocess.pipeline import project_and_average
+    from pathlib import Path
+    from datetime import datetime
+
+    time = str(datetime.now().strftime("%Y-%m-%d_%H-%M"))
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    click.echo(f"Processing {path}")
+    project_and_average(
+        path,
+        force_redo=force_redo,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"project_and_average_{time}",
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
 )
 @click.option("-x", default=0, help="Tile X position")
@@ -105,12 +135,19 @@ def project_row(path, prefix, roi=1, x=0, max_col=0, overwrite=False):
     default=False,
     help="Whether to overwrite tiles if already projected.",
 )
-def project_round(path, prefix, overwrite=False):
+@click.option(
+    "--overview",
+    is_flag=True,
+    show_default=True,
+    default=True,
+    help="Whether to create overview images after projection.",
+)
+def project_round(path, prefix, overwrite=False, overview=True):
     """Calculate Z-projection for all tiles in a single sequencing round."""
     from iss_preprocess.pipeline import project_round
 
     click.echo(f"Projecting ROI {prefix} from {path}")
-    project_round(path, prefix, overwrite=overwrite)
+    project_round(path, prefix, overwrite=overwrite, overview=overview)
 
 
 @cli.command()
@@ -138,7 +175,8 @@ def register_ref_tile(path, prefix, diag):
     from iss_preprocess.pipeline import register_reference_tile
     from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
-    slurm_folder = f"{Path.home()}/slurm_logs"
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
     slurm_options = {"mem": "128G"} if diag else None
     job_id = register_reference_tile(
         path,
@@ -165,7 +203,8 @@ def setup_omp(path, use_slurm=True):
     from iss_preprocess.pipeline import setup_omp
     from pathlib import Path
 
-    slurm_folder = Path.home() / "slurm_logs"
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
     setup_omp(
         path, use_slurm=use_slurm, slurm_folder=slurm_folder, scripts_name="setup_omp"
     )
@@ -173,11 +212,20 @@ def setup_omp(path, use_slurm=True):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def setup_barcodes(path):
+@click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
+def setup_barcodes(path, use_slurm=True):
     """Estimate bleedthrough matrices for barcode calling."""
     from iss_preprocess.pipeline import setup_barcode_calling
+    from pathlib import Path
 
-    setup_barcode_calling(path)
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    setup_barcode_calling(
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name="setup_barcodes",
+    )
 
 
 @cli.command()
@@ -279,7 +327,8 @@ def correct_shifts(path, prefix, use_slurm=False):
     if use_slurm:
         from pathlib import Path
 
-        slurm_folder = Path.home() / "slurm_logs"
+        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
         slurm_folder = None
     job_id = corr_shifts(
@@ -335,7 +384,8 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     if use_slurm:
         from pathlib import Path
 
-        slurm_folder = Path.home() / "slurm_logs"
+        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
         slurm_folder = None
 
@@ -395,7 +445,7 @@ def basecall(path):
     from pathlib import Path
 
     ops = load_ops(path)
-    slurm_folder = Path.home() / "slurm_logs" / "barcode_round"
+    slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     for index in range(len(ops["barcode_ref_tiles"])):
         check_barcode_basecall(
@@ -419,7 +469,8 @@ def check_basecall(path, use_slurm=False, ref_tile_index=0):
     if use_slurm:
         from pathlib import Path
 
-        slurm_folder = Path.home() / "slurm_logs"
+        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
         slurm_folder = None
     check_barcode_basecall(
@@ -530,23 +581,29 @@ def register_to_reference(
     ref_channels
 ):
     """Register an acquisition to reference tile by tile."""
-
     if any([x is None for x in [roi, tilex, tiley]]):
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
+        from iss_preprocess.io import get_roi_dimensions
 
+        roi_dims = get_roi_dimensions(path)
         additional_args = (
             f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},"
-            + f"REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels},"
+            f"REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels},"
             + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
         )
         batch_process_tiles(
-            path, "register_tile_to_ref", additional_args=additional_args
+            path,
+            "register_tile_to_ref",
+            additional_args=additional_args,
+            roi_dims=roi_dims,
         )
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
         from iss_preprocess.pipeline import register
 
+        if reg_channels == "None":
+            reg_channels = None
         if reg_channels is not None:
             reg_channels = [int(x) for x in reg_channels.split(",")]
         if ref_channels is not None:
@@ -786,7 +843,13 @@ def create_single_average(
     show_default=True,
 )
 def overview_for_ara_registration(
-    path, roi, slice_id, prefix, sigma=10.0, ref_prefix="genes_round"
+    path,
+    roi,
+    slice_id,
+    prefix,
+    sigma=10.0,
+    ref_prefix="genes_round",
+    non_similar_overview=False,
 ):
     """Generate the overview of one ROI used for registration
 
@@ -806,6 +869,7 @@ def overview_for_ara_registration(
         sigma_blur=sigma,
         prefix=prefix,
         ref_prefix=ref_prefix,
+        non_similar_overview=non_similar_overview,
     )
 
 
@@ -813,28 +877,9 @@ def overview_for_ara_registration(
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def setup_flexilims(path):
     """Setup the flexilims database"""
-    import flexiznam as flz
-    from pathlib import Path
+    from iss_preprocess.pipeline import setup_flexilims
 
-    data_path = Path(path)
-    flm_session = flz.get_flexilims_session(project_id=data_path.parts[0])
-    # first level, which is the mouse, must exist
-    mouse = flz.get_entity(
-        name=data_path.parts[1], datatype="mouse", flexilims_session=flm_session
-    )
-    if mouse is None:
-        raise ValueError(f"Mouse {data_path.parts[1]} does not exist in flexilims")
-    parent_id = mouse["id"]
-    for sample_name in data_path.parts[2:]:
-        sample = flz.add_sample(
-            parent_id,
-            attributes=None,
-            sample_name=sample_name,
-            conflicts="skip",
-            other_relations=None,
-            flexilims_session=flm_session,
-        )
-        parent_id = sample["id"]
+    setup_flexilims(path)
 
 
 @cli.command()

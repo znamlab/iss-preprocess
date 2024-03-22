@@ -1,23 +1,29 @@
 import numpy as np
 import multiprocessing as mp
 import shutil
+import shlex
 import iss_preprocess as iss
+import subprocess
+import os
 from warnings import warn
 from functools import partial
 from pathlib import Path
 from ..image import fstack_channels
 from ..io import get_tile_ome, write_stack, get_roi_dimensions, load_ops
 from .pipeline import batch_process_tiles
+from ..decorators import updates_flexilims
+from znamutils import slurm_it
 
 
-def check_projection(data_path, prefix, suffixes=("max", "fstack")):
+@slurm_it(conda_env="iss-preprocess", slurm_options={"time": "00:30:00", "mem": "8G"})
+def check_projection(data_path, prefix, suffixes=("max", "median")):
     """Check if all tiles have been projected successfully.
 
     Args:
-        data_path (str): Relative path to data.
-        prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
-        suffixes (tuple, optional): Projection suffixes to check for.
-            Defaults to ("max", "fstack").
+            data_path (str): Relative path to data.
+            prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
+            suffixes (tuple, optional): Projection suffixes to check for.
+            Defaults to ("max", "median").
 
     """
     processed_path = iss.io.get_processed_path(data_path)
@@ -37,7 +43,7 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
-    all_projected = True
+    not_projected = []
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
         ny = roi[2] + 1
@@ -47,13 +53,92 @@ def check_projection(data_path, prefix, suffixes=("max", "fstack")):
                 for suffix in suffixes:
                     proj_path = processed_path / prefix / f"{fname}_{suffix}.tif"
                     if not proj_path.exists():
-                        print(f"{proj_path} missing!")
-                        all_projected = False
-    if all_projected:
-        print(f"all tiles projected for {prefix}!")
+                        print(f"{proj_path} missing!", flush=True)
+                        not_projected.append(fname)
+
+    np.savetxt(
+        processed_path / prefix / "missing_tiles.txt",
+        not_projected,
+        fmt="%s",
+        delimiter="\n",
+    )
+
+    if not not_projected:
+        print(f"all tiles projected for {data_path} {prefix}!", flush=True)
 
 
-def project_round(data_path, prefix, overwrite=False):
+@slurm_it(conda_env="iss-preprocess")
+def check_roi_dims(data_path):
+    """
+    Check if all ROI dimensions are the same across rounds.
+    Args:
+        data_path (str): Relative path to data.
+    Raises:
+        ValueError: If ROI dimensions are not the same across rounds.
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    ops = iss.io.load_ops(data_path)
+    rounds_info = []
+    for root, dirs, _ in os.walk(processed_path):
+        dirs.sort()
+        for d in dirs:
+            if d.endswith(f"_1"):
+                if d in ops["overview_round"]:
+                    continue
+                roi_dims = iss.io.get_roi_dimensions(data_path, d)
+                rounds_info.append((d, roi_dims))
+
+    all_same = all(
+        np.array_equal(rounds_info[0][1], roi_dim) for _, roi_dim in rounds_info
+    )
+    if not all_same:
+        differences = ""
+        for i, (round_name, roi_dims) in enumerate(rounds_info):
+            if not np.array_equal(rounds_info[0][1], roi_dims):
+                differences += f"{round_name} \n{roi_dims} \n{rounds_info[0][0]} \n{rounds_info[0][1]}\n"
+        raise ValueError(f"Differences in roi_dims found across rounds:\n{differences}")
+    else:
+        print("All ROI dimensions are the same across rounds.", flush=True)
+
+
+@slurm_it(conda_env="iss-preprocess")
+def reproject_failed(
+    data_path,
+):
+    """Re-project tiles that failed to project previously.
+
+    Args:
+        data_path (str): Relative path to data.
+
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    missing_tiles = []
+    for d in processed_path.iterdir():  
+        if not d.is_dir() or not d.name.endswith("_1"):  
+            continue  
+        prefix = d.name
+        for fname in (
+            (processed_path / prefix / "missing_tiles.txt").read_text().split("\n")
+        ):
+            missing_tiles.append(fname)
+
+    for tile in missing_tiles:
+        if len(tile) == 0:
+            continue
+        prefix = tile.split("_MMStack")[0]
+        roi = int(tile.split("_MMStack_")[1].split("-")[0])
+        ix = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[0])
+        iy = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[1])
+        print(f"Reprojecting {prefix} {roi}_{ix}_{iy}", flush=True)
+        iss.pipeline.project_tile_by_coors(
+            (roi, ix, iy), data_path, prefix, overwrite=True
+        )
+    if len(missing_tiles) == 0:
+        print("No failed tiles to re-project!", flush=True)
+
+
+@updates_flexilims(name_source="prefix")
+def project_round(data_path, prefix, overwrite=False, overview=True):
     """Start SLURM jobs to z-project all tiles from a single imaging round.
     Also, copy one of the MicroManager metadata files from raw to processed directory.
 
@@ -88,16 +173,27 @@ def project_round(data_path, prefix, overwrite=False):
     additional_args = f",PREFIX={prefix}"
     if overwrite:
         additional_args += ",OVERWRITE=--overwrite"
-    job_ids = batch_process_tiles(
+    tileproj_job_ids = batch_process_tiles(
         data_path, "project_tile", roi_dims=roi_dims, additional_args=additional_args
     )
     # copy one of the tiff metadata files
     raw_path = iss.io.get_raw_path(data_path)
     metadata_fname = f"{prefix}_MMStack_{roi_dims[0][0]}-Pos000_000_metadata.txt"
-    shutil.copy(raw_path / prefix / metadata_fname, target_path / metadata_fname)
-    job_ids = iss.vis.plot_overview_images(
-        data_path, prefix, dependency=",".join(job_ids)
-    )
+    if not (target_path / metadata_fname).exists():
+        shutil.copy(
+            raw_path / prefix / metadata_fname,
+            target_path / metadata_fname,
+        )
+    if overview:
+        overview_job_ids = iss.vis.plot_overview_images(
+            data_path=data_path,
+            prefix=prefix,
+            dependency=tileproj_job_ids,
+        )
+    else:
+        overview_job_ids = []
+
+    return tileproj_job_ids, overview_job_ids
 
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
