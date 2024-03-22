@@ -11,7 +11,6 @@ from pathlib import Path
 import tifffile
 from znamutils import slurm_it
 from ..io import get_processed_path, load_micromanager_metadata
-from ..decorators import updates_flexilims
 
 
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
@@ -576,7 +575,12 @@ def plot_single_overview(
             vmax = np.percentile(stack, 99.9)
         plt.imshow(stack, vmax=vmax, vmin=vmin)
     else:
-        rgb = to_rgb(stack, channel_colors, vmax=np.percentile(stack, 99.9), vmin=vmin)
+        if vmax is None:
+            nch = stack.shape[2]
+            vmax = [np.percentile(stack[:, :, ic], 99.9) for ic in range(nch)]
+            rgb = to_rgb(stack, channel_colors, vmax=vmax, vmin=vmin)
+        else:
+            rgb = to_rgb(stack, channel_colors, vmax=vmax, vmin=vmin)
         plt.imshow(rgb)
     ax = plt.gca()
     ax.set_aspect("equal")
