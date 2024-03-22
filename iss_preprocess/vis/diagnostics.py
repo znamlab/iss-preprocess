@@ -462,18 +462,19 @@ def plot_registration_correlograms(
     debug_dict,
 ):
     target_folder = iss.io.get_processed_path(data_path) / "figures" / prefix
+    print(f"Creating figures in {target_folder}")
     if not target_folder.exists():
         target_folder.mkdir()
     ops = iss.io.load_ops(data_path)
     mshift = ops["rounds_max_shift"]
     for what, data in debug_dict.items():
-        print(f"Plotting {what}")
+        print(f"Plotting {what}", flush=True)
         if what == "align_within_channels":
             _plot_within_channel_correlogram(data, target_folder, figure_name, mshift)
         elif what == "estimate_correction":
             _plot_across_channels_correlogram(data, target_folder, figure_name, mshift)
         else:
-            raise NotImplementedError(f"Unknown correlogram output: {what}")
+            raise NotImplementedError(f"Unknown correlogram output: {what}", flush=True)
     plt.close("all")
     print(f"Saved figures to {target_folder}")
 

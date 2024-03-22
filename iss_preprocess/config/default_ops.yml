@@ -56,6 +56,8 @@ registration:
 # Parameters for registration to reference channel (usually DAPI)
 registration_to_reference:
   corrected_shifts2ref: best
+  # Maximum tile shift above which RANSAC fit is used to estimate the shift
+  max_shift2ref: 500
 
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating
@@ -136,6 +138,11 @@ cellpose:
   cellpose_rescale: 0.55
   # Channels to use for segmentation, will average across these channels before running cellpose
   segmentation_channels: [0, 0]
+
+# Atlas registration
+atlas:
+  # Round to use for registration to atlas
+  overview_round: DAPI_1_1
 
 # Database integration. 
 # If true will upload ops to flexilims when performing a batch operation

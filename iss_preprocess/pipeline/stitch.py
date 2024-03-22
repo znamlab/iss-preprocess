@@ -7,6 +7,7 @@ from pathlib import Path
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from skimage.registration import phase_cross_correlation
+from znamutils import slurm_it
 
 import iss_preprocess as iss
 from . import pipeline
@@ -19,6 +20,7 @@ from ..reg import (
     estimate_scale_rotation_translation,
     transform_image,
     make_transform,
+    phase_corr,
 )
 
 
@@ -109,7 +111,7 @@ def register_within_acquisition(
     save_plot=False,
     dimension_prefix="genes_round_1_1",
 ):
-    """Estimate shifts between all adjacent tiles of a rois
+    """Estimate shifts between all adjacent tiles of an roi
 
     Saves the median shifts in `"reg" / f"{prefix}_shifts.npz"`.
 
@@ -138,12 +140,11 @@ def register_within_acquisition(
 
     if reload and save_fname.exists():
         return np.load(save_fname)
-
+    ops = load_ops(data_path)
     if ref_roi is None:
-        ops = load_ops(data_path)
         ref_roi = ops["ref_tile"][0]
     ndim = get_roi_dimensions(data_path, dimension_prefix)
-    
+
     # roi_dims is read from file name (0-based), the actual number of tile needs +1
     ntiles = ndim[ndim[:, 0] == ref_roi][0][1:] + 1
     output = np.zeros((ntiles[0], ntiles[1], 4)) + np.nan
@@ -255,7 +256,7 @@ def register_adjacent_tiles(
     )
     if any(np.abs(shift_right) >= reg_pix_x * 0.1):
         warnings.warn(
-            f"Shift to right tile is large: {shift_right}"
+            f"Shift to right tile ({right_coors}) is large: {shift_right}"
             f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is fine."
         )
     shift_right += [0, xpix - reg_pix_x]
@@ -268,7 +269,7 @@ def register_adjacent_tiles(
     )
     if any(np.abs(shift_down) >= reg_pix_y * 0.1):
         warnings.warn(
-            f"Shift to down tile is large: {shift_down}"
+            f"Shift to down tile ({down_coors}) is large: {shift_down}"
             f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is fine."
         )
     shift_down -= [ypix - reg_pix_y, 0]
@@ -570,6 +571,7 @@ def stitch_and_register(
     ref_ch=0,
     target_ch=0,
     estimate_scale=False,
+    estimate_rotation=True,
     target_suffix=None,
 ):
     """Stitch target and reference stacks and align target to reference
@@ -597,6 +599,8 @@ def stitch_and_register(
             Defaults to 0.
         estimate_scale (bool, optional): Whether to estimate scaling between target
             and reference images. Defaults to False.
+        estimate_rotation (bool, optional): Whether to estimate rotation between target
+            and reference images. Defaults to True.
         target_suffix (str, optional): Suffix to use for target stack. If None, will use
             the value from ops. Defaults to None.
 
@@ -654,7 +658,7 @@ def stitch_and_register(
             pad_ref = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[1]]
             stitched_stack_reference = np.pad(stitched_stack_reference, pad_ref)
 
-    if estimate_scale:
+    if estimate_scale and estimate_rotation:
         scale, angle, shift = estimate_scale_rotation_translation(
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
@@ -665,7 +669,7 @@ def stitch_and_register(
             angle_range=1.0,
             upsample=False,
         )
-    else:
+    elif estimate_rotation:
         angle, shift = estimate_rotation_translation(
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
@@ -675,6 +679,13 @@ def stitch_and_register(
             upsample=None,
         )
         scale = 1
+    else:
+        shift, _ = phase_corr(
+            stitched_stack_reference[::downsample, ::downsample],
+            stitched_stack_target[::downsample, ::downsample],
+        )
+        scale = 1
+        angle = 0
     shift *= downsample
 
     stitched_stack_target = transform_image(
@@ -693,7 +704,7 @@ def stitch_and_register(
 
     return (stitched_stack_target, stitched_stack_reference, angle, shift, scale)
 
-
+@slurm_it(conda_env="iss-preprocess")
 def merge_and_align_spots(
     data_path,
     roi,
@@ -770,6 +781,7 @@ def merge_and_align_spots_all_rois(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
+    keep_all_spots=False,
 ):
     """Start batch jobs to combine spots across tiles and align to reference coordinates
     for all ROIs.
@@ -793,10 +805,21 @@ def merge_and_align_spots_all_rois(
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
-        args = f"--export=DATAPATH={data_path},ROI={roi},"
-        args += f"SPOTS_PREFIX={spots_prefix},REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
-        args += f" --output={Path.home()}/slurm_logs/iss_align_spots_%j.out"
-        args += f" --error={Path.home()}/slurm_logs/iss_align_spots_%j.err"
-        command = f"sbatch {args} {script_path}"
-        print(command)
-        system(command)
+        slurm_folder = (
+            Path.home()
+            / "slurm_logs"
+            / data_path
+            / "align_spots"
+        )
+        slurm_folder.parent.mkdir(exist_ok=True, parents=True)
+        merge_and_align_spots(
+            data_path,
+            roi,
+            spots_prefix=spots_prefix,
+            reg_prefix=reg_prefix,
+            ref_prefix=ref_prefix,
+            keep_all_spots=keep_all_spots,
+            use_slurm=True,
+            slurm_folder=slurm_folder,
+            scripts_name=f"iss_align_spots_{roi}.out"
+        )
