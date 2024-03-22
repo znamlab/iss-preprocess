@@ -501,7 +501,6 @@ def register_tile_to_ref(
     ref_tile_coors=None,
     reg_channels=None,
     ref_channels=None,
-    overview_shifts_to_tile=False,
 ):
     """Register a single tile to the corresponding reference tile
 
@@ -528,29 +527,6 @@ def register_tile_to_ref(
         shifts (np.array): X and Y shifts
 
     """
-    # Check if we are registering DAPI overview images, if so skip tile to tile registration
-    if overview_shifts_to_tile:
-        print(f"Converting DAPI overview image shift to tile shifts")
-        processed_path = iss.io.get_processed_path(data_path)
-        r, x, y = tile_coors
-        image_shifts = np.load(
-            processed_path / "reg" / f"{reg_prefix}_roi{r}_tform_to_ref.npz"
-        )
-        shifts = image_shifts["shift"]
-        angles = image_shifts["angle"]
-        scales = image_shifts["scale"]
-        print(f"Angle: {angles}, Shifts: {shifts}")
-        save_dir = (
-            processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
-        )
-        print(f"Saving results to {save_dir}")
-        np.savez(
-            save_dir,
-            angles=np.array([[angles]]),
-            shifts=np.array([shifts]),
-            scales=np.array([[scales]]),
-        )
-        return angles, shifts
 
     if ref_tile_coors is None:
         ref_tile_coors = tile_coors
