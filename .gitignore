@@ -6,6 +6,12 @@ __pycache__
 *.out
 *.ipynb
 .ipynb*
+*.npy
+*.tif
+*.tiff
+*.png
+*.jpg
+*.pdf
 pkgs
 envs
 .tmp/*

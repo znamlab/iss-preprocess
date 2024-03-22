@@ -4,18 +4,204 @@ import warnings
 from pathlib import Path
 import numpy as np
 import iss_preprocess as iss
-from ..image import apply_illumination_correction, tilestats_and_mean_image
+import flexiznam as flz
+import os
+from ..image import apply_illumination_correction
 from ..io import (
     get_roi_dimensions,
     load_metadata,
     load_ops,
     load_tile_by_coors,
-    write_stack,
 )
+from znamutils import slurm_it
 from ..decorators import updates_flexilims
 from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
 from .sequencing import load_and_register_sequencing_tile
+
+
+@slurm_it(conda_env="iss-preprocess")
+def project_and_average(data_path, force_redo=False):
+    """Project and average all available data then create plots.
+
+    Creates a list of expected acquisition folders from metadata
+    Checks for the existence of expected folders in the raw data
+    and determines the completion status of each acquisition type.
+    Runs projection on unprojected data and reprojects failed tiles.
+    Creates averages of projections and then plots overview images.
+
+    Args:
+        data_path (str): Relative path to data.
+        force_redo (bool, optional): Redo all processing steps? Defaults to False.
+
+    Returns:
+        po_job_ids (list): A list of job IDs for the slurm jobs created.
+    """
+
+    processed_path = iss.io.get_processed_path(data_path)
+    metadata = iss.io.load_metadata(data_path)
+    slurm_folder = processed_path / "slurm_scripts"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    ops = iss.io.load_ops(data_path)
+    # First, set up flexilims, adding chamber
+    if ops["use_flexilims"]:
+        iss.pipeline.setup_flexilims(data_path)
+
+    # Make a list of expected acquisition folders using metadata.yml
+    todo = ("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation")
+    data_by_kind = {kind: [] for kind in todo}
+    acquisition_complete = {kind: True for kind in todo}
+    for kind in todo:
+        if kind.endswith("rounds"):
+            data_by_kind[kind] = [
+                f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])
+            ]
+        elif kind in ("fluorescence", "hybridisation"):
+            data_by_kind[kind] = list(metadata[kind].keys())
+    print("Files expected:")
+    print(data_by_kind, flush=True)
+
+    # Check for expected folders in raw_data and check acquisition types for completion
+    raw_path = iss.io.get_raw_path(data_path)
+    to_process = []
+    print(f"\nChecking for expected folders in {raw_path}", flush=True)
+    for kind in todo:
+        for folder in data_by_kind[kind]:
+            if not (raw_path / folder).exists():
+                print(f"{folder} not found in raw, skipping", flush=True)
+                acquisition_complete[kind] = False
+                continue
+            print(f"{folder} found in raw", flush=True)
+            to_process.append(folder)
+
+    # Run projection on unprojected data
+    pr_job_ids = []
+    proj, mouse, chamber = Path(data_path).parts
+    if ops["use_flexilims"]:
+        flm_sess = flz.get_flexilims_session(project_id=proj)
+    print(f"\nto_process: {to_process}")
+    for prefix in to_process:
+        if not force_redo:
+            # Skip if already projected
+            if ops["use_flexilims"]:
+                flm_dataset = flz.get_entity(
+                    name="_".join([mouse, chamber, f"project_round_{prefix}"]),
+                    flexilims_session=flm_sess,
+                )
+                if flm_dataset is not None:
+                    print(f"{prefix} is already projected, continuing", flush=True)
+                    continue
+            else:
+                if (processed_path / prefix / "missing_tiles.txt").exists():
+                    print(f"{prefix} is already projected, continuing", flush=True)
+                    continue
+        tileproj_job_ids, _ = iss.pipeline.project_round(
+            data_path, prefix, overview=False
+        )
+        pr_job_ids.extend(tileproj_job_ids)
+    pr_job_ids = pr_job_ids if pr_job_ids else None
+
+    # Now check that all roi_dims are the same, can sometimes be truncated
+    # if project_round occurs during data transfer
+    roi_dim_job_ids = iss.pipeline.check_roi_dims(
+        data_path,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        scripts_name=f"check_roi_dims_{prefix}",
+        dependency_type="afterany",
+        job_dependency=pr_job_ids,
+    )
+    print(f"check_roi_dims job ids: {roi_dim_job_ids}", flush=True)
+
+    # Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
+    all_check_proj_job_ids = []
+    for prefix in to_process:
+        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+        check_proj_job_ids = iss.pipeline.check_projection(
+            data_path,
+            prefix,
+            use_slurm=True,
+            slurm_folder=slurm_folder,
+            scripts_name=f"check_projection_{prefix}",
+            dependency_type="afterany",
+            job_dependency=roi_dim_job_ids,
+        )
+        all_check_proj_job_ids.append(check_proj_job_ids)
+    all_check_proj_job_ids = all_check_proj_job_ids if all_check_proj_job_ids else None
+    print(f"check_projection job ids: {all_check_proj_job_ids}", flush=True)
+
+    # Then run iss.pipeline.reproject_failed() which opens txt files from check projection
+    # and reprojects failed tiles, collecting job_ids for each tile
+    slurm_folder = Path.home() / "slurm_logs" / data_path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    reproj_job_ids = iss.pipeline.reproject_failed(
+        data_path,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        scripts_name=f"reproject_failed",
+        dependency_type="afterany",
+        job_dependency=all_check_proj_job_ids,
+    )
+    reproj_job_ids = reproj_job_ids if reproj_job_ids else None
+    print(f"reproject_failed job ids: {reproj_job_ids}", flush=True)
+
+    # Then create averages of projections
+    csa_job_ids = iss.pipeline.create_all_single_averages(
+        data_path, n_batch=1, to_average=to_process, dependency=reproj_job_ids
+    )
+
+    # Create grand averages if all rounds of a certain type are projected
+    if acquisition_complete["genes_rounds"] or acquisition_complete["barcode_rounds"]:
+        cga_job_ids = iss.pipeline.create_grand_averages(
+            data_path, dependency=csa_job_ids if csa_job_ids else None
+        )
+    else:
+        print(
+            "All rounds not yet projected, skipping grand average creation", flush=True
+        )
+        cga_job_ids = None
+    print(f"create_single_average job ids: {csa_job_ids}", flush=True)
+    print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
+
+    plot_job_ids = csa_job_ids if csa_job_ids else None
+    if cga_job_ids and plot_job_ids:
+        plot_job_ids.extend(cga_job_ids)
+
+    # TODO: When plotting overview, check whether grand average has occured if it is a
+    # 'round' type, use it if so, otherwise use single average.
+    po_job_ids = []
+    for prefix in to_process:
+        if ops["use_flexilims"]:
+            flm_dataset = flz.get_entity(
+                name="_".join([mouse, chamber, f"plot_single_overview_{prefix}"]),
+                flexilims_session=flm_sess,
+            )
+            if not force_redo:
+                if flm_dataset:
+                    print(f"{prefix} is already plotted, continuing", flush=True)
+                    continue
+        else:
+            if not force_redo:
+                if (
+                    processed_path
+                    / "figures"
+                    / "round_overviews"
+                    / f"{Path(data_path).parts[2]}_roi_01_{prefix}_channels_0_1_2_3.png"
+                ).exists():
+                    print(f"{prefix} is already plotted, continuing", flush=True)
+                    continue
+        job_id = iss.vis.plot_overview_images(
+            data_path,
+            prefix,
+            plot_grid=True,
+            downsample_factor=25,
+            save_raw=True,
+            dependency=plot_job_ids,
+        )
+        po_job_ids.extend(job_id)
+    print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
+    print("All jobs submitted", flush=True)
 
 
 def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
@@ -122,8 +308,19 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                     f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
                 )
                 args = args + additional_args
-                log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
-                args = args + f" --output={Path.home()}/slurm_logs/{log_fname}.out"
+                import re
+
+                # Regular expression to find prefix
+                pattern = r",PREFIX=([^,]+)"
+                match = re.search(pattern, additional_args)
+                prefix = match.group(1) if match else None
+                if prefix:
+                    log_fname = f"{prefix}_iss_{script}_{roi[0]}_{ix}_{iy}_%j"
+                else:
+                    log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
+                log_dir = Path.home() / "slurm_logs" / data_path / prefix
+                log_dir.mkdir(parents=True, exist_ok=True)
+                args = args + f" --output={log_dir}/{log_fname}.out"
                 command = f"sbatch --parsable {args} {script_path}"
                 print(command)
                 process = subprocess.Popen(
@@ -138,6 +335,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     return job_ids
 
 
+@slurm_it(conda_env="iss-preprocess")
 def create_single_average(
     data_path,
     subfolder,
@@ -204,7 +402,7 @@ def create_single_average(
 
     black_level = ops["black_level"] if subtract_black else 0
 
-    av_image, tilestats = tilestats_and_mean_image(
+    av_image, tilestats = iss.image.tilestats_and_mean_image(
         processed_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
@@ -217,7 +415,7 @@ def create_single_average(
         combine_tilestats=combine_tilestats,
         exclude_tiffs=exclude_tiffs,
     )
-    write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
+    iss.io.write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
     np.save(target_stats, tilestats)
     print(f"Average saved to {target_file}, tilestats to {target_stats}", flush=True)
     return av_image, tilestats
@@ -228,60 +426,80 @@ def create_all_single_averages(
     data_path,
     n_batch,
     todo=("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"),
+    to_average=None,
+    dependency=None,
 ):
     """Average all tiffs in each folder and then all folders by acquisition type
 
     Args:
         data_path (str): Path to data, relative to project.
+        n_batch (int): Number of batch to average before taking their median.
         todo (tuple): type of acquisition to process. Default to `("genes_rounds",
-            "barcode_rounds", "fluorescence", "hybridisation")`
-
+            "barcode_rounds", "fluorescence", "hybridisation")`. Ignored if `to_average`
+            is not None.
+        to_average (list, optional): List of folders to average. If None, will average
+            all folders listed in metadata. Defaults to None.
+        dependency (list, optional): List of job IDs to wait for before starting the
+            current job. Defaults to None.
     """
     processed_path = iss.io.get_processed_path(data_path)
-    ops = load_ops(data_path)
-    metadata = load_metadata(data_path)
+    ops = iss.io.load_ops(data_path)
+    metadata = iss.io.load_metadata(data_path)
     # Collect all folder names
-    to_average = []
-    for kind in todo:
-        if kind.endswith("rounds"):
-            folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
-            to_average.extend(folders)
-        elif kind in ("fluorescence", "hybridisation"):
-            if kind in metadata.keys():
-                to_average.extend(list(metadata[kind].keys()))
-        else:
-            raise IOError(
-                f"Unknown type of acquisition: {kind}.\n"
-                + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
-            )
+    if to_average is None:
+        to_average = []
+        for kind in todo:
+            if kind.endswith("rounds"):
+                folders = [f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])]
+                to_average.extend(folders)
+            elif kind in ("fluorescence", "hybridisation"):
+                if kind in metadata.keys():
+                    to_average.extend(list(metadata[kind].keys()))
+            else:
+                raise IOError(
+                    f"Unknown type of acquisition: {kind}.\n"
+                    + "Valid types are 'XXXXX_rounds', 'fluorescence', 'hybridisation'"
+                )
 
-    script_path = str(
-        Path(__file__).parent.parent.parent / "scripts" / "create_single_average.sh"
-    )
+    job_ids = []
     for folder in to_average:
         data_folder = processed_path / folder
         if not data_folder.is_dir():
-            warnings.warn(f"{data_folder} does not exists. Skipping")
+            warnings.warn(f"{data_folder} projected data does not exist. Skipping")
             continue
+        average_image = processed_path / "averages" / f"{folder}_average.tif"
+        if average_image.exists():
+            print(f"{folder} average already exists. Skipping")
+            continue
+        print(f"Creating single average {folder}", flush=True)
         projection = ops[f"{folder.split('_')[0].lower()}_projection"]
-        export_args = dict(
-            DATAPATH=data_path, SUBFOLDER=folder, SUFFIX=projection, N_BATCH=n_batch
+        slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+        job_ids.append(
+            create_single_average(
+                data_path,
+                folder,
+                n_batch=n_batch,
+                subtract_black=True,
+                prefix_filter=None,
+                suffix=projection,
+                use_slurm=True,
+                slurm_folder=slurm_folder,
+                scripts_name=f"create_single_average_{folder}",
+                dependency_type="afterany",
+                job_dependency=dependency if dependency else None,
+            )
         )
-        args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
-        args = (
-            args
-            + f" --output={Path.home()}/slurm_logs/iss_create_single_average_%j.out"
-            + f" --error={Path.home()}/slurm_logs/iss_create_single_average_%j.err"
-        )
-        command = f"sbatch {args} {script_path}"
-        print(command)
-        subprocess.Popen(
-            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-        )
+    return job_ids
 
 
 @updates_flexilims
-def create_grand_averages(data_path, prefix_todo=("genes_round", "barcode_round")):
+def create_grand_averages(
+    data_path,
+    prefix_todo=("genes_round", "barcode_round"),
+    n_batch=1,
+    dependency=None,
+):
     """Average single acquisition averages into grand average
 
     Args:
@@ -291,26 +509,37 @@ def create_grand_averages(data_path, prefix_todo=("genes_round", "barcode_round"
 
     """
     subfolder = "averages"
-    script_path = str(
-        Path(__file__).parent.parent.parent / "scripts" / "create_grand_average.sh"
-    )
+    job_ids = []
+    slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
     for kind in prefix_todo:
-        export_args = dict(DATAPATH=data_path, SUBFOLDER=subfolder, PREFIX=kind)
-        args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
-        args = (
-            args
-            + f" --output={Path.home()}/slurm_logs/iss_create_grand_average_%j.out"
-            + f" --error={Path.home()}/slurm_logs/iss_create_grand_average_%j.err"
+        print(f"Creating grand average {kind}", flush=True)
+        job_ids.append(
+            create_single_average(
+                data_path,
+                subfolder,
+                n_batch=n_batch,
+                subtract_black=False,
+                prefix_filter=kind,
+                combine_tilestats=True,
+                suffix="_1_average",
+                use_slurm=True,
+                slurm_folder=slurm_folder,
+                scripts_name=f"create_grand_average_{kind}",
+                dependency_type="afterany",
+                job_dependency=dependency if dependency else None,
+            )
         )
-        command = f"sbatch {args} {script_path}"
-        print(command)
-        subprocess.Popen(
-            shlex.split(command), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
-        )
+    return job_ids
 
 
 def overview_for_ara_registration(
-    data_path, prefix, rois_to_do=None, sigma_blur=10, ref_prefix="genes_round"
+    data_path,
+    prefix,
+    rois_to_do=None,
+    sigma_blur=10,
+    ref_prefix="genes_round",
+    non_similar_overview=False,
 ):
     """Generate a stitched overview for registering to the ARA
 
@@ -356,12 +585,15 @@ def overview_for_ara_registration(
             SLICE_ID=roi2section_order[roi],
             PREFIX=prefix,
             REF_PREFIX=ref_prefix,
+            NON_SIMILAR_OVERVIEW=non_similar_overview,
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
+        slurm_folder = Path.home() / "slurm_logs" / data_path / "ara"
+        slurm_folder.mkdir(parents=True, exist_ok=True)
         args = (
             args
-            + f" --output={Path.home()}/slurm_logs/iss_overview_roi_%j.out"
-            + f" --error={Path.home()}/slurm_logs/iss_overview_roi_%j.err"
+            + f" --output={slurm_folder}iss_overview_roi_{roi}_%j.out"
+            + f" --error={slurm_folder}iss_overview_roi_{roi}_%j.err"
         )
         command = f"sbatch {args} {script_path}"
         print(command)
@@ -380,7 +612,7 @@ def setup_channel_correction(data_path, use_slurm=True):
 
     """
     ops = load_ops(data_path)
-    slurm_folder = Path.home() / "slurm_logs"
+    slurm_folder = Path.home() / "slurm_logs" / data_path
     if ops["barcode_rounds"] > 0:
         iss.pipeline.estimate_channel_correction(
             data_path,
@@ -432,3 +664,36 @@ def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
         iss.pipeline.correct_hyb_shifts(data_path)
         iss.pipeline.setup_hyb_spot_calling(data_path)
         iss.pipeline.extract_hyb_spots_all(data_path)
+
+
+def setup_flexilims(path):
+    data_path = Path(path)
+    flm_session = flz.get_flexilims_session(project_id=data_path.parts[0])
+    # first level, which is the mouse, must exist
+    mouse = flz.get_entity(
+        name=data_path.parts[1], datatype="mouse", flexilims_session=flm_session
+    )
+    if mouse is None:
+        raise ValueError(f"Mouse {data_path.parts[1]} does not exist in flexilims")
+    else:
+        if "genealogy" or "path" not in mouse:
+            flz.update_entity(
+                datatype="mouse",
+                flexilims_session=flm_session,
+                id=mouse["id"],
+                mode="update",
+                attributes=dict(
+                    genealogy=[mouse["name"]], path="/".join(data_path.parts[:2])
+                ),
+            )
+    parent_id = mouse["id"]
+    for sample_name in data_path.parts[2:]:
+        sample = flz.add_sample(
+            parent_id,
+            attributes=None,
+            sample_name=sample_name,
+            conflicts="skip",
+            other_relations=None,
+            flexilims_session=flm_session,
+        )
+        parent_id = sample["id"]

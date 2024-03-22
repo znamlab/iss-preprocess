@@ -220,8 +220,9 @@ def overview_single_roi(
     ref_prefix="genes_round",
     subresolutions=5,
     max_pixel_size=2,
+    non_similar_overview=False,
 ):
-    """Stitch and save a single ROI
+    """Stitch and save a single ROI overview for use in atlas registration
 
     Args:
         data_path (str): Relative path to data
@@ -230,12 +231,15 @@ def overview_single_roi(
         prefix (str, optional): Prefix of the acquisition to plot.
         chan2use (tuple, optional): Channels to use for stitching. Defaults to (0, 1, 2, 3).
         sigma_blur (int, optional): Sigma for gaussian blur. Defaults to 10.
-        agg_func (function, optional): Aggregation function for stitching. Defaults to
-            np.nanmean.
+        agg_func (function, optional): Aggregation function to apply across channels. 
+            Defaults to np.nanmean. Unused if `non_similar_overview` is True.
         ref_prefix (str, optional): Prefix of the reference image. Defaults to
             "genes_round".
         subresolutions (int, optional): Number of subresolutions to save. Defaults to 5.
         max_pixel_size (int, optional): Maximum pixel size for the pyramid. Defaults to 2.
+        non_similar_overview (bool, optional): If True, stitch the overview tiles with
+        the stitch_tiles function rather than stitch_registered which requires tile by tile
+        registration to the reference. Defaults to False.
 
     """
     print(f"Data path: {data_path}")
@@ -245,6 +249,7 @@ def overview_single_roi(
     sigma_blur = float(sigma_blur)
     chamber = Path(data_path).name
     registration_folder = get_processed_path(data_path) / "register_to_ara"
+    registration_folder.mkdir(exist_ok=True)
 
     print("Finding shifts")
     ops = load_ops(data_path)
@@ -252,6 +257,8 @@ def overview_single_roi(
     print("Finding pixel size")
     if ref_prefix == "genes_round":
         ref_round_prefix = f"genes_round_{ops['ref_round']}_1"
+    else:
+        ref_round_prefix = ref_prefix
     pixel_size = get_pixel_size(data_path, ref_round_prefix)
 
     if chan2use is None:
@@ -260,17 +267,28 @@ def overview_single_roi(
         chan2use = [chan2use]
     chan2use = [int(c) for c in chan2use]
 
-    print("Stitching ROI")
-    stitched_stack = stitch.stitch_registered(
-        data_path=data_path,
-        prefix=prefix,
-        roi=roi,
-        filter_r=False,
-        channels=chan2use,
-        ref_prefix=ref_prefix,
-    )
-    print("Aggregating", flush=True)
-    stitched_stack = agg_func(stitched_stack, axis=2)
+    if non_similar_overview:
+        print("Stitching ROI")
+        stitched_stack = stitch.stitch_tiles(
+            data_path=data_path,
+            prefix=prefix,
+            roi=roi,
+            ich=chan2use,
+            correct_illumination=True,
+            shifts_prefix=ref_prefix,
+        )
+    else:
+        print("Stitching ROI")
+        stitched_stack = stitch.stitch_registered(
+            data_path=data_path,
+            prefix=prefix,
+            roi=roi,
+            filter_r=False,
+            channels=chan2use,
+            ref_prefix=ref_prefix,
+        )
+        print("Aggregating", flush=True)
+        stitched_stack = agg_func(stitched_stack, axis=2)
 
     # get chamber position, and then section position
     log = dict(

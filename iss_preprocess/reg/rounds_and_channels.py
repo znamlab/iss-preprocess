@@ -4,6 +4,7 @@ import scipy.ndimage
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
 import multiprocessing
+import gc
 from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
@@ -55,6 +56,7 @@ def register_channels_and_rounds(
         debug_info = {"align_within_channels": db_info}
     else:
         angles_within_channels, shifts_within_channels = out_within
+    gc.collect()
     # use these to compute a reference image for each channel
     std_stack, mean_stack = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
