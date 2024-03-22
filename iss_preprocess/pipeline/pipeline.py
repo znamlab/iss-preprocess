@@ -76,7 +76,7 @@ def project_and_average(data_path, force_redo=False):
 
     # Run projection on unprojected data
     pr_job_ids = []
-    proj, mouse, chamber = data_path.split(os.sep)[:-1]
+    proj, mouse, chamber = Path(data_path).parts
     if ops["use_flexilims"]:
         flm_sess = flz.get_flexilims_session(project_id=proj)
     print(f"\nto_process: {to_process}")
@@ -165,9 +165,8 @@ def project_and_average(data_path, force_redo=False):
     print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
 
     plot_job_ids = csa_job_ids if csa_job_ids else None
-    if cga_job_ids:
-        if plot_job_ids:
-            plot_job_ids.extend(cga_job_ids)
+    if cga_job_ids and plot_job_ids:
+        plot_job_ids.extend(cga_job_ids)
 
     # TODO: When plotting overview, check whether grand average has occured if it is a
     # 'round' type, use it if so, otherwise use single average.
@@ -183,14 +182,15 @@ def project_and_average(data_path, force_redo=False):
                     print(f"{prefix} is already plotted, continuing", flush=True)
                     continue
         else:
-            if (
-                processed_path
-                / "figures"
-                / "round_overviews"
-                / f"{Path(data_path).parts[2]}_roi_01_{prefix}_channels_0_1_2_3.png"
-            ).exists():
-                print(f"{prefix} is already plotted, continuing", flush=True)
-                continue
+            if not force_redo:
+                if (
+                    processed_path
+                    / "figures"
+                    / "round_overviews"
+                    / f"{Path(data_path).parts[2]}_roi_01_{prefix}_channels_0_1_2_3.png"
+                ).exists():
+                    print(f"{prefix} is already plotted, continuing", flush=True)
+                    continue
         job_id = iss.vis.plot_overview_images(
             data_path,
             prefix,
@@ -313,8 +313,11 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 # Regular expression to find prefix
                 pattern = r",PREFIX=([^,]+)"
                 match = re.search(pattern, additional_args)
-                prefix = match.group(1) if match else script
-                log_fname = f"{prefix}_iss_{script}_{roi[0]}_{ix}_{iy}_%j"
+                prefix = match.group(1) if match else None
+                if prefix:
+                    log_fname = f"{prefix}_iss_{script}_{roi[0]}_{ix}_{iy}_%j"
+                else:
+                    log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
                 log_dir = Path.home() / "slurm_logs" / data_path / prefix
                 log_dir.mkdir(parents=True, exist_ok=True)
                 args = args + f" --output={log_dir}/{log_fname}.out"
