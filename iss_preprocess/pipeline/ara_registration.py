@@ -222,7 +222,7 @@ def overview_single_roi(
     max_pixel_size=2,
     non_similar_overview=False,
 ):
-    """Stitch and save a single ROI
+    """Stitch and save a single ROI overview for use in atlas registration
 
     Args:
         data_path (str): Relative path to data
@@ -237,6 +237,9 @@ def overview_single_roi(
             "genes_round".
         subresolutions (int, optional): Number of subresolutions to save. Defaults to 5.
         max_pixel_size (int, optional): Maximum pixel size for the pyramid. Defaults to 2.
+        non_similar_overview (bool, optional): If True, stitch the overview tiles with
+        the stitch_tiles function rather than stitch_registered which requires tile by tile
+        registration to the reference. Defaults to False.
 
     """
     print(f"Data path: {data_path}")
