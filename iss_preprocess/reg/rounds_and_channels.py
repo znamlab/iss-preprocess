@@ -727,6 +727,11 @@ def estimate_rotation_angle(
     best_angle_index = np.argmax(max_cc)
     best_angle = angles[best_angle_index]
     if debug:
+        # to save memory, cut xcorr with max_shift
+        _, hrow, hcol = np.array(all_cc.shape) // 2
+        all_cc = all_cc[
+            :, hrow - max_shift : hrow + max_shift, hcol - max_shift : hcol + max_shift
+        ].copy()
         return best_angle, max_cc[best_angle_index], dict(xcorr=all_cc, angles=angles)
     return best_angle, max_cc[best_angle_index]
 
@@ -799,7 +804,10 @@ def estimate_rotation_translation(
             max_shift=max_shift,
         )
         if debug:
-            debug_info["phase_corr"] = cc_phase_corr
+            hrow, hcol = np.array(cc_phase_corr.shape) // 2
+            debug_info["phase_corr"] = cc_phase_corr[
+                hrow - max_shift : hrow + max_shift, hcol - max_shift : hcol + max_shift
+            ].copy()
     else:
         shift = phase_cross_correlation(
             reference,

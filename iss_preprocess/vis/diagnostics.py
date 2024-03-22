@@ -562,10 +562,6 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
 
 
 def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax):
-    hrow, hcol = np.asarray(xcorr.shape) // 2
-    xcorr = xcorr[
-        hrow - max_shift : hrow + max_shift, hcol - max_shift : hcol + max_shift
-    ]
     ax.imshow(xcorr, vmin=vmin, vmax=vmax)
     ax.set_xticks([])
     ax.set_yticks([])
