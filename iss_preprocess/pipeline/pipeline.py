@@ -433,9 +433,14 @@ def create_all_single_averages(
 
     Args:
         data_path (str): Path to data, relative to project.
+        n_batch (int): Number of batch to average before taking their median.
         todo (tuple): type of acquisition to process. Default to `("genes_rounds",
-            "barcode_rounds", "fluorescence", "hybridisation")`
-
+            "barcode_rounds", "fluorescence", "hybridisation")`. Ignored if `to_average`
+            is not None.
+        to_average (list, optional): List of folders to average. If None, will average
+            all folders listed in metadata. Defaults to None.
+        dependency (list, optional): List of job IDs to wait for before starting the
+            current job. Defaults to None.
     """
     processed_path = iss.io.get_processed_path(data_path)
     ops = iss.io.load_ops(data_path)
@@ -527,8 +532,14 @@ def create_grand_averages(
         )
     return job_ids
 
+
 def overview_for_ara_registration(
-    data_path, prefix, rois_to_do=None, sigma_blur=10, ref_prefix="genes_round", non_similar_overview=False
+    data_path,
+    prefix,
+    rois_to_do=None,
+    sigma_blur=10,
+    ref_prefix="genes_round",
+    non_similar_overview=False,
 ):
     """Generate a stitched overview for registering to the ARA
 
@@ -578,7 +589,7 @@ def overview_for_ara_registration(
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         slurm_folder = Path.home() / "slurm_logs" / data_path / "ara"
-        slurm_folder.mkdir(parents=True, exist_ok=True) 
+        slurm_folder.mkdir(parents=True, exist_ok=True)
         args = (
             args
             + f" --output={slurm_folder}iss_overview_roi_{roi}_%j.out"

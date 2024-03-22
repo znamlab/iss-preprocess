@@ -560,7 +560,7 @@ def merge_roi_spots(
     spots = pd.concat(all_spots, ignore_index=True)
     return spots
 
-#@slurm_it(conda_env="iss-preprocess")
+
 def stitch_and_register(
     data_path,
     reference_prefix,
@@ -804,7 +804,12 @@ def merge_and_align_spots_all_rois(
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
-        slurm_folder = Path.home() / "slurm_logs" / data_path / "align_spots"
+        slurm_folder = (
+            Path.home()
+            / "slurm_logs"
+            / data_path
+            / "align_spots"
+        )
         slurm_folder.parent.mkdir(exist_ok=True, parents=True)
         merge_and_align_spots(
             data_path,

@@ -231,8 +231,8 @@ def overview_single_roi(
         prefix (str, optional): Prefix of the acquisition to plot.
         chan2use (tuple, optional): Channels to use for stitching. Defaults to (0, 1, 2, 3).
         sigma_blur (int, optional): Sigma for gaussian blur. Defaults to 10.
-        agg_func (function, optional): Aggregation function for stitching. Defaults to
-            np.nanmean.
+        agg_func (function, optional): Aggregation function to apply across channels. 
+            Defaults to np.nanmean. Unused if `non_similar_overview` is True.
         ref_prefix (str, optional): Prefix of the reference image. Defaults to
             "genes_round".
         subresolutions (int, optional): Number of subresolutions to save. Defaults to 5.
@@ -257,7 +257,9 @@ def overview_single_roi(
     print("Finding pixel size")
     if ref_prefix == "genes_round":
         ref_round_prefix = f"genes_round_{ops['ref_round']}_1"
-    pixel_size = get_pixel_size(data_path, ref_prefix)
+    else:
+        ref_round_prefix = ref_prefix
+    pixel_size = get_pixel_size(data_path, ref_round_prefix)
 
     if chan2use is None:
         chan2use = [ops["ref_ch"]]

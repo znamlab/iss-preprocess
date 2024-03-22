@@ -217,10 +217,15 @@ def setup_barcodes(path, use_slurm=True):
     """Estimate bleedthrough matrices for barcode calling."""
     from iss_preprocess.pipeline import setup_barcode_calling
     from pathlib import Path
+
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     setup_barcode_calling(
-        path, use_slurm=use_slurm, slurm_folder=slurm_folder, scripts_name="setup_barcodes")
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name="setup_barcodes",
+    )
 
 
 @cli.command()
@@ -566,17 +571,21 @@ def register_to_reference(
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
         from iss_preprocess.io import get_roi_dimensions
-        roi_dims = get_roi_dimensions(path)
-        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels}"
 
-        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels}"
+        roi_dims = get_roi_dimensions(path)
+        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},"
+        additional_args += f"REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels}"
         batch_process_tiles(
-            path, "register_tile_to_ref", additional_args=additional_args, roi_dims=roi_dims,
+            path,
+            "register_tile_to_ref",
+            additional_args=additional_args,
+            roi_dims=roi_dims,
         )
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
         from iss_preprocess.pipeline import register
-        if reg_channels == 'None':
+
+        if reg_channels == "None":
             reg_channels = None
         if reg_channels is not None:
             reg_channels = [int(x) for x in reg_channels.split(",")]
@@ -808,7 +817,13 @@ def create_single_average(
     show_default=True,
 )
 def overview_for_ara_registration(
-    path, roi, slice_id, prefix, sigma=10.0, ref_prefix="genes_round",non_similar_overview=False,
+    path,
+    roi,
+    slice_id,
+    prefix,
+    sigma=10.0,
+    ref_prefix="genes_round",
+    non_similar_overview=False,
 ):
     """Generate the overview of one ROI used for registration
 
