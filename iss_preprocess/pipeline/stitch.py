@@ -145,8 +145,9 @@ def register_within_acquisition(
         ref_roi = ops["ref_tile"][0]
     ndim = get_roi_dimensions(data_path, dimension_prefix)
 
+    # roi_dims is read from file name (0-based), the actual number of tile needs +1
     ntiles = ndim[ndim[:, 0] == ref_roi][0][1:] + 1
-    output = np.zeros((ntiles[0], ntiles[1], 4))
+    output = np.zeros((ntiles[0], ntiles[1], 4)) + np.nan
 
     # skip the first x position in case tile direction is right to left
     if ops["x_tile_direction"] == "right_to_left":
