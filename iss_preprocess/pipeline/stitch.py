@@ -145,19 +145,19 @@ def register_within_acquisition(
         ref_roi = ops["ref_tile"][0]
     ndim = get_roi_dimensions(data_path, dimension_prefix)
 
-    ntiles = ndim[ndim[:, 0] == ref_roi][0][1:]
+    ntiles = ndim[ndim[:, 0] == ref_roi][0][1:] + 1
     output = np.zeros((ntiles[0], ntiles[1], 4))
 
     # skip the first x position in case tile direction is right to left
     if ops["x_tile_direction"] == "right_to_left":
-        rangex = range(1, ntiles[0] + 1)
+        rangex = range(1, ntiles[0])
     else:
-        rangex = range(ntiles[0])
+        rangex = range(ntiles[0] - 1)
     # skip the first y position in case tile direction is top to bottom
     if ops["y_tile_direction"] == "top_to_bottom":
-        rangey = range(1, ntiles[1] + 1)
+        rangey = range(1, ntiles[1])
     else:
-        rangey = range(ntiles[1])
+        rangey = range(ntiles[1] - 1)
 
     for tilex in rangex:
         for tiley in rangey:
@@ -703,7 +703,7 @@ def stitch_and_register(
 
     return (stitched_stack_target, stitched_stack_reference, angle, shift, scale)
 
-
+@slurm_it(conda_env="iss-preprocess")
 def merge_and_align_spots(
     data_path,
     roi,
@@ -780,6 +780,7 @@ def merge_and_align_spots_all_rois(
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
+    keep_all_spots=False,
 ):
     """Start batch jobs to combine spots across tiles and align to reference coordinates
     for all ROIs.
@@ -803,11 +804,16 @@ def merge_and_align_spots_all_rois(
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
-        slurm_folder = Path.home() / "slurm_logs" / data_path / "align_spots" / f"iss_align_spots_{roi}.out"
+        slurm_folder = Path.home() / "slurm_logs" / data_path / "align_spots"
         slurm_folder.parent.mkdir(exist_ok=True, parents=True)
-        args = f"--export=DATAPATH={data_path},ROI={roi},"
-        args += f"SPOTS_PREFIX={spots_prefix},REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix}"
-        args += f" --output={slurm_folder},"
-        command = f"sbatch {args} {script_path}"
-        print(command)
-        system(command)
+        merge_and_align_spots(
+            data_path,
+            roi,
+            spots_prefix=spots_prefix,
+            reg_prefix=reg_prefix,
+            ref_prefix=ref_prefix,
+            keep_all_spots=keep_all_spots,
+            use_slurm=True,
+            slurm_folder=slurm_folder,
+            scripts_name=f"iss_align_spots_{roi}.out"
+        )

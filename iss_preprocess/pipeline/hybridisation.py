@@ -243,23 +243,12 @@ def extract_hyb_spots_all(data_path):
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
-    script_path = str(
-        Path(__file__).parent.parent.parent / "scripts" / "extract_hyb_spots.sh"
-    )
-
     for hyb_round in metadata["hybridisation"].keys():
         for roi in roi_dims[use_rois, :]:
-            args = f"--export=DATAPATH={data_path},ROI={roi[0]},PREFIX={hyb_round}"
-            args = (
-                args
-                + f" --output={Path.home()}/{data_path}/slurm_logs/iss_hyb_spots_%j.out"
-            )
-            command = f"sbatch {args} {script_path}"
-            print(command)
-            subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
+            extract_hyb_spots_roi(
+                data_path=data_path,
+                prefix=hyb_round,
+                roi=roi[0],
             )
 
 
@@ -277,9 +266,18 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
-            extract_hyb_spots_tile(data_path, (roi, ix, iy), prefix)
+            slurm_folder = Path.home() / "slurm_logs" / data_path / prefix
+            slurm_folder.mkdir(parents=True, exist_ok=True)
+            extract_hyb_spots_tile(
+                data_path,
+                (roi, ix, iy),
+                prefix,
+                use_slurm=True,
+                slurm_folder=slurm_folder,
+                script_name = f"iss_hyb_spots_tile_{roi}_{ix}_{iy}.out"
+            )
 
-
+@slurm_it(conda_env="iss-preprocess")
 def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     """Detect hybridisation spots for a given tile.
 

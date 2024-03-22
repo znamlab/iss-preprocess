@@ -566,7 +566,7 @@ def register_to_reference(
         print("Batch processing all tiles", flush=True)
         from iss_preprocess.pipeline import batch_process_tiles
         from iss_preprocess.io import get_roi_dimensions
-        roi_dims = get_roi_dimensions(path, reg_prefix)
+        roi_dims = get_roi_dimensions(path)
         additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels}"
 
         additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels}"
