@@ -11,8 +11,8 @@ from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
 
-from image_tools.registration.phase_correlation import phase_correlation
-from . import phase_corr, make_transform, transform_image
+from image_tools.registration import phase_correlation
+from image_tools.similarity_transforms import make_transform, transform_image
 
 
 def register_channels_and_rounds(

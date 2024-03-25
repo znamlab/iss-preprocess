@@ -12,13 +12,6 @@ iss\_preprocess.reg.rounds\_and\_channels module
    :undoc-members:
    :show-inheritance:
 
-iss\_preprocess.reg.util module
--------------------------------
-
-.. automodule:: iss_preprocess.reg.util
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 Module contents
 ---------------
