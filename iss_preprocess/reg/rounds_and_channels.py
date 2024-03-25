@@ -75,6 +75,7 @@ def register_channels_and_rounds(
             upsample=5,
             max_shift=max_shift,
             median_filter_size=median_filter,
+            use_masked_correlation=use_masked_correlation,
             debug=debug,
         )
     )
@@ -272,6 +273,14 @@ def _process_single_rotation_translation(args):
     print(f"Processing channel {ref_ch}, round {iround}", flush=True)
 
     if ref_round != iround:
+        if use_masked_correlation is None:
+            reference_mask = None
+            target_mask = None
+        else:
+            reference_mask = reference.astype(np.float32)
+            reference_mask = np.where(reference_mask <= 0, 0, 1)
+            target_mask = target.astype(np.float32)
+            target_mask = np.where(target_mask <= 0, 0, 1)
         out = estimate_rotation_translation(
             reference,
             target,
@@ -281,8 +290,8 @@ def _process_single_rotation_translation(args):
             upsample=upsample,
             min_shift=min_shift,
             max_shift=max_shift,
-            reference_mask=(reference != 0) if use_masked_correlation else None,
-            target_mask=(target != 0) if use_masked_correlation else None,
+            reference_mask=reference_mask,
+            target_mask=target_mask,
             debug=debug,
         )
         return ref_ch, iround, *out
@@ -551,8 +560,8 @@ def estimate_correction(
             nangles,
             scale_range,
             angle_range,
-            debug,
             use_masked_correlation,
+            debug,
         )
         for channel in range(nchannels)
     ]
@@ -581,8 +590,8 @@ def _process_single_scale_rotation_translation(args):
         nangles,
         scale_range,
         angle_range,
-        debug,
         use_masked_correlation,
+        debug,
     ) = args
     print(f"Processing channel {channel}", flush=True)
 
@@ -656,6 +665,7 @@ def estimate_scale_rotation_translation(
         reference_squared_fft = scipy.fft.fft2(reference)
     else:
         reference_mask_fft = None
+        reference_squared_fft = None
 
     for i in range(niter):
         scales = np.linspace(-scale_range, scale_range, nscales) + best_scale
@@ -679,6 +689,7 @@ def estimate_scale_rotation_translation(
                 debug=debug,
                 target_mask=target_mask_rescaled,
                 reference_mask_fft=reference_mask_fft,
+                reference_squared_fft=reference_squared_fft,
             )
             if debug:
                 best_angles[iscale], max_cc[iscale], db_info = out
@@ -841,11 +852,12 @@ def estimate_rotation_translation(
     """
 
     best_angle = 0
-    reference_fft = scipy.fft.fft2(reference)
     if reference_mask is not None:
-        fixed_squared_fft = scipy.fft.fft2(np.square(reference))
-        reference_mask_fft = scipy.fft.fft2(reference_mask)
+        reference_fft, fixed_squared_fft, reference_mask_fft = mpc.get_mask_and_ffts(
+            reference, reference_mask
+        )
     else:
+        reference_fft = scipy.fft.fft2(reference)
         fixed_squared_fft = None
         reference_mask_fft = None
     if debug:
