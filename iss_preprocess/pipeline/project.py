@@ -113,9 +113,9 @@ def reproject_failed(
     """
     processed_path = iss.io.get_processed_path(data_path)
     missing_tiles = []
-    for d in processed_path.iterdir():  
-        if not d.is_dir() or not d.name.endswith("_1"):  
-            continue  
+    for d in processed_path.iterdir():
+        if not d.is_dir() or not d.name.endswith("_1"):
+            continue
         prefix = d.name
         for fname in (
             (processed_path / prefix / "missing_tiles.txt").read_text().split("\n")

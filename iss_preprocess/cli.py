@@ -578,7 +578,7 @@ def register_to_reference(
     tiley,
     reg_channels,
     use_masked_correlation,
-    ref_channels
+    ref_channels,
 ):
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
