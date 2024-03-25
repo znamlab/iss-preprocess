@@ -50,6 +50,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         max_shift=ops["rounds_max_shift"],
         min_shift=ops["rounds_min_shift"],
         debug=diag,
+        use_masked_correlation=ops["use_masked_correlation"],
     )
     if diag:
         (

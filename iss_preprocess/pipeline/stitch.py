@@ -20,9 +20,6 @@ from .register import align_spots
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
-    transform_image,
-    make_transform,
-    phase_corr,
 )
 
 

@@ -52,6 +52,8 @@ registration:
   # Radius of disk for median filtering images before registration.
   # if `null` no filter is applied.
   reg_median_filter: 1
+  # Use masked phase correlation? Slower but might solve issue for large rotation
+  use_masked_correlation: false
 
 # Parameters for registration to reference channel (usually DAPI)
 registration_to_reference:
