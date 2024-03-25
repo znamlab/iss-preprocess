@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=iss_register_hyb_tile
 #SBATCH --ntasks=1
-#SBATCH --time=20:00
+#SBATCH --time=30:00
 #SBATCH --mem=8G
 #SBATCH --partition=ncpu
 ml purge
