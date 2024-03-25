@@ -10,7 +10,7 @@ from skimage.morphology import disk
 from skimage.registration import phase_cross_correlation
 from znamutils import slurm_it
 from image_tools.similarity_transforms import transform_image, make_transform
-from image_tools.registration import phase_correlation
+from image_tools.registration import phase_correlation as mpc
 import iss_preprocess as iss
 from . import pipeline
 from .. import vis
@@ -714,7 +714,7 @@ def stitch_and_register(
             angle, shift = out
         scale = 1
     else:
-        shift, _ = phase_correlation(
+        shift, _ = mpc.phase_correlation(
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
         )

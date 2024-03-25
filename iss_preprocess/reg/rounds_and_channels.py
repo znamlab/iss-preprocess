@@ -11,7 +11,7 @@ from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
 
-from image_tools.registration import phase_correlation
+from image_tools.registration import phase_correlation as mpc
 from image_tools.similarity_transforms import make_transform, transform_image
 
 
@@ -55,8 +55,8 @@ def register_channels_and_rounds(
         median_filter_size=median_filter,
         min_shift=min_shift,
         max_shift=max_shift,
-        debug=debug,
         use_masked_correlation=use_masked_correlation,
+        debug=debug,
     )
     if debug:
         angles_within_channels, shifts_within_channels, db_info = out_within
@@ -173,6 +173,7 @@ def align_within_channels(
     median_filter_size=None,
     min_shift=None,
     max_shift=None,
+    use_masked_correlation=False,
     debug=False,
 ):
     """Align images within each channel.
@@ -190,6 +191,7 @@ def align_within_channels(
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
+        use_masked_correlation (bool): whether to use masked phase correlation
         debug (bool): whether to return debug info, default: False
 
     Returns:
@@ -220,6 +222,7 @@ def align_within_channels(
             upsample,
             min_shift,
             max_shift,
+            use_masked_correlation,
             debug,
         )
         for ref_ch in range(nchannels)
@@ -262,6 +265,7 @@ def _process_single_rotation_translation(args):
         upsample,
         min_shift,
         max_shift,
+        use_masked_correlation,
         debug,
     ) = args
 
@@ -277,6 +281,8 @@ def _process_single_rotation_translation(args):
             upsample=upsample,
             min_shift=min_shift,
             max_shift=max_shift,
+            reference_mask=(reference != 0) if use_masked_correlation else None,
+            target_mask=(target != 0) if use_masked_correlation else None,
             debug=debug,
         )
         return ref_ch, iround, *out
@@ -383,7 +389,7 @@ def estimate_shifts_for_tile(
         reference_fft = scipy.fft.fft2(stack[:, :, ich, ref_round])
         for iround in range(nrounds):
             if iround != ref_round:
-                shift = phase_correlation(
+                shift = mpc.phase_correlation(
                     reference_fft,
                     transform_image(
                         stack[:, :, ich, iround],
@@ -690,7 +696,7 @@ def estimate_scale_rotation_translation(
                 flush=True,
             )
     if not upsample:
-        shift, _, cc, _ = phase_correlation(
+        shift, _, cc, _ = mpc.phase_correlation(
             reference_fft,
             transform_image(target, scale=best_scale, angle=best_angle),
             fixed_image_is_fft=True,
@@ -757,7 +763,7 @@ def estimate_rotation_angle(
         all_cc = np.empty((nangles, *reference_fft.shape), dtype=np.float64)
     for iangle in range(nangles):
         if reference_mask_fft is None:
-            shifts[iangle, :], _, cc, _ = phase_correlation(
+            shifts[iangle, :], _, cc, _ = mpc.phase_correlation(
                 reference_fft,
                 transform_image(target, angle=angles[iangle]),
                 fixed_image_is_fft=True,
@@ -765,7 +771,7 @@ def estimate_rotation_angle(
                 max_shift=max_shift,
             )
         else:
-            shifts[iangle, :], _, cc, _ = phase_correlation(
+            shifts[iangle, :], _, cc, _ = mpc.phase_correlation(
                 reference_fft,
                 transform_image(target, angle=angles[iangle]),
                 fixed_mask=reference_mask_fft,
@@ -868,7 +874,7 @@ def estimate_rotation_translation(
         if reference_mask is not None:
             target_mask = transform_image(target_mask, angle=best_angle)
 
-        shift, _, cc_phase_corr, _ = phase_correlation(
+        shift, _, cc_phase_corr, _ = mpc.phase_correlation(
             reference_fft,
             transform_image(target, angle=best_angle),
             min_shift=min_shift,
