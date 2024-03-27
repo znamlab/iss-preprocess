@@ -925,3 +925,47 @@ def plot_overview(
         save_raw=save_raw,
         group_channels=not separate_channels,
     )
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'")
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+@click.option("-b", "--background", default=3, help="Channel containing background, e.g. 3")
+@click.option("-g", "--signal", default=2, help="Channel containing signal, e.g. 2")
+def unmix_channels(path, prefix="mCherry_1", suffix="max", background=3, signal=2):
+    """Unmix autofluorescence from signal for all tiles in a dataset."""
+    from iss_preprocess.pipeline import batch_process_tiles
+
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix},BACKGROUND_CH={background},SIGNAL_CH={signal}"
+    batch_process_tiles(
+        path, script="unmix_channels", additional_args=additional_args
+    )
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'")
+@click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", "--tilex", default=0, help="Tile X position")
+@click.option("-y", "--tiley", default=0, help="Tile Y position.")
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+@click.option("-b", "--background_ch", default=3, help="Channel containing background, e.g. 3")
+@click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
+def unmix_tile(path, prefix, roi, tilex, tiley, suffix="max", background_ch=3, signal_ch=2):
+    """Unmix autofluorescence from signal for all tiles in a dataset."""
+    from iss_preprocess.image import unmix_tile
+    from iss_preprocess.pipeline import load_and_register_tile
+
+    stack, _ = load_and_register_tile(path, tile_coors=(roi,tilex,tiley), prefix=prefix, filter_r=False)
+    unmix_tile(
+        path,
+        prefix,
+        roi,
+        tilex,
+        tiley,
+        stack,
+        suffix=suffix,
+        background_ch=background_ch,
+        signal_ch=signal_ch,
+        )
