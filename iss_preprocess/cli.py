@@ -649,14 +649,39 @@ def align_spots(
         merge_and_align_spots_all_rois,
         register_within_acquisition,
     )
-
-    register_within_acquisition(path, prefix=reg_prefix, reload=reload, save_plot=True)
+    from pathlib import Path
+    slurm_folder = Path.home() / "slurm_logs" / path / "align_spots"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    reg_job_id = register_within_acquisition(
+        path,
+        prefix=reg_prefix,
+        reload=reload,
+        save_plot=True,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        scripts_name="register_within_acquisition_{reg_prefix}",
+    )
+    ref_job_id = None
     if reg_prefix != ref_prefix:
-        register_within_acquisition(
-            path, prefix=ref_prefix, reload=reload, save_plot=True
+        ref_job_id = register_within_acquisition(
+            path,
+            prefix=ref_prefix,
+            reload=reload,
+            save_plot=True,
+            use_slurm=True,
+            slurm_folder=slurm_folder,
+            scripts_name="register_within_acquisition_{ref_prefix}",
         )
+    
+    if ref_job_id:
+        reg_job_id = [reg_job_id, ref_job_id]
     merge_and_align_spots_all_rois(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, ref_prefix=ref_prefix
+        path,
+        spots_prefix=spots_prefix,
+        reg_prefix=reg_prefix,
+        ref_prefix=ref_prefix,
+        dependency=reg_job_id,
+
     )
 
 
@@ -860,11 +885,19 @@ def setup_flexilims(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def setup_channel_correction(path):
+@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+def setup_channel_correction(path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
     from iss_preprocess.pipeline import setup_channel_correction
-
-    setup_channel_correction(path)
+    from pathlib import Path
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    setup_channel_correction(
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name="setup_channel_correction",
+        )
     click.echo("Channel correction setup complete.")
 
 
