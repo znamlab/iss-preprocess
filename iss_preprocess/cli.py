@@ -589,6 +589,8 @@ def register_to_reference(
             reg_channels = None
         if reg_channels is not None:
             reg_channels = [int(x) for x in reg_channels.split(",")]
+        if ref_channels == "None":
+            ref_channels = None
         if ref_channels is not None:
             ref_channels = [int(x) for x in ref_channels.split(",")]
         from iss_preprocess.io.load import load_ops
