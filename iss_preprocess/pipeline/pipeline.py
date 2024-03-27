@@ -318,7 +318,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                     log_fname = f"{prefix}_iss_{script}_{roi[0]}_{ix}_{iy}_%j"
                 else:
                     log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
-                log_dir = Path.home() / "slurm_logs" / data_path / prefix
+                log_dir = Path.home() / "slurm_logs" / data_path / script
                 log_dir.mkdir(parents=True, exist_ok=True)
                 args = args + f" --output={log_dir}/{log_fname}.out"
                 command = f"sbatch --parsable {args} {script_path}"
