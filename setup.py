@@ -17,6 +17,7 @@ setup(
         "scikit-learn",
         "flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git",
         "znamutils @ git+ssh://git@github.com/znamlab/znamutils.git",
+        "image-tools @ git+ssh://git@github.com/znamlab/image-tools.git",
         "opencv-python",
         "numba",
         "cellpose",

@@ -3,6 +3,10 @@ import scipy.fft
 from math import cos, sin, radians
 from skimage.transform import SimilarityTransform, warp
 
+raise NotImplementedError(
+    "This code is not used in the current version of the pipeline."
+)
+
 
 def transform_image(im, scale=1, angle=0, shift=(0, 0), cval=0.0):
     """

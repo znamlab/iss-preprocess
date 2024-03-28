@@ -1,4 +1,6 @@
 import numpy as np
+import multiprocessing
+from numba import jit
 import scipy.fft
 import scipy.ndimage
 from scipy.ndimage import median_filter
@@ -8,7 +10,9 @@ import gc
 from numba import jit
 from skimage.transform import SimilarityTransform, warp
 from skimage.registration import phase_cross_correlation
-from . import phase_corr, make_transform, transform_image
+
+from image_tools.registration import phase_correlation as mpc
+from image_tools.similarity_transforms import make_transform, transform_image
 
 
 def register_channels_and_rounds(
@@ -19,6 +23,7 @@ def register_channels_and_rounds(
     min_shift=None,
     max_shift=None,
     debug=False,
+    use_masked_correlation=False,
 ):
     """
     Estimate transformation matrices for alignment across channels and rounds.
@@ -32,6 +37,7 @@ def register_channels_and_rounds(
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
         debug (bool): whether to return debug info, default: False
+        use_masked_correlation (bool): whether to use masked phase correlation
 
     Returns:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
@@ -49,6 +55,7 @@ def register_channels_and_rounds(
         median_filter_size=median_filter,
         min_shift=min_shift,
         max_shift=max_shift,
+        use_masked_correlation=use_masked_correlation,
         debug=debug,
     )
     if debug:
@@ -68,6 +75,7 @@ def register_channels_and_rounds(
             upsample=5,
             max_shift=max_shift,
             median_filter_size=median_filter,
+            use_masked_correlation=use_masked_correlation,
             debug=debug,
         )
     )
@@ -166,6 +174,7 @@ def align_within_channels(
     median_filter_size=None,
     min_shift=None,
     max_shift=None,
+    use_masked_correlation=False,
     debug=False,
 ):
     """Align images within each channel.
@@ -183,6 +192,7 @@ def align_within_channels(
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
+        use_masked_correlation (bool): whether to use masked phase correlation
         debug (bool): whether to return debug info, default: False
 
     Returns:
@@ -213,6 +223,7 @@ def align_within_channels(
             upsample,
             min_shift,
             max_shift,
+            use_masked_correlation,
             debug,
         )
         for ref_ch in range(nchannels)
@@ -255,12 +266,21 @@ def _process_single_rotation_translation(args):
         upsample,
         min_shift,
         max_shift,
+        use_masked_correlation,
         debug,
     ) = args
 
     print(f"Processing channel {ref_ch}, round {iround}", flush=True)
 
     if ref_round != iround:
+        if use_masked_correlation is None:
+            reference_mask = None
+            target_mask = None
+        else:
+            reference_mask = reference.astype(np.float32)
+            reference_mask = np.where(reference_mask <= 0, 0, 1)
+            target_mask = target.astype(np.float32)
+            target_mask = np.where(target_mask <= 0, 0, 1)
         out = estimate_rotation_translation(
             reference,
             target,
@@ -270,6 +290,8 @@ def _process_single_rotation_translation(args):
             upsample=upsample,
             min_shift=min_shift,
             max_shift=max_shift,
+            reference_mask=reference_mask,
+            target_mask=target_mask,
             debug=debug,
         )
         return ref_ch, iround, *out
@@ -376,13 +398,13 @@ def estimate_shifts_for_tile(
         reference_fft = scipy.fft.fft2(stack[:, :, ich, ref_round])
         for iround in range(nrounds):
             if iround != ref_round:
-                shift = phase_corr(
+                shift = mpc.phase_correlation(
                     reference_fft,
                     transform_image(
                         stack[:, :, ich, iround],
                         angle=angles_within_channels[ich][iround],
                     ),
-                    fft_ref=False,
+                    fixed_image_is_fft=True,
                     min_shift=min_shift,
                     max_shift=max_shift,
                 )[0]
@@ -494,6 +516,7 @@ def estimate_correction(
     niter=5,
     angle_range=1.0,
     debug=False,
+    use_masked_correlation=False,
 ):
     """
     Estimate scale, rotation and translation corrections for each channel of a multichannel image.
@@ -509,6 +532,7 @@ def estimate_correction(
         niter (int): number of iterations to run
         angle_range (float): range of angles to search through
         debug (bool): whether to return debug info, default: False
+        use_masked_correlation (bool): whether to use masked phase correlation
 
     Returns:
         scales (np.array): Nchannels array of scale factors
@@ -523,6 +547,7 @@ def estimate_correction(
             median_filter_size, int
         ), "reg_median_filter must be an integer"
         im = median_filter(im, footprint=disk(median_filter_size), axes=(0, 1))
+
     # Prepare tasks for each channel
     pool_args = [
         (
@@ -536,6 +561,7 @@ def estimate_correction(
             nangles,
             scale_range,
             angle_range,
+            use_masked_correlation,
             debug,
         )
         for channel in range(nchannels)
@@ -565,6 +591,7 @@ def _process_single_scale_rotation_translation(args):
         nangles,
         scale_range,
         angle_range,
+        use_masked_correlation,
         debug,
     ) = args
     print(f"Processing channel {channel}", flush=True)
@@ -581,6 +608,7 @@ def _process_single_scale_rotation_translation(args):
             upsample=upsample,
             max_shift=max_shift,
             debug=debug,
+            use_masked_correlation=use_masked_correlation,
         )
     elif debug:
         return 1.0, 0.0, (0, 0), {}
@@ -599,6 +627,7 @@ def estimate_scale_rotation_translation(
     upsample=False,
     max_shift=None,
     debug=False,
+    use_masked_correlation=False,
 ):
     """
     Estimate rotation and translation that maximizes phase correlation between the target and the
@@ -617,6 +646,7 @@ def estimate_scale_rotation_translation(
         upsample (bool, or int): whether to upsample the image, and if so but what factor
         max_shift (int): maximum shift to avoid spurious cross-correlations
         debug (bool): whether to return debug info. Default: False
+        use_masked_correlation (bool): whether to use masked phase correlation
 
     Returns:
         best_angle (float) in degrees
@@ -626,15 +656,34 @@ def estimate_scale_rotation_translation(
     """
     best_angle = 0
     best_scale = 1
-    reference_fft = scipy.fft.fft2(reference)
+
     if debug:
         debug_info = {}
+    if use_masked_correlation:
+        target_mask = target.astype(np.float32)
+        target_mask = np.where(target_mask <= 0, 0, 1)
+        (
+            reference_fft,
+            reference_squared_fft,
+            reference_mask_fft,
+        ) = mpc.get_mask_and_ffts(reference)
+    else:
+        reference_fft = scipy.fft.fft2(reference)
+        reference_mask_fft = None
+        reference_squared_fft = None
+
     for i in range(niter):
         scales = np.linspace(-scale_range, scale_range, nscales) + best_scale
         max_cc = np.empty(scales.shape)
         best_angles = np.empty(scales.shape)
         for iscale in range(nscales):
             target_rescaled = transform_image(target, scale=scales[iscale])
+            if use_masked_correlation:
+                target_mask_rescaled = transform_image(
+                    target_mask, scale=scales[iscale]
+                )
+            else:
+                target_mask_rescaled = None
             out = estimate_rotation_angle(
                 reference_fft,
                 target_rescaled,
@@ -643,6 +692,9 @@ def estimate_scale_rotation_translation(
                 nangles,
                 max_shift=max_shift,
                 debug=debug,
+                target_mask=target_mask_rescaled,
+                reference_mask_fft=reference_mask_fft,
+                reference_squared_fft=reference_squared_fft,
             )
             if debug:
                 best_angles[iscale], max_cc[iscale], db_info = out
@@ -660,10 +712,10 @@ def estimate_scale_rotation_translation(
                 flush=True,
             )
     if not upsample:
-        shift, cc = phase_corr(
+        shift, _, cc, _ = mpc.phase_correlation(
             reference_fft,
             transform_image(target, scale=best_scale, angle=best_angle),
-            fft_ref=False,
+            fixed_image_is_fft=True,
             max_shift=max_shift,
         )
         if debug:
@@ -689,6 +741,9 @@ def estimate_rotation_angle(
     max_shift=None,
     min_shift=None,
     debug=False,
+    reference_mask_fft=None,
+    target_mask=None,
+    reference_squared_fft=None,
 ):
     """
     Estimate rotation angle that maximizes phase correlation between the target and the
@@ -703,6 +758,13 @@ def estimate_rotation_angle(
         max_shift (int): maximum shift to avoid spurious cross-correlations
         min_shift (int): minimum shift to avoid spurious cross-correlations
         debug (bool): whether to return debug info
+        reference_mask_fft (numpy.ndarray): Binary mask for reference image. If not None,
+            will compute masked phase correlation. Default: None
+        target_mask (numpy.ndarray): Binary mask for target image. If not None,
+            will compute masked phase correlation. Default: None
+        reference_squared_fft (numpy.ndarray): FFT of the squared reference image. Required
+            for masked phase correlation. Default: None
+
 
     Returns:
         best_angle (float) in degrees
@@ -716,13 +778,26 @@ def estimate_rotation_angle(
     if debug:
         all_cc = np.empty((nangles, *reference_fft.shape), dtype=np.float64)
     for iangle in range(nangles):
-        shifts[iangle, :], cc = phase_corr(
-            reference_fft,
-            transform_image(target, angle=angles[iangle]),
-            fft_ref=False,
-            min_shift=min_shift,
-            max_shift=max_shift,
-        )
+        if reference_mask_fft is None:
+            shifts[iangle, :], _, cc, _ = mpc.phase_correlation(
+                reference_fft,
+                transform_image(target, angle=angles[iangle]),
+                fixed_image_is_fft=True,
+                min_shift=min_shift,
+                max_shift=max_shift,
+            )
+        else:
+            shifts[iangle, :], _, cc, _ = mpc.phase_correlation(
+                reference_fft,
+                transform_image(target, angle=angles[iangle]),
+                fixed_mask=reference_mask_fft,
+                moving_mask=target_mask,
+                min_shift=min_shift,
+                max_shift=max_shift,
+                fixed_image_is_fft=True,
+                fixed_mask_is_fft=True,
+                fixed_squared_fft=reference_squared_fft,
+            )
         max_cc[iangle] = np.max(cc)
         if debug:
             all_cc[iangle] = cc
@@ -738,14 +813,14 @@ def estimate_rotation_angle(
     return best_angle, max_cc[best_angle_index]
 
 
-# TODO: check if this numba is useful here.
-@jit(parallel=True, forceobj=True)
 def estimate_rotation_translation(
     reference,
     target,
     angle_range=5.0,
     niter=3,
     nangles=20,
+    reference_mask=None,
+    target_mask=None,
     upsample=None,
     min_shift=None,
     max_shift=None,
@@ -763,6 +838,10 @@ def estimate_rotation_translation(
         angle_range (float): initial range of angles in degrees to search over
         niter (int): number of iterations to refine rotation angle
         nangles (int): number of angles to try on each iteration
+        reference_mask (numpy.ndarray): Binary mask for reference image. Only used
+            if upsample is not None. Default: None
+        target_mask (numpy.ndarray): Binary mask for target image. Only used if upsample
+            is not None. Default: None
         upsample (bool, or int): whether to upsample the image, and if so by what factor
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
@@ -778,7 +857,14 @@ def estimate_rotation_translation(
     """
 
     best_angle = 0
-    reference_fft = scipy.fft.fft2(reference)
+    if reference_mask is not None:
+        reference_fft, fixed_squared_fft, reference_mask_fft = mpc.get_mask_and_ffts(
+            reference, reference_mask
+        )
+    else:
+        reference_fft = scipy.fft.fft2(reference)
+        fixed_squared_fft = None
+        reference_mask_fft = None
     if debug:
         debug_info = {}
     for i in range(niter):
@@ -791,6 +877,9 @@ def estimate_rotation_translation(
             min_shift=min_shift,
             max_shift=max_shift,
             debug=debug,
+            reference_mask_fft=reference_mask_fft,
+            reference_squared_fft=fixed_squared_fft,
+            target_mask=target_mask,
         )
         if debug:
             best_angle, max_cc, db_info = out
@@ -799,11 +888,19 @@ def estimate_rotation_translation(
             best_angle, max_cc = out
         angle_range = angle_range / iter_range_factor
     if not upsample:
-        shift, cc_phase_corr = phase_corr(
-            reference,
+        if reference_mask is not None:
+            target_mask = transform_image(target_mask, angle=best_angle)
+
+        shift, _, cc_phase_corr, _ = mpc.phase_correlation(
+            reference_fft,
             transform_image(target, angle=best_angle),
             min_shift=min_shift,
             max_shift=max_shift,
+            fixed_mask=reference_mask_fft,
+            moving_mask=target_mask,
+            fixed_image_is_fft=True,
+            fixed_mask_is_fft=True,
+            fixed_squared_fft=fixed_squared_fft,
         )
         if debug:
             hrow, hcol = np.array(cc_phase_corr.shape) // 2
@@ -815,6 +912,8 @@ def estimate_rotation_translation(
             reference,
             transform_image(target, angle=best_angle),
             upsample_factor=upsample,
+            reference_mask=reference_mask,
+            target_mask=target_mask,
         )[0]
     if debug:
         return best_angle, shift, debug_info
