@@ -83,16 +83,28 @@ def filter_stack(stack, r1=2, r2=4, dtype=float):
     return stack_filt
 
 
-def unmix_tile(data_path, prefix, roi, tilex, tiley, stack, suffix="max", background_ch=3, signal_ch=2, alpha=1e-5, background_coef=1.1):
+def unmix_tile(
+    data_path,
+    prefix,
+    roi,
+    tilex,
+    tiley,
+    stack,
+    suffix="max",
+    background_ch=3,
+    signal_ch=2,
+    alpha=1e-5,
+    background_coef=1.1,
+):
     """
     Unmixes two images: one with only background autofluorescence and another with both background and useful signal.
     Uses Lasso regression to approximate Mean Absolute Error regression for the unmixing process.
-    
+
     Args:
     - background_image: numpy array of the background image.
     - mixed_signal_image: numpy array of the image with both signal and background.
     - alpha: Small regularization term to approximate MAE. Default is very small to closely approximate MAE.
-    
+
     Returns:
     - signal_image: The isolated signal image after background subtraction.
     """
@@ -103,26 +115,30 @@ def unmix_tile(data_path, prefix, roi, tilex, tiley, stack, suffix="max", backgr
         + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_{suffix}.tif"
     )
     image_path = processed_path / prefix / fname
-    background_image = stack[:,:,background_ch,0]
-    mixed_signal_image = stack[:,:,signal_ch,0]
+    background_image = stack[:, :, background_ch, 0]
+    mixed_signal_image = stack[:, :, signal_ch, 0]
 
     # Flatten to 1D arrays for the regression model
     background_flat = background_image.ravel().reshape(-1, 1)
     mixed_signal_flat = mixed_signal_image.ravel()
-    
+
     # Initialize and fit Lasso model
     model = Lasso(alpha=alpha, positive=True, max_iter=10000)
     model.fit(background_flat, mixed_signal_flat)
     # Predict the background component in the mixed signal image
     predicted_background_flat = model.predict(background_flat)
-    
+
     predicted_background = predicted_background_flat.reshape(background_image.shape)
-    
+
     # Subtract the predicted background from the mixed signal to get the signal image
-    signal_image = mixed_signal_image - predicted_background * background_coef #TODO: Remove fudge factor 
+    signal_image = (
+        mixed_signal_image - predicted_background * background_coef
+    )  # TODO: Remove fudge factor
     signal_image = np.clip(signal_image, 0, None)
-    
-    write_stack(signal_image, image_path.with_name(image_path.name.replace(suffix, "unmixed")))
+
+    write_stack(
+        signal_image, image_path.with_name(image_path.name.replace(suffix, "unmixed"))
+    )
     return signal_image
 
 

@@ -99,6 +99,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     stack[bad_pixels] = 0
     return stack, bad_pixels
 
+
 @slurm_it(conda_env="iss-preprocess")
 def register_within_acquisition(
     data_path,
@@ -704,6 +705,7 @@ def stitch_and_register(
 
     return (stitched_stack_target, stitched_stack_reference, angle, shift, scale)
 
+
 @slurm_it(conda_env="iss-preprocess")
 def merge_and_align_spots(
     data_path,
@@ -813,12 +815,7 @@ def merge_and_align_spots_all_rois(
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
-        slurm_folder = (
-            Path.home()
-            / "slurm_logs"
-            / data_path
-            / "align_spots"
-        )
+        slurm_folder = Path.home() / "slurm_logs" / data_path / "align_spots"
         slurm_folder.mkdir(exist_ok=True, parents=True)
         merge_and_align_spots(
             data_path,
