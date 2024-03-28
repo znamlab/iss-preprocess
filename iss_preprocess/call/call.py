@@ -4,8 +4,6 @@ from sklearn.mixture import GaussianMixture
 from scipy.spatial.distance import hamming
 from ..coppafish import scaled_k_means
 
-# BASES = np.array(['G','T','A','C'])
-# BASES = np.array(["A", "C", "T", "G"])
 BASES = np.array(["G", "T", "A", "C"])
 
 
@@ -67,8 +65,8 @@ def extract_spots(spots, stack, spot_radius=2):
     drr -= spot_footprint.shape[0] // 2
     dcc -= spot_footprint.shape[1] // 2
     for _, spot in spots.iterrows():
-        rr = np.clip(drr + spot["y"], 0, stack.shape[0]).astype(int)
-        cc = np.clip(dcc + spot["x"], 0, stack.shape[1]).astype(int)
+        rr = np.clip(drr + spot["y"], 0, stack.shape[0] - 1).astype(int)
+        cc = np.clip(dcc + spot["x"], 0, stack.shape[1] - 1).astype(int)
         traces.append(stack[rr, cc, :, :].mean(axis=0).T)
     spots["trace"] = traces
 

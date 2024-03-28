@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=iss_register_tile
 #SBATCH --ntasks=1
-#SBATCH --time=10:00
+#SBATCH --time=30:00
 #SBATCH --mem=8G
-#SBATCH --partition=cpu
+#SBATCH --partition=ncpu
 ml purge
 
 ml Anaconda3/2022.05

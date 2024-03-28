@@ -99,6 +99,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     return stack, bad_pixels
 
 
+@slurm_it(conda_env="iss-preprocess")
 def register_within_acquisition(
     data_path,
     prefix,
@@ -792,6 +793,16 @@ def merge_and_align_spots(
         trans_centers = ref_centers
     else:
         # get transform to global coordinate and apply to reg_centers
+        iss.pipeline.stitch_and_register(
+            data_path,
+            reference_prefix=ref_prefix,
+            target_prefix=reg_prefix,
+            roi=roi,
+            downsample=5,
+            ref_ch=0,
+            target_ch=0,
+            estimate_scale=False,
+        )
         tform2ref = np.load(reg_path / f"{reg_prefix}_roi{roi}_tform_to_ref.npz")
         tform2ref = make_transform(
             tform2ref["scale"],
@@ -824,6 +835,7 @@ def merge_and_align_spots_all_rois(
     reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
     keep_all_spots=False,
+    dependency=None,
 ):
     """Start batch jobs to combine spots across tiles and align to reference coordinates
     for all ROIs.
@@ -840,15 +852,12 @@ def merge_and_align_spots_all_rois(
     """
     ops = load_ops(data_path)
     roi_dims = get_roi_dimensions(data_path)
-    script_path = str(
-        Path(__file__).parent.parent.parent / "scripts" / "align_spots.sh"
-    )
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
         slurm_folder = Path.home() / "slurm_logs" / data_path / "align_spots"
-        slurm_folder.parent.mkdir(exist_ok=True, parents=True)
+        slurm_folder.mkdir(exist_ok=True, parents=True)
         merge_and_align_spots(
             data_path,
             roi,
@@ -859,4 +868,5 @@ def merge_and_align_spots_all_rois(
             use_slurm=True,
             slurm_folder=slurm_folder,
             scripts_name=f"iss_align_spots_{roi}.out",
+            job_dependency=dependency,
         )

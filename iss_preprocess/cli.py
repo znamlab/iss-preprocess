@@ -606,6 +606,8 @@ def register_to_reference(
             reg_channels = None
         if reg_channels is not None:
             reg_channels = [int(x) for x in reg_channels.split(",")]
+        if ref_channels == "None":
+            ref_channels = None
         if ref_channels is not None:
             ref_channels = [int(x) for x in ref_channels.split(",")]
         from iss_preprocess.io.load import load_ops
@@ -673,14 +675,39 @@ def align_spots(
         merge_and_align_spots_all_rois,
         register_within_acquisition,
     )
+    from pathlib import Path
 
-    register_within_acquisition(path, prefix=reg_prefix, reload=reload, save_plot=True)
+    slurm_folder = Path.home() / "slurm_logs" / path / "align_spots"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    reg_job_id = register_within_acquisition(
+        path,
+        prefix=reg_prefix,
+        reload=reload,
+        save_plot=True,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        scripts_name="register_within_acquisition_{reg_prefix}",
+    )
+    ref_job_id = None
     if reg_prefix != ref_prefix:
-        register_within_acquisition(
-            path, prefix=ref_prefix, reload=reload, save_plot=True
+        ref_job_id = register_within_acquisition(
+            path,
+            prefix=ref_prefix,
+            reload=reload,
+            save_plot=True,
+            use_slurm=True,
+            slurm_folder=slurm_folder,
+            scripts_name="register_within_acquisition_{ref_prefix}",
         )
+
+    if ref_job_id:
+        reg_job_id = [reg_job_id, ref_job_id]
     merge_and_align_spots_all_rois(
-        path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, ref_prefix=ref_prefix
+        path,
+        spots_prefix=spots_prefix,
+        reg_prefix=reg_prefix,
+        ref_prefix=ref_prefix,
+        dependency=reg_job_id,
     )
 
 
@@ -884,11 +911,20 @@ def setup_flexilims(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def setup_channel_correction(path):
+@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+def setup_channel_correction(path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
     from iss_preprocess.pipeline import setup_channel_correction
+    from pathlib import Path
 
-    setup_channel_correction(path)
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    setup_channel_correction(
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name="setup_channel_correction",
+    )
     click.echo("Channel correction setup complete.")
 
 
@@ -950,4 +986,60 @@ def plot_overview(
         downsample_factor=downsample_factor,
         save_raw=save_raw,
         group_channels=not separate_channels,
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
+)
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+@click.option(
+    "-b", "--background", default=3, help="Channel containing background, e.g. 3"
+)
+@click.option("-g", "--signal", default=2, help="Channel containing signal, e.g. 2")
+def unmix_channels(path, prefix="mCherry_1", suffix="max", background=3, signal=2):
+    """Unmix autofluorescence from signal for all tiles in a dataset."""
+    from iss_preprocess.pipeline import batch_process_tiles
+
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix},BACKGROUND_CH={background},SIGNAL_CH={signal}"
+    batch_process_tiles(path, script="unmix_channels", additional_args=additional_args)
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
+)
+@click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", "--tilex", default=0, help="Tile X position")
+@click.option("-y", "--tiley", default=0, help="Tile Y position.")
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+@click.option(
+    "-b", "--background_ch", default=3, help="Channel containing background, e.g. 3"
+)
+@click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
+def unmix_tile(
+    path, prefix, roi, tilex, tiley, suffix="max", background_ch=3, signal_ch=2
+):
+    """Unmix autofluorescence from signal for all tiles in a dataset."""
+    from iss_preprocess.image import unmix_tile
+    from iss_preprocess.pipeline import load_and_register_tile
+
+    stack, _ = load_and_register_tile(
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, filter_r=False
+    )
+    unmix_tile(
+        path,
+        prefix,
+        roi,
+        tilex,
+        tiley,
+        stack,
+        suffix=suffix,
+        background_ch=background_ch,
+        signal_ch=signal_ch,
     )

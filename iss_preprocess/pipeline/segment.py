@@ -32,7 +32,7 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
         if use_gpu:
             args = args + ",USE_GPU=--use-gpu --partition=gpu --gpus-per-node=1"
         else:
-            args = args + " --partition=cpu"
+            args = args + " --partition=ncpu"
         args = (
             args + f" --output={Path.home()}/slurm_logs/{data_path}/iss_segment_%j.out"
         )

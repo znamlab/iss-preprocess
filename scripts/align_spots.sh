@@ -3,7 +3,7 @@
 #SBATCH --ntasks=1
 #SBATCH --time=1:00:00
 #SBATCH --mem=96G
-#SBATCH --partition=cpu
+#SBATCH --partition=ncpu
 ml purge
 
 ml Anaconda3/2022.05
