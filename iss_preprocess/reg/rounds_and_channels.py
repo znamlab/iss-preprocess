@@ -547,6 +547,7 @@ def estimate_correction(
             median_filter_size, int
         ), "reg_median_filter must be an integer"
         im = median_filter(im, footprint=disk(median_filter_size), axes=(0, 1))
+
     # Prepare tasks for each channel
     pool_args = [
         (
@@ -655,15 +656,19 @@ def estimate_scale_rotation_translation(
     """
     best_angle = 0
     best_scale = 1
-    reference_fft = scipy.fft.fft2(reference)
+
     if debug:
         debug_info = {}
     if use_masked_correlation:
-        target_mask = np.ones(target.shape, dtype=bool)
-        reference_mask = np.ones(reference.shape)
-        reference_mask_fft = scipy.fft.fft2(reference_mask)
-        reference_squared_fft = scipy.fft.fft2(reference)
+        target_mask = target.astype(np.float32)
+        target_mask = np.where(target_mask <= 0, 0, 1)
+        (
+            reference_fft,
+            reference_squared_fft,
+            reference_mask_fft,
+        ) = mpc.get_mask_and_ffts(reference)
     else:
+        reference_fft = scipy.fft.fft2(reference)
         reference_mask_fft = None
         reference_squared_fft = None
 
