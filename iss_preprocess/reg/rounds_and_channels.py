@@ -273,14 +273,14 @@ def _process_single_rotation_translation(args):
     print(f"Processing channel {ref_ch}, round {iround}", flush=True)
 
     if ref_round != iround:
-        if use_masked_correlation is None:
-            reference_mask = None
-            target_mask = None
-        else:
+        if use_masked_correlation:
             reference_mask = reference.astype(np.float32)
             reference_mask = np.where(reference_mask <= 0, 0, 1)
             target_mask = target.astype(np.float32)
             target_mask = np.where(target_mask <= 0, 0, 1)
+        else:
+            reference_mask = None
+            target_mask = None
         out = estimate_rotation_translation(
             reference,
             target,
@@ -779,25 +779,20 @@ def estimate_rotation_angle(
         all_cc = np.empty((nangles, *reference_fft.shape), dtype=np.float64)
     for iangle in range(nangles):
         if reference_mask_fft is None:
-            shifts[iangle, :], _, cc, _ = mpc.phase_correlation(
-                reference_fft,
-                transform_image(target, angle=angles[iangle]),
-                fixed_image_is_fft=True,
-                min_shift=min_shift,
-                max_shift=max_shift,
-            )
+            move_mask = None
         else:
-            shifts[iangle, :], _, cc, _ = mpc.phase_correlation(
-                reference_fft,
-                transform_image(target, angle=angles[iangle]),
-                fixed_mask=reference_mask_fft,
-                moving_mask=target_mask,
-                min_shift=min_shift,
-                max_shift=max_shift,
-                fixed_image_is_fft=True,
-                fixed_mask_is_fft=True,
-                fixed_squared_fft=reference_squared_fft,
-            )
+            move_mask = transform_image(target_mask, angle=angles[iangle])
+        shifts[iangle, :], _, cc, _ = mpc.phase_correlation(
+            reference_fft,
+            transform_image(target, angle=angles[iangle]),
+            fixed_mask=reference_mask_fft,
+            moving_mask=move_mask,
+            min_shift=min_shift,
+            max_shift=max_shift,
+            fixed_image_is_fft=True,
+            fixed_mask_is_fft=True,
+            fixed_squared_fft=reference_squared_fft,
+        )
         max_cc[iangle] = np.max(cc)
         if debug:
             all_cc[iangle] = cc
@@ -918,3 +913,38 @@ def estimate_rotation_translation(
     if debug:
         return best_angle, shift, debug_info
     return best_angle, shift
+
+
+def phase_correlation_by_block(
+    reference, target, block_size=256, overlap=0.1, upsample_factor=1
+):
+    """Estimate translation between two images by dividing them into blocks and estimating
+    translation for each block.
+
+    Args:
+        reference (np.array): reference image
+        target (np.array): target image
+        block_size (int): size of the blocks
+        overlap (float): fraction of overlap between blocks
+
+    Returns:
+        shifts (np.array): array of shifts for each block
+
+    """
+    # Iterate on blocks
+    col, row = 0, 0
+    shifts = {}
+    while row < reference.shape[0]:
+        while col < reference.shape[1]:
+            ref_block = reference[row : row + block_size, col : col + block_size]
+            target_block = target[row : row + block_size, col : col + block_size]
+            shift = phase_cross_correlation(
+                ref_block,
+                target_block,
+            )[0]
+            col += int((1 - overlap) * block_size)
+            block_center = (row + block_size // 2, col + block_size // 2)
+            shifts[block_center] = shift
+        row += int((1 - overlap) * block_size)
+        col = 0
+    return shifts
