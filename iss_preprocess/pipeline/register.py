@@ -282,9 +282,9 @@ def correct_shifts_roi(
                         X[inliers, :],
                         shifts_within_channels[ich, iround, idim, inliers],
                     )
-                    shifts_within_channels_corrected[
-                        ich, iround, idim, :
-                    ] = reg.predict(X)
+                    shifts_within_channels_corrected[ich, iround, idim, :] = (
+                        reg.predict(X)
+                    )
             median_shift = np.median(shifts_between_channels[ich, :, :], axis=1)[
                 :, np.newaxis
             ]

@@ -189,9 +189,9 @@ def correct_barcode_sequences(spots, max_edit_distance=2):
 
     for original_sequence, new_sequence in zip(unique_sequences, corrected_sequences):
         if not np.array_equal(original_sequence, new_sequence):
-            sequences[
-                np.all((sequences - original_sequence) == 0, axis=1), :
-            ] = new_sequence
+            sequences[np.all((sequences - original_sequence) == 0, axis=1), :] = (
+                new_sequence
+            )
 
     spots["corrected_sequence"] = [seq for seq in sequences]
     spots["corrected_bases"] = [

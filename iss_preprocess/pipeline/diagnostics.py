@@ -3,6 +3,7 @@ Module containing diagnostic plots to make sure steps of the pipeline run smooth
 
 The functions in here do not compute anything useful, but create figures
 """
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
