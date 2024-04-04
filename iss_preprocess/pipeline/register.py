@@ -57,7 +57,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         (
             angles_within_channels,
             shifts_within_channels,
-            across_channels_matrix,
+            matrix_across_channels,
             debug_dict,
         ) = out
         iss.vis.diagnostics.plot_registration_correlograms(
@@ -70,7 +70,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         (
             angles_within_channels,
             shifts_within_channels,
-            across_channels_matrix,
+            matrix_across_channels,
         ) = out
 
     save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
@@ -78,7 +78,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         save_path,
         angles_within_channels=angles_within_channels,
         shifts_within_channels=shifts_within_channels,
-        across_channels_matrix=across_channels_matrix,
+        matrix_across_channels=matrix_across_channels,
         allow_pickle=True,
     )
 
@@ -156,11 +156,10 @@ def estimate_shifts_by_coors(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
-    (_, shifts_within_channels, shifts_between_channels) = estimate_shifts_for_tile(
+    (_, shifts_within_channels, matrix_across_channels) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
-        reference_tforms["scales_between_channels"],
-        reference_tforms["angles_between_channels"],
+        reference_tforms["matrix_across_channels"],
         ref_ch=ops["ref_ch"],
         ref_round=ops["ref_round"],
         max_shift=ops["rounds_max_shift"],
@@ -174,9 +173,7 @@ def estimate_shifts_by_coors(
         / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
         angles_within_channels=reference_tforms["angles_within_channels"],
         shifts_within_channels=shifts_within_channels,
-        scales_between_channels=reference_tforms["scales_between_channels"],
-        angles_between_channels=reference_tforms["angles_between_channels"],
-        shifts_between_channels=shifts_between_channels,
+        matrix_across_channels=matrix_across_channels,
         allow_pickle=True,
     )
 
