@@ -522,13 +522,25 @@ def apply_corrections(im, matrix=None, scales=None, angles=None, shifts=None, cv
     return im_reg
 
 
-def correct_by_block(im, ch_to_align, median_filter_size=None, debug=False):
+def correct_by_block(
+    im,
+    ch_to_align,
+    median_filter_size=None,
+    block_size=256,  # todo make ops
+    overlap=0.5,
+    correlation_threshold=None,
+    debug=False,
+):
     """Estimate affine transformations by block for each channel of a multichannel image.
 
     Args:
         im (np.array): X x Y x Nchannels image
         ch_to_align (int): channel to align to
         median_filter_size (int): size of median filter to apply to the stack.
+        block_size (int): size of the block to use for registration. Default: 256
+        overlap (float): overlap between blocks. Default: 0.5
+        correlation_threshold (float): threshold for correlation to use for fitting
+            affine transformations. None to keep all values. Default: None
         debug (bool): whether to return debug info, default: False
 
     Returns:
@@ -553,14 +565,13 @@ def correct_by_block(im, ch_to_align, median_filter_size=None, debug=False):
             params = abb.find_affine_by_block(
                 reference,
                 target,
-                block_size=256,  # todo make ops
-                overlap=0.5,
-                correlation_threshold=None,
+                block_size=block_size,
+                overlap=overlap,
+                correlation_threshold=correlation_threshold,
                 debug=debug,
             )
             if debug:
-                params = list(params)
-                db[channel] = params.pop(-1)
+                params, db[channel] = params
         else:
             params = np.array([1, 0, 0, 0, 1, 0])
         # make a 3x3 matrix from the 6 parameters
