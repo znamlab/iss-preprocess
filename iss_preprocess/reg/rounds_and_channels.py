@@ -466,24 +466,14 @@ def get_channel_reference_images(stack, angles_channels, shifts_channels):
     mean_stack = np.zeros((stack.shape[:3]))
 
     for ich in range(nchannels):
-        std_stack[:, :, ich] = np.std(
-            apply_corrections(
-                stack[:, :, ich, :],
-                np.ones((nrounds)),
-                angles_channels[ich],
-                shifts_channels[ich],
-            ),
-            axis=2,
+        corrected = apply_corrections(
+            stack[:, :, ich, :],
+            scales=np.ones((nrounds)),
+            angles=angles_channels[ich],
+            shifts=shifts_channels[ich],
         )
-        mean_stack[:, :, ich] = np.mean(
-            apply_corrections(
-                stack[:, :, ich, :],
-                np.ones((nrounds)),
-                angles_channels[ich],
-                shifts_channels[ich],
-            ),
-            axis=2,
-        )
+        std_stack[:, :, ich] = np.std(corrected, axis=2)
+        mean_stack[:, :, ich] = np.mean(corrected, axis=2)
     return std_stack, mean_stack
 
 
@@ -511,10 +501,10 @@ def apply_corrections(im, matrix=None, scales=None, angles=None, shifts=None, cv
                 im[:, :, ch], scale=scale, angle=angle, shift=shift, cval=cval
             )
     else:
-        for ch, matrix in enumerate(matrix):
+        for ch, mat in enumerate(matrix):
             im_reg[:, :, ch] = warp(
                 im[:, :, ch],
-                AffineTransform(matrix=matrix).inverse,
+                AffineTransform(matrix=mat).inverse,
                 preserve_range=True,
                 cval=cval,
             )
