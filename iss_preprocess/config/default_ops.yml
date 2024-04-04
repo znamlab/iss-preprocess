@@ -25,6 +25,8 @@ image_correction:
 registration:
   # Whether to use channel-specific registration parameters
   align_channels: true
+  # Method for aligning channels, can be "similarity" or "affine"
+  align_method: affine
   # Coordinates of the reference tile to use for initial estimation of scale and rotation between channels
   ref_tile: [ 1, 0, 0 ]
   # Index of the reference channel to use for registration (camera index, NOT wavelength index)

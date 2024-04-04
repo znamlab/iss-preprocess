@@ -51,14 +51,13 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         min_shift=ops["rounds_min_shift"],
         debug=diag,
         use_masked_correlation=ops["use_masked_correlation"],
+        affine_by_block=ops["align_method"],
     )
     if diag:
         (
             angles_within_channels,
             shifts_within_channels,
-            scales_between_channels,
-            angles_between_channels,
-            shifts_between_channels,
+            across_channels_matrix,
             debug_dict,
         ) = out
         iss.vis.diagnostics.plot_registration_correlograms(
@@ -71,9 +70,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         (
             angles_within_channels,
             shifts_within_channels,
-            scales_between_channels,
-            angles_between_channels,
-            shifts_between_channels,
+            across_channels_matrix,
         ) = out
 
     save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
@@ -81,9 +78,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         save_path,
         angles_within_channels=angles_within_channels,
         shifts_within_channels=shifts_within_channels,
-        scales_between_channels=scales_between_channels,
-        angles_between_channels=angles_between_channels,
-        shifts_between_channels=shifts_between_channels,
+        across_channels_matrix=across_channels_matrix,
         allow_pickle=True,
     )
 
