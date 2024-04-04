@@ -8,7 +8,7 @@ from skimage.morphology import disk
 import multiprocessing
 import gc
 from numba import jit
-from skimage.transform import SimilarityTransform, warp
+from skimage.transform import AffineTransform, warp
 from skimage.registration import phase_cross_correlation
 
 from image_tools.registration import phase_correlation as mpc
@@ -109,9 +109,7 @@ def register_channels_and_rounds(
 def generate_channel_round_transforms(
     angles_within_channels,
     shifts_within_channels,
-    scales_between_channels,
-    angles_between_channels,
-    shifts_between_channels,
+    matrix_across_channels,
     stack_shape,
     align_channels=True,
     ref_ch=0,
@@ -121,9 +119,7 @@ def generate_channel_round_transforms(
     Args:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
         shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
-        scales_between_channels (np.array): Nchannels array of scales
-        angles_between_channels (np.array): Nchannels array of angles
-        shifts_between_channels (np.array): Nchannels x 2 array of shifts
+        matrix_across_channels (list): Nchannels list of affine transformations matrices
         stack_shape (tuple): shape of the stack
         align_channels (bool): whether to register channels to each other
 
@@ -141,12 +137,7 @@ def generate_channel_round_transforms(
         else:
             use_ch = ref_ch
         for iround in range(nrounds):
-            tforms[ich, iround] = make_transform(
-                scales_between_channels[use_ch],
-                angles_between_channels[use_ch],
-                shifts_between_channels[use_ch],
-                stack_shape,
-            ) @ make_transform(
+            tforms[ich, iround] = matrix_across_channels[use_ch] @ make_transform(
                 1.0,
                 angles_within_channels[use_ch][iround],
                 shifts_within_channels[use_ch][iround],
@@ -172,7 +163,7 @@ def align_channels_and_rounds(stack, tforms):
 
     for ich in range(nchannels):
         for iround in range(nrounds):
-            tform = SimilarityTransform(matrix=tforms[ich, iround])
+            tform = AffineTransform(matrix=tforms[ich, iround])
             reg_stack[:, :, ich, iround] = warp(
                 stack[:, :, ich, iround],
                 tform.inverse,
@@ -376,8 +367,7 @@ def estimate_shifts_and_angles_for_tile(
 def estimate_shifts_for_tile(
     stack,
     angles_within_channels,
-    scales_between_channels,
-    angles_between_channels,
+    matrix_across_channels,
     ref_ch=0,
     ref_round=0,
     max_shift=None,
@@ -390,8 +380,7 @@ def estimate_shifts_for_tile(
     Args:
         stack (np.array): X x Y x Nchannels x Nrounds images stack
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
-        scales_between_channels (np.array): Nchannels x Nchannels array of scale factors
-        angles_between_channels (np.array): Nchannels x Nchannels array of angles
+        matrix_across_channels (list): Nchannels list of affine transformations matrices
         ref_ch (int): reference channel
         ref_round (int): reference round
         max_shift (int): maximum shift to avoid spurious cross-correlations
@@ -434,29 +423,27 @@ def estimate_shifts_for_tile(
     std_stack, _ = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
-    shifts_between_channels = []
+    matrix_across_channels_new = matrix_across_channels.copy()
     for ich in range(nchannels):
         # TODO this always uses upsample. Is that what we want?
-        shifts_between_channels.append(
-            phase_cross_correlation(
-                std_stack[:, :, ref_ch],
-                transform_image(
-                    std_stack[:, :, ich],
-                    scale=scales_between_channels[ich],
-                    angle=angles_between_channels[ich],
-                ),
-                upsample_factor=5,
-            )[0]
-        )
+        extra_shifts_between_channels = phase_cross_correlation(
+            std_stack[:, :, ref_ch],
+            apply_corrections(
+                std_stack[:, :, ich],
+                matrix=matrix_across_channels[ich],
+            ),
+            upsample_factor=5,
+        )[0]
+        # add extra_shift to the matrix
+        matrix_across_channels_new[ich][:2, 2] += extra_shifts_between_channels[0]
+
     tforms = generate_channel_round_transforms(
         angles_within_channels,
         shifts_within_channels,
-        scales_between_channels,
-        angles_between_channels,
-        shifts_between_channels,
+        matrix_across_channels_new,
         stack.shape[:2],
     )
-    return tforms, shifts_within_channels, shifts_between_channels
+    return tforms, shifts_within_channels, matrix_across_channels_new
 
 
 def get_channel_reference_images(stack, angles_channels, shifts_channels):
@@ -500,11 +487,13 @@ def get_channel_reference_images(stack, angles_channels, shifts_channels):
     return std_stack, mean_stack
 
 
-def apply_corrections(im, scales, angles, shifts, cval=0.0):
+def apply_corrections(im, matrix=None, scales=None, angles=None, shifts=None, cval=0.0):
     """Apply scale, rotation and shift corrections to a multichannel image.
 
     Args:
         im (np.array): X x Y x Nchannels image
+        matrix (np.array): Nchannels list of affine transformations matrices. If
+            provided, scales, angles and shifts are ignored.
         scales (np.array): Nchannels array of scale factors
         angles (np.array): Nchannels array of angles
         shifts (np.array): Nchannels x 2 array of shifts
@@ -516,10 +505,19 @@ def apply_corrections(im, scales, angles, shifts, cval=0.0):
     """
     nchannels = im.shape[2]
     im_reg = np.zeros(im.shape)
-    for channel, scale, angle, shift in zip(range(nchannels), scales, angles, shifts):
-        im_reg[:, :, channel] = transform_image(
-            im[:, :, channel], scale=scale, angle=angle, shift=shift, cval=cval
-        )
+    if matrix is None:
+        for ch, scale, angle, shift in zip(range(nchannels), scales, angles, shifts):
+            im_reg[:, :, ch] = transform_image(
+                im[:, :, ch], scale=scale, angle=angle, shift=shift, cval=cval
+            )
+    else:
+        for ch, matrix in enumerate(matrix):
+            im_reg[:, :, ch] = warp(
+                im[:, :, ch],
+                AffineTransform(matrix=matrix).inverse,
+                preserve_range=True,
+                cval=cval,
+            )
 
     return im_reg
 
