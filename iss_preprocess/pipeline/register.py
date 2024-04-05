@@ -240,7 +240,9 @@ def correct_shifts_roi(
                 processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
             )
             shifts_within_channels.append(tforms["shifts_within_channels"])
-            shifts_between_channels.append(tforms["shifts_between_channels"])
+            matrix_across_channels = tforms["matrix_across_channels"]
+            shifts = [m[:2, 2] for m in matrix_across_channels]
+            shifts_between_channels.append(shifts)
     shifts_within_channels = np.stack(shifts_within_channels, axis=3)
     shifts_between_channels = np.stack(shifts_between_channels, axis=2)
 
@@ -293,15 +295,15 @@ def correct_shifts_roi(
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
     itile = 0
+    matrix = matrix_across_channels.copy()
     for iy in range(ny):
         for ix in range(nx):
+            matrix[:2, 2] = shifts_between_channels_corrected[:, :, itile]
             np.savez(
                 save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
                 angles_within_channels=tforms["angles_within_channels"],
                 shifts_within_channels=shifts_within_channels_corrected[:, :, :, itile],
-                scales_between_channels=tforms["scales_between_channels"],
-                angles_between_channels=tforms["angles_between_channels"],
-                shifts_between_channels=shifts_between_channels_corrected[:, :, itile],
+                matrix_across_channels=matrix,
                 allow_pickle=True,
             )
             # TODO: perhaps save in a cleaner way
@@ -330,15 +332,25 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
                 save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
             )
             tforms_best = {key: tforms_init[key] for key in tforms_init.keys()}
-            for which in ["within", "between"]:
-                shifts_init = tforms_init[f"shifts_{which}_channels"]
-                shifts_corrected = tforms_corrected[f"shifts_{which}_channels"]
-                residuals = np.abs(shifts_init - shifts_corrected)
-                shifts_best = np.array(shifts_init, copy=True)
-                shifts_best[residuals > max_residuals] = shifts_corrected[
-                    residuals > max_residuals
-                ]
-                tforms_best[f"shifts_{which}_channels"] = shifts_best
+
+            # first for within, it's easy shifts are saved separatly
+            shifts_init = tforms_init[f"shifts_within_channels"]
+            shifts_corrected = tforms_corrected[f"shifts_within_channels"]
+            residuals = np.abs(shifts_init - shifts_corrected)
+            shifts_best = np.array(shifts_init, copy=True)
+            shifts_best[residuals > max_residuals] = shifts_corrected[
+                residuals > max_residuals
+            ]
+            tforms_best[f"shifts_within_channels"] = shifts_best
+
+            # then for between, we need to update the matrix
+            matrix_init = tforms_init[f"matrix_across_channels"]
+            matrix_corrected = tforms_corrected[f"matrix_across_channels"]
+            residuals = np.abs(matrix_init[:2, 2] - matrix_corrected[:2, 2])
+            matrix_best = matrix_init.copy()
+            bad = residuals > max_residuals
+            matrix_best[:2, bad] = matrix_corrected[:2, bad]
+
             tforms_best.update({"allow_pickle": True})
             np.savez(
                 save_dir / f"tforms_best_{prefix}_{roi}_{ix}_{iy}.npz", **tforms_best
