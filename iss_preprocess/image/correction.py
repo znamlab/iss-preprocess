@@ -1,12 +1,13 @@
 from pathlib import Path
-import numpy as np
-from pathlib import Path
+
 import cv2
+import numpy as np
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
-from sklearn.linear_model import Lasso
-from ..io import load_stack, load_ops, get_processed_path, write_stack
+from sklearn.linear_model import LinearRegression
+
 from ..coppafish import hanning_diff
+from ..io import get_processed_path, load_ops, load_stack, write_stack
 
 
 def apply_illumination_correction(data_path, stack, prefix, dtype=float):
@@ -93,20 +94,21 @@ def unmix_tile(
     suffix="max",
     background_ch=3,
     signal_ch=2,
-    alpha=1e-5,
     background_coef=1.1,
+    threshold_background=200,
 ):
     """
     Unmixes two images: one with only background autofluorescence and another with both background and useful signal.
-    Uses Lasso regression to approximate Mean Absolute Error regression for the unmixing process.
+    Uses Linear regression for the unmixing process.
 
     Args:
-    - background_image: numpy array of the background image.
-    - mixed_signal_image: numpy array of the image with both signal and background.
-    - alpha: Small regularization term to approximate MAE. Default is very small to closely approximate MAE.
+        background_image: numpy array of the background image.
+        mixed_signal_image: numpy array of the image with both signal and background.
+        background_coef: Coefficient to multiply the background image by before subtraction.
+        threshold_background: Minimum value for a pixel to be considered background.
 
     Returns:
-    - signal_image: The isolated signal image after background subtraction.
+        signal_image: The isolated signal image after background subtraction.
     """
 
     processed_path = get_processed_path(data_path)
@@ -119,14 +121,21 @@ def unmix_tile(
     mixed_signal_image = stack[:, :, signal_ch, 0]
 
     # Flatten to 1D arrays for the regression model
-    background_flat = background_image.ravel().reshape(-1, 1)
+    background_flat = background_image.ravel()
     mixed_signal_flat = mixed_signal_image.ravel()
 
-    # Initialize and fit Lasso model
-    model = Lasso(alpha=alpha, positive=True, max_iter=10000)
+    # Remove pixels that are too dark or too bright
+    bright_pixels = (
+        (background_flat > threshold_background) & (background_flat < 4090)
+    ) & ((mixed_signal_flat > threshold_background) & (mixed_signal_flat < 4090))
+    background_flat = background_flat[bright_pixels].reshape(-1, 1)
+    mixed_signal_flat = mixed_signal_flat[bright_pixels]
+
+    # Initialize and fit Linear model
+    model = LinearRegression(positive=True)
     model.fit(background_flat, mixed_signal_flat)
     # Predict the background component in the mixed signal image
-    predicted_background_flat = model.predict(background_flat)
+    predicted_background_flat = model.predict(background_image.ravel().reshape(-1, 1))
 
     predicted_background = predicted_background_flat.reshape(background_image.shape)
 

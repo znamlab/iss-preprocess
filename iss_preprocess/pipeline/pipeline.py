@@ -2,10 +2,14 @@ import shlex
 import subprocess
 import warnings
 from pathlib import Path
-import numpy as np
-import iss_preprocess as iss
+
 import flexiznam as flz
-import os
+import numpy as np
+from znamutils import slurm_it
+
+import iss_preprocess as iss
+
+from ..decorators import updates_flexilims
 from ..image import apply_illumination_correction
 from ..io import (
     get_roi_dimensions,
@@ -13,8 +17,6 @@ from ..io import (
     load_ops,
     load_tile_by_coors,
 )
-from znamutils import slurm_it
-from ..decorators import updates_flexilims
 from . import ara_registration as ara_reg
 from .hybridisation import load_and_register_hyb_tile
 from .sequencing import load_and_register_sequencing_tile
@@ -139,7 +141,7 @@ def project_and_average(data_path, force_redo=False):
         data_path,
         use_slurm=True,
         slurm_folder=slurm_folder,
-        scripts_name=f"reproject_failed",
+        scripts_name="reproject_failed",
         dependency_type="afterany",
         job_dependency=all_check_proj_job_ids,
     )

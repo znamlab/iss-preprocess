@@ -1,8 +1,9 @@
-import pandas as pd
-import numpy as np
-from scipy.ndimage import grey_dilation
 import cv2
+import numpy as np
+import pandas as pd
 import scipy
+from scipy.ndimage import grey_dilation
+
 from ..coppafish import annulus
 
 

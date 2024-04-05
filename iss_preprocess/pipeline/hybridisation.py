@@ -1,24 +1,25 @@
-import subprocess, shlex
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from pathlib import Path
 from skimage.morphology import binary_dilation
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-from ..image import filter_stack, apply_illumination_correction, compute_distribution
-from ..reg import apply_corrections
-from ..io import (
-    load_tile_by_coors,
-    load_metadata,
-    load_hyb_probes_metadata,
-    load_ops,
-    get_roi_dimensions,
-)
-from ..segment import detect_spots
+
 from ..call import extract_spots
 from ..coppafish import scaled_k_means
+from ..image import apply_illumination_correction, compute_distribution, filter_stack
+from ..io import (
+    get_roi_dimensions,
+    load_hyb_probes_metadata,
+    load_metadata,
+    load_ops,
+    load_tile_by_coors,
+)
+from ..reg import apply_corrections
+from ..segment import detect_spots
 
 
 def load_and_register_hyb_tile(
