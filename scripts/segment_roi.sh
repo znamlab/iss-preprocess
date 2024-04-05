@@ -6,8 +6,8 @@
 #SBATCH --partition=ncpu
 ml purge
 
-ml Anaconda3/2022.05
-source /camp/apps/eb/software/Anaconda3/2022.05/etc/profile.d/conda.sh
+ml Anaconda3
+source activate base
 
 conda activate iss-preprocess
 
