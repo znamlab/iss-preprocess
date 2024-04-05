@@ -211,6 +211,20 @@ def check_shift_correction(
     nr = ops[f"{prefix}s"]
 
     # Now plot them.
+    def get_shifts(which, archive):
+        if which == "within":
+            return archive[f"shifts_{which}_channels"]
+        elif which == "across":
+            return archive["matrix_across_channels"][:2, 2]
+
+    def get_angle(which, archive):
+        if which == "within":
+            return archive[f"angles_{which}_channels"]
+        elif which == "across":
+            matrix = archive["matrix_across_channels"]
+            # we return an estimate of the angle assuming it is a pure rotation matrix
+            return np.arctan2(matrix[1, 0], matrix[0, 0])
+
     def get_data(which, roi, nr, ntiles):
         if nr > 1:
             raw = np.zeros([nc, nr, 3, *ntiles]) + np.nan
@@ -223,20 +237,20 @@ def check_shift_correction(
             for iy in range(ntiles[1]):
                 try:
                     data = np.load(reg_dir / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz")
-                    raw[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
-                    raw[..., 2, ix, iy] = data[f"angles_{which}_channels"]
+                    raw[..., :2, ix, iy] = get_shifts(which, data)
+                    raw[..., 2, ix, iy] = get_angle(which, data)
                 except FileNotFoundError:
                     pass
                 data = np.load(
                     reg_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
-                corrected[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
-                corrected[..., 2, ix, iy] = data[f"angles_{which}_channels"]
+                corrected[..., :2, ix, iy] = get_shifts(which, data)
+                corrected[..., 2, ix, iy] = get_angle(which, data)
                 tf_best = reg_dir / f"tforms_best_{prefix}_{roi}_{ix}_{iy}.npz"
                 if tf_best.exists():
                     data = np.load(tf_best)
-                    best[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
-                    best[..., 2, ix, iy] = data[f"angles_{which}_channels"]
+                    best[..., :2, ix, iy] = get_shifts(which, data)
+                    best[..., 2, ix, iy] = get_angle(which, data)
         return raw, corrected, best
 
     # For "within channels" we plot the shifts for each channel and each round
@@ -832,7 +846,7 @@ def check_tile_shifts(
                     ]
                     shifts_between_channels_raw[:, :, ix, iy] = data[
                         "matrix_across_channels"
-                    ][:,:2, 2]
+                    ][:, :2, 2]
                 except FileNotFoundError:
                     pass
                 data = np.load(
@@ -843,7 +857,7 @@ def check_tile_shifts(
                 ]
                 shifts_between_channels_corrected[:, :, ix, iy] = data[
                     "matrix_across_channels"
-                ][:,:2, 2]
+                ][:, :2, 2]
         # create a PDF for each roi
         with PdfPages(figure_folder / f"tile_shifts_{prefix}_roi{roi}.pdf") as pdf:
             for ch in range(nchannels):

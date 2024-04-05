@@ -431,7 +431,7 @@ def load_and_register_sequencing_tile(
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],
-        tforms["matrix_across_channels"],
+        tforms["matrix_between_channels"],
         stack.shape[:2],
         align_channels=ops["align_channels"],
         ref_ch=ops["ref_ch"],

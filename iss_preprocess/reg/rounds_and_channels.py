@@ -106,7 +106,7 @@ def register_channels_and_rounds(
 def generate_channel_round_transforms(
     angles_within_channels,
     shifts_within_channels,
-    matrix_across_channels,
+    matrix_between_channels,
     stack_shape,
     align_channels=True,
     ref_ch=0,
@@ -116,7 +116,7 @@ def generate_channel_round_transforms(
     Args:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
         shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
-        matrix_across_channels (list): Nchannels list of affine transformations matrices
+        matrix_between_channels (list): Nchannels list of affine transformations matrices
         stack_shape (tuple): shape of the stack
         align_channels (bool): whether to register channels to each other
 
@@ -134,7 +134,7 @@ def generate_channel_round_transforms(
         else:
             use_ch = ref_ch
         for iround in range(nrounds):
-            tforms[ich, iround] = matrix_across_channels[use_ch] @ make_transform(
+            tforms[ich, iround] = matrix_between_channels[use_ch] @ make_transform(
                 1.0,
                 angles_within_channels[use_ch][iround],
                 shifts_within_channels[use_ch][iround],
@@ -364,7 +364,7 @@ def estimate_shifts_and_angles_for_tile(
 def estimate_shifts_for_tile(
     stack,
     angles_within_channels,
-    matrix_across_channels,
+    matrix_between_channels,
     ref_ch=0,
     ref_round=0,
     max_shift=None,
@@ -377,7 +377,7 @@ def estimate_shifts_for_tile(
     Args:
         stack (np.array): X x Y x Nchannels x Nrounds images stack
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
-        matrix_across_channels (list): Nchannels list of affine transformations matrices
+        matrix_between_channels (list): Nchannels list of affine transformations matrices
         ref_ch (int): reference channel
         ref_round (int): reference round
         max_shift (int): maximum shift to avoid spurious cross-correlations
@@ -420,12 +420,12 @@ def estimate_shifts_for_tile(
     std_stack, _ = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
-    matrix_across_channels_new = matrix_across_channels.copy()
+    matrix_between_channels_new = matrix_between_channels.copy()
     for ich in range(nchannels):
         # TODO this always uses upsample. Is that what we want?
         moving_image = warp(
             std_stack[:, :, ich],
-            AffineTransform(matrix=matrix_across_channels[ich]).inverse,
+            AffineTransform(matrix=matrix_between_channels[ich]).inverse,
             preserve_range=True,
             cval=0,
         )
@@ -435,15 +435,15 @@ def estimate_shifts_for_tile(
             upsample_factor=5,
         )[0]
         # add extra_shift to the matrix, matrix is x/y, shifts are row/column
-        matrix_across_channels_new[ich][:2, 2] += extra_shifts_between_channels[::-1]
+        matrix_between_channels_new[ich][:2, 2] += extra_shifts_between_channels[::-1]
 
     tforms = generate_channel_round_transforms(
         angles_within_channels,
         shifts_within_channels,
-        matrix_across_channels_new,
+        matrix_between_channels_new,
         stack.shape[:2],
     )
-    return tforms, shifts_within_channels, matrix_across_channels_new
+    return tforms, shifts_within_channels, matrix_between_channels_new
 
 
 def get_channel_reference_images(stack, angles_channels, shifts_channels):

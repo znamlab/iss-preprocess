@@ -473,14 +473,14 @@ def plot_registration_correlograms(
         if what == "align_within_channels":
             _plot_within_channel_correlogram(data, target_folder, figure_name, mshift)
         elif what == "estimate_correction":
-            _plot_across_channels_correlogram(data, target_folder, figure_name, mshift)
+            _plot_between_channels_correlogram(data, target_folder, figure_name, mshift)
         else:
             raise NotImplementedError(f"Unknown correlogram output: {what}", flush=True)
     plt.close("all")
     print(f"Saved figures to {target_folder}")
 
 
-def _plot_across_channels_correlogram(data, target_folder, figure_name, max_shift=100):
+def _plot_between_channels_correlogram(data, target_folder, figure_name, max_shift=100):
     angle_scales = set()
     for d in data:
         angle_scales.update(d.keys())

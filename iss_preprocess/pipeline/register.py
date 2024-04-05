@@ -59,7 +59,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         (
             angles_within_channels,
             shifts_within_channels,
-            matrix_across_channels,
+            matrix_between_channels,
             debug_dict,
         ) = out
         iss.vis.diagnostics.plot_registration_correlograms(
@@ -72,7 +72,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         (
             angles_within_channels,
             shifts_within_channels,
-            matrix_across_channels,
+            matrix_between_channels,
         ) = out
 
     save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
@@ -80,7 +80,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         save_path,
         angles_within_channels=angles_within_channels,
         shifts_within_channels=shifts_within_channels,
-        matrix_across_channels=matrix_across_channels,
+        matrix_between_channels=matrix_between_channels,
         allow_pickle=True,
     )
 
@@ -158,10 +158,10 @@ def estimate_shifts_by_coors(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
-    (_, shifts_within_channels, matrix_across_channels) = estimate_shifts_for_tile(
+    (_, shifts_within_channels, matrix_between_channels) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
-        reference_tforms["matrix_across_channels"],
+        reference_tforms["matrix_between_channels"],
         ref_ch=ops["ref_ch"],
         ref_round=ops["ref_round"],
         max_shift=ops["rounds_max_shift"],
@@ -175,7 +175,7 @@ def estimate_shifts_by_coors(
         / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
         angles_within_channels=reference_tforms["angles_within_channels"],
         shifts_within_channels=shifts_within_channels,
-        matrix_across_channels=matrix_across_channels,
+        matrix_between_channels=matrix_between_channels,
         allow_pickle=True,
     )
 
@@ -242,8 +242,8 @@ def correct_shifts_roi(
                 processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
             )
             shifts_within_channels.append(tforms["shifts_within_channels"])
-            matrix_across_channels = tforms["matrix_across_channels"]
-            shifts = [m[:2, 2] for m in matrix_across_channels]
+            matrix_between_channels = tforms["matrix_between_channels"]
+            shifts = [m[:2, 2] for m in matrix_between_channels]
             shifts_between_channels.append(shifts)
     shifts_within_channels = np.stack(shifts_within_channels, axis=3)
     shifts_between_channels = np.stack(shifts_between_channels, axis=2)
@@ -297,7 +297,7 @@ def correct_shifts_roi(
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
     itile = 0
-    matrix = matrix_across_channels.copy()
+    matrix = matrix_between_channels.copy()
     for iy in range(ny):
         for ix in range(nx):
             matrix[:,:2, 2] = shifts_between_channels_corrected[:, :, itile]
@@ -305,7 +305,7 @@ def correct_shifts_roi(
                 save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
                 angles_within_channels=tforms["angles_within_channels"],
                 shifts_within_channels=shifts_within_channels_corrected[:, :, :, itile],
-                matrix_across_channels=matrix,
+                matrix_between_channels=matrix,
                 allow_pickle=True,
             )
             # TODO: perhaps save in a cleaner way
@@ -346,8 +346,8 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
             tforms_best["shifts_within_channels"] = shifts_best
 
             # then for between, we need to update the matrix
-            matrix_init = tforms_init["matrix_across_channels"]
-            matrix_corrected = tforms_corrected["matrix_across_channels"]
+            matrix_init = tforms_init["matrix_between_channels"]
+            matrix_corrected = tforms_corrected["matrix_between_channels"]
             residuals = np.abs(matrix_init[:,:2, 2] - matrix_corrected[:,:2, 2])
             matrix_best = matrix_init.copy()
             bad = residuals > max_residuals
