@@ -20,7 +20,7 @@ pip install -e .
 
 ### Documentation
 
-To build the documentation you also need to install 
+To build the documentation you also need to install
 ```
 Sphinx
 furo
@@ -30,7 +30,7 @@ m2r2
 ### Atlas cache
 
 The registration to the allen reference atlas uses `bg_atlasapi` from brainglobe. This
-keeps a cached version of the atlas in `~/.brainglobe` by default. This can be quite 
+keeps a cached version of the atlas in `~/.brainglobe` by default. This can be quite
 big for high resolution atlases (10um per pixel). If using `nemo`, you might consider
 linking that folder to save space in your home directory:
 ```
@@ -63,7 +63,7 @@ The broad strokes of the pipeline are:
 * `config` - contains default pipeline settings
 * `coppafish` - utilities adapted from coppafish codebase: hanning window, annulus for isolated
 spot detection, and scaled k-means for bleedthrough estimation
-* `pipeline` - high level routines for batch processing 
+* `pipeline` - high level routines for batch processing
 
 ## OMP pipeline
 
@@ -76,10 +76,10 @@ of a sequencing round. The average fluorescence of each spot is fed into a simpl
 base caller, which uses a Gaussian Mixture Model to classify the 4 bases.
 
 Sequences for each spot are them compared to a codebook to assign spots to genes.
-Spots matching each gene (by default without any mismatches) are used to create 
-a dictionary to be used for Orthogonal Matching Pursuit. 
+Spots matching each gene (by default without any mismatches) are used to create
+a dictionary to be used for Orthogonal Matching Pursuit.
 
-OMP is then applied to each pixel to identify the genes present. 
+OMP is then applied to each pixel to identify the genes present.
 The algorithm works by iteratively. At each step we find the component that has
 the highest dot product with the residual fluorescence signal. After selecting
 a component, coefficients for all included components are estimated by least
@@ -88,7 +88,7 @@ if it reduces the norm of the residuals by at least a fraction of the original
 norm specified by a tolerance parameter.
 
 The end product of the OMP algorithm is a series of images, containing coefficients
-for each gene. We can now detect peaks in these images to find the location of 
+for each gene. We can now detect peaks in these images to find the location of
 individual gene rolonies.
 
 ## Examples
