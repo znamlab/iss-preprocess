@@ -1,7 +1,8 @@
+import warnings
 from math import floor
+
 import numpy as np
 import scipy
-import warnings
 
 
 def ftrans2(b, t=None) -> np.ndarray:

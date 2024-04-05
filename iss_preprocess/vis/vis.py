@@ -1,15 +1,18 @@
-import numpy as np
+from pathlib import Path
+
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation, FFMpegWriter
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import tifffile
+from matplotlib.animation import FFMpegWriter, FuncAnimation
 from matplotlib.ticker import FixedLocator
 from scipy.cluster import hierarchy
 from skimage.measure import block_reduce
-import iss_preprocess as iss
-import seaborn as sns
-import pandas as pd
-from pathlib import Path
-import tifffile
 from znamutils import slurm_it
+
+import iss_preprocess as iss
+
 from ..io import get_processed_path, load_micromanager_metadata
 
 

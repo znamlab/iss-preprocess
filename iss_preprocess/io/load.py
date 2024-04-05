@@ -1,12 +1,13 @@
+import json
+import re
+import warnings
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import warnings
-from tifffile import TiffFile
-import json
-from flexiznam.config import PARAMETERS
-from pathlib import Path
 import yaml
-import re
+from flexiznam.config import PARAMETERS
+from tifffile import TiffFile
 
 
 def get_raw_path(data_path):

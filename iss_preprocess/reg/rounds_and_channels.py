@@ -1,18 +1,15 @@
-import numpy as np
+import gc
 import multiprocessing
-from numba import jit
+
+import numpy as np
 import scipy.fft
 import scipy.ndimage
-from scipy.ndimage import median_filter
-from skimage.morphology import disk
-import multiprocessing
-import gc
-from numba import jit
-from skimage.transform import SimilarityTransform, warp
-from skimage.registration import phase_cross_correlation
-
 from image_tools.registration import phase_correlation as mpc
 from image_tools.similarity_transforms import make_transform, transform_image
+from scipy.ndimage import median_filter
+from skimage.morphology import disk
+from skimage.registration import phase_cross_correlation
+from skimage.transform import SimilarityTransform, warp
 
 
 def register_channels_and_rounds(

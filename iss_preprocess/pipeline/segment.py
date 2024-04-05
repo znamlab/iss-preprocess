@@ -1,18 +1,21 @@
+import warnings
 from os import system
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import iss_preprocess as iss
-from pathlib import Path
-from tqdm import tqdm
-from skimage.segmentation import expand_labels
 from skimage import measure
 from skimage.filters import threshold_triangle
+from skimage.segmentation import expand_labels
+from tqdm import tqdm
+
+import iss_preprocess as iss
+
+from ..io import get_pixel_size, get_roi_dimensions, load_metadata, load_ops
 from ..segment import cellpose_segmentation, count_spots, spot_mask_value
-from .stitch import stitch_registered
-from ..io import get_roi_dimensions, load_ops, get_pixel_size, load_metadata
-from . import diagnostics
 from . import ara_registration as ara_reg
-import warnings
+from . import diagnostics
+from .stitch import stitch_registered
 
 
 def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):

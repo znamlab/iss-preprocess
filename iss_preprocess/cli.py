@@ -19,9 +19,10 @@ def cli():
 @click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
 def project_and_average(path, force_redo=False, use_slurm=True):
     """Project and average all available data then create plots."""
-    from iss_preprocess.pipeline import project_and_average
-    from pathlib import Path
     from datetime import datetime
+    from pathlib import Path
+
+    from iss_preprocess.pipeline import project_and_average
 
     time = str(datetime.now().strftime("%Y-%m-%d_%H-%M"))
     slurm_folder = Path.home() / "slurm_logs" / path
@@ -172,6 +173,7 @@ def check_projection(path, prefix):
 def register_ref_tile(path, prefix, diag):
     """Run registration across channels and rounds for the reference tile."""
     from pathlib import Path
+
     from iss_preprocess.pipeline import register_reference_tile
     from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
@@ -200,8 +202,9 @@ def register_ref_tile(path, prefix, diag):
 @click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
-    from iss_preprocess.pipeline import setup_omp
     from pathlib import Path
+
+    from iss_preprocess.pipeline import setup_omp
 
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -215,8 +218,9 @@ def setup_omp(path, use_slurm=True):
 @click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 def setup_barcodes(path, use_slurm=True):
     """Estimate bleedthrough matrices for barcode calling."""
-    from iss_preprocess.pipeline import setup_barcode_calling
     from pathlib import Path
+
+    from iss_preprocess.pipeline import setup_barcode_calling
 
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -295,8 +299,8 @@ def estimate_shifts(path, prefix, suffix="max"):
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 def estimate_hyb_shifts(path, prefix=None, suffix="max"):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
-    from iss_preprocess.pipeline import batch_process_tiles
     from iss_preprocess.io import load_metadata
+    from iss_preprocess.pipeline import batch_process_tiles
 
     if prefix:
         additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
@@ -440,9 +444,10 @@ def basecall(path):
     click.echo(f"Basecalling started for {len(job_ids)} tiles.")
     click.echo(f"Last job id: {job_ids[-1]}")
 
-    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
-    from iss_preprocess.io.load import load_ops
     from pathlib import Path
+
+    from iss_preprocess.io.load import load_ops
+    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
 
     ops = load_ops(path)
     slurm_folder = Path.home() / "slurm_logs" / path
@@ -583,8 +588,8 @@ def register_to_reference(
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
         print("Batch processing all tiles", flush=True)
-        from iss_preprocess.pipeline import batch_process_tiles
         from iss_preprocess.io import get_roi_dimensions
+        from iss_preprocess.pipeline import batch_process_tiles
 
         roi_dims = get_roi_dimensions(path)
         additional_args = (
@@ -671,11 +676,12 @@ def align_spots(
     ref_prefix="genes_round_1_1",
     reload=True,
 ):
+    from pathlib import Path
+
     from iss_preprocess.pipeline import (
         merge_and_align_spots_all_rois,
         register_within_acquisition,
     )
-    from pathlib import Path
 
     slurm_folder = Path.home() / "slurm_logs" / path / "align_spots"
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -914,8 +920,9 @@ def setup_flexilims(path):
 @click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
 def setup_channel_correction(path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
-    from iss_preprocess.pipeline import setup_channel_correction
     from pathlib import Path
+
+    from iss_preprocess.pipeline import setup_channel_correction
 
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
