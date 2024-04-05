@@ -830,8 +830,8 @@ def check_tile_shifts(
                         "shifts_within_channels"
                     ]
                     shifts_between_channels_raw[:, :, ix, iy] = data[
-                        "shifts_between_channels"
-                    ]
+                        "matrix_across_channels"
+                    ][:,:2, 2]
                 except FileNotFoundError:
                     pass
                 data = np.load(
@@ -841,8 +841,8 @@ def check_tile_shifts(
                     "shifts_within_channels"
                 ]
                 shifts_between_channels_corrected[:, :, ix, iy] = data[
-                    "shifts_between_channels"
-                ]
+                    "matrix_across_channels"
+                ][:,:2, 2]
         # create a PDF for each roi
         with PdfPages(figure_folder / f"tile_shifts_{prefix}_roi{roi}.pdf") as pdf:
             for ch in range(nchannels):
