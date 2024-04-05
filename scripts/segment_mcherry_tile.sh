@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --job-name=iss_extract_tile
+#SBATCH --job-name=iss_segment_mcherry_tile
 #SBATCH --ntasks=1
 #SBATCH --time=1:00:00
-#SBATCH --mem=32G
+#SBATCH --mem=16G
 #SBATCH --partition=ncpu
 ml purge
 
@@ -11,4 +11,4 @@ source activate base
 
 conda activate iss-preprocess
 
-iss extract-tile -p $DATAPATH -r $ROI -x $TILEX -y $TILEY
+iss segment-mcherry-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY -s $SUFFIX
