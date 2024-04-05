@@ -4,7 +4,7 @@ from pathlib import Path
 import cv2
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
-from sklearn.linear_model import Lasso
+from sklearn.linear_model import LinearRegression
 from ..io import load_stack, load_ops, get_processed_path, write_stack
 from ..coppafish import hanning_diff
 
@@ -83,18 +83,31 @@ def filter_stack(stack, r1=2, r2=4, dtype=float):
     return stack_filt
 
 
-def unmix_tile(data_path, prefix, roi, tilex, tiley, stack, suffix="max", background_ch=3, signal_ch=2, alpha=1e-5, background_coef=1.1):
+def unmix_tile(
+    data_path,
+    prefix,
+    roi,
+    tilex,
+    tiley,
+    stack,
+    suffix="max",
+    background_ch=3,
+    signal_ch=2,
+    background_coef=1.1,
+    threshold_background=200,
+):
     """
     Unmixes two images: one with only background autofluorescence and another with both background and useful signal.
-    Uses Lasso regression to approximate Mean Absolute Error regression for the unmixing process.
-    
+    Uses Linear regression for the unmixing process.
+
     Args:
-    - background_image: numpy array of the background image.
-    - mixed_signal_image: numpy array of the image with both signal and background.
-    - alpha: Small regularization term to approximate MAE. Default is very small to closely approximate MAE.
-    
+        background_image: numpy array of the background image.
+        mixed_signal_image: numpy array of the image with both signal and background.
+        background_coef: Coefficient to multiply the background image by before subtraction.
+        threshold_background: Minimum value for a pixel to be considered background.
+
     Returns:
-    - signal_image: The isolated signal image after background subtraction.
+        signal_image: The isolated signal image after background subtraction.
     """
 
     processed_path = get_processed_path(data_path)
@@ -103,26 +116,37 @@ def unmix_tile(data_path, prefix, roi, tilex, tiley, stack, suffix="max", backgr
         + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_{suffix}.tif"
     )
     image_path = processed_path / prefix / fname
-    background_image = stack[:,:,background_ch,0]
-    mixed_signal_image = stack[:,:,signal_ch,0]
+    background_image = stack[:, :, background_ch, 0]
+    mixed_signal_image = stack[:, :, signal_ch, 0]
 
     # Flatten to 1D arrays for the regression model
-    background_flat = background_image.ravel().reshape(-1, 1)
+    background_flat = background_image.ravel()
     mixed_signal_flat = mixed_signal_image.ravel()
-    
-    # Initialize and fit Lasso model
-    model = Lasso(alpha=alpha, positive=True, max_iter=10000)
+
+    # Remove pixels that are too dark or too bright
+    bright_pixels = (
+        (background_flat > threshold_background) & (background_flat < 4090)
+    ) & ((mixed_signal_flat > threshold_background) & (mixed_signal_flat < 4090))
+    background_flat = background_flat[bright_pixels].reshape(-1, 1)
+    mixed_signal_flat = mixed_signal_flat[bright_pixels]
+
+    # Initialize and fit Linear model
+    model = LinearRegression(positive=True)
     model.fit(background_flat, mixed_signal_flat)
     # Predict the background component in the mixed signal image
-    predicted_background_flat = model.predict(background_flat)
-    
+    predicted_background_flat = model.predict(background_image.ravel().reshape(-1, 1))
+
     predicted_background = predicted_background_flat.reshape(background_image.shape)
-    
+
     # Subtract the predicted background from the mixed signal to get the signal image
-    signal_image = mixed_signal_image - predicted_background * background_coef #TODO: Remove fudge factor 
+    signal_image = (
+        mixed_signal_image - predicted_background * background_coef
+    )  # TODO: Remove fudge factor
     signal_image = np.clip(signal_image, 0, None)
-    
-    write_stack(signal_image, image_path.with_name(image_path.name.replace(suffix, "unmixed")))
+
+    write_stack(
+        signal_image, image_path.with_name(image_path.name.replace(suffix, "unmixed"))
+    )
     return signal_image
 
 

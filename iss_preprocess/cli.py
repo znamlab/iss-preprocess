@@ -650,6 +650,7 @@ def align_spots(
         register_within_acquisition,
     )
     from pathlib import Path
+
     slurm_folder = Path.home() / "slurm_logs" / path / "align_spots"
     slurm_folder.mkdir(parents=True, exist_ok=True)
     reg_job_id = register_within_acquisition(
@@ -672,7 +673,7 @@ def align_spots(
             slurm_folder=slurm_folder,
             scripts_name="register_within_acquisition_{ref_prefix}",
         )
-    
+
     if ref_job_id:
         reg_job_id = [reg_job_id, ref_job_id]
     merge_and_align_spots_all_rois(
@@ -681,7 +682,6 @@ def align_spots(
         reg_prefix=reg_prefix,
         ref_prefix=ref_prefix,
         dependency=reg_job_id,
-
     )
 
 
@@ -890,6 +890,7 @@ def setup_channel_correction(path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
     from iss_preprocess.pipeline import setup_channel_correction
     from pathlib import Path
+
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     setup_channel_correction(
@@ -897,7 +898,7 @@ def setup_channel_correction(path, use_slurm=True):
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         scripts_name="setup_channel_correction",
-        )
+    )
     click.echo("Channel correction setup complete.")
 
 
@@ -961,38 +962,50 @@ def plot_overview(
         group_channels=not separate_channels,
     )
 
+
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'")
+@click.option(
+    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
+)
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-@click.option("-b", "--background", default=3, help="Channel containing background, e.g. 3")
+@click.option(
+    "-b", "--background", default=3, help="Channel containing background, e.g. 3"
+)
 @click.option("-g", "--signal", default=2, help="Channel containing signal, e.g. 2")
 def unmix_channels(path, prefix="mCherry_1", suffix="max", background=3, signal=2):
     """Unmix autofluorescence from signal for all tiles in a dataset."""
     from iss_preprocess.pipeline import batch_process_tiles
 
     additional_args = f",PREFIX={prefix},SUFFIX={suffix},BACKGROUND_CH={background},SIGNAL_CH={signal}"
-    batch_process_tiles(
-        path, script="unmix_channels", additional_args=additional_args
-    )
+    batch_process_tiles(path, script="unmix_channels", additional_args=additional_args)
+
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'")
+@click.option(
+    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
+)
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-@click.option("-b", "--background_ch", default=3, help="Channel containing background, e.g. 3")
+@click.option(
+    "-b", "--background_ch", default=3, help="Channel containing background, e.g. 3"
+)
 @click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
-def unmix_tile(path, prefix, roi, tilex, tiley, suffix="max", background_ch=3, signal_ch=2):
+def unmix_tile(
+    path, prefix, roi, tilex, tiley, suffix="max", background_ch=3, signal_ch=2
+):
     """Unmix autofluorescence from signal for all tiles in a dataset."""
     from iss_preprocess.image import unmix_tile
     from iss_preprocess.pipeline import load_and_register_tile
 
-    stack, _ = load_and_register_tile(path, tile_coors=(roi,tilex,tiley), prefix=prefix, filter_r=False)
+    stack, _ = load_and_register_tile(
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, filter_r=False
+    )
     unmix_tile(
         path,
         prefix,
@@ -1003,4 +1016,50 @@ def unmix_tile(path, prefix, roi, tilex, tiley, suffix="max", background_ch=3, s
         suffix=suffix,
         background_ch=background_ch,
         signal_ch=signal_ch,
-        )
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
+)
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
+def segment_all_mcherry(path, prefix="mCherry_1", suffix="max"):
+    """Segment mcherry cells for all tiles in a dataset."""
+    from iss_preprocess.pipeline import batch_process_tiles
+
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+    batch_process_tiles(
+        path, script="segment_mcherry_tile", additional_args=additional_args
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
+)
+@click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", "--tilex", default=0, help="Tile X position")
+@click.option("-y", "--tiley", default=0, help="Tile Y position.")
+@click.option("-s", "--suffix", default="unmixed", help="Projection suffix, e.g. 'max'")
+def segment_mcherry_tile(path, prefix, roi, tilex, tiley, suffix="max"):
+    """Segment mCherry channel for a single tile."""
+    from iss_preprocess.pipeline import segment_mcherry_tile
+
+    segment_mcherry_tile(
+        path,
+        prefix,
+        roi,
+        tilex,
+        tiley,
+        suffix,
+        r1=4,
+        r2=70,
+        area_threshold=200,
+        elongation_threshold=0.9,
+        circularity_threshold=0.5,
+    )
