@@ -182,6 +182,7 @@ def align_within_channels(
     max_shift=None,
     use_masked_correlation=False,
     debug=False,
+    multiprocess=True,
 ):
     """Align images within each channel.
 
@@ -200,6 +201,7 @@ def align_within_channels(
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
         use_masked_correlation (bool): whether to use masked phase correlation
         debug (bool): whether to return debug info, default: False
+        multiprocess (bool): whether to use multiprocessing, default: True
 
     Returns:
         angles (np.array): Nchannels x Nrounds array of angles
@@ -236,9 +238,12 @@ def align_within_channels(
         for iround in range(nrounds)
     ]
 
-    # TODO: Process tasks in parallel, each process uses ~3Gb RAM so limit to amount available
-    with multiprocessing.Pool(15) as pool:
-        results = pool.map(_process_single_rotation_translation, pool_args)
+    if multiprocess:
+        # TODO: Process tasks in parallel, each process uses ~3Gb RAM so limit to amount
+        with multiprocessing.Pool(15) as pool:
+            results = pool.map(_process_single_rotation_translation, pool_args)
+    else:
+        results = [_process_single_rotation_translation(args) for args in pool_args]
 
     # Organize results
     angles_channels = [[None] * nrounds for _ in range(nchannels)]
