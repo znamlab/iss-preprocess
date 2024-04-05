@@ -563,8 +563,22 @@ def segment_all(path, prefix, use_gpu=False):
     help="Channels of the reference to register (comma separated string of integer).",
     type=str,
 )
+@click.option(
+    "-m/",
+    "--use-masked-correlation/--no-use-masked-correlation",
+    default=False,
+    help="Whether to use masked correlation.",
+)
 def register_to_reference(
-    path, reg_prefix, ref_prefix, roi, tilex, tiley, reg_channels, ref_channels
+    path,
+    reg_prefix,
+    ref_prefix,
+    roi,
+    tilex,
+    tiley,
+    reg_channels,
+    use_masked_correlation,
+    ref_channels,
 ):
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
@@ -573,8 +587,11 @@ def register_to_reference(
         from iss_preprocess.io import get_roi_dimensions
 
         roi_dims = get_roi_dimensions(path)
-        additional_args = f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},"
-        additional_args += f"REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels}"
+        additional_args = (
+            f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},"
+            f"REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels},"
+            + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
+        )
         batch_process_tiles(
             path,
             "register_tile_to_ref",
@@ -601,6 +618,14 @@ def register_to_reference(
             binarise_quantile = ops[ops_name]
         else:
             binarise_quantile = 0.7
+        from iss_preprocess.io.load import load_ops
+
+        ops = load_ops(path)
+        ops_name = f"{reg_prefix.split('_')[0].lower()}_binarise_quantile"
+        if ops_name in ops:
+            binarise_quantile = ops[ops_name]
+        else:
+            binarise_quantile = 0.7
         register.register_tile_to_ref(
             data_path=path,
             tile_coors=(roi, tilex, tiley),
@@ -609,6 +634,7 @@ def register_to_reference(
             reg_channels=reg_channels,
             ref_channels=ref_channels,
             binarise_quantile=binarise_quantile,
+            use_masked_correlation=use_masked_correlation,
         )
 
 

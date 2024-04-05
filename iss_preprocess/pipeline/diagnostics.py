@@ -11,6 +11,7 @@ from skimage.filters import gaussian
 from skimage.measure import block_reduce
 from skimage.morphology import disk
 from scipy.ndimage import median_filter
+from image_tools.similarity_transforms import transform_image
 from znamutils import slurm_it
 import iss_preprocess as iss
 from iss_preprocess.pipeline import sequencing
@@ -1144,8 +1145,8 @@ def check_tile_reg2ref(
         shift = t_form["shifts"][0]
 
         # transform the reg image to match the ref
-        reg_t = iss.reg.transform_image(reg, angle=angle, shift=shift)
-        reg_bt = iss.reg.transform_image(reg_b, angle=angle, shift=shift)
+        reg_t = transform_image(reg, angle=angle, shift=shift)
+        reg_bt = transform_image(reg_b, angle=angle, shift=shift)
 
         # add an rgb overlay
         vmins = [np.percentile(ref, 1), np.percentile(reg_t, 1)]

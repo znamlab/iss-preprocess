@@ -250,6 +250,11 @@ def project_tile(fname, ops, overwrite=False, sth=13):
         print("making max projection\n")
         im_max = np.max(im, axis=3)
         write_stack(im_max, save_path_max, bigtiff=True)
+    # To check if the focus was correct, we also save a small projectiong along Z
+    std_z = np.std(im, axis=(0, 1))
+    perc_z = np.percentile(im, 99.9, axis=(0, 1))
+    np_z_profile = iss.io.get_processed_path(fname + "_zprofile.npz")
+    np.savez(np_z_profile, std=std_z, top_1permille=perc_z)
 
 
 def project_tile_row(data_path, prefix, tile_roi, tile_row, max_col, overwrite=False):

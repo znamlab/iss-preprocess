@@ -50,6 +50,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         max_shift=ops["rounds_max_shift"],
         min_shift=ops["rounds_min_shift"],
         debug=diag,
+        use_masked_correlation=ops["use_masked_correlation"],
     )
     if diag:
         (
@@ -501,6 +502,7 @@ def register_tile_to_ref(
     ref_tile_coors=None,
     reg_channels=None,
     ref_channels=None,
+    use_masked_correlation=False,
 ):
     """Register a single tile to the corresponding reference tile
 
@@ -518,25 +520,35 @@ def register_tile_to_ref(
             will use all channels. Defaults to None
         ref_channels (list, optional): Channels to use for registration. If None will
             use all channels. Defaults to None
+        use_masked_correlation (bool, optional): Use masked correlation to register.
+            Defaults to False.
 
     Returns:
         angle (float): Rotation angle
         shifts (np.array): X and Y shifts
 
     """
-
+    print(f"Registering {reg_prefix} to {ref_prefix}", flush=True)
+    if use_masked_correlation:
+        print("Using masked correlation", flush=True)
     if ref_tile_coors is None:
         ref_tile_coors = tile_coors
     else:
         print(f"Register to {ref_tile_coors}", flush=True)
+
+    print("Parameters: ")
+    print(f"reg_channels: {reg_channels}")
+    print(f"ref_channels: {ref_channels}")
+    print(f"binarise_quantile: {binarise_quantile}", flush=True)
+
     ops = load_ops(data_path)
-    ref_all_channels, _ = iss.pipeline.load_and_register_tile(
+    ref_all_channels, ref_bad_pixels = iss.pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=ref_tile_coors,
         prefix=ref_prefix,
         filter_r=False,
     )
-    reg_all_channels, _ = iss.pipeline.load_and_register_tile(
+    reg_all_channels, reg_bad_pixels = iss.pipeline.load_and_register_tile(
         data_path=data_path, tile_coors=tile_coors, prefix=reg_prefix, filter_r=False
     )
 
@@ -567,6 +579,8 @@ def register_tile_to_ref(
         niter=3,
         nangles=15,
         max_shift=ops["rounds_max_shift"],
+        reference_mask=~ref_bad_pixels if use_masked_correlation else None,
+        target_mask=~reg_bad_pixels if use_masked_correlation else None,
     )
     print(f"Angle: {angles}, Shifts: {shifts}")
     processed_path = iss.io.get_processed_path(data_path)
