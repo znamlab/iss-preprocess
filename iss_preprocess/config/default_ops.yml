@@ -5,7 +5,7 @@ projection:
 
 # Parameters for illumination correction, channel brightness correction and filtering
 image_correction:
-  # To compute the average for illumination correction, individual images are clipped to this 
+  # To compute the average for illumination correction, individual images are clipped to this
   # value before averaging to avoid bright outliers
   average_clip_value: 2000
   # Size of the median filter apply to images for illumination correction before averaging
@@ -71,9 +71,9 @@ genes:
   # Filename of the codebook with GIIs
   codebook: codebook_88_20230216.csv
   # Projection to use for gene spots, "fstack" or "max"
-  genes_projection: max 
+  genes_projection: max
   # How to apply brightness correction for gene sequencing. Can be True, False, or "round1_only". In the
-  # latter case all channels are normalized to 1 on round 1 and decrease in brightness across rounds is 
+  # latter case all channels are normalized to 1 on round 1 and decrease in brightness across rounds is
   # not corrected for.
   genes_correct_channels: round1_only
   # tiles used to train the bleedthrough matrix for genes
@@ -81,11 +81,11 @@ genes:
   # Cluster score threshold used to identify spots to estimate the bleedthrough matrix for genes
   genes_cluster_score_thresh: 0.9
   # Detection threshold used to identify spots to estimate the bleedthrough matrix for genes
-  genes_detection_threshold: 0.15 
+  genes_detection_threshold: 0.15
   # Isolation threshold to select well-isolated spots. Lower values = more stringent
   genes_isolation_threshold: 0.05
   # Coefficient used to weight positive pixels when computing spot scores
-  genes_spot_rho: 2 
+  genes_spot_rho: 2
   # Spot score threshold determines which spots get saved to pkl
   genes_spot_score_threshold: 0.1
   # Alpha and beta parameter for the weighted OMP algorithm
@@ -93,7 +93,7 @@ genes:
   omp_beta_squared: 1.0
   # Maximum number of genes per pixel, including background components
   omp_max_genes: 12
-  # OMP does not run on pixels below this mean absolute pixel value 
+  # OMP does not run on pixels below this mean absolute pixel value
   omp_min_intensity: 0.005
   # Stopping criterion for OMP. Additional genes get added if they exceed this threshold
   omp_threshold: 0.2
@@ -103,11 +103,11 @@ spot_shape:
   spot_shape_neighbor_filter_size: 9
   spot_shape_neighbor_threshold: 15
   spot_shape_radius: 7
-  spot_shape_threshold: 0.15 
+  spot_shape_threshold: 0.15
 
 # Parameters for detecting hybridisation spots
 hybridisation:
-  hybridisation_detection_threshold: 0.5 
+  hybridisation_detection_threshold: 0.5
   hybridisation_correct_channels: true
   hybridisation_projection: max
   hybridisation_cluster_score_thresh: 0.0
@@ -146,6 +146,6 @@ atlas:
   # Round to use for registration to atlas
   overview_round: DAPI_1_1
 
-# Database integration. 
+# Database integration.
 # If true will upload ops to flexilims when performing a batch operation
 use_flexilims: true
