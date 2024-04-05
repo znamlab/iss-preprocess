@@ -426,16 +426,19 @@ def estimate_shifts_for_tile(
     matrix_across_channels_new = matrix_across_channels.copy()
     for ich in range(nchannels):
         # TODO this always uses upsample. Is that what we want?
+        moving_image = warp(
+            std_stack[:, :, ich],
+            AffineTransform(matrix=matrix_across_channels[ich]).inverse,
+            preserve_range=True,
+            cval=0,
+        )
         extra_shifts_between_channels = phase_cross_correlation(
             std_stack[:, :, ref_ch],
-            apply_corrections(
-                std_stack[:, :, ich],
-                matrix=matrix_across_channels[ich],
-            ),
+            moving_image,
             upsample_factor=5,
         )[0]
-        # add extra_shift to the matrix
-        matrix_across_channels_new[ich][:2, 2] += extra_shifts_between_channels[0]
+        # add extra_shift to the matrix, matrix is x/y, shifts are row/column
+        matrix_across_channels_new[ich][:2, 2] += extra_shifts_between_channels[::-1]
 
     tforms = generate_channel_round_transforms(
         angles_within_channels,
