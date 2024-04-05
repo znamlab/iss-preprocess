@@ -336,18 +336,18 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
             tforms_best = {key: tforms_init[key] for key in tforms_init.keys()}
 
             # first for within, it's easy shifts are saved separatly
-            shifts_init = tforms_init[f"shifts_within_channels"]
-            shifts_corrected = tforms_corrected[f"shifts_within_channels"]
+            shifts_init = tforms_init["shifts_within_channels"]
+            shifts_corrected = tforms_corrected["shifts_within_channels"]
             residuals = np.abs(shifts_init - shifts_corrected)
             shifts_best = np.array(shifts_init, copy=True)
             shifts_best[residuals > max_residuals] = shifts_corrected[
                 residuals > max_residuals
             ]
-            tforms_best[f"shifts_within_channels"] = shifts_best
+            tforms_best["shifts_within_channels"] = shifts_best
 
             # then for between, we need to update the matrix
-            matrix_init = tforms_init[f"matrix_across_channels"]
-            matrix_corrected = tforms_corrected[f"matrix_across_channels"]
+            matrix_init = tforms_init["matrix_across_channels"]
+            matrix_corrected = tforms_corrected["matrix_across_channels"]
             residuals = np.abs(matrix_init[:2, 2] - matrix_corrected[:2, 2])
             matrix_best = matrix_init.copy()
             bad = residuals > max_residuals
