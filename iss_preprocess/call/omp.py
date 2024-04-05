@@ -1,7 +1,8 @@
 import numba
 import numpy as np
-from . import rois_to_array, BASES
+
 from ..vis import plot_gene_templates
+from . import BASES, rois_to_array
 
 
 def make_gene_templates(cluster_means, codebook):

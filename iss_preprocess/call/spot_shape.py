@@ -1,7 +1,9 @@
+from math import floor
+
 import cv2
 import numpy as np
+
 from ..segment import detect_spots
-from math import floor
 
 
 def get_spot_shape(g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15):

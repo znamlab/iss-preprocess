@@ -1,18 +1,19 @@
-import numpy as np
 import multiprocessing as mp
-import shutil
-import shlex
-import iss_preprocess as iss
-import subprocess
 import os
-from warnings import warn
+import shutil
 from functools import partial
 from pathlib import Path
-from ..image import fstack_channels
-from ..io import get_tile_ome, write_stack, get_roi_dimensions, load_ops
-from .pipeline import batch_process_tiles
-from ..decorators import updates_flexilims
+from warnings import warn
+
+import numpy as np
 from znamutils import slurm_it
+
+import iss_preprocess as iss
+
+from ..decorators import updates_flexilims
+from ..image import fstack_channels
+from ..io import get_roi_dimensions, get_tile_ome, load_ops, write_stack
+from .pipeline import batch_process_tiles
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"time": "00:30:00", "mem": "8G"})
@@ -82,7 +83,7 @@ def check_roi_dims(data_path):
     for root, dirs, _ in os.walk(processed_path):
         dirs.sort()
         for d in dirs:
-            if d.endswith(f"_1"):
+            if d.endswith("_1"):
                 if d in ops["overview_round"]:
                     continue
                 roi_dims = iss.io.get_roi_dimensions(data_path, d)

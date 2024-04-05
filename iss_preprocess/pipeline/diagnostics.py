@@ -4,19 +4,20 @@ Module containing diagnostic plots to make sure steps of the pipeline run smooth
 The functions in here do not compute anything useful, but create figures
 """
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+from image_tools.similarity_transforms import transform_image
 from matplotlib.backends.backend_pdf import PdfPages
+from scipy.ndimage import median_filter
 from skimage.filters import gaussian
 from skimage.measure import block_reduce
 from skimage.morphology import disk
-from scipy.ndimage import median_filter
-from image_tools.similarity_transforms import transform_image
 from znamutils import slurm_it
+
 import iss_preprocess as iss
-from iss_preprocess.pipeline import sequencing
 from iss_preprocess import vis
+from iss_preprocess.pipeline import sequencing
 from iss_preprocess.pipeline.stitch import stitch_registered
 
 

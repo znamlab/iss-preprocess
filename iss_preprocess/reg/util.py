@@ -1,6 +1,7 @@
+from math import cos, radians, sin
+
 import numpy as np
 import scipy.fft
-from math import cos, sin, radians
 from skimage.transform import SimilarityTransform, warp
 
 raise NotImplementedError(

@@ -1,9 +1,11 @@
+import cv2
 import numpy as np
 import pandas as pd
-import cv2
+
 import iss_preprocess as iss
-from .spots import make_spot_image
+
 from ..io import get_pixel_size
+from .spots import make_spot_image
 
 
 def convolve_spots(data_path, roi, kernel_um, dot_threshold, output_shape=None):

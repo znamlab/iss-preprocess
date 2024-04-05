@@ -1,7 +1,8 @@
 import numpy as np
+from scipy.spatial.distance import hamming
 from skimage.morphology import disk
 from sklearn.mixture import GaussianMixture
-from scipy.spatial.distance import hamming
+
 from ..coppafish import scaled_k_means
 
 BASES = np.array(["G", "T", "A", "C"])

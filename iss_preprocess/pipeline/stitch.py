@@ -1,26 +1,26 @@
-from os import system
-import numpy as np
-import warnings
-import pandas as pd
 import warnings
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from image_tools.registration import phase_correlation as mpc
+from image_tools.similarity_transforms import make_transform, transform_image
 from scipy.ndimage import median_filter
-from skimage.measure import block_reduce
 from skimage.morphology import disk
 from skimage.registration import phase_cross_correlation
 from znamutils import slurm_it
-from image_tools.similarity_transforms import transform_image, make_transform
-from image_tools.registration import phase_correlation as mpc
+
 import iss_preprocess as iss
-from . import pipeline
+
 from .. import vis
 from ..image.correction import apply_illumination_correction
-from ..io import load_tile_by_coors, load_stack, load_ops, get_roi_dimensions
-from .register import align_spots
+from ..io import get_roi_dimensions, load_ops, load_stack, load_tile_by_coors
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
 )
+from . import pipeline
+from .register import align_spots
 
 
 def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):

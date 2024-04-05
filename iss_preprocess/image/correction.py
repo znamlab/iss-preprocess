@@ -1,12 +1,13 @@
 from pathlib import Path
-import numpy as np
-from pathlib import Path
+
 import cv2
+import numpy as np
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from sklearn.linear_model import LinearRegression
-from ..io import load_stack, load_ops, get_processed_path, write_stack
+
 from ..coppafish import hanning_diff
+from ..io import get_processed_path, load_ops, load_stack, write_stack
 
 
 def apply_illumination_correction(data_path, stack, prefix, dtype=float):

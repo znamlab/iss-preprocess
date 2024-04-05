@@ -1,6 +1,6 @@
-from tifffile import TiffWriter
 import cv2
 import numpy as np
+from tifffile import TiffWriter
 
 
 def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True):

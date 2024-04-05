@@ -1,20 +1,22 @@
 from pathlib import Path
+
+import bg_atlasapi as bga
+import cv2
 import numpy as np
 import yaml
-from skimage.transform import rescale
 from scipy.ndimage import gaussian_filter
-import bg_atlasapi as bga
-from . import stitch
-import cv2
+from skimage.transform import rescale
+
 from ..io import (
+    get_pixel_size,
+    get_processed_path,
+    load_metadata,
     load_ops,
     load_section_position,
-    load_metadata,
     load_stack,
-    get_pixel_size,
     save_ome_tiff_pyramid,
-    get_processed_path,
 )
+from . import stitch
 
 
 def find_roi_position_on_cryostat(data_path):

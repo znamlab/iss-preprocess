@@ -1,20 +1,21 @@
-import numpy as np
-import pandas as pd
-import cv2
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from natsort import natsorted
-from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
-from matplotlib.animation import FuncAnimation, FFMpegWriter
 from pathlib import Path
 
+import cv2
 import flexiznam as flz
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib.animation import FFMpegWriter, FuncAnimation
+from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+from natsort import natsorted
 
 import iss_preprocess as iss
-from ..io import load_ops
 from iss_preprocess.pipeline import ara_registration as ara_reg
 from iss_preprocess.pipeline import sequencing
-from iss_preprocess.vis import round_to_rgb, add_bases_legend
+from iss_preprocess.vis import add_bases_legend, round_to_rgb
+
+from ..io import load_ops
 
 
 def plot_correction_images(
