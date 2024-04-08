@@ -278,9 +278,9 @@ def correct_shifts_roi(
                         X[inliers, :],
                         shifts_within_channels[ich, iround, idim, inliers],
                     )
-                    shifts_within_channels_corrected[ich, iround, idim, :] = (
-                        reg.predict(X)
-                    )
+                    shifts_within_channels_corrected[
+                        ich, iround, idim, :
+                    ] = reg.predict(X)
             median_shift = np.median(shifts_between_channels[ich, :, :], axis=1)[
                 :, np.newaxis
             ]
@@ -300,7 +300,7 @@ def correct_shifts_roi(
     matrix = matrix_between_channels.copy()
     for iy in range(ny):
         for ix in range(nx):
-            matrix[:,:2, 2] = shifts_between_channels_corrected[:, :, itile]
+            matrix[:, :2, 2] = shifts_between_channels_corrected[:, :, itile]
             np.savez(
                 save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
                 angles_within_channels=tforms["angles_within_channels"],
@@ -348,10 +348,10 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
             # then for between, we need to update the matrix
             matrix_init = tforms_init["matrix_between_channels"]
             matrix_corrected = tforms_corrected["matrix_between_channels"]
-            residuals = np.abs(matrix_init[:,:2, 2] - matrix_corrected[:,:2, 2])
+            residuals = np.abs(matrix_init[:, :2, 2] - matrix_corrected[:, :2, 2])
             matrix_best = matrix_init.copy()
             bad = residuals > max_residuals
-            matrix_best[:,:2, 2][bad] = matrix_corrected[:,:2, 2][bad]
+            matrix_best[:, :2, 2][bad] = matrix_corrected[:, :2, 2][bad]
 
             tforms_best.update({"allow_pickle": True})
             np.savez(

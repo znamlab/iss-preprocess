@@ -688,8 +688,8 @@ def stitch_and_register(
 
     if estimate_scale and estimate_rotation:
         scale, angle, shift = estimate_scale_rotation_translation(
-            reference,
-            target,
+            stitched_stack_reference[::downsample, ::downsample],
+            stitched_stack_target[::downsample, ::downsample],
             niter=3,
             nangles=11,
             verbose=True,
@@ -705,8 +705,8 @@ def stitch_and_register(
             kwargs["reference_mask"] = reference_mask
 
         out = estimate_rotation_translation(
-            reference,
-            target,
+            stitched_stack_reference[::downsample, ::downsample],
+            stitched_stack_target[::downsample, ::downsample],
             **kwargs,
         )
         if debug:
