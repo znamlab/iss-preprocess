@@ -1154,8 +1154,12 @@ def check_tile_reg2ref(
             reg_all_channels = reg_all_channels[:, :, reg_channels]
         reg = np.nanmean(reg_all_channels, axis=(2, 3))
 
-        reg_b = reg > np.quantile(reg, binarise_quantile)
-        ref_b = ref > np.quantile(ref, binarise_quantile)
+        if binarise_quantile is not None:
+            reg_b = reg > np.quantile(reg, binarise_quantile)
+            ref_b = ref > np.quantile(ref, binarise_quantile)
+        else:
+            reg_b = reg
+            ref_b = ref
 
         print("Loading shifts and angle")
         tname = f"{reg_prefix}_{tile[0]}_{tile[1]}_{tile[2]}"
