@@ -178,6 +178,7 @@ def register_ref_tile(path, prefix, diag):
     from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
     slurm_folder = Path.home() / "slurm_logs" / path
+    scripts_name = f"register_ref_tile_{prefix}"
     slurm_folder.mkdir(parents=True, exist_ok=True)
     slurm_options = {"mem": "128G"} if diag else None
     job_id = register_reference_tile(
@@ -187,13 +188,16 @@ def register_ref_tile(path, prefix, diag):
         use_slurm=True,
         slurm_folder=str(slurm_folder),
         slurm_options=slurm_options,
+        scripts_name=scripts_name,
     )
+    scripts_name = f"check_ref_tile_registration_{prefix}"
     check_ref_tile_registration(
         path,
         prefix,
         use_slurm=True,
         slurm_folder=str(slurm_folder),
         job_dependency=job_id,
+        scripts_name=scripts_name,
     )
 
 
