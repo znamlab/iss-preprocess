@@ -355,6 +355,8 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
         data_dir = processed_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
         proj = ops["genes_projection"]
+        if proj == "max-median":
+            proj = "max"
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{proj}.tif"
     else:
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
