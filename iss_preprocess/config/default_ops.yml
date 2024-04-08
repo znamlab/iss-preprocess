@@ -25,7 +25,8 @@ image_correction:
 registration:
   # Whether to use channel-specific registration parameters
   align_channels: true
-  # Coordinates of the reference tile to use for initial estimation of scale and rotation between channels
+  # Coordinates of the reference tile to use for initial estimation of scale and
+   # rotation between channels. [ ROI, X/col, Y/row]
   ref_tile: [ 1, 0, 0 ]
   # Index of the reference channel to use for registration (camera index, NOT wavelength index)
   ref_ch: 0
@@ -71,7 +72,7 @@ genes:
   # Filename of the codebook with GIIs
   codebook: codebook_88_20230216.csv
   # Projection to use for gene spots, "fstack" or "max"
-  genes_projection: max
+  genes_projection: max-median
   # How to apply brightness correction for gene sequencing. Can be True, False, or "round1_only". In the
   # latter case all channels are normalized to 1 on round 1 and decrease in brightness across rounds is
   # not corrected for.
@@ -109,22 +110,22 @@ spot_shape:
 hybridisation:
   hybridisation_detection_threshold: 0.5
   hybridisation_correct_channels: true
-  hybridisation_projection: max
+  hybridisation_projection: max-median
   hybridisation_cluster_score_thresh: 0.0
 
 # Detection of mCherry+ cells
 mcherry:
-  mcherry_projection: max
+  mcherry_projection: max-median
   # Binarisation quantile for registration of mCherry to reference channel
   mcherry_binarise_quantile: null
 
 # projection for other acquisitions
-dapi_projection: max
-anchor_projection: max
+dapi_projection: max-median
+anchor_projection: max-median
 
 # Barcode basecalling
 barcode:
-  barcode_projection: max
+  barcode_projection: max-median
   barcode_correct_channels: round1_only
   barcode_cluster_score_thresh: 0.9
   barcode_detection_threshold: 0.3
