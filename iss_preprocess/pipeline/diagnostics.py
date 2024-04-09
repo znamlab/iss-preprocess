@@ -185,6 +185,80 @@ def check_tile_registration(
         )
 
 
+def check_affine_channel_registration(
+    data_path,
+    prefix="genes_round",
+    tile_coords=None,
+):
+    ops = iss.io.load_ops(data_path)
+    # select some tiles
+    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
+    if tile_coords is None:
+        # check if ops has a ref tile
+        if f"{prefix.split('_')[0]}_ref_tiles" in ops:
+            tile_coords = ops[f"{prefix.split('_')[0]}_ref_tiles"]
+            nrandom = 10 - len(tile_coords)
+        else:
+            tile_coords = []
+            nrandom = 10
+        # select random tiles
+        if nrandom > 0:
+            for i in range(nrandom):
+                # pick a roi randomly
+                roi = np.random.choice(roi_dims[:, 0])
+                # pick a tile inside that roi
+                ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0]
+                tile_coords.append([roi, *np.random.randint(0, ntiles)])
+    elif isinstance(tile_coords[0], int):
+        tile_coords = [tile_coords]
+
+    target_folder = (
+        iss.io.get_processed_path(data_path)
+        / "figures"
+        / "registration"
+        / f"affine_transform_{prefix}"
+    )
+    if not target_folder.exists():
+        target_folder.mkdir(parents=True, exist_ok=True)
+    # this is fast to run, so we re-run with diag mode
+    fig = plt.figure(figsize=(2 * 7, 1.5 * 3))
+    for tile_coors in tile_coords:
+        fig.clear()
+        if ops["align_method"] != "affine":
+            print("This function is only for affine registration")
+            return
+        ops = iss.io.load_ops(data_path)
+        nrounds = ops[prefix + "s"]
+        projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
+        stack = iss.pipeline.load_sequencing_rounds(
+            data_path, tile_coors, prefix=prefix, suffix=projection, nrounds=nrounds
+        )
+        ref_ch = ops["ref_ch"]
+        median_filter = ops["reg_median_filter"]
+
+        # load corrections
+        tforms = iss.pipeline.sequencing.get_channel_round_shifts(
+            data_path, prefix, tile_coors, ops["corrected_shifts"]
+        )
+        std_stack, mean_stack = (
+            iss.reg.rounds_and_channels.get_channel_reference_images(
+                stack,
+                tforms["angles_within_channels"],
+                tforms["shifts_within_channels"],
+            )
+        )
+        matrices, debug_info = iss.reg.rounds_and_channels.correct_by_block(
+            std_stack,
+            ch_to_align=ref_ch,
+            median_filter_size=median_filter,
+            debug=True,
+        )
+        iss.vis.diagnostics.plot_affine_debug_images(debug_info, fig=fig)
+        fig.suptitle(f"{prefix} - Tile {tile_coors}")
+        tile_name = "_".join([str(x) for x in tile_coors])
+        fig.savefig(target_folder / f"affine_debug_{prefix}_{tile_name}.png")
+
+
 @slurm_it(conda_env="iss-preprocess")
 def check_shift_correction(
     data_path,
