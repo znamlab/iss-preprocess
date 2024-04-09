@@ -311,35 +311,78 @@ def _process_single_rotation_translation(args):
     return ref_ch, iround, 0.0, [0.0, 0.0]
 
 
-def estimate_shifts_and_angles_for_tile(
-    stack, scales, ref_ch=0, binarise_quantile=0.9, max_shift=None, debug=False
+def estimate_affine_for_tile(
+    stack,
+    tform_matrix,
+    max_shift=None,
+    ref_ch=0,
+    debug=False,
 ):
-    """Estimate shifts and angles. Registration is carried out on thresholded images
-    using the provided quantile threshold.
+    """Estimate affine transformations for a single tile
+
+    Args:
+        stack (np.array): X x Y x Nchannels images stack
+        tform_matrix (np.array): Nchannels list of affine transformations matrices
+        max_shift (int): maximum shift to avoid spurious cross-correlations
+        ref_ch (int): reference channel
+        debug (bool): whether to return debug info, default: False
+
+    Returns:
+        matrix (np.array): Nchannels list of affine transformations matrices
+        debug_info (dict): dictionary with debug info, only if debug=True
+    """
+    # run affine by block on image transformed by the matrix
+    moving_image = apply_corrections(stack, matrix=tform_matrix)
+    # We do the median filtering in the parent function to do it before corrections
+    out = correct_by_block(
+        moving_image,
+        ch_to_align=ref_ch,
+        median_filter_size=None,
+        block_size=512,
+        overlap=0.6,
+        correlation_threshold=0.01,
+        debug=debug,
+    )
+    if debug:
+        matrix, debug_info = out
+    else:
+        matrix = out
+    # multiply the matrix by the tform_matrix to get the whole transform
+    nch = stack.shape[2]
+    for ich in range(nch):
+        matrix[ich] = matrix[ich] @ tform_matrix[ich]
+    if debug:
+        return matrix, debug_info
+    return matrix
+
+
+def estimate_shifts_and_angles_for_tile(
+    stack,
+    scales=None,
+    ref_ch=0,
+    max_shift=None,
+    debug=False,
+):
+    """Estimate shifts and angles for a single tile
 
     Args:
         stack (np.array): X x Y x Nchannels images stack
         scales (np.array): Nchannels array of scales
         ref_ch (int): reference channel
-        binarise_quantile (float): quantile to use for thresholding
         max_shift (int): maximum shift to avoid spurious cross-correlations
         debug (bool): whether to return debug info, default: False
 
     Returns:
-        angles (np.array): Nchannels array of angles
-        shifts (np.array): Nchannels x 2 array of shifts
+        angles (np.array): Nchannels array of angles, if tfom_matrix is None
+        shifts (np.array): Nchannels x 2 array of shifts, if tfom_matrix is None
         debug_info (dict): dictionary with debug info, only if debug=True
 
     """
     nch = stack.shape[2]
-    angles = []
-    shifts = []
-    if binarise_quantile is not None:
-        for ich in range(nch):
-            ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
-            stack[:, :, ich] = stack[:, :, ich] > ref_thresh
     if debug:
         debug_info = {}
+    angles = []
+    shifts = []
     for ich in range(nch):
         if ref_ch != ich:
             out = estimate_rotation_translation(
@@ -523,6 +566,7 @@ def correct_by_block(
     median_filter_size=None,
     block_size=256,  # todo make ops
     overlap=0.5,
+    max_shift=None,
     correlation_threshold=None,
     debug=False,
 ):
@@ -534,6 +578,7 @@ def correct_by_block(
         median_filter_size (int): size of median filter to apply to the stack.
         block_size (int): size of the block to use for registration. Default: 256
         overlap (float): overlap between blocks. Default: 0.5
+        max_shift (int): maximum shift to avoid spurious cross-correlations
         correlation_threshold (float): threshold for correlation to use for fitting
             affine transformations. None to keep all values. Default: None
         debug (bool): whether to return debug info, default: False
@@ -562,6 +607,7 @@ def correct_by_block(
                 target,
                 block_size=block_size,
                 overlap=overlap,
+                max_shift=max_shift,
                 correlation_threshold=correlation_threshold,
                 debug=debug,
             )
