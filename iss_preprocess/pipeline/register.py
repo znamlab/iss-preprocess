@@ -10,6 +10,7 @@ import iss_preprocess as iss
 from ..io import get_roi_dimensions, load_metadata, load_ops, load_tile_by_coors
 from ..reg import (
     estimate_rotation_translation,
+    estimate_affine_for_tile,
     estimate_shifts_and_angles_for_tile,
     estimate_shifts_for_tile,
     make_transform,
@@ -85,27 +86,36 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
     )
 
 
-def estimate_shifts_and_angles_by_coors(
+def register_fluorescent_tile(
     data_path,
-    tile_coors=(0, 0, 0),
+    tile_coors,
     prefix="hybridisation_1_1",
     suffix="max",
     reference_prefix="genes_round",
+    debug=False,
 ):
-    """Estimate shifts and rotations angles for hybridisation images.
+    """Estimate channel registration parameters for a single round acquisition
+
+    The stack will be binarised if ops[f"{prefix_start}_binarise_quantile"] is not None.
+    The scale and initial parameters will be loaded from the reference prefix and
+    optimised using either a similarity transform or an affine transform, depending
+    on ops["align_method"].
 
     Args:
         data_path (str): Relative path to data.
-        tile_coors (tuple, optional): Coordinates of tile to register, in (ROI, X, Y)
-            format. Defaults to (0, 0, 0).
-        prefix (str, optional): Prefix of the hybridisation round. Defaults to "hybridisation_1_1".
-        reference_prefix (str, optional): Prefix to use for loading precomputed
-            scale factors between channels. Defaults to "barcode_round".
+        tile_coors (tuple): Coordinates of tile to register, in (ROI, X, Y) format.
+        prefix (str, optional): Directory prefix to register. Defaults to
+            "hybridisation_1_1".
         suffix (str, optional): Filename suffix specifying which z-projection to use.
             Defaults to "max".
-        reference_prefix (str, optional): Prefix of the reference round. Defaults to "barcode_round".
+        reference_prefix (str, optional): Prefix to load scale or initial matrix from.
+            Defaults to "genes_round".
+        debug (bool, optional): Return debug information. Defaults to False.
 
+    Returns:
+        dict: Debug information if debug is True, None otherwise.
     """
+
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
     tforms_path = processed_path / f"tforms_{reference_prefix}.npz"
@@ -113,24 +123,66 @@ def estimate_shifts_and_angles_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
+
+    # median filter if needed
+    median_filter_size = ops["reg_median_filter"]
+    if median_filter_size is not None:
+        print(f"Filtering with median filter of size {median_filter_size}")
+        assert isinstance(
+            median_filter_size, int
+        ), "reg_median_filter must be an integer"
+        stack = median_filter(stack, footprint=disk(median_filter_size), axes=(0, 1))
+
+    # binarise if needed
     threshold_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
-    angles, shifts = estimate_shifts_and_angles_for_tile(
-        stack,
-        reference_tforms["scales_between_channels"],
-        ref_ch=ops["ref_ch"],
-        max_shift=ops["rounds_max_shift"],
-        binarise_quantile=threshold_quantile,
-    )
+    nch = stack.shape[2]
+    if threshold_quantile is not None:
+        for ich in range(nch):
+            ref_thresh = np.quantile(stack[:, :, ich], threshold_quantile)
+            stack[:, :, ich] = stack[:, :, ich] > ref_thresh
+
+    match ops["align_method"]:
+        case "similarity":
+            out = estimate_shifts_and_angles_for_tile(
+                stack,
+                scales=reference_tforms["scales_between_channels"],
+                ref_ch=ops["ref_ch"],
+                max_shift=ops["rounds_max_shift"],
+                debug=debug,
+            )
+            if debug:
+                angles, shifts, db_info = out
+            else:
+                angles, shifts = out
+            to_save = dict(
+                angles=angles,
+                shifts=shifts,
+                scales=reference_tforms["scales_between_channels"],
+            )
+        case "affine":
+            matrix = estimate_affine_for_tile(
+                stack,
+                tform_matrix=reference_tforms["matrix_between_channels"],
+                ref_ch=ops["ref_ch"],
+                max_shift=ops["rounds_max_shift"],
+                debug=debug,
+            )
+            if debug:
+                matrix, db_info = matrix
+            to_save = dict(matrix_between_channels=matrix)
+        case _:
+            raise ValueError(f"Align method {ops['align_method']} not recognised")
+
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
     np.savez(
         save_dir
         / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
-        angles=angles,
-        shifts=shifts,
-        scales=reference_tforms["scales_between_channels"],
         allow_pickle=True,
+        **to_save,
     )
+    if debug:
+        return db_info
 
 
 def estimate_shifts_by_coors(
