@@ -133,16 +133,16 @@ def register_fluorescent_tile(
         ), "reg_median_filter must be an integer"
         stack = median_filter(stack, footprint=disk(median_filter_size), axes=(0, 1))
 
-    # binarise if needed
-    threshold_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
-    nch = stack.shape[2]
-    if threshold_quantile is not None:
-        for ich in range(nch):
-            ref_thresh = np.quantile(stack[:, :, ich], threshold_quantile)
-            stack[:, :, ich] = stack[:, :, ich] > ref_thresh
-
+    binarise_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
     match ops["align_method"]:
         case "similarity":
+            # binarise if needed
+            nch = stack.shape[2]
+            if binarise_quantile is not None:
+                for ich in range(nch):
+                    ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
+                    stack[:, :, ich] = stack[:, :, ich] > ref_thresh
+
             out = estimate_shifts_and_angles_for_tile(
                 stack,
                 scales=reference_tforms["scales_between_channels"],
@@ -160,12 +160,22 @@ def register_fluorescent_tile(
                 scales=reference_tforms["scales_between_channels"],
             )
         case "affine":
+            ops_prefix = prefix.split("_")[0].lower()
+            block_size = ops.get(f"{ops_prefix}_block_size", 256)
+            overlap = ops.get(f"{ops_prefix}_overlap", 0.5)
+            correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
+            print(f"Using block size {block_size} and overlap {overlap}")
+            print(f"Correlation threshold: {correlation_threshold}")
             matrix = estimate_affine_for_tile(
                 stack,
                 tform_matrix=reference_tforms["matrix_between_channels"],
                 ref_ch=ops["ref_ch"],
                 max_shift=ops["rounds_max_shift"],
                 debug=debug,
+                block_size=block_size,
+                overlap=overlap,
+                correlation_threshold=correlation_threshold,
+                binarise_quantile=binarise_quantile,
             )
             if debug:
                 matrix, db_info = matrix
