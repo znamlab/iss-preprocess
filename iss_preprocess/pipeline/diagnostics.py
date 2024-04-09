@@ -189,10 +189,21 @@ def check_affine_channel_registration(
     data_path,
     prefix="genes_round",
     tile_coords=None,
+    projection=None,
+    binarisation_quantile="ops",
 ):
     ops = iss.io.load_ops(data_path)
+    if binarisation_quantile == "ops":
+        binarisation_quantile = ops[f"{prefix.split('_')[0].lower()}_binarise_quantile"]
+
+    if not "_1" in prefix:
+        roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
+        multi_rounds = True
+    else:
+        roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}")
+        multi_rounds = False
+
     # select some tiles
-    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
     if tile_coords is None:
         # check if ops has a ref tile
         if f"{prefix.split('_')[0]}_ref_tiles" in ops:
@@ -221,6 +232,9 @@ def check_affine_channel_registration(
     if not target_folder.exists():
         target_folder.mkdir(parents=True, exist_ok=True)
     # this is fast to run, so we re-run with diag mode
+    if projection is None:
+        projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
+
     fig = plt.figure(figsize=(2 * 7, 1.5 * 3))
     for tile_coors in tile_coords:
         fig.clear()
@@ -228,26 +242,43 @@ def check_affine_channel_registration(
             print("This function is only for affine registration")
             return
         ops = iss.io.load_ops(data_path)
-        nrounds = ops[prefix + "s"]
-        projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
-        stack = iss.pipeline.load_sequencing_rounds(
-            data_path, tile_coors, prefix=prefix, suffix=projection, nrounds=nrounds
-        )
         ref_ch = ops["ref_ch"]
         median_filter = ops["reg_median_filter"]
 
-        # load corrections
-        tforms = iss.pipeline.sequencing.get_channel_round_shifts(
-            data_path, prefix, tile_coors, ops["corrected_shifts"]
-        )
-        (
-            std_stack,
-            mean_stack,
-        ) = iss.reg.rounds_and_channels.get_channel_reference_images(
-            stack,
-            tforms["angles_within_channels"],
-            tforms["shifts_within_channels"],
-        )
+        if multi_rounds:
+            nrounds = ops[prefix + "s"]
+            stack = iss.pipeline.load_sequencing_rounds(
+                data_path, tile_coors, prefix=prefix, suffix=projection, nrounds=nrounds
+            )
+            # load corrections
+            tforms = iss.pipeline.sequencing.get_channel_round_shifts(
+                data_path, prefix, tile_coors, ops["corrected_shifts"]
+            )
+            (
+                std_stack,
+                mean_stack,
+            ) = iss.reg.rounds_and_channels.get_channel_reference_images(
+                stack,
+                tforms["angles_within_channels"],
+                tforms["shifts_within_channels"],
+            )
+        else:
+            std_stack = iss.pipeline.load_tile_by_coors(
+                data_path=data_path,
+                tile_coors=tile_coors,
+                prefix=prefix,
+                suffix=projection,
+            )
+
+            nch = std_stack.shape[2]
+            if binarisation_quantile is not None:
+                for ich in range(nch):
+                    ref_thresh = np.quantile(
+                        std_stack[:, :, ich], binarisation_quantile
+                    )
+                    std_stack[:, :, ich] = (std_stack[:, :, ich] > ref_thresh).astype(
+                        int
+                    )
         matrices, debug_info = iss.reg.rounds_and_channels.correct_by_block(
             std_stack,
             ch_to_align=ref_ch,
