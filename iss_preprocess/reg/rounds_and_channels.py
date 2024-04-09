@@ -340,6 +340,7 @@ def estimate_affine_for_tile(
         median_filter_size=None,
         block_size=512,
         overlap=0.6,
+        max_shift=max_shift,
         correlation_threshold=0.01,
         debug=debug,
     )
@@ -585,7 +586,7 @@ def correct_by_block(
 
     Returns:
         output (list): Nchannels list of affine transformations
-
+        debug_info (dict): dictionary with debug info, only if debug=True
     """
 
     nchannels = im.shape[2]
@@ -613,6 +614,7 @@ def correct_by_block(
             )
             if debug:
                 params, db[channel] = params
+            print(f"Channel {channel} affine: {np.round(params, 3)}", flush=True)
         else:
             params = np.array([1, 0, 0, 0, 1, 0])
         # make a 3x3 matrix from the 6 parameters
