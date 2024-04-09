@@ -316,6 +316,10 @@ def estimate_affine_for_tile(
     tform_matrix,
     max_shift=None,
     ref_ch=0,
+    block_size=512,
+    overlap=0.6,
+    correlation_threshold=0.01,
+    binarisation_quantile=None,
     debug=False,
 ):
     """Estimate affine transformations for a single tile
@@ -325,6 +329,12 @@ def estimate_affine_for_tile(
         tform_matrix (np.array): Nchannels list of affine transformations matrices
         max_shift (int): maximum shift to avoid spurious cross-correlations
         ref_ch (int): reference channel
+        block_size (int): size of the block to use for registration, default: 512
+        overlap (float): overlap between blocks, default: 0.6
+        correlation_threshold (float): threshold for correlation to use for fitting
+            affine transformations, default: 0.01
+        binarisation_quantile (float): quantile to use for binarisation of each block
+            default: None
         debug (bool): whether to return debug info, default: False
 
     Returns:
@@ -338,10 +348,11 @@ def estimate_affine_for_tile(
         moving_image,
         ch_to_align=ref_ch,
         median_filter_size=None,
-        block_size=512,
-        overlap=0.6,
+        block_size=block_size,
+        overlap=overlap,
         max_shift=max_shift,
-        correlation_threshold=0.01,
+        correlation_threshold=correlation_threshold,
+        binarisation_quantile=binarisation_quantile,
         debug=debug,
     )
     if debug:
@@ -569,6 +580,7 @@ def correct_by_block(
     overlap=0.5,
     max_shift=None,
     correlation_threshold=None,
+    binarisation_quantile=None,
     debug=False,
 ):
     """Estimate affine transformations by block for each channel of a multichannel image.
@@ -583,6 +595,8 @@ def correct_by_block(
             Default: None
         correlation_threshold (float, optional): threshold for correlation to use for fitting
             affine transformations. None to keep all values. Default: None
+        binarisation_quantile (float, optional): quantile to use for binarisation of
+            each block. Default: None
         debug (bool, optional): whether to return debug info, default: False
 
     Returns:
@@ -611,6 +625,7 @@ def correct_by_block(
                 overlap=overlap,
                 max_shift=max_shift,
                 correlation_threshold=correlation_threshold,
+                binarisation_quantile=binarisation_quantile,
                 debug=debug,
             )
             if debug:
