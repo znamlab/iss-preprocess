@@ -90,7 +90,6 @@ def register_fluorescent_tile(
     data_path,
     tile_coors,
     prefix="hybridisation_1_1",
-    suffix="max",
     reference_prefix="genes_round",
     debug=False,
 ):
@@ -106,9 +105,7 @@ def register_fluorescent_tile(
         tile_coors (tuple): Coordinates of tile to register, in (ROI, X, Y) format.
         prefix (str, optional): Directory prefix to register. Defaults to
             "hybridisation_1_1".
-        suffix (str, optional): Filename suffix specifying which z-projection to use.
-            Defaults to "max".
-        reference_prefix (str, optional): Prefix to load scale or initial matrix from.
+        reference_prefix (str, optional): Prefix to load scale or initial matrix from.  TODO
             Defaults to "genes_round".
         debug (bool, optional): Return debug information. Defaults to False.
 
@@ -118,9 +115,10 @@ def register_fluorescent_tile(
 
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
+    projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     tforms_path = processed_path / f"tforms_{reference_prefix}.npz"
     stack = load_tile_by_coors(
-        data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
+        data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
 
