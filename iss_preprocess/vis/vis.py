@@ -120,17 +120,18 @@ def to_rgb(stack, colors, vmax=None, vmin=None):
     nchannels = stack.shape[2]
 
     if vmax is None:
-        vmax = np.max(stack, axis=(0, 1))
+        vmax = np.nanmax(stack, axis=(0, 1))
     else:
         vmax = np.asarray(vmax)
     if vmin is None:
-        vmin = np.min(stack, axis=(0, 1))
+        vmin = np.nanmin(stack, axis=(0, 1))
     else:
         vmin = np.asarray(vmin)
 
     scale = vmax - vmin
 
-    stack_norm = (
+    # remove nans to make int
+    stack_norm = np.nan_to_num(
         (stack - vmin[np.newaxis, np.newaxis, :])
         / scale[np.newaxis, np.newaxis, :]
         * 255
