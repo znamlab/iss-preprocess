@@ -240,12 +240,13 @@ def check_affine_channel_registration(
         tforms = iss.pipeline.sequencing.get_channel_round_shifts(
             data_path, prefix, tile_coors, ops["corrected_shifts"]
         )
-        std_stack, mean_stack = (
-            iss.reg.rounds_and_channels.get_channel_reference_images(
-                stack,
-                tforms["angles_within_channels"],
-                tforms["shifts_within_channels"],
-            )
+        (
+            std_stack,
+            mean_stack,
+        ) = iss.reg.rounds_and_channels.get_channel_reference_images(
+            stack,
+            tforms["angles_within_channels"],
+            tforms["shifts_within_channels"],
         )
         matrices, debug_info = iss.reg.rounds_and_channels.correct_by_block(
             std_stack,
