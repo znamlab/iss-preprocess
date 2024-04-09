@@ -191,11 +191,17 @@ def check_affine_channel_registration(
     tile_coords=None,
     projection=None,
     binarisation_quantile="ops",
+    block_size="ops",
+    overlap="ops",
 ):
     ops = iss.io.load_ops(data_path)
+    ops_pref = prefix.split("_")[0].lower()
     if binarisation_quantile == "ops":
-        binarisation_quantile = ops[f"{prefix.split('_')[0].lower()}_binarise_quantile"]
-
+        binarisation_quantile = ops[f"{ops_pref}_binarise_quantile"]
+    if block_size == "ops":
+        block_size = ops.get([f"{ops_pref}_reg_block_size"], 256)
+    if overlap == "ops":
+        overlap = ops.get([f"{ops_pref}_reg_overlap"], 0.5)
     if not "_1" in prefix:
         roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
         multi_rounds = True
@@ -270,25 +276,21 @@ def check_affine_channel_registration(
                 suffix=projection,
             )
 
-            nch = std_stack.shape[2]
-            if binarisation_quantile is not None:
-                for ich in range(nch):
-                    ref_thresh = np.quantile(
-                        std_stack[:, :, ich], binarisation_quantile
-                    )
-                    std_stack[:, :, ich] = (std_stack[:, :, ich] > ref_thresh).astype(
-                        int
-                    )
         matrices, debug_info = iss.reg.rounds_and_channels.correct_by_block(
             std_stack,
             ch_to_align=ref_ch,
             median_filter_size=median_filter,
+            binarisation_quantile=binarisation_quantile,
             debug=True,
+            block_size=block_size,
+            overlap=overlap,
         )
         iss.vis.diagnostics.plot_affine_debug_images(debug_info, fig=fig)
         fig.suptitle(f"{prefix} - Tile {tile_coors}")
         tile_name = "_".join([str(x) for x in tile_coors])
         fig.savefig(target_folder / f"affine_debug_{prefix}_{tile_name}.png")
+
+    return tile_coors, matrices, debug_info
 
 
 @slurm_it(conda_env="iss-preprocess")
