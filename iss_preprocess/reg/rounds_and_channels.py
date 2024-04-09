@@ -576,13 +576,14 @@ def correct_by_block(
     Args:
         im (np.array): X x Y x Nchannels image
         ch_to_align (int): channel to align to
-        median_filter_size (int): size of median filter to apply to the stack.
-        block_size (int): size of the block to use for registration. Default: 256
-        overlap (float): overlap between blocks. Default: 0.5
-        max_shift (int): maximum shift to avoid spurious cross-correlations
-        correlation_threshold (float): threshold for correlation to use for fitting
+        median_filter_size (int, optional): size of median filter to apply to the stack.
+        block_size (int, optional): size of the block to use for registration. Default: 256
+        overlap (float, optional): overlap between blocks. Default: 0.5
+        max_shift (int, optional): maximum shift to avoid spurious cross-correlations.
+            Default: None
+        correlation_threshold (float, optional): threshold for correlation to use for fitting
             affine transformations. None to keep all values. Default: None
-        debug (bool): whether to return debug info, default: False
+        debug (bool, optional): whether to return debug info, default: False
 
     Returns:
         output (list): Nchannels list of affine transformations
