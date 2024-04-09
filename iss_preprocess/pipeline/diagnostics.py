@@ -190,14 +190,14 @@ def check_affine_channel_registration(
     prefix="genes_round",
     tile_coords=None,
     projection=None,
-    binarisation_quantile="ops",
+    binarise_quantile="ops",
     block_size="ops",
     overlap="ops",
 ):
     ops = iss.io.load_ops(data_path)
     ops_pref = prefix.split("_")[0].lower()
-    if binarisation_quantile == "ops":
-        binarisation_quantile = ops[f"{ops_pref}_binarise_quantile"]
+    if binarise_quantile == "ops":
+        binarise_quantile = ops[f"{ops_pref}_binarise_quantile"]
     if block_size == "ops":
         block_size = ops.get([f"{ops_pref}_reg_block_size"], 256)
     if overlap == "ops":
@@ -280,7 +280,7 @@ def check_affine_channel_registration(
             std_stack,
             ch_to_align=ref_ch,
             median_filter_size=median_filter,
-            binarisation_quantile=binarisation_quantile,
+            binarise_quantile=binarise_quantile,
             debug=True,
             block_size=block_size,
             overlap=overlap,

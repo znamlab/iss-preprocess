@@ -319,7 +319,7 @@ def estimate_affine_for_tile(
     block_size=512,
     overlap=0.6,
     correlation_threshold=0.01,
-    binarisation_quantile=None,
+    binarise_quantile=None,
     debug=False,
 ):
     """Estimate affine transformations for a single tile
@@ -333,7 +333,7 @@ def estimate_affine_for_tile(
         overlap (float): overlap between blocks, default: 0.6
         correlation_threshold (float): threshold for correlation to use for fitting
             affine transformations, default: 0.01
-        binarisation_quantile (float): quantile to use for binarisation of each block
+        binarise_quantile (float): quantile to use for binarisation of each block
             default: None
         debug (bool): whether to return debug info, default: False
 
@@ -352,7 +352,7 @@ def estimate_affine_for_tile(
         overlap=overlap,
         max_shift=max_shift,
         correlation_threshold=correlation_threshold,
-        binarisation_quantile=binarisation_quantile,
+        binarise_quantile=binarise_quantile,
         debug=debug,
     )
     if debug:
@@ -580,7 +580,7 @@ def correct_by_block(
     overlap=0.5,
     max_shift=None,
     correlation_threshold=None,
-    binarisation_quantile=None,
+    binarise_quantile=None,
     debug=False,
 ):
     """Estimate affine transformations by block for each channel of a multichannel image.
@@ -595,7 +595,7 @@ def correct_by_block(
             Default: None
         correlation_threshold (float, optional): threshold for correlation to use for fitting
             affine transformations. None to keep all values. Default: None
-        binarisation_quantile (float, optional): quantile to use for binarisation of
+        binarise_quantile (float, optional): quantile to use for binarisation of
             each block. Default: None
         debug (bool, optional): whether to return debug info, default: False
 
@@ -625,7 +625,7 @@ def correct_by_block(
                 overlap=overlap,
                 max_shift=max_shift,
                 correlation_threshold=correlation_threshold,
-                binarisation_quantile=binarisation_quantile,
+                binarise_quantile=binarise_quantile,
                 debug=debug,
             )
             if debug:
