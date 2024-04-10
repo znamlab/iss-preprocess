@@ -90,7 +90,7 @@ def register_fluorescent_tile(
     data_path,
     tile_coors,
     prefix,
-    reference_prefix="genes_round",
+    reference_prefix=None,
     debug=False,
 ):
     """Estimate channel registration parameters for a single round acquisition
@@ -105,7 +105,7 @@ def register_fluorescent_tile(
         tile_coors (tuple): Coordinates of tile to register, in (ROI, X, Y) format.
         prefix (str): Directory prefix to register. Defaults to
         reference_prefix (str, optional): Prefix to load scale or initial matrix from.
-            Defaults to "genes_round".
+            Defaults to None.
         debug (bool, optional): Return debug information. Defaults to False.
 
     Returns:

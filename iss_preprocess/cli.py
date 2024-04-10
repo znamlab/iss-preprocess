@@ -281,7 +281,7 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley):
         path,
         tile_coors=(roi, tilex, tiley),
         prefix=prefix,
-        reference_prefix="genes_round",
+        reference_prefix=None,
     )
 
 
