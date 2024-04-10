@@ -623,19 +623,23 @@ def correct_by_block(
     for channel in range(nchannels):
         if channel != ch_to_align:
             target = im[:, :, channel]
-            params = abb.find_affine_by_block(
-                reference,
-                target,
-                block_size=block_size,
-                overlap=overlap,
-                max_shift=max_shift,
-                correlation_threshold=correlation_threshold,
-                binarise_quantile=binarise_quantile,
-                debug=debug,
-            )
-            if debug:
-                params, db[channel] = params
-            print(f"Channel {channel} affine: {np.round(params, 3)}", flush=True)
+            try:
+                params = abb.find_affine_by_block(
+                    reference,
+                    target,
+                    block_size=block_size,
+                    overlap=overlap,
+                    max_shift=max_shift,
+                    correlation_threshold=correlation_threshold,
+                    binarise_quantile=binarise_quantile,
+                    debug=debug,
+                )
+                if debug:
+                    params, db[channel] = params
+                print(f"Channel {channel} affine: {np.round(params, 3)}", flush=True)
+            except ValueError as e:
+                print(f"Channel {channel} failed to register: {e}", flush=True)
+                params = np.array([1, 0, 0, 0, 1, 0])
         else:
             params = np.array([1, 0, 0, 0, 1, 0])
         # make a 3x3 matrix from the 6 parameters
