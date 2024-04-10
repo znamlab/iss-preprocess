@@ -313,7 +313,7 @@ def _process_single_rotation_translation(args):
 
 def estimate_affine_for_tile(
     stack,
-    tform_matrix,
+    tform_matrix=None,
     max_shift=None,
     ref_ch=0,
     block_size=512,
@@ -326,7 +326,8 @@ def estimate_affine_for_tile(
 
     Args:
         stack (np.array): X x Y x Nchannels images stack
-        tform_matrix (np.array): Nchannels list of affine transformations matrices
+        tform_matrix (np.array, optional): Nchannels list of affine transformations
+            matrices for initial alignment. Default: None
         max_shift (int): maximum shift to avoid spurious cross-correlations
         ref_ch (int): reference channel
         block_size (int): size of the block to use for registration, default: 512
@@ -342,7 +343,10 @@ def estimate_affine_for_tile(
         debug_info (dict): dictionary with debug info, only if debug=True
     """
     # run affine by block on image transformed by the matrix
-    moving_image = apply_corrections(stack, matrix=tform_matrix)
+    if tform_matrix is not None:
+        moving_image = apply_corrections(stack, matrix=tform_matrix)
+    else:
+        moving_image = stack
     # We do the median filtering in the parent function to do it before corrections
     out = correct_by_block(
         moving_image,
@@ -359,10 +363,11 @@ def estimate_affine_for_tile(
         matrix, debug_info = out
     else:
         matrix = out
-    # multiply the matrix by the tform_matrix to get the whole transform
-    nch = stack.shape[2]
-    for ich in range(nch):
-        matrix[ich] = matrix[ich] @ tform_matrix[ich]
+    if tform_matrix is not None:
+        # multiply the matrix by the tform_matrix to get the whole transform
+        nch = stack.shape[2]
+        for ich in range(nch):
+            matrix[ich] = matrix[ich] @ tform_matrix[ich]
     if debug:
         return matrix, debug_info
     return matrix

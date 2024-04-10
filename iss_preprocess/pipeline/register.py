@@ -89,7 +89,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
 def register_fluorescent_tile(
     data_path,
     tile_coors,
-    prefix="hybridisation_1_1",
+    prefix,
     reference_prefix="genes_round",
     debug=False,
 ):
@@ -103,9 +103,8 @@ def register_fluorescent_tile(
     Args:
         data_path (str): Relative path to data.
         tile_coors (tuple): Coordinates of tile to register, in (ROI, X, Y) format.
-        prefix (str, optional): Directory prefix to register. Defaults to
-            "hybridisation_1_1".
-        reference_prefix (str, optional): Prefix to load scale or initial matrix from.  TODO
+        prefix (str): Directory prefix to register. Defaults to
+        reference_prefix (str, optional): Prefix to load scale or initial matrix from.
             Defaults to "genes_round".
         debug (bool, optional): Return debug information. Defaults to False.
 
@@ -116,11 +115,13 @@ def register_fluorescent_tile(
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
     projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
-    tforms_path = processed_path / f"tforms_{reference_prefix}.npz"
+    if reference_prefix is not None:
+        tforms_path = processed_path / f"tforms_{reference_prefix}.npz"
+        reference_tforms = np.load(tforms_path, allow_pickle=True)
+
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
     )
-    reference_tforms = np.load(tforms_path, allow_pickle=True)
 
     # median filter if needed
     median_filter_size = ops["reg_median_filter"]
@@ -134,6 +135,10 @@ def register_fluorescent_tile(
     binarise_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
     match ops["align_method"]:
         case "similarity":
+            if reference_prefix is None:
+                raise ValueError(
+                    "Reference prefix must be provided for similarity transform"
+                )
             # binarise if needed
             nch = stack.shape[2]
             if binarise_quantile is not None:
@@ -159,14 +164,20 @@ def register_fluorescent_tile(
             )
         case "affine":
             ops_prefix = prefix.split("_")[0].lower()
-            block_size = ops.get(f"{ops_prefix}_block_size", 256)
-            overlap = ops.get(f"{ops_prefix}_overlap", 0.5)
+            block_size = ops.get(f"{ops_prefix}_reg_block_size", 256)
+            overlap = ops.get(f"{ops_prefix}_reg_block_overlap", 0.5)
             correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
-            print(f"Using block size {block_size} and overlap {overlap}")
-            print(f"Correlation threshold: {correlation_threshold}")
+            print("Registration parameters:")
+            print(f"    block size {block_size}\n    overlap {overlap}")
+            print(f"    correlation threshold {correlation_threshold}")
+            print(f"    binarise quantile {binarise_quantile}")
+            if reference_prefix is None:
+                tform_matrix = None
+            else:
+                tform_matrix = reference_tforms["matrix_between_channels"]
             matrix = estimate_affine_for_tile(
                 stack,
-                tform_matrix=reference_tforms["matrix_between_channels"],
+                tform_matrix=tform_matrix,
                 ref_ch=ops["ref_ch"],
                 max_shift=ops["rounds_max_shift"],
                 debug=debug,
@@ -189,8 +200,10 @@ def register_fluorescent_tile(
         allow_pickle=True,
         **to_save,
     )
+
     if debug:
-        return db_info
+        return to_save, db_info
+    return to_save
 
 
 def estimate_shifts_by_coors(
