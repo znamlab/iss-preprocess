@@ -183,8 +183,8 @@ def plot_affine_debug_images(debug_info, fig=None):
         plot_matrix_with_colorbar(co, axes[i, 0])
         plot_matrix_with_colorbar(s[..., 0], axes[i, 1], vmin=-10, vmax=10, cmap="bwr")
         plot_matrix_with_colorbar(s[..., 1], axes[i, 2], vmin=-10, vmax=10, cmap="bwr")
-        aff_x = db["huber_x"].predict(db["centers"]).reshape(nb[:-1]) - ce[..., 0]
-        aff_y = db["huber_y"].predict(db["centers"]).reshape(nb[:-1]) - ce[..., 1]
+        aff_x = db["fit_x"].predict(db["centers"]).reshape(nb[:-1]) - ce[..., 0]
+        aff_y = db["fit_y"].predict(db["centers"]).reshape(nb[:-1]) - ce[..., 1]
         plot_matrix_with_colorbar(aff_x, axes[i, 3], vmin=-10, vmax=10, cmap="bwr")
         plot_matrix_with_colorbar(aff_y, axes[i, 4], vmin=-10, vmax=10, cmap="bwr")
         plot_matrix_with_colorbar(
