@@ -362,7 +362,7 @@ def segment_mcherry_tile(
         f"{prefix}_MMStack_{roi}-"
         + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_{suffix}.tif"
     )
-    stack = iss.io.load_stack(processed_path / prefix / original_fname)[:, :, 0]
+    stack = iss.io.load_stack(processed_path / prefix / original_fname)
 
     # Apply a hann window filter to the unmixed image to remove halos around cells
     filt = iss.image.filter_stack(unmixed_stack, r1=r1, r2=r2, dtype=float)
@@ -377,24 +377,29 @@ def segment_mcherry_tile(
         properties=(
             "label",
             "area",
-            "convex_area",
-            "perimeter",
-            "mean_intensity",
-            "max_intensity",
-            "min_intensity",
             "centroid",
+            "eccentricity",
             "major_axis_length",
             "minor_axis_length",
-            "eccentricity",
-            "inertia_tensor_eigvals",
+            "intensity_max",
+            "intensity_mean",
+            "intensity_min",
+            "perimeter",
+            "solidity",
         ),
     )
 
     props_df = pd.DataFrame(props)
-    props_df["convexity"] = props_df["area"] / props_df["convex_area"]
     props_df["circularity"] = (
         4 * np.pi * props_df["area"] / (props_df["perimeter"] ** 2)
     )
+    props_df["intensity_ratio"] = (
+        props_df["intensity_mean-2"] / props_df["intensity_mean-3"]
+    )
+    props_df["roi"] = roi
+    props_df["tilex"] = tilex
+    props_df["tiley"] = tiley
+
     area_threshold = area_threshold
     # Closer to 1 means more elongated
     elongation_threshold = elongation_threshold
