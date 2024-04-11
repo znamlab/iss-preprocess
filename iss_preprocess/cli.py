@@ -1041,7 +1041,7 @@ def segment_mcherry_tile(path, prefix, roi, tilex, tiley, suffix="max"):
         suffix,
         r1=4,
         r2=70,
-        area_threshold=200,
-        elongation_threshold=0.9,
-        circularity_threshold=0.5,
+        area_threshold=0,
+        elongation_threshold=99999,
+        circularity_threshold=0.0,
     )
