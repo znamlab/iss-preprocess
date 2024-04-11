@@ -695,6 +695,8 @@ def stitch_and_register(
         else:
             stitched_stack_reference += stitched
     stitched_stack_reference /= len(ref_ch)
+    orig_target_shape = stitched_stack_target.shape
+    orig_referece_shape = stitched_stack_reference.shape
 
     if use_masked_correlation:
         target_mask = np.ones(stitched_stack_target.shape, dtype=bool)
@@ -760,7 +762,7 @@ def stitch_and_register(
             angle, shift = out
         scale = 1
     else:
-        shift, _ = mpc.phase_correlation(
+        shift, _, _, _ = mpc.phase_correlation(
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
         )
@@ -783,6 +785,8 @@ def stitch_and_register(
         shift=shift,
         scale=scale,
         stitched_stack_shape=final_shape,
+        orig_target_shape=orig_target_shape,
+        orig_referece_shape=orig_referece_shape,
     )
     output = [stitched_stack_target, stitched_stack_reference, angle, shift, scale]
     if debug:
