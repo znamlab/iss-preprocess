@@ -83,7 +83,7 @@ def save_ome_tiff_pyramid(
             subifds=subresolutions,
             resolution=(1e4 / pixel_size, 1e4 / pixel_size),
             metadata=metadata,
-            **options
+            **options,
         )
         for level in range(subresolutions):
             if verbose:
@@ -98,7 +98,7 @@ def save_ome_tiff_pyramid(
             tif.write(
                 image,
                 resolution=(1e4 / mag / pixel_size, 1e4 / mag / pixel_size),
-                **options
+                **options,
             )
         if max(image.shape) < 200:
             skip = 1

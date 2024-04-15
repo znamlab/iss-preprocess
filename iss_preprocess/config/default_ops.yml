@@ -25,8 +25,10 @@ image_correction:
 registration:
   # Whether to use channel-specific registration parameters
   align_channels: true
+  # Method for aligning channels, can be "similarity" or "affine"
+  align_method: affine
   # Coordinates of the reference tile to use for initial estimation of scale and
-   # rotation between channels. [ ROI, X/col, Y/row]
+  # rotation between channels. [ ROI, X/col, Y/row]
   ref_tile: [ 1, 0, 0 ]
   # Index of the reference channel to use for registration (camera index, NOT wavelength index)
   ref_ch: 0
@@ -106,12 +108,15 @@ spot_shape:
   spot_shape_radius: 7
   spot_shape_threshold: 0.15
 
-# Parameters for detecting hybridisation spots
+# Parameters for detecting hybridisation spots and registering hyb channels
 hybridisation:
   hybridisation_detection_threshold: 0.5
   hybridisation_correct_channels: true
   hybridisation_projection: max-median
   hybridisation_cluster_score_thresh: 0.0
+  hybridisation_binarise_quantile: 0.9
+  hybridisation_reg_block_size: 512
+  hybridisation_reg_block_overlap: 0.8
 
 # Detection of mCherry+ cells
 mcherry:

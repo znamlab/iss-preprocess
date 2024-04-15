@@ -272,14 +272,16 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="max"):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max"):
+def register_hyb_tile(path, prefix, roi, tilex, tiley):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
-    from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
+    from iss_preprocess.pipeline import register_fluorescent_tile
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}/{prefix}")
-    estimate_shifts_and_angles_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
+    register_fluorescent_tile(
+        path,
+        tile_coors=(roi, tilex, tiley),
+        prefix=prefix,
+        reference_prefix=None,
     )
 
 
@@ -300,21 +302,20 @@ def estimate_shifts(path, prefix, suffix="max"):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
-@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-def estimate_hyb_shifts(path, prefix=None, suffix="max"):
+def estimate_hyb_shifts(path, prefix=None):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.io import load_metadata
     from iss_preprocess.pipeline import batch_process_tiles
 
     if prefix:
-        additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+        additional_args = f",PREFIX={prefix}"
         batch_process_tiles(
             path, script="register_hyb_tile", additional_args=additional_args
         )
     else:
         metadata = load_metadata(path)
         for hyb_round in metadata["hybridisation"].keys():
-            additional_args = f",PREFIX={hyb_round},SUFFIX={suffix}"
+            additional_args = f",PREFIX={hyb_round}"
             batch_process_tiles(
                 path, script="register_hyb_tile", additional_args=additional_args
             )

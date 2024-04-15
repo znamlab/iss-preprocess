@@ -185,9 +185,121 @@ def check_tile_registration(
         )
 
 
+def check_affine_channel_registration(
+    data_path,
+    prefix="genes_round",
+    tile_coords=None,
+    projection=None,
+    binarise_quantile="ops",
+    block_size="ops",
+    overlap="ops",
+):
+    ops = iss.io.load_ops(data_path)
+    ops_pref = prefix.split("_")[0].lower()
+    if binarise_quantile == "ops":
+        binarise_quantile = ops[f"{ops_pref}_binarise_quantile"]
+    if block_size == "ops":
+        block_size = ops.get([f"{ops_pref}_reg_block_size"], 256)
+    if overlap == "ops":
+        overlap = ops.get([f"{ops_pref}_reg_overlap"], 0.5)
+    if not "_1" in prefix:
+        roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
+        multi_rounds = True
+    else:
+        roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}")
+        multi_rounds = False
+
+    # select some tiles
+    if tile_coords is None:
+        # check if ops has a ref tile
+        if f"{prefix.split('_')[0]}_ref_tiles" in ops:
+            tile_coords = ops[f"{prefix.split('_')[0]}_ref_tiles"]
+            nrandom = 10 - len(tile_coords)
+        else:
+            tile_coords = []
+            nrandom = 10
+        # select random tiles
+        if nrandom > 0:
+            for i in range(nrandom):
+                # pick a roi randomly
+                roi = np.random.choice(roi_dims[:, 0])
+                # pick a tile inside that roi
+                ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0]
+                tile_coords.append([roi, *np.random.randint(0, ntiles)])
+    elif isinstance(tile_coords[0], int):
+        tile_coords = [tile_coords]
+
+    target_folder = (
+        iss.io.get_processed_path(data_path)
+        / "figures"
+        / "registration"
+        / f"affine_transform_{prefix}"
+    )
+    if not target_folder.exists():
+        target_folder.mkdir(parents=True, exist_ok=True)
+    # this is fast to run, so we re-run with diag mode
+    if projection is None:
+        projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
+
+    fig = plt.figure(figsize=(2 * 7, 1.5 * 3))
+    for tile_coors in tile_coords:
+        fig.clear()
+        if ops["align_method"] != "affine":
+            print("This function is only for affine registration")
+            return
+        ops = iss.io.load_ops(data_path)
+        ref_ch = ops["ref_ch"]
+        median_filter = ops["reg_median_filter"]
+
+        if multi_rounds:
+            nrounds = ops[prefix + "s"]
+            stack = iss.pipeline.load_sequencing_rounds(
+                data_path, tile_coors, prefix=prefix, suffix=projection, nrounds=nrounds
+            )
+            # load corrections
+            tforms = iss.pipeline.sequencing.get_channel_round_shifts(
+                data_path, prefix, tile_coors, ops["corrected_shifts"]
+            )
+            (
+                std_stack,
+                mean_stack,
+            ) = iss.reg.rounds_and_channels.get_channel_reference_images(
+                stack,
+                tforms["angles_within_channels"],
+                tforms["shifts_within_channels"],
+            )
+        else:
+            std_stack = iss.pipeline.load_tile_by_coors(
+                data_path=data_path,
+                tile_coors=tile_coors,
+                prefix=prefix,
+                suffix=projection,
+            )
+
+        matrices, debug_info = iss.reg.rounds_and_channels.correct_by_block(
+            std_stack,
+            ch_to_align=ref_ch,
+            median_filter_size=median_filter,
+            binarise_quantile=binarise_quantile,
+            debug=True,
+            block_size=block_size,
+            overlap=overlap,
+        )
+        iss.vis.diagnostics.plot_affine_debug_images(debug_info, fig=fig)
+        fig.suptitle(f"{prefix} - Tile {tile_coors}")
+        tile_name = "_".join([str(x) for x in tile_coors])
+        fig.savefig(target_folder / f"affine_debug_{prefix}_{tile_name}.png")
+
+    return tile_coors, matrices, debug_info
+
+
 @slurm_it(conda_env="iss-preprocess")
 def check_shift_correction(
-    data_path, prefix="genes_round", roi_dimension_prefix="genes_round_1_1"
+    data_path,
+    prefix="genes_round",
+    roi_dimension_prefix="genes_round_1_1",
+    within=True,
+    between=True,
 ):
     """Plot the shift correction and save it in the figures folder
 
@@ -211,6 +323,20 @@ def check_shift_correction(
     nr = ops[f"{prefix}s"]
 
     # Now plot them.
+    def get_shifts(which, archive):
+        if which == "within":
+            return archive[f"shifts_{which}_channels"]
+        elif which == "between":
+            return archive["matrix_between_channels"][:, :2, 2]
+
+    def get_angle(which, archive):
+        if which == "within":
+            return archive[f"angles_{which}_channels"]
+        elif which == "between":
+            matrix = archive["matrix_between_channels"]
+            # we return an estimate of the angle assuming it is a pure rotation matrix
+            return [np.rad2deg(np.arctan2(m[1, 0], m[0, 0])) for m in matrix]
+
     def get_data(which, roi, nr, ntiles):
         if nr > 1:
             raw = np.zeros([nc, nr, 3, *ntiles]) + np.nan
@@ -223,114 +349,115 @@ def check_shift_correction(
             for iy in range(ntiles[1]):
                 try:
                     data = np.load(reg_dir / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz")
-                    raw[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
-                    raw[..., 2, ix, iy] = data[f"angles_{which}_channels"]
+                    raw[..., :2, ix, iy] = get_shifts(which, data)
+                    raw[..., 2, ix, iy] = get_angle(which, data)
                 except FileNotFoundError:
                     pass
                 data = np.load(
                     reg_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
-                corrected[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
-                corrected[..., 2, ix, iy] = data[f"angles_{which}_channels"]
+                corrected[..., :2, ix, iy] = get_shifts(which, data)
+                corrected[..., 2, ix, iy] = get_angle(which, data)
                 tf_best = reg_dir / f"tforms_best_{prefix}_{roi}_{ix}_{iy}.npz"
                 if tf_best.exists():
                     data = np.load(tf_best)
-                    best[..., :2, ix, iy] = data[f"shifts_{which}_channels"]
-                    best[..., 2, ix, iy] = data[f"angles_{which}_channels"]
+                    best[..., :2, ix, iy] = get_shifts(which, data)
+                    best[..., 2, ix, iy] = get_angle(which, data)
         return raw, corrected, best
 
-    # For "within channels" we plot the shifts for each channel and each round
-    fig = plt.figure(figsize=(4 * nr * 2, 2 * 4 * nc))
-    for roi, *ntiles in ndims:
-        raw, corrected, best = get_data("within", roi, nr=nr, ntiles=ntiles)
-        corr_feature = ["Shift x", "Shift y"]
-        fig.clear()
-        axes = fig.subplots(nrows=nc * 4, ncols=nr * 2)
-        for c in range(nc):
+    if within:
+        # For "within channels" we plot the shifts for each channel and each round
+        fig = plt.figure(figsize=(4 * nr * 2, 2 * 4 * nc))
+        for roi, *ntiles in ndims:
+            raw, corrected, best = get_data("within", roi, nr=nr, ntiles=ntiles)
+            corr_feature = ["Shift x", "Shift y"]
+            fig.clear()
+            axes = fig.subplots(nrows=nc * 4, ncols=nr * 2)
+            for c in range(nc):
+                for ifeat, feat in enumerate(corr_feature):
+                    raw_to_plot = raw[c, :, ifeat, ...]
+                    corr_to_plot = corrected[c, :, ifeat, ...]
+                    best_to_plot = best[c, :, ifeat, ...]
+                    iss.vis.plot_matrix_difference(
+                        raw=raw_to_plot,
+                        corrected=corr_to_plot,
+                        col_labels=[f"Round {i} {feat}" for i in np.arange(nr)],
+                        range_min=[5 if ifeat < 2 else 0.1] * nr,
+                        range_max=[10 if ifeat < 2 else 1] * nr,
+                        axes=axes[c * 4 : c * 4 + 3, ifeat * nr : (ifeat + 1) * nr],
+                        line_labels=("Raw", f"CHANNEL {c}\nCorrected", "Difference"),
+                    )
+                    # also plot best
+                    for ir in range(nr):
+                        ax = axes[c * 4 + 3, ifeat * nr + ir]
+                        data = best_to_plot[ir]
+                        vmin, vmax = data.min(), data.max()
+                        rng = vmin - vmax
+                        rng_min = 5 if ifeat < 2 else 0.1
+                        if rng < rng_min:
+                            vmin -= (rng_min - rng) / 2
+                            vmax += (rng_min - rng) / 2
+                        iss.vis.plot_matrix_with_colorbar(
+                            best_to_plot[ir].T, ax, vmin=vmin, vmax=vmax
+                        )
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                    axes[c * 4 + 3, ifeat * nr].set_ylabel("Best")
+            fig_title = f"{prefix} Correct shift within channels\n"
+            fig_title += f"ROI {roi}"
+            fig.suptitle(fig_title)
+            fig.subplots_adjust(
+                wspace=0.15, hspace=0, bottom=0.01, top=0.95, right=0.95, left=0.1
+            )
+
+            fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
+            fig.savefig(target_folder / (fname + ".png"))
+    if between:
+        # now do "between channels"
+        nrois = len(ndims)
+        nrows = nrois * 4
+        ncols = 2 * nc
+        fig = plt.figure(figsize=(4 * ncols, 2 * nrows))
+        axes = fig.subplots(nrows=nrows, ncols=ncols)
+        for ir, (roi, *ntiles) in enumerate(ndims):
+            raw, corrected, best = get_data("between", roi, nr=1, ntiles=ntiles)
+            corr_feature = ["Shift x", "Shift y"]
             for ifeat, feat in enumerate(corr_feature):
-                raw_to_plot = raw[c, :, ifeat, ...]
-                corr_to_plot = corrected[c, :, ifeat, ...]
-                best_to_plot = best[c, :, ifeat, ...]
+                raw_to_plot = raw[:, ifeat, ...]
+                corr_to_plot = corrected[:, ifeat, ...]
+                best_to_plot = best[:, ifeat, ...]
                 iss.vis.plot_matrix_difference(
                     raw=raw_to_plot,
                     corrected=corr_to_plot,
-                    col_labels=[f"Round {i} {feat}" for i in np.arange(nr)],
-                    range_min=[5 if ifeat < 2 else 0.1] * nr,
-                    range_max=[10 if ifeat < 2 else 1] * nr,
-                    axes=axes[c * 4 : c * 4 + 3, ifeat * nr : (ifeat + 1) * nr],
-                    line_labels=("Raw", f"CHANNEL {c}\nCorrected", "Difference"),
+                    col_labels=[f"Channel {i} {feat}" for i in np.arange(nc)],
+                    range_min=[1 if ifeat < 2 else 0.1] * nc,
+                    range_max=[5 if ifeat < 2 else 1] * nc,
+                    axes=axes[ir * 4 : ir * 4 + 3, ifeat * nc : (ifeat + 1) * nc],
+                    line_labels=("Raw", f"ROI {ir}\nCorrected", "Difference"),
                 )
                 # also plot best
-                for ir in range(nr):
-                    ax = axes[c * 4 + 3, ifeat * nr + ir]
-                    data = best_to_plot[ir]
+                for ic in range(nc):
+                    ax = axes[ir * 4 + 3, ifeat * nc + ic]
+                    data = best_to_plot[ic]
                     vmin, vmax = data.min(), data.max()
                     rng = vmin - vmax
-                    rng_min = 5 if ifeat < 2 else 0.1
+                    rng_min = 1 if ifeat < 2 else 0.1
                     if rng < rng_min:
                         vmin -= (rng_min - rng) / 2
                         vmax += (rng_min - rng) / 2
                     iss.vis.plot_matrix_with_colorbar(
-                        best_to_plot[ir].T, ax, vmin=vmin, vmax=vmax
+                        best_to_plot[ic].T, ax, vmin=vmin, vmax=vmax
                     )
                     ax.set_xticks([])
                     ax.set_yticks([])
-                axes[c * 4 + 3, ifeat * nr].set_ylabel("Best")
-        fig_title = f"{prefix} Correct shift within channels\n"
-        fig_title += f"ROI {roi}"
+                axes[ir * 4 + 3, ifeat * nc].set_ylabel("Best")
+        fig_title = f"{prefix} Correct shift between channels"
         fig.suptitle(fig_title)
         fig.subplots_adjust(
             wspace=0.15, hspace=0, bottom=0.01, top=0.95, right=0.95, left=0.1
         )
-
         fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
         fig.savefig(target_folder / (fname + ".png"))
-
-    # now do "between channels"
-    nrois = len(ndims)
-    nrows = nrois * 4
-    ncols = 2 * nc
-    fig = plt.figure(figsize=(4 * ncols, 2 * nrows))
-    axes = fig.subplots(nrows=nrows, ncols=ncols)
-    for ir, (roi, *ntiles) in enumerate(ndims):
-        raw, corrected, best = get_data("between", roi, nr=1, ntiles=ntiles)
-        corr_feature = ["Shift x", "Shift y"]
-        for ifeat, feat in enumerate(corr_feature):
-            raw_to_plot = raw[:, ifeat, ...]
-            corr_to_plot = corrected[:, ifeat, ...]
-            best_to_plot = best[:, ifeat, ...]
-            iss.vis.plot_matrix_difference(
-                raw=raw_to_plot,
-                corrected=corr_to_plot,
-                col_labels=[f"Channel {i} {feat}" for i in np.arange(nc)],
-                range_min=[1 if ifeat < 2 else 0.1] * nc,
-                range_max=[5 if ifeat < 2 else 1] * nc,
-                axes=axes[ir * 4 : ir * 4 + 3, ifeat * nc : (ifeat + 1) * nc],
-                line_labels=("Raw", f"ROI {ir}\nCorrected", "Difference"),
-            )
-            # also plot best
-            for ic in range(nc):
-                ax = axes[ir * 4 + 3, ifeat * nc + ic]
-                data = best_to_plot[ic]
-                vmin, vmax = data.min(), data.max()
-                rng = vmin - vmax
-                rng_min = 1 if ifeat < 2 else 0.1
-                if rng < rng_min:
-                    vmin -= (rng_min - rng) / 2
-                    vmax += (rng_min - rng) / 2
-                iss.vis.plot_matrix_with_colorbar(
-                    best_to_plot[ic].T, ax, vmin=vmin, vmax=vmax
-                )
-                ax.set_xticks([])
-                ax.set_yticks([])
-            axes[ir * 4 + 3, ifeat * nc].set_ylabel("Best")
-    fig_title = f"{prefix} Correct shift between channels"
-    fig.suptitle(fig_title)
-    fig.subplots_adjust(
-        wspace=0.15, hspace=0, bottom=0.01, top=0.95, right=0.95, left=0.1
-    )
-    fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
-    fig.savefig(target_folder / (fname + ".png"))
 
 
 def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_round"):
@@ -831,8 +958,8 @@ def check_tile_shifts(
                         "shifts_within_channels"
                     ]
                     shifts_between_channels_raw[:, :, ix, iy] = data[
-                        "shifts_between_channels"
-                    ]
+                        "matrix_between_channels"
+                    ][:, :2, 2]
                 except FileNotFoundError:
                     pass
                 data = np.load(
@@ -842,8 +969,8 @@ def check_tile_shifts(
                     "shifts_within_channels"
                 ]
                 shifts_between_channels_corrected[:, :, ix, iy] = data[
-                    "shifts_between_channels"
-                ]
+                    "matrix_between_channels"
+                ][:, :2, 2]
         # create a PDF for each roi
         with PdfPages(figure_folder / f"tile_shifts_{prefix}_roi{roi}.pdf") as pdf:
             for ch in range(nchannels):
@@ -1135,8 +1262,12 @@ def check_tile_reg2ref(
             reg_all_channels = reg_all_channels[:, :, reg_channels]
         reg = np.nanmean(reg_all_channels, axis=(2, 3))
 
-        reg_b = reg > np.quantile(reg, binarise_quantile)
-        ref_b = ref > np.quantile(ref, binarise_quantile)
+        if binarise_quantile is not None:
+            reg_b = reg > np.quantile(reg, binarise_quantile)
+            ref_b = ref > np.quantile(ref, binarise_quantile)
+        else:
+            reg_b = reg
+            ref_b = ref
 
         print("Loading shifts and angle")
         tname = f"{reg_prefix}_{tile[0]}_{tile[1]}_{tile[2]}"

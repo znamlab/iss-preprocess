@@ -12,7 +12,7 @@ def cellpose_segmentation(
     rescale=0.55,
     model_type="cyto",
     use_gpu=False,
-    **kwargs
+    **kwargs,
 ):
     """Segment cells using Cellpose.
 
@@ -42,7 +42,7 @@ def cellpose_segmentation(
         channels=channels,
         flow_threshold=flow_threshold,
         tile=True,
-        **kwargs
+        **kwargs,
     )
     if min_pix > 0:
         nmasks = np.max(masks)

@@ -140,6 +140,67 @@ def _plot_channels_intensity(
         ax.set_yticks([])
 
 
+def plot_affine_debug_images(debug_info, fig=None):
+    """Plot debug images for affine registration
+
+    It will plot the correlation, shifts, affine predictions and residuals for each
+    channel.
+
+    Args:
+        debug_info (dict): Dictionary containing debug information
+        fig (plt.Figure, optional): Figure to plot into. Defaults to None, will create
+            a new figure.
+
+    Returns:
+        plt.Figure: Figure instance
+    """
+
+    if fig is None:
+        fig = plt.figure(figsize=(2 * 7, 1.5 * len(debug_info)))
+    nchans = len(debug_info)
+    axes = fig.subplots(nchans, 7)
+    labels = [
+        "Correlation",
+        "X Shift",
+        "Y Shift",
+        "Affine X",
+        "Affine Y",
+        "Residual X",
+        "Residual Y",
+    ]
+    for il, lab in enumerate(labels):
+        axes[0, il].set_title(lab)
+
+    for i, ch in enumerate(debug_info.keys()):
+        axes[i, 0].set_ylabel(f"Channel {ch}")
+
+        db = debug_info[ch]
+        nb = db["nblocks"]
+        co = db["corr"].reshape(nb[:-1])
+        ce = db["centers"].reshape(nb)
+        s = db["shifts"].reshape(nb)
+
+        plot_matrix_with_colorbar(co, axes[i, 0])
+        plot_matrix_with_colorbar(s[..., 0], axes[i, 1], vmin=-10, vmax=10, cmap="bwr")
+        plot_matrix_with_colorbar(s[..., 1], axes[i, 2], vmin=-10, vmax=10, cmap="bwr")
+        aff_x = db["fit_x"].predict(db["centers"]).reshape(nb[:-1]) - ce[..., 0]
+        aff_y = db["fit_y"].predict(db["centers"]).reshape(nb[:-1]) - ce[..., 1]
+        plot_matrix_with_colorbar(aff_x, axes[i, 3], vmin=-10, vmax=10, cmap="bwr")
+        plot_matrix_with_colorbar(aff_y, axes[i, 4], vmin=-10, vmax=10, cmap="bwr")
+        plot_matrix_with_colorbar(
+            aff_x - s[..., 0], axes[i, 5], cmap="bwr", vmin=-5, vmax=5
+        )
+        plot_matrix_with_colorbar(
+            aff_y - s[..., 1], axes[i, 6], cmap="bwr", vmin=-5, vmax=5
+        )
+
+    for x in axes.flatten():
+        x.set_xticks([])
+        x.set_yticks([])
+    fig.tight_layout()
+    return fig
+
+
 def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
     """Save figure of tile registration for within acquisition stitching
 
@@ -473,14 +534,14 @@ def plot_registration_correlograms(
         if what == "align_within_channels":
             _plot_within_channel_correlogram(data, target_folder, figure_name, mshift)
         elif what == "estimate_correction":
-            _plot_across_channels_correlogram(data, target_folder, figure_name, mshift)
+            _plot_between_channels_correlogram(data, target_folder, figure_name, mshift)
         else:
             raise NotImplementedError(f"Unknown correlogram output: {what}", flush=True)
     plt.close("all")
     print(f"Saved figures to {target_folder}")
 
 
-def _plot_across_channels_correlogram(data, target_folder, figure_name, max_shift=100):
+def _plot_between_channels_correlogram(data, target_folder, figure_name, max_shift=100):
     angle_scales = set()
     for d in data:
         angle_scales.update(d.keys())

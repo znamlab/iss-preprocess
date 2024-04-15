@@ -11,4 +11,4 @@ source activate base
 
 conda activate iss-preprocess
 
-iss register-hyb-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY -s $SUFFIX
+iss register-hyb-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY

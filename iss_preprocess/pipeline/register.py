@@ -10,6 +10,7 @@ import iss_preprocess as iss
 from ..io import get_roi_dimensions, load_metadata, load_ops, load_tile_by_coors
 from ..reg import (
     estimate_rotation_translation,
+    estimate_affine_for_tile,
     estimate_shifts_and_angles_for_tile,
     estimate_shifts_for_tile,
     make_transform,
@@ -53,14 +54,13 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         min_shift=ops["rounds_min_shift"],
         debug=diag,
         use_masked_correlation=ops["use_masked_correlation"],
+        affine_by_block=ops["align_method"],
     )
     if diag:
         (
             angles_within_channels,
             shifts_within_channels,
-            scales_between_channels,
-            angles_between_channels,
-            shifts_between_channels,
+            matrix_between_channels,
             debug_dict,
         ) = out
         iss.vis.diagnostics.plot_registration_correlograms(
@@ -73,9 +73,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         (
             angles_within_channels,
             shifts_within_channels,
-            scales_between_channels,
-            angles_between_channels,
-            shifts_between_channels,
+            matrix_between_channels,
         ) = out
 
     save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
@@ -83,59 +81,129 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         save_path,
         angles_within_channels=angles_within_channels,
         shifts_within_channels=shifts_within_channels,
-        scales_between_channels=scales_between_channels,
-        angles_between_channels=angles_between_channels,
-        shifts_between_channels=shifts_between_channels,
+        matrix_between_channels=matrix_between_channels,
         allow_pickle=True,
     )
 
 
-def estimate_shifts_and_angles_by_coors(
+def register_fluorescent_tile(
     data_path,
-    tile_coors=(0, 0, 0),
-    prefix="hybridisation_1_1",
-    suffix="max",
-    reference_prefix="genes_round",
+    tile_coors,
+    prefix,
+    reference_prefix=None,
+    debug=False,
 ):
-    """Estimate shifts and rotations angles for hybridisation images.
+    """Estimate channel registration parameters for a single round acquisition
+
+    The stack will be binarised if ops[f"{prefix_start}_binarise_quantile"] is not None.
+    The scale and initial parameters will be loaded from the reference prefix and
+    optimised using either a similarity transform or an affine transform, depending
+    on ops["align_method"].
 
     Args:
         data_path (str): Relative path to data.
-        tile_coors (tuple, optional): Coordinates of tile to register, in (ROI, X, Y)
-            format. Defaults to (0, 0, 0).
-        prefix (str, optional): Prefix of the hybridisation round. Defaults to "hybridisation_1_1".
-        reference_prefix (str, optional): Prefix to use for loading precomputed
-            scale factors between channels. Defaults to "barcode_round".
-        suffix (str, optional): Filename suffix specifying which z-projection to use.
-            Defaults to "max".
-        reference_prefix (str, optional): Prefix of the reference round. Defaults to "barcode_round".
+        tile_coors (tuple): Coordinates of tile to register, in (ROI, X, Y) format.
+        prefix (str): Directory prefix to register. Defaults to
+        reference_prefix (str, optional): Prefix to load scale or initial matrix from.
+            Defaults to None.
+        debug (bool, optional): Return debug information. Defaults to False.
 
+    Returns:
+        dict: Debug information if debug is True, None otherwise.
     """
+
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
-    tforms_path = processed_path / f"tforms_{reference_prefix}.npz"
+    projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
+    if reference_prefix is not None:
+        tforms_path = processed_path / f"tforms_{reference_prefix}.npz"
+        reference_tforms = np.load(tforms_path, allow_pickle=True)
+
     stack = load_tile_by_coors(
-        data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
+        data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
     )
-    reference_tforms = np.load(tforms_path, allow_pickle=True)
-    threshold_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
-    angles, shifts = estimate_shifts_and_angles_for_tile(
-        stack,
-        reference_tforms["scales_between_channels"],
-        ref_ch=ops["ref_ch"],
-        max_shift=ops["rounds_max_shift"],
-        binarise_quantile=threshold_quantile,
-    )
+
+    # median filter if needed
+    median_filter_size = ops["reg_median_filter"]
+    if median_filter_size is not None:
+        print(f"Filtering with median filter of size {median_filter_size}")
+        assert isinstance(
+            median_filter_size, int
+        ), "reg_median_filter must be an integer"
+        stack = median_filter(stack, footprint=disk(median_filter_size), axes=(0, 1))
+
+    binarise_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
+    match ops["align_method"]:
+        case "similarity":
+            if reference_prefix is None:
+                raise ValueError(
+                    "Reference prefix must be provided for similarity transform"
+                )
+            # binarise if needed
+            nch = stack.shape[2]
+            if binarise_quantile is not None:
+                for ich in range(nch):
+                    ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
+                    stack[:, :, ich] = stack[:, :, ich] > ref_thresh
+
+            out = estimate_shifts_and_angles_for_tile(
+                stack,
+                scales=reference_tforms["scales_between_channels"],
+                ref_ch=ops["ref_ch"],
+                max_shift=ops["rounds_max_shift"],
+                debug=debug,
+            )
+            if debug:
+                angles, shifts, db_info = out
+            else:
+                angles, shifts = out
+            to_save = dict(
+                angles=angles,
+                shifts=shifts,
+                scales=reference_tforms["scales_between_channels"],
+            )
+        case "affine":
+            ops_prefix = prefix.split("_")[0].lower()
+            block_size = ops.get(f"{ops_prefix}_reg_block_size", 256)
+            overlap = ops.get(f"{ops_prefix}_reg_block_overlap", 0.5)
+            correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
+            print("Registration parameters:")
+            print(f"    block size {block_size}\n    overlap {overlap}")
+            print(f"    correlation threshold {correlation_threshold}")
+            print(f"    binarise quantile {binarise_quantile}")
+            if reference_prefix is None:
+                tform_matrix = None
+            else:
+                tform_matrix = reference_tforms["matrix_between_channels"]
+            matrix = estimate_affine_for_tile(
+                stack,
+                tform_matrix=tform_matrix,
+                ref_ch=ops["ref_ch"],
+                max_shift=ops["rounds_max_shift"],
+                debug=debug,
+                block_size=block_size,
+                overlap=overlap,
+                correlation_threshold=correlation_threshold,
+                binarise_quantile=binarise_quantile,
+            )
+            if debug:
+                matrix, db_info = matrix
+            to_save = dict(matrix_between_channels=matrix)
+        case _:
+            raise ValueError(f"Align method {ops['align_method']} not recognised")
+
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
     np.savez(
         save_dir
         / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
-        angles=angles,
-        shifts=shifts,
-        scales=reference_tforms["scales_between_channels"],
         allow_pickle=True,
+        **to_save,
     )
+
+    if debug:
+        return to_save, db_info
+    return to_save
 
 
 def estimate_shifts_by_coors(
@@ -163,11 +231,10 @@ def estimate_shifts_by_coors(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
     reference_tforms = np.load(tforms_path, allow_pickle=True)
-    (_, shifts_within_channels, shifts_between_channels) = estimate_shifts_for_tile(
+    (_, shifts_within_channels, matrix_between_channels) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
-        reference_tforms["scales_between_channels"],
-        reference_tforms["angles_between_channels"],
+        reference_tforms["matrix_between_channels"],
         ref_ch=ops["ref_ch"],
         ref_round=ops["ref_round"],
         max_shift=ops["rounds_max_shift"],
@@ -181,9 +248,7 @@ def estimate_shifts_by_coors(
         / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
         angles_within_channels=reference_tforms["angles_within_channels"],
         shifts_within_channels=shifts_within_channels,
-        scales_between_channels=reference_tforms["scales_between_channels"],
-        angles_between_channels=reference_tforms["angles_between_channels"],
-        shifts_between_channels=shifts_between_channels,
+        matrix_between_channels=matrix_between_channels,
         allow_pickle=True,
     )
 
@@ -227,8 +292,8 @@ def correct_shifts_roi(
 
     Args:
         data_path (str): Relative path to data.
-        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles, Ytiles)
-            format.
+        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles,
+            Ytiles) format.
         prefix (str, optional): Directory prefix to use. Defaults to "genes_round".
         max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
             Tiles with larger absolute shifts will not be included in the fit but will
@@ -250,15 +315,17 @@ def correct_shifts_roi(
                 processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
             )
             shifts_within_channels.append(tforms["shifts_within_channels"])
-            shifts_between_channels.append(tforms["shifts_between_channels"])
+            matrix_between_channels = tforms["matrix_between_channels"]
+            shifts = [m[:2, 2] for m in matrix_between_channels]
+            shifts_between_channels.append(shifts)
     shifts_within_channels = np.stack(shifts_within_channels, axis=3)
     shifts_between_channels = np.stack(shifts_between_channels, axis=2)
 
     xs, ys = np.meshgrid(range(nx), range(ny))
     shifts_within_channels_corrected = np.zeros(shifts_within_channels.shape)
     shifts_between_channels_corrected = np.zeros(shifts_between_channels.shape)
-    # TODO: maybe make X in the loop above?
-    X = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
+    # TODO: maybe make `trianing` in the loop above?
+    training = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
     ntiles = nx * ny
     if ntiles < min_tiles:
         shifts_within_channels_corrected = np.tile(
@@ -281,12 +348,12 @@ def correct_shifts_roi(
                 )
                 for idim in range(2):
                     reg = RANSACRegressor(random_state=0).fit(
-                        X[inliers, :],
+                        training[inliers, :],
                         shifts_within_channels[ich, iround, idim, inliers],
                     )
                     shifts_within_channels_corrected[
                         ich, iround, idim, :
-                    ] = reg.predict(X)
+                    ] = reg.predict(training)
             median_shift = np.median(shifts_between_channels[ich, :, :], axis=1)[
                 :, np.newaxis
             ]
@@ -296,22 +363,22 @@ def correct_shifts_roi(
             )
             for idim in range(2):
                 reg = RANSACRegressor(random_state=0).fit(
-                    X[inliers, :], shifts_between_channels[ich, idim, inliers]
+                    training[inliers, :], shifts_between_channels[ich, idim, inliers]
                 )
-                shifts_between_channels_corrected[ich, idim, :] = reg.predict(X)
+                shifts_between_channels_corrected[ich, idim, :] = reg.predict(training)
 
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
     itile = 0
+    matrix = matrix_between_channels.copy()
     for iy in range(ny):
         for ix in range(nx):
+            matrix[:, :2, 2] = shifts_between_channels_corrected[:, :, itile]
             np.savez(
                 save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
                 angles_within_channels=tforms["angles_within_channels"],
                 shifts_within_channels=shifts_within_channels_corrected[:, :, :, itile],
-                scales_between_channels=tforms["scales_between_channels"],
-                angles_between_channels=tforms["angles_between_channels"],
-                shifts_between_channels=shifts_between_channels_corrected[:, :, itile],
+                matrix_between_channels=matrix,
                 allow_pickle=True,
             )
             # TODO: perhaps save in a cleaner way
@@ -340,15 +407,29 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
                 save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
             )
             tforms_best = {key: tforms_init[key] for key in tforms_init.keys()}
-            for which in ["within", "between"]:
-                shifts_init = tforms_init[f"shifts_{which}_channels"]
-                shifts_corrected = tforms_corrected[f"shifts_{which}_channels"]
+
+            # first for within, it's easy shifts are saved separatly
+            if "shifts_within_channels" not in tforms_init.keys():
+                # must be a non-round acquisition
+                pass
+            else:
+                shifts_init = tforms_init["shifts_within_channels"]
+                shifts_corrected = tforms_corrected["shifts_within_channels"]
                 residuals = np.abs(shifts_init - shifts_corrected)
                 shifts_best = np.array(shifts_init, copy=True)
                 shifts_best[residuals > max_residuals] = shifts_corrected[
                     residuals > max_residuals
                 ]
-                tforms_best[f"shifts_{which}_channels"] = shifts_best
+                tforms_best["shifts_within_channels"] = shifts_best
+
+            # then for between, we need to update the matrix
+            matrix_init = tforms_init["matrix_between_channels"]
+            matrix_corrected = tforms_corrected["matrix_between_channels"]
+            residuals = np.abs(matrix_init[:, :2, 2] - matrix_corrected[:, :2, 2])
+            matrix_best = matrix_init.copy()
+            bad = residuals > max_residuals
+            matrix_best[:, :2, 2][bad] = matrix_corrected[:, :2, 2][bad]
+
             tforms_best.update({"allow_pickle": True})
             np.savez(
                 save_dir / f"tforms_best_{prefix}_{roi}_{ix}_{iy}.npz", **tforms_best
@@ -373,14 +454,22 @@ def correct_hyb_shifts(data_path, prefix=None):
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     if prefix:
-        for roi in roi_dims[use_rois, :]:
-            print(f"correcting shifts for ROI {roi}, {prefix} from {data_path}")
-            correct_shifts_single_round_roi(data_path, roi, prefix=prefix)
+        if isinstance(prefix, str):
+            prefix = [prefix]
     else:
-        for hyb_round in metadata["hybridisation"].keys():
-            for roi in roi_dims[use_rois, :]:
-                print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
-                correct_shifts_single_round_roi(data_path, roi, prefix=hyb_round)
+        prefix = metadata["hybridisation"].keys()
+    for hyb_round in prefix:
+        for roi in roi_dims[use_rois, :]:
+            print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
+            correct_shifts_single_round_roi(
+                data_path, roi, prefix=hyb_round, fit_angle=False
+            )
+            filter_ransac_shifts(
+                data_path,
+                prefix=hyb_round,
+                roi_dims=roi,
+                max_residuals=ops["ransac_residual_threshold"],
+            )
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -422,8 +511,8 @@ def correct_shifts_single_round_roi(
 
     Args:
         data_path (str): Relative path to data.
-        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles, Ytiles)
-            format.
+        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles,
+            Ytiles) format.
         prefix (str, optional): Prefix of the round to be processed.
             Defaults to "hybridisation_1_1".
         max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
@@ -434,6 +523,7 @@ def correct_shifts_single_round_roi(
 
     """
     processed_path = iss.io.get_processed_path(data_path)
+    ops = load_ops(data_path)
     roi = roi_dims[0]
     nx = roi_dims[1] + 1
     ny = roi_dims[2] + 1
@@ -451,8 +541,12 @@ def correct_shifts_single_round_roi(
                 tforms = np.load(
                     processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
-                shifts.append(tforms["shifts"])
-                angles.append(tforms["angles"])
+                if ops["align_method"] == "affine":
+                    shifts.append(tforms["matrix_between_channels"][:, :2, 2])
+                    angles.append(tforms["matrix_between_channels"][:, :2, :2])
+                else:
+                    shifts.append(tforms["shifts"])
+                    angles.append(tforms["angles"])
             except ValueError:
                 print(f"couldn't load tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
@@ -465,32 +559,45 @@ def correct_shifts_single_round_roi(
     shifts_corrected = np.zeros(shifts.shape)
     angles_corrected = np.zeros(angles.shape)
 
-    X = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
+    training = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
 
     for ich in range(shifts.shape[0]):
         for idim in range(2):
             inliers = np.all(np.abs(shifts[ich, :, :]) < max_shift, axis=0)
             reg = RANSACRegressor(random_state=0).fit(
-                X[inliers, :], shifts[ich, idim, inliers]
+                training[inliers, :], shifts[ich, idim, inliers]
             )
-            shifts_corrected[ich, idim, :] = reg.predict(X)
+            shifts_corrected[ich, idim, :] = reg.predict(training)
         if fit_angle:
-            reg = RANSACRegressor(random_state=0).fit(X, angles[ich, :])
-            angles_corrected[ich, :] = reg.predict(X)
+            if ops["align_method"] == "affine":
+                raise ValueError("Angle correction not implemented for affine")
+            reg = RANSACRegressor(random_state=0).fit(training, angles[ich, :])
+            angles_corrected[ich, :] = reg.predict(training)
         else:
-            angles_corrected[ich, :] = np.nanmedian(angles[ich, :])
+            angles_corrected[ich, :] = np.nanmedian(angles[ich, :], axis=0)
 
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
     itile = 0
     for iy in range(ny):
         for ix in range(nx):
+            if ops["align_method"] == "affine":
+                matrix_corrected = np.zeros((shifts.shape[0], 3, 3))
+                for ich in range(shifts.shape[0]):
+                    matrix_corrected[ich, :2, 2] = shifts_corrected[ich, :, itile]
+                    matrix_corrected[ich, :2, :2] = angles_corrected[ich, itile]
+                    matrix_corrected[ich, 2, 2] = 1
+                to_save = dict(matrix_between_channels=matrix_corrected)
+            else:
+                to_save = dict(
+                    shifts=shifts_corrected[:, :, itile],
+                    angles=angles_corrected[:, itile],
+                    scales=tforms["scales"],
+                )
             np.savez(
                 save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
-                angles=angles_corrected[:, itile],
-                shifts=shifts_corrected[:, :, itile],
-                scales=tforms["scales"],
                 allow_pickle=True,
+                **to_save,
             )
             itile += 1
 
@@ -606,8 +713,10 @@ def filter_ransac_shifts_to_ref(data_path, prefix, roi_dims, max_residuals=10):
     Args:
         data_path (str): Relative path to data
         prefix (str): Directory prefix to use, e.g. "genes_round"
-        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles, Ytiles)
-        max_residuals (int, optional): Threshold on residuals above which the RANSAC shifts are used. Defaults to 10
+        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles,
+            Ytiles)
+        max_residuals (int, optional): Threshold on residuals above which the RANSAC
+            shifts are used. Defaults to 10
 
     """
     roi = roi_dims[0]
