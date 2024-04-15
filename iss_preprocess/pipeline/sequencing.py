@@ -93,29 +93,7 @@ def setup_barcode_calling(data_path):
 
     """
     ops = load_ops(data_path)
-    all_spots = []
-    for ref_tile in ops["barcode_ref_tiles"]:
-        print(f"detecting spots in tile {ref_tile}")
-        stack, _ = load_and_register_sequencing_tile(
-            data_path,
-            ref_tile,
-            filter_r=ops["filter_r"],
-            prefix="barcode_round",
-            suffix=ops["barcode_projection"],
-            nrounds=ops["barcode_rounds"],
-            correct_channels=ops["barcode_correct_channels"],
-            corrected_shifts=ops["corrected_shifts"],
-            correct_illumination=False,
-        )
-        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
-        spots = detect_isolated_spots(
-            np.std(stack, axis=(2, 3)),
-            detection_threshold=ops["barcode_detection_threshold"],
-            isolation_threshold=ops["barcode_isolation_threshold"],
-        )
-        extract_spots(spots, stack, ops["spot_extraction_radius"])
-        all_spots.append(spots)
-    all_spots = pd.concat(all_spots, ignore_index=True)
+    all_spots, _ = get_reference_spots(data_path, prefix="barcode")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
         all_spots, score_thresh=ops["barcode_cluster_score_thresh"]
     )
@@ -224,30 +202,7 @@ def setup_omp(data_path):
     """
     ops = load_ops(data_path)
     processed_path = iss.io.get_processed_path(data_path)
-    all_spots = []
-    for ref_tile in ops["genes_ref_tiles"]:
-        print(f"detecting spots in tile {ref_tile}")
-        stack, bad_pixels = load_and_register_sequencing_tile(
-            data_path,
-            ref_tile,
-            filter_r=ops["filter_r"],
-            prefix="genes_round",
-            suffix=ops["genes_projection"],
-            correct_channels=ops["genes_correct_channels"],
-            corrected_shifts=ops["corrected_shifts"],
-            nrounds=ops["genes_rounds"],
-        )
-        stack[bad_pixels, :, :] = 0
-        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
-        spots = detect_isolated_spots(
-            np.mean(stack, axis=(2, 3)),
-            detection_threshold=ops["genes_detection_threshold"],
-            isolation_threshold=ops["genes_isolation_threshold"],
-        )
-
-        extract_spots(spots, stack, ops["spot_extraction_radius"])
-        all_spots.append(spots)
-    all_spots = pd.concat(all_spots, ignore_index=True)
+    all_spots, norm_shifts = get_reference_spots(data_path, prefix="genes")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
         all_spots, score_thresh=ops["genes_cluster_score_thresh"]
     )
@@ -263,8 +218,7 @@ def setup_omp(data_path):
         names=["gii", "seq", "gene"],
     )
     gene_dict, gene_names = make_gene_templates(cluster_means, codebook)
-
-    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
+    norm_shift = np.min(norm_shifts)
     np.savez(
         processed_path / "gene_dict.npz",
         gene_dict=gene_dict,
@@ -274,6 +228,54 @@ def setup_omp(data_path):
     )
     iss.pipeline.check_omp_setup(data_path)
     return gene_dict, gene_names, norm_shift
+
+
+def get_reference_spots(data_path, prefix="genes"):
+    """Load the reference spots for the given dataset.
+
+    Internal function for setup_omp and setup_barcode_calling.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): Short prefix, either 'genes' or 'barcode'. Defaults to
+            'genes'.
+
+    Returns:
+        pandas.DataFrame: Detected spots.
+        list: Normalisation shifts.
+
+    """
+    ops = load_ops(data_path)
+    all_spots = []
+    norm_shifts = []
+    for ref_tile in ops[f"{prefix}_ref_tiles"]:
+        print(f"detecting spots in tile {ref_tile}")
+        stack, bad_pixels = load_and_register_sequencing_tile(
+            data_path,
+            ref_tile,
+            filter_r=ops["filter_r"],
+            prefix=f"{prefix}_round",
+            suffix=ops[f"{prefix}_projection"],
+            nrounds=ops[f"{prefix}_rounds"],
+            correct_channels=ops[f"{prefix}_correct_channels"],
+            corrected_shifts=ops["corrected_shifts"],
+            correct_illumination=False,
+        )
+        stack[bad_pixels, :, :] = 0
+        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+        spots = detect_isolated_spots(
+            np.mean(stack, axis=(2, 3)),
+            detection_threshold=ops[f"{prefix}_detection_threshold"],
+            isolation_threshold=ops[f"{prefix}_isolation_threshold"],
+        )
+
+        extract_spots(spots, stack, ops["spot_extraction_radius"])
+        all_spots.append(spots)
+        norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
+        norm_shifts.append(norm_shift)
+
+    all_spots = pd.concat(all_spots, ignore_index=True)
+    return all_spots, norm_shifts
 
 
 @slurm_it(conda_env="iss-preprocess")
