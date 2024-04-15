@@ -617,6 +617,9 @@ def stitch_and_register(
         float: Estimated scaling factor.
         dict: Debug information if `debug` is True.
     """
+    warnings.warn(
+        "stitching is now done on registered tiles", DeprecationWarning, stacklevel=2
+    )
     ops = load_ops(data_path)
     ref_projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
     if target_suffix is None:
@@ -788,34 +791,9 @@ def merge_and_align_spots(
     ref_centers = np.mean(ref_corners, axis=3)
     ref_origins = ref_corners[..., 0]
 
-    if ref_prefix.startswith(spots_prefix):
-        # no need to register
-        trans_centers = ref_centers
-    else:
-        # get transform to global coordinate and apply to reg_centers
-        iss.pipeline.stitch_and_register(
-            data_path,
-            reference_prefix=ref_prefix,
-            target_prefix=reg_prefix,
-            roi=roi,
-            downsample=5,
-            ref_ch=0,
-            target_ch=0,
-            estimate_scale=False,
-        )
-        tform2ref = np.load(reg_path / f"{reg_prefix}_roi{roi}_tform_to_ref.npz")
-        tform2ref = make_transform(
-            tform2ref["scale"],
-            tform2ref["angle"],
-            tform2ref["shift"],
-            ref_corners[0, 0, :, 2].astype(int),
-        )
-        trans_centers = np.pad(ref_centers, ((0, 0), (0, 0), (0, 1)), constant_values=1)
-        trans_centers = (
-            tform2ref[np.newaxis, np.newaxis, ...] @ trans_centers[..., np.newaxis]
-        )
-        trans_centers = trans_centers[..., :-1, 0]
-
+    # always use the center of the reference tile for spot merging
+    # we might have to change that
+    trans_centers = ref_centers
     spots = merge_roi_spots(
         data_path,
         prefix=spots_prefix,

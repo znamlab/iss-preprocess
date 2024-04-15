@@ -750,23 +750,7 @@ def align_spots_roi(
     roi=1,
     ref_prefix="genes_round_1_1",
 ):
-    from iss_preprocess.pipeline import (
-        merge_and_align_spots,
-        stitch_and_register,
-    )
-
-    click.echo(f"Registering ROI {roi} to {ref_prefix} using {reg_prefix}")
-    if ref_prefix != reg_prefix:
-        stitch_and_register(
-            path,
-            reference_prefix=ref_prefix,
-            target_prefix=reg_prefix,
-            roi=roi,
-            downsample=5,
-            ref_ch=0,
-            target_ch=0,
-            estimate_scale=False,
-        )
+    from iss_preprocess.pipeline import merge_and_align_spots
 
     merge_and_align_spots(
         path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
