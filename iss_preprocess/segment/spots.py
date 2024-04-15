@@ -6,6 +6,8 @@ from scipy.ndimage import grey_dilation
 
 from ..coppafish import annulus
 
+import iss_preprocess as iss
+
 
 def detect_isolated_spots(
     im, detection_threshold=40, isolation_threshold=30, annulus_r=(3, 7)
@@ -96,3 +98,52 @@ def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None)
     spot_image = np.zeros(output_shape, dtype=dtype)
     spot_image[spots.y.values.astype(int), spots.x.values.astype(int)] = 1
     return cv2.sepFilter2D(src=spot_image, kernelX=kernel, kernelY=kernel, ddepth=-1)
+
+
+def convolve_spots(
+    data_path,
+    roi,
+    kernel_um,
+    prefix="barcode_round",
+    dot_threshold=None,
+    tile=None,
+    output_shape=None,
+):
+    """Generate an image of spot density by convolution
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): Roi ID
+        kernel_um (float): Width of the kernel for convolution in microns
+        prefix (str, optional): Prefix of the spots to load. Defaults to 'barcode_round'
+        dot_threshold (float, optional): Threshold on the barcode dot_product_score to
+            select spots to use. Defaults to None.
+        tile (tuple, optional): Tile to use. Defaults to None.
+        output_shape (tuple, optional): Shape of the output image. If not provided will
+            return the smallest shape that includes (0,0) and all spots. Defaults to
+            None.
+
+    Returns:
+        numpy.ndarray: 2D image of roi density
+
+    """
+    if tile is None:
+        spots = pd.read_pickle(
+            iss.io.get_processed_path(data_path) / f"{prefix}_spots_{roi}.pkl"
+        )
+    else:
+        spots = pd.read_pickle(
+            iss.io.get_processed_path(data_path)
+            / "spots"
+            / f"{prefix}_spots_{roi}_{tile[0]}_{tile[1]}.pkl"
+        )
+    if dot_threshold is not None:
+        spots = spots[spots.dot_product_score > dot_threshold]
+
+    # load barcode_round_1_1 but anything should work
+    pixel_size = iss.io.get_pixel_size(data_path)
+    gaussian_width = int(kernel_um / pixel_size)
+
+    return make_spot_image(
+        spots, gaussian_width=gaussian_width, dtype="single", output_shape=output_shape
+    )
