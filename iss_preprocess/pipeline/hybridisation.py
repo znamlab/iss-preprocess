@@ -68,9 +68,7 @@ def load_and_register_hyb_tile(
         stack = apply_illumination_correction(data_path, stack, prefix)
     stack = apply_corrections(
         stack,
-        scales=tforms["scales"],
-        angles=tforms["angles"],
-        shifts=tforms["shifts"],
+        matrix=tforms["matrix_between_channels"],
         cval=np.nan,
     )
     bad_pixels = np.any(np.isnan(stack), axis=(2))
