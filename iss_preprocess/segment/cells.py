@@ -35,7 +35,7 @@ def cellpose_segmentation(
     """
     from cellpose.models import CellposeModel
 
-    model = CellposeModel(gpu=use_gpu, model_type=model_type, net_avg=False)
+    model = CellposeModel(gpu=use_gpu, model_type=model_type)
     masks, flows, styles = model.eval(
         img,
         rescale=rescale,
