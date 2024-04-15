@@ -69,6 +69,9 @@ registration_to_reference:
 # bleedthrough matrices, calling hybridisation spots and basecalling barcodes
 spot_extraction_radius: 2
 
+# Initial estimate for bleedthrough matrix for genes and barcodes
+initial_cluster_means: [[0.7, 0.3, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.6, 0.4], [0.0, 0.0, 0.0, 1.0],]
+
 # Parameters for detecting and calling gene spots
 genes:
   # Filename of the codebook with GIIs

@@ -8,7 +8,7 @@ from ..coppafish import scaled_k_means
 BASES = np.array(["G", "T", "A", "C"])
 
 
-def get_cluster_means(spots, score_thresh=0.0):
+def get_cluster_means(spots, initial_cluster_mean, score_thresh=0.0):
     """Find the mean of the 4 clusters (one per channel)
 
     Args:
@@ -31,14 +31,6 @@ def get_cluster_means(spots, score_thresh=0.0):
 
     cluster_means = []
     cluster_inds = []
-    initial_cluster_mean = np.array(
-        [
-            [0.7, 0.3, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.6, 0.4],
-            [0.0, 0.0, 0.0, 1.0],
-        ]
-    )
     for iround in range(nrounds):
         _, _, cluster_ind, _, _, _ = scaled_k_means(
             spot_colors[iround, :, :].T, initial_cluster_mean, score_thresh=score_thresh

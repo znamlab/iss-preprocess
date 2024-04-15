@@ -95,7 +95,9 @@ def setup_barcode_calling(data_path):
     ops = load_ops(data_path)
     all_spots, _ = get_reference_spots(data_path, prefix="barcode")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
-        all_spots, score_thresh=ops["barcode_cluster_score_thresh"]
+        all_spots,
+        score_thresh=ops["barcode_cluster_score_thresh"],
+        initial_cluster_mean=np.array(ops["initial_cluster_means"]),
     )
     processed_path = iss.io.get_processed_path(data_path)
     np.savez(
@@ -204,7 +206,9 @@ def setup_omp(data_path):
     processed_path = iss.io.get_processed_path(data_path)
     all_spots, norm_shifts = get_reference_spots(data_path, prefix="genes")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
-        all_spots, score_thresh=ops["genes_cluster_score_thresh"]
+        all_spots,
+        initial_cluster_mean=np.array(ops["initial_cluster_means"]),
+        score_thresh=ops["genes_cluster_score_thresh"],
     )
     np.savez(
         processed_path / "reference_gene_spots.npz",
