@@ -162,12 +162,31 @@ def get_pixel_size(data_path, prefix="genes_round_1_1"):
 
     Args:
         data_path (str): Relative path to data.
-        prefix (str, optional): Which acquisition prefix to use. Defaults to "genes_round_1_1".
+        prefix (str, optional): Which acquisition prefix to use. Defaults to
+            "genes_round_1_1".
 
+    Returns:
+        float: Pixel size in microns
     """
     acq_data = load_micromanager_metadata(data_path, prefix=prefix)
     pixel_size = acq_data["FrameKey-0-0-0"]["PixelSizeUm"]
     return pixel_size
+
+
+def get_z_step(data_path, prefix="genes_round_1_1"):
+    """Get z step size from MicroManager metadata.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): Which acquisition prefix to use. Defaults to
+            "genes_round_1_1".
+
+    Returns:
+        float: Z step size in microns
+    """
+    acq_data = load_micromanager_metadata(data_path, prefix=prefix)
+    z_step = acq_data["Summary"]["z-step_um"]
+    return z_step
 
 
 def load_micromanager_metadata(data_path, prefix):
