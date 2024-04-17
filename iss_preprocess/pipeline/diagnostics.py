@@ -1140,7 +1140,12 @@ def check_segmentation(
     else:
         main_ax = plt.subplot(111)
 
-    main_ax.imshow(stitched_stack)
+    main_ax.imshow(
+        stitched_stack,
+        cmap="Greys_r",
+        vmin=stitched_stack.min(),
+        vmax=np.percentile(stitched_stack, 99.9),
+    )
     main_ax.contour(masks, colors="orange", levels=[0.5], linewidths=0.2)
     main_ax.axis("off")
     main_ax.set_title(f"Segmentation of {prefix} ROI {roi}")
@@ -1168,7 +1173,7 @@ def check_segmentation(
                 )
                 # gaussian filter to make it look better with skimage
                 data = gaussian(stitched_stack[xpart, ypart], 2)
-                ax.imshow(data)
+                ax.imshow(data, cmap="Greys_r")
                 mask = masks[xpart, ypart]
                 if np.any(mask):
                     ax.contour(mask, colors="orange", levels=[0.5], linewidths=0.3)
