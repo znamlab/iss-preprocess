@@ -499,12 +499,18 @@ def correct_shifts_to_ref(data_path, prefix, max_shift=None, fit_angle=False):
             prefix=prefix_to_reg,
             fit_angle=fit_angle,
             max_shift=max_shift,
+            align_method="similarity",  # for now only similarity is supported
         )
         filter_ransac_shifts_to_ref(data_path, prefix, roi_dim, max_residuals=10)
 
 
 def correct_shifts_single_round_roi(
-    data_path, roi_dims, prefix="hybridisation_1_1", max_shift=500, fit_angle=True
+    data_path,
+    roi_dims,
+    prefix="hybridisation_1_1",
+    max_shift=500,
+    fit_angle=True,
+    align_method=None,
 ):
     """Use robust regression across tiles to correct shifts and angles
     for a single hybridisation round and ROI.
@@ -520,10 +526,18 @@ def correct_shifts_single_round_roi(
             still have their corrected shifts estimated. Defaults to 500.
         fit_angle (bool, optional): Fit the angle with robust regression if True,
             otherwise takes the median. Defaults to True
+        align_method (str, optional): Method to use for alignment. If None, will be
+            read from ops. Defaults to None.
 
+    Returns:
+        None
     """
+
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
+    if align_method is None:
+        align_method = ops["align_method"]
+
     roi = roi_dims[0]
     nx = roi_dims[1] + 1
     ny = roi_dims[2] + 1
@@ -581,7 +595,7 @@ def correct_shifts_single_round_roi(
     itile = 0
     for iy in range(ny):
         for ix in range(nx):
-            if ops["align_method"] == "affine":
+            if align_method == "affine":
                 matrix_corrected = np.zeros((shifts.shape[0], 3, 3))
                 for ich in range(shifts.shape[0]):
                     matrix_corrected[ich, :2, 2] = shifts_corrected[ich, :, itile]
