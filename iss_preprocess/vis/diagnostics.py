@@ -437,7 +437,9 @@ def plot_matrix_difference(
     return fig
 
 
-def plot_all_rounds(stack, view=None, channel_colors=None, grid=True):
+def plot_all_rounds(
+    stack, view=None, channel_colors=None, grid=True, round_labels=None
+):
     """Plot all rounds of a stack in a grid
 
     Args:
@@ -446,6 +448,8 @@ def plot_all_rounds(stack, view=None, channel_colors=None, grid=True):
         channel_colors (list, optional): List of colors for each channel. Defaults to
             None, which will use the default colors (r, g, m, c).
         grid (bool, optional): Whether to plot a grid. Defaults to True.
+        round_labels (list, optional): List of round labels. Defaults to None, which
+            will use "Round {iround}".
 
     Returns:
         plt.Figure: Figure instance
@@ -480,12 +484,14 @@ def plot_all_rounds(stack, view=None, channel_colors=None, grid=True):
     ncols = int(np.ceil(nrounds / nrows))
     fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
     rgb_stack = np.empty(np.diff(view, axis=1).ravel().tolist() + [3, nrounds])
+    if round_labels is None:
+        round_labels = [f"Round {iround}" for iround in range(nrounds)]
     for iround in range(nrounds):
         ax = fig.add_subplot(nrows, ncols, iround + 1)
         rgb = round_image(iround)
         rgb_stack[..., iround] = rgb
         ax.imshow(rgb)
-        ax.set_title(f"Round {iround}")
+        ax.set_title(round_labels[iround])
         if grid:
             ax.grid(color="w", linestyle="--", linewidth=0.5, alpha=0.5)
             ax.set_xticklabels([])
