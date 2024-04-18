@@ -874,16 +874,9 @@ def setup_channel_correction(path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
     from pathlib import Path
 
-    from iss_preprocess.pipeline import setup_channel_correction
+    from iss_preprocess.pipeline import setup_channel_correction as scc
 
-    slurm_folder = Path.home() / "slurm_logs" / path
-    slurm_folder.mkdir(parents=True, exist_ok=True)
-    setup_channel_correction(
-        path,
-        use_slurm=use_slurm,
-        slurm_folder=slurm_folder,
-        scripts_name="setup_channel_correction",
-    )
+    scc(path, use_slurm=use_slurm)
     click.echo("Channel correction setup complete.")
 
 
