@@ -5,8 +5,8 @@ projection:
 
 # Parameters for illumination correction, channel brightness correction and filtering
 image_correction:
-  # To compute the average for illumination correction, individual images are clipped to this
-  # value before averaging to avoid bright outliers
+  # To compute the average for illumination correction, individual images are clipped to
+  # this value before averaging to avoid bright outliers
   average_clip_value: 2000
   # Size of the median filter apply to images for illumination correction before averaging
   average_median_filter: 5
@@ -18,7 +18,8 @@ image_correction:
   correction_tiles: [ [ 1, 0, 0 ] ]
   # Inner and outer radius of the hanning window convolution kernels for filtering
   filter_r: [ 2, 4 ]
-  # Whether to use an exponential fit to estimate channel brightness correction across rounds
+  # Whether to use an exponential fit to estimate channel brightness correction across
+  # rounds
   fit_channel_correction: true
 
 # Parameters for registration across rounds and channels
@@ -30,9 +31,10 @@ registration:
   # Coordinates of the reference tile to use for initial estimation of scale and
   # rotation between channels. [ ROI, X/col, Y/row]
   ref_tile: [ 1, 0, 0 ]
-  # Index of the reference channel to use for registration (camera index, NOT wavelength index)
+  # Index of the reference channel to use for registration (camera index, NOT wavelength
+  # index)
   ref_ch: 0
-  # Index of the reference round to use for registration
+  # Index of the reference round to use for registration (0-based index, not name)
   ref_round: 0
   # Fraction of the tile to use for registration
   reg_fraction: 0.1

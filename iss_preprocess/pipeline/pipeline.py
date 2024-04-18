@@ -209,8 +209,8 @@ def project_and_average(data_path, force_redo=False):
 def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     """Load one single tile
 
-    Load a tile of `prefix` with channels/rounds registered, apply illumination correction
-    and filtering.
+    Load a tile of `prefix` with channels/rounds registered, apply illumination
+    correction and filtering.
 
     Args:
         data_path (str): Relative path to data
@@ -222,7 +222,8 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
 
     Returns:
         numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
-        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after registration
+        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after
+            registration
 
     """
     ops = load_ops(data_path)
