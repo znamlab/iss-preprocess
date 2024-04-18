@@ -368,14 +368,39 @@ def correct_shifts(path, prefix, use_slurm=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
-def correct_hyb_shifts(path, prefix=None):
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+def correct_hyb_shifts(path, prefix=None, use_slurm=False):
     """
     Correct X-Y shifts for hybridisation rounds using robust regression
     across tiles.
     """
     from iss_preprocess.pipeline import correct_hyb_shifts
+    from iss_preprocess.pipeline import diagnostics as diag
 
-    correct_hyb_shifts(path, prefix)
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+
+    job_id = correct_hyb_shifts(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_hyb_shifts_{prefix}",
+    )
+    diag.check_shift_correction(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_shift_correction_{prefix}",
+        within=False,
+    )
 
 
 @cli.command()
@@ -869,7 +894,9 @@ def setup_flexilims(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+@click.option(
+    "--use-slurm/--local", is_flag=True, default=True, help="Whether to use slurm"
+)
 def setup_channel_correction(path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
     from pathlib import Path

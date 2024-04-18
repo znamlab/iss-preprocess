@@ -436,6 +436,7 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
             )
 
 
+@slurm_it(conda_env="iss-preprocess")
 def correct_hyb_shifts(data_path, prefix=None):
     """Use robust regression across tiles to correct shifts and angles
     for hybridisation rounds. Either processes a specific hybridisation

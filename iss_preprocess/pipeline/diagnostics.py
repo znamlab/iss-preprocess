@@ -382,7 +382,7 @@ def check_shift_correction(
     if "use_rois" in ops:
         ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
     nc = len(ops["camera_order"])
-    nr = ops[f"{prefix}s"]
+    nr = ops.get(f"{prefix}s", 1)
 
     # Now plot them.
     def get_shifts(which, archive):
