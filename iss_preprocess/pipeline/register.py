@@ -620,7 +620,7 @@ def register_tile_to_ref(
     data_path,
     tile_coors,
     reg_prefix,
-    ref_prefix="genes_round",
+    ref_prefix=None,
     binarise_quantile=0.7,
     ref_tile_coors=None,
     reg_channels=None,
@@ -633,7 +633,7 @@ def register_tile_to_ref(
         data_path (str): Relative path to data
         tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinats
         reg_prefix (str): Prefix to register, "barcode_round" for instance
-        ref_prefix (str, optional): Reference prefix. Defaults to "genes_round".
+        ref_prefix (str, optional): Reference prefix. Defaults to None.
         binarise_quantile (float, optional): Quantile to binarise images before
             registration. Defaults to 0.7.
         ref_tile_coors (tuple, optional): Tile coordinates of the reference tile.
@@ -651,6 +651,12 @@ def register_tile_to_ref(
         shifts (np.array): X and Y shifts
 
     """
+    ops = load_ops(data_path)
+    if (ref_prefix is None) or (ref_prefix == "None"):
+        ref_prefix = ops["reference_prefix"]
+    if ref_prefix == reg_prefix:
+        raise ValueError("Reference and register prefixes are the same")
+
     print(f"Registering {reg_prefix} to {ref_prefix}", flush=True)
     if use_masked_correlation:
         print("Using masked correlation", flush=True)
@@ -664,7 +670,6 @@ def register_tile_to_ref(
     print(f"ref_channels: {ref_channels}")
     print(f"binarise_quantile: {binarise_quantile}", flush=True)
 
-    ops = load_ops(data_path)
     ref_all_channels, ref_bad_pixels = iss.pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=ref_tile_coors,

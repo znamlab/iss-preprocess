@@ -65,6 +65,8 @@ registration_to_reference:
   corrected_shifts2ref: best
   # Maximum tile shift above which RANSAC fit is used to estimate the shift
   max_shift2ref: 500
+  # acquisition to use as main reference for registration
+  reference_prefix: "hybridisation_round_2_1"
 
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating

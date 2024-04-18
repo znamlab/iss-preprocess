@@ -559,8 +559,8 @@ def segment_all(path, prefix, use_gpu=False):
 @click.option(
     "-f",
     "--ref-prefix",
-    default="genes_round",
-    help="Directory prefix to registration reference.",
+    default=None,
+    help="Directory prefix to registration reference. If None, will read from ops",
 )
 @click.option("-r", "--roi", default=None, help="ROI number. None for all.")
 @click.option("-x", "--tilex", default=None, help="Tile X position. None for all.")
