@@ -288,7 +288,10 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
             load `genes_round_1_1` dimensions
         additional_args (str, optional): Additional environment variable to export
             to pass to the sbatch job. Should start with a leading comma.
-            Defaults to "".
+            Defaults to ""
+
+    Returns:
+        list: List of job IDs for the slurm jobs created.
 
     """
     if roi_dims is None:
