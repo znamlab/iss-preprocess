@@ -42,14 +42,6 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
             registration
 
     """
-    ops = load_ops(data_path)
-    corrected_shifts = ops["corrected_shifts2ref"]
-
-    valid_shifts = ["single_tile", "ransac", "best"]
-    assert corrected_shifts in valid_shifts, (
-        f"unknown shifts2ref correction method, must be one of {valid_shifts}",
-    )
-
     stack, bad_pixels = pipeline.load_and_register_tile(
         data_path, tile_coors, prefix, filter_r=filter_r
     )
@@ -58,33 +50,15 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
         # No need to register to ref
         return stack, bad_pixels
 
+    reg2ref = get_tform_to_ref(data_path, prefix, tile_coors)
     # we have data with channels/rounds registered
     # Now find how much the acquisition stitching is shifting the data compared to
     # reference
-    roi, tilex, tiley = tile_coors
-
-    # now find registration to ref
-    if ("round" in prefix) and (not prefix.endswith("round")):
-        reg_prefix = "_".join(prefix.split("_")[:-2])
-    else:
-        reg_prefix = prefix
-
-    stack[bad_pixels] = np.nan
-    if corrected_shifts == "single_tile":
-        correction_fname = "tforms_to_ref"
-    elif corrected_shifts == "ransac":
-        correction_fname = "tforms_corrected_to_ref"
-    elif corrected_shifts == "best":
-        correction_fname = "tforms_best_to_ref"
-    reg2ref = np.load(
-        iss.io.get_processed_path(data_path)
-        / "reg"
-        / f"{correction_fname}_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
-    )
     # TODO: we are warping the image twice - in `load_and_register_tile` and here
     # if we ever use this function for downstream analyses (e.g. detecting spots)
     # we should make sure to warp once
     # apply the same registration to all channels and rounds
+    stack[bad_pixels] = np.nan
     for ir in range(stack.shape[3]):
         for ic in range(stack.shape[2]):
             stack[:, :, ic, ir] = transform_image(
@@ -97,6 +71,50 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[bad_pixels] = 0
     return stack, bad_pixels
+
+
+def get_tform_to_ref(data_path, prefix, tile_coors, corrected_shifts=None):
+    """Load the transformation to reference for a tile
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Acquisition prefix
+        tile_coors (tuple): (roi, tileX, tileY) tuple
+        corrected_shifts (str, optional): Method used to correct shifts to reference.
+            If None, will use the one in `ops`. Defaults to None.
+
+    Returns:
+        np.array: A dictionary with the transformation parameters
+
+    """
+    roi, tilex, tiley = tile_coors
+    if corrected_shifts is None:
+        ops = load_ops(data_path)
+        corrected_shifts = ops["corrected_shifts2ref"]
+
+    valid_shifts = ["single_tile", "ransac", "best"]
+    assert corrected_shifts in valid_shifts, (
+        f"unknown shifts2ref correction method, must be one of {valid_shifts}",
+    )
+
+    # now find registration to ref
+    if ("round" in prefix) and (not prefix.endswith("round")):
+        reg_prefix = "_".join(prefix.split("_")[:-2])
+    else:
+        reg_prefix = prefix
+
+    if corrected_shifts == "single_tile":
+        correction_fname = "tforms_to_ref"
+    elif corrected_shifts == "ransac":
+        correction_fname = "tforms_corrected_to_ref"
+    elif corrected_shifts == "best":
+        correction_fname = "tforms_best_to_ref"
+    reg2ref = np.load(
+        iss.io.get_processed_path(data_path)
+        / "reg"
+        / f"{correction_fname}_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
+    )
+    return reg2ref
 
 
 @slurm_it(conda_env="iss-preprocess")
