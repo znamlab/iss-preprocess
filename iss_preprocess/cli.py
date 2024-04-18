@@ -388,7 +388,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     across tiles.
     """
     from iss_preprocess.pipeline import correct_shifts_to_ref
-    from iss_preprocess.pipeline.diagnostics import check_reg_to_ref_correction
+    from iss_preprocess.pipeline import diagnostics as diag
 
     if use_slurm:
         from pathlib import Path
@@ -405,7 +405,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         slurm_folder=slurm_folder,
         scripts_name=f"correct_shifts_to_ref_{prefix}",
     )
-    check_reg_to_ref_correction(
+    diag.check_reg_to_ref_correction(
         path,
         prefix,
         rois=None,
@@ -414,6 +414,15 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         slurm_folder=slurm_folder,
         job_dependency=job_id if use_slurm else None,
         scripts_name=f"check_reg_to_ref_correction_{prefix}",
+    )
+    diag.check_registration_to_reference(
+        path,
+        reg_prefix=prefix,
+        ref_prefix=None,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_tile_reg_to_ref_{prefix}",
     )
 
 

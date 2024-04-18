@@ -198,57 +198,52 @@ def _get_some_tiles(data_path, prefix, tile_coords=None):
         tile_coords = [tile_coords]
     return tile_coords
 
+
+@slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
+def check_registration_to_reference(data_path, prefix, ref_prefix, tile_coords=None):
+    ops = iss.io.load_ops(data_path)
+    if prefix.endswith("_round"):
+        # we have genes_round or barcode_round
+        roi_dim_prefix = f"{prefix}_1_1"
+        ref_round = ops["ref_round"]
+        full_prefix = f"{prefix}_{ref_round + 1}_1"
+    else:
+        roi_dim_prefix = prefix
+        full_prefix = prefix
+    tile_coords = _get_some_tiles(
+        data_path, prefix=roi_dim_prefix, tile_coords=tile_coords
+    )
+    processed = iss.io.get_processed_path(data_path)
+    target_folder = processed / "figures" / "registration" / f"{prefix}_to_ref"
+    target_folder.mkdir(exist_ok=True, parents=True)
+    round_labels = [
+        "Ref and Reg chan 0/1",
+        "Ref and Reg chan 2/3",
+        f"Ref: {ref_prefix}",
+        "Reg: {prefix}",
+    ]
     for tile in tile_coords:
-        all_stacks = []
-        all_vmaxs = []
-        all_vmins = []
-        for correction in corrections:
-            reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
-                data_path,
-                filter_r=False,
-                correct_channels=False,
-                correct_illumination=True,
-                corrected_shifts=correction,
-                tile_coors=tile,
-                suffix=ops[f"{prefix.split('_')[0]}_projection"],
-                prefix=prefix,
-                nrounds=nrounds,
-                specific_rounds=None,
-            )
-            reg_stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
-            all_stacks.append(reg_stack)
-            # compute vmax based on round 0
-            vmaxs = np.percentile(reg_stack[..., 0], 99.99, axis=(0, 1))
-            all_vmaxs.append(vmaxs)
-            vmins = np.percentile(reg_stack[..., 0], 0.01, axis=(0, 1))
-            all_vmins.append(vmins)
-            center = np.array(reg_stack.shape[:2]) // 2
-            view = np.array([center - 200, center + 200]).T
-            channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+        # get the reference tile
+        ref_stack, _ = iss.pipeline.load_and_register_tile(
+            data_path, tile, ref_prefix, filter_r=False
+        )
+        # get the tile to register
+        reg_stack, _ = iss.pipeline.load_and_register_tile(
+            data_path, tile, full_prefix, filter_r=False
+        )
+        # concatenate the stacks
+        stack = np.concatenate([ref_stack, reg_stack], axis=3)
+        # also generate mix stack with 2 channels of each
+        mix_stack1 = np.concatenate([ref_stack[:, :, :2], reg_stack[:, :, :2]], axis=2)
+        mix_stack2 = np.concatenate([ref_stack[:, :, 2:], reg_stack[:, :, 2:]], axis=2)
+        stack = np.concatenate([mix_stack1, mix_stack2, stack], axis=3)
 
-            print("Static figure")
-
-            fig, rgb_stack = vis.plot_all_rounds(reg_stack, view, channel_colors)
-            fig.tight_layout()
-            fname = f"check_reg_{prefix}_{tile[0]}_{tile[1]}_{tile[2]}_{correction}"
-            fig.savefig(target_folder / f"{fname}.png")
-            print(f"Saved to {target_folder / f'{fname}.mp4'}")
-
-            # also save the stack for fiji
-            iss.io.save.write_stack(
-                (rgb_stack * 255).astype("uint8"),
-                target_folder / f"{fname}.tif",
-            )
-
-        fname = f"check_reg_{prefix}_{tile[0]}_{tile[1]}_{tile[2]}"
-        vis.animate_sequencing_rounds(
-            all_stacks,
-            savefname=target_folder / f"{fname}.mp4",
-            vmax=np.stack(all_vmaxs).max(axis=0),
-            vmin=np.stack(all_vmins).min(axis=0),
-            extent=(view[0], view[1]),
-            channel_colors=channel_colors,
-            axes_titles=corrections,
+        # reorder the channels
+        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+        tile_name = "_".join([str(x) for x in tile])
+        fname_base = f"check_reg2ref_{prefix}_{tile_name}"
+        plot_round_registration_diagnostics(
+            stack, target_folder, fname_base, round_labels=round_labels
         )
 
 
