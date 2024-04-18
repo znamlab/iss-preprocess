@@ -555,7 +555,7 @@ def correct_shifts_single_round_roi(
                 tforms = np.load(
                     processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
                 )
-                if ops["align_method"] == "affine":
+                if align_method == "affine":
                     shifts.append(tforms["matrix_between_channels"][:, :2, 2])
                     angles.append(tforms["matrix_between_channels"][:, :2, :2])
                 else:
