@@ -621,7 +621,7 @@ def register_tile_to_ref(
     tile_coors,
     reg_prefix,
     ref_prefix=None,
-    binarise_quantile=0.7,
+    binarise_quantile=None,
     ref_tile_coors=None,
     reg_channels=None,
     ref_channels=None,
@@ -633,16 +633,17 @@ def register_tile_to_ref(
         data_path (str): Relative path to data
         tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinats
         reg_prefix (str): Prefix to register, "barcode_round" for instance
-        ref_prefix (str, optional): Reference prefix. Defaults to None.
+        ref_prefix (str, optional): Reference prefix, if None will read from ops.
+            Defaults to None.
         binarise_quantile (float, optional): Quantile to binarise images before
-            registration. Defaults to 0.7.
+            registration. If None will read from ops, Defaults to None.
         ref_tile_coors (tuple, optional): Tile coordinates of the reference tile.
             Usually not needed as it is assumed to be the same as the tile to register.
             Defaults to None.
         reg_channels (list, optional): Channels to use for registration. If None
-            will use all channels. Defaults to None
+            will read from ops. Defaults to None
         ref_channels (list, optional): Channels to use for registration. If None will
-            use all channels. Defaults to None
+            read from ops. Defaults to None
         use_masked_correlation (bool, optional): Use masked correlation to register.
             Defaults to False.
 
@@ -652,10 +653,18 @@ def register_tile_to_ref(
 
     """
     ops = load_ops(data_path)
+    # if None, read ref_prefix, ref_channels, binarise_quantile and reg_channels from ops
     if (ref_prefix is None) or (ref_prefix == "None"):
         ref_prefix = ops["reference_prefix"]
     if ref_prefix == reg_prefix:
         raise ValueError("Reference and register prefixes are the same")
+    if ref_channels is None:
+        ref_channels = ops["reg2ref_reference_channel"]
+    spref = reg_prefix.split("_")[0].lower()  # short prefix
+    if binarise_quantile is None:
+        binarise_quantile = ops.get(f"{spref}_binarise_quantile", 0.7)
+    if reg_channels is None:
+        reg_channels = ops.get(f"reg2ref_{spref}_channel", ref_channels)
 
     print(f"Registering {reg_prefix} to {ref_prefix}", flush=True)
     if use_masked_correlation:

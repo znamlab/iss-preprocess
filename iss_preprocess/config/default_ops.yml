@@ -67,6 +67,11 @@ registration_to_reference:
   max_shift2ref: 500
   # acquisition to use as main reference for registration
   reference_prefix: "hybridisation_round_2_1"
+  # Which channel of the reference to use for registration, can be a list of channels,
+  # in which case they will be averaged
+  reg2ref_reference_channel: 2
+  # by default the same channel is used for the target channel, but this can be changed
+  # here for individual acquisition by specifying `f"reg2ref_{prefix}_channel"`
 
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating

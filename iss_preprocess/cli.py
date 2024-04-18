@@ -417,7 +417,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     )
     diag.check_registration_to_reference(
         path,
-        reg_prefix=prefix,
+        prefix=prefix,
         ref_prefix=None,
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
@@ -565,28 +565,9 @@ def segment_all(path, prefix, use_gpu=False):
     default="barcode_round",
     help="Directory prefix to registration target.",
 )
-@click.option(
-    "-f",
-    "--ref-prefix",
-    default=None,
-    help="Directory prefix to registration reference. If None, will read from ops",
-)
 @click.option("-r", "--roi", default=None, help="ROI number. None for all.")
 @click.option("-x", "--tilex", default=None, help="Tile X position. None for all.")
 @click.option("-y", "--tiley", default=None, help="Tile Y position. None for all.")
-@click.option(
-    "-c",
-    "--reg-channels",
-    default=None,
-    help="Channels of the target to register (comma separated string of integer).",
-    type=str,
-)
-@click.option(
-    "--ref-channels",
-    default=None,
-    help="Channels of the reference to register (comma separated string of integer).",
-    type=str,
-)
 @click.option(
     "-m/",
     "--use-masked-correlation/--no-use-masked-correlation",
@@ -596,13 +577,10 @@ def segment_all(path, prefix, use_gpu=False):
 def register_to_reference(
     path,
     reg_prefix,
-    ref_prefix,
     roi,
     tilex,
     tiley,
-    reg_channels,
     use_masked_correlation,
-    ref_channels,
 ):
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
@@ -612,8 +590,7 @@ def register_to_reference(
 
         roi_dims = get_roi_dimensions(path)
         additional_args = (
-            f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},"
-            f"REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels},"
+            f",REG_PREFIX={reg_prefix},"
             + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
         )
         batch_process_tiles(
@@ -626,38 +603,10 @@ def register_to_reference(
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
         from iss_preprocess.pipeline import register
 
-        if reg_channels == "None":
-            reg_channels = None
-        if reg_channels is not None:
-            reg_channels = [int(x) for x in reg_channels.split(",")]
-        if ref_channels == "None":
-            ref_channels = None
-        if ref_channels is not None:
-            ref_channels = [int(x) for x in ref_channels.split(",")]
-        from iss_preprocess.io.load import load_ops
-
-        ops = load_ops(path)
-        ops_name = f"{reg_prefix.split('_')[0].lower()}_binarise_quantile"
-        if ops_name in ops:
-            binarise_quantile = ops[ops_name]
-        else:
-            binarise_quantile = 0.7
-        from iss_preprocess.io.load import load_ops
-
-        ops = load_ops(path)
-        ops_name = f"{reg_prefix.split('_')[0].lower()}_binarise_quantile"
-        if ops_name in ops:
-            binarise_quantile = ops[ops_name]
-        else:
-            binarise_quantile = 0.7
         register.register_tile_to_ref(
             data_path=path,
-            tile_coors=(roi, tilex, tiley),
             reg_prefix=reg_prefix,
-            ref_prefix=ref_prefix,
-            reg_channels=reg_channels,
-            ref_channels=ref_channels,
-            binarise_quantile=binarise_quantile,
+            tile_coors=(roi, tilex, tiley),
             use_masked_correlation=use_masked_correlation,
         )
 

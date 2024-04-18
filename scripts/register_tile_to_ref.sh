@@ -11,7 +11,7 @@ source activate base
 
 conda activate iss-preprocess
 if $USE_MASK; then
-    iss register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY -f $REF_PREFIX -c $REG_CHANNELS --ref-channels $REF_CHANNELS -m
+    iss register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY -m
 else
-    iss register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY -f $REF_PREFIX -c $REG_CHANNELS --ref-channels $REF_CHANNELS
+    iss register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY
 fi
