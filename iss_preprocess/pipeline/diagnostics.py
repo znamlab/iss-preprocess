@@ -50,31 +50,56 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
         specific_rounds=None,
     )
     reg_stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
+    plot_round_registration_diagnostics(
+        reg_stack, target_folder, fname_base=f"initial_ref_tile_registration_{prefix}"
+    )
 
+
+def plot_round_registration_diagnostics(
+    reg_stack, target_folder, fname_base, view_window=200, round_labels=None
+):
+    """Generate 3 diagnostics tools for the registration of a tile
+
+    - A static figure showing the stack of all rounds
+    - An animated figure showing the stack of all rounds
+    - A stack of RGB images for fiji
+
+    Args:
+        reg_stack (np.ndarray): Registered stack of images
+        target_folder (pathlib.Path): Folder to save the figures
+        fname_base (str): Base name for the figures
+        view_window (int, optional): Half size of the window to show in the figures.
+            Defaults to 200.
+
+    Returns:
+        None
+
+    """
     # compute vmax based on round 0
     vmins, vmaxs = np.percentile(reg_stack[..., 0], (0.01, 99.99), axis=(0, 1))
     center = np.array(reg_stack.shape[:2]) // 2
-    view = np.array([center - 200, center + 200]).T
+    view = np.array([center - view_window, center + view_window]).T
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
 
     print("Static figure")
-    fig, rgb_stack = vis.plot_all_rounds(reg_stack, view, channel_colors)
+    fig, rgb_stack = vis.plot_all_rounds(
+        reg_stack, view, channel_colors, round_labels=round_labels
+    )
     fig.tight_layout()
-    fname = target_folder / f"initial_ref_tile_registration_{prefix}.png"
+    fname = target_folder / f"{fname_base}.png"
     fig.savefig(fname)
     print(f"Saved to {fname}")
 
     # also save the stack for fiji
     iss.io.save.write_stack(
         (rgb_stack * 255).astype("uint8"),
-        target_folder
-        / f"initial_ref_tile_registration_rgb_stack_{nrounds}rounds_{prefix}.tif",
+        target_folder / f"{fname_base}_rgb_stack_{reg_stack.shape[-1]}rounds.tif",
     )
 
     print("Animating")
     vis.animate_sequencing_rounds(
         reg_stack,
-        savefname=target_folder / f"initial_ref_tile_registration_{prefix}.mp4",
+        savefname=target_folder / f"{fname_base}.mp4",
         vmax=vmaxs,
         vmin=vmins,
         extent=(view[0], view[1]),
@@ -110,8 +135,49 @@ def check_tile_registration(
     ops = iss.io.load_ops(data_path)
     nrounds = ops[f"{prefix}s"]
 
+    tile_coords = _get_some_tiles(
+        data_path, prefix=f"{prefix}_1_1", tile_coords=tile_coords
+    )
+
+    for tile in tile_coords:
+        for correction in corrections:
+            reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+                data_path,
+                filter_r=False,
+                correct_channels=False,
+                correct_illumination=True,
+                corrected_shifts=correction,
+                tile_coors=tile,
+                suffix=ops[f"{prefix.split('_')[0]}_projection"],
+                prefix=prefix,
+                nrounds=nrounds,
+                specific_rounds=None,
+            )
+            reg_stack = reg_stack[:, :, np.argsort(ops["camera_order"]), :]
+            tile_name = "_".join([str(x) for x in tile])
+            fname_base = f"check_reg_{prefix}_{tile_name}_{correction}"
+            plot_round_registration_diagnostics(reg_stack, target_folder, fname_base)
+
+
+def _get_some_tiles(data_path, prefix, tile_coords=None):
+    """Get some tiles to check registration
+
+    If `tile_coords` is None, will select 10 tiles. If `ops` has a `xx_ref_tiles`
+    matching prefix, these will be part of the 10 tiles. The remaining tiles will be
+    selected randomly.
+
+    Args:
+        data_path (str): Relative path to data folder
+        prefix (str): Prefix of the images to load
+        tile_coords (list, optional): List of tile coordinates to process. If None, will
+            select 10 tiles. Defaults to None.
+
+    Returns:
+        list: List of tile coordinates
+    """
+    ops = iss.io.load_ops(data_path)
     # get stack registered between channel and rounds
-    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
+    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=prefix)
     if tile_coords is None:
         # check if ops has a ref tile
         if f"{prefix.split('_')[0]}_ref_tiles" in ops:
@@ -130,6 +196,7 @@ def check_tile_registration(
                 tile_coords.append([roi, *np.random.randint(0, ntiles)])
     elif isinstance(tile_coords[0], int):
         tile_coords = [tile_coords]
+    return tile_coords
 
     for tile in tile_coords:
         all_stacks = []
