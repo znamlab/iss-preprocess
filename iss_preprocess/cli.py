@@ -399,7 +399,11 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         slurm_folder = None
 
     job_id = correct_shifts_to_ref(
-        path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_shifts_to_ref_{prefix}",
     )
     check_reg_to_ref_correction(
         path,
@@ -409,6 +413,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_reg_to_ref_correction_{prefix}",
     )
 
 
