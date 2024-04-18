@@ -51,3 +51,11 @@ PAB0028:
   target: Gad1
   channel: 4
   fluorophore: 5ATTO700N
+PAB0029:
+  target: N2C BC2
+  channel: 2
+  fluorophore: 5ATTO565N
+PAB0030:
+  target: All genes
+  channel: 2
+  fluorophore: 5ATTO565N
