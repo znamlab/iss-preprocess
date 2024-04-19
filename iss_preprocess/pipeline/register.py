@@ -794,7 +794,7 @@ def filter_ransac_shifts_to_ref(data_path, prefix, roi_dims, max_residuals=10):
             )
 
 
-def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
+def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
     """Use previously computed transformation matrices to align spots to reference
     coordinates.
 
@@ -802,13 +802,18 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix="genes_round_1_1"):
         data_path (str): Relative path to data
         tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates
         prefix (str): Prefix of spots to load
-        ref_prefix (str, optional): Prefix of the reference spots. Defaults to
-            "genes_round_1_1".
+        ref_prefix (str, optional): Prefix of the reference spots. If None, reads from
+            ops. Defaults to None.
 
     Returns:
         pd.DataFrame: The spot dataframe with x and y registered to reference tile.
 
     """
+
+    if ref_prefix is None:
+        ops = load_ops(data_path)
+        ref_prefix = ops["reference_prefix"]
+
     roi, tilex, tiley = tile_coors
     processed_path = iss.io.get_processed_path(data_path)
     spots = pd.read_pickle(
