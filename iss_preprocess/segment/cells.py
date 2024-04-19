@@ -12,6 +12,7 @@ def cellpose_segmentation(
     rescale=0.55,
     model_type="cyto",
     use_gpu=False,
+    debug=False,
     **kwargs,
 ):
     """Segment cells using Cellpose.
@@ -27,6 +28,7 @@ def cellpose_segmentation(
         rescale (float, optional): rescale factor for cellpose model. Defaults to 0.55.
         model_type (str, optional): Cellpose mode to use. Defaults to "cyto".
         use_gpu (bool, optional): Defaults to False.
+        debug (bool, optional): If True, return flows and styles. Defaults to False.
         **kwargs (optional): Other kwargs are forwarded to CellposeModel.eval
 
     Returns:
@@ -55,7 +57,8 @@ def cellpose_segmentation(
     for i in range(dilate_pix):
         masks_dilated = dilation(masks)
         masks[masks == 0] = masks_dilated[masks == 0]
-
+    if debug:
+        return masks, flows, styles
     return masks
 
 
