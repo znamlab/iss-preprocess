@@ -651,12 +651,6 @@ def register_to_reference(
     help="Directory prefix to registration target.",
 )
 @click.option(
-    "-r",
-    "--ref-prefix",
-    default="genes_round_1_1",
-    help="Directory prefix to registration reference.",
-)
-@click.option(
     "-l",
     "--reload",
     default=True,
@@ -666,7 +660,6 @@ def align_spots(
     path,
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
-    ref_prefix="genes_round_1_1",
     reload=True,
 ):
     from pathlib import Path
@@ -675,6 +668,7 @@ def align_spots(
         merge_and_align_spots_all_rois,
         register_within_acquisition,
     )
+    from iss_preprocess.io import load_ops
 
     slurm_folder = Path.home() / "slurm_logs" / path / "align_spots"
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -688,6 +682,8 @@ def align_spots(
         scripts_name="register_within_acquisition_{reg_prefix}",
     )
     ref_job_id = None
+    ops = load_ops(path)
+    ref_prefix = ops["reference_prefix"]
     if reg_prefix != ref_prefix:
         ref_job_id = register_within_acquisition(
             path,
