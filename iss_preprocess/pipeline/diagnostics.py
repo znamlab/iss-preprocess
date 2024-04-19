@@ -114,7 +114,7 @@ def check_tile_registration(
     corrections=("best"),
     tile_coords=None,
 ):
-    """Check the registration for some tiles
+    """Check the registration of sequencing data for some tiles
 
     If `tile_coords` is None, will select 10 tiles. If `ops` has a `xx_ref_tiles`
     matching prefix, these will be part of the 10 tiles. The remaining tiles will be
