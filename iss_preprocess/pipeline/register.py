@@ -617,6 +617,34 @@ def correct_shifts_single_round_roi(
             itile += 1
 
 
+def register_all_tiles_to_ref(data_path, reg_prefix, use_masked_correlation):
+    """Register all tiles to the reference tile
+
+    Args:
+        data_path (str): Relative path to data
+        reg_prefix (str): Prefix to register, "barcode_round" for instance
+        use_masked_correlation (bool): Use masked correlation to register
+
+    Returns:
+        list: Job IDs for batch processing
+
+    """
+    print("Batch processing all tiles", flush=True)
+
+    roi_dims = get_roi_dimensions(data_path)
+    additional_args = (
+        f",REG_PREFIX={reg_prefix},"
+        + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
+    )
+    job_ids = iss.pipeline.batch_process_tiles(
+        data_path,
+        "register_tile_to_ref",
+        additional_args=additional_args,
+        roi_dims=roi_dims,
+    )
+    return job_ids
+
+
 def register_tile_to_ref(
     data_path,
     tile_coors,

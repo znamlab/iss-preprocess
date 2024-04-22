@@ -609,21 +609,9 @@ def register_to_reference(
 ):
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
-        print("Batch processing all tiles", flush=True)
-        from iss_preprocess.io import get_roi_dimensions
-        from iss_preprocess.pipeline import batch_process_tiles
+        from iss_preprocess.pipeline import register
 
-        roi_dims = get_roi_dimensions(path)
-        additional_args = (
-            f",REG_PREFIX={reg_prefix},"
-            + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
-        )
-        batch_process_tiles(
-            path,
-            "register_tile_to_ref",
-            additional_args=additional_args,
-            roi_dims=roi_dims,
-        )
+        register.register_all_tiles_to_ref(path, reg_prefix, use_masked_correlation)
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
         from iss_preprocess.pipeline import register
@@ -631,7 +619,7 @@ def register_to_reference(
         register.register_tile_to_ref(
             data_path=path,
             reg_prefix=reg_prefix,
-            tile_coors=(roi, tilex, tiley),
+            tile_coors=(int(roi), int(tilex), int(tiley)),
             use_masked_correlation=use_masked_correlation,
         )
 
