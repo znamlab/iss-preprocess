@@ -45,8 +45,9 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     stack, bad_pixels = pipeline.load_and_register_tile(
         data_path, tile_coors, prefix, filter_r=filter_r
     )
-
-    if prefix.startswith("genes_round"):
+    ops = load_ops(data_path)
+    ref_prefix = ops["reference_prefix"]
+    if prefix.startswith(ref_prefix):
         # No need to register to ref
         return stack, bad_pixels
 
