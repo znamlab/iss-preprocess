@@ -202,6 +202,8 @@ def _get_some_tiles(data_path, prefix, tile_coords=None):
 @slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
 def check_registration_to_reference(data_path, prefix, ref_prefix, tile_coords=None):
     ops = iss.io.load_ops(data_path)
+    if ref_prefix is None:
+        ref_prefix = ops["reference_prefix"]
     if prefix.endswith("_round"):
         # we have genes_round or barcode_round
         roi_dim_prefix = f"{prefix}_1_1"
@@ -935,27 +937,24 @@ def check_reg_to_ref_correction(
                 if not fname.exists():
                     continue
                 try:
-                    data = np.load(fname)
-                    raw[:2, ix, iy] = data["shifts"]
-                    raw[2, ix, iy] = data["angles"]
+                    tform = np.load(fname)["matrix_between_channels"][0]
+                    raw[:2, ix, iy] = tform[:2, 2]
                 except ValueError:
                     print(f"Could not load {fname}. Skipping.")
                     continue
-                data = np.load(
+                tform = np.load(
                     reg_dir / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
-                )
-                corrected[:2, ix, iy] = data["shifts"]
-                corrected[2, ix, iy] = data["angles"]
-                data_best = np.load(
+                )["matrix_between_channels"][0]
+                corrected[:2, ix, iy] = tform[:2, 2]
+                tform = np.load(
                     reg_dir / f"tforms_best_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
-                )
-                best[:2, ix, iy] = data_best["shifts"]
-                best[2, ix, iy] = data_best["angles"]
+                )["matrix_between_channels"][0]
+                best[:2, ix, iy] = tform[:2, 2]
         fig, axes = plt.subplots(4, 3, figsize=(12, 8))
         fig = iss.vis.plot_matrix_difference(
             raw=raw,
             corrected=corrected,
-            col_labels=["Shift x", "Shift y", "Angle"],
+            col_labels=["Shift x", "Shift y"],
             line_labels=["Raw", "Corrected", "Difference"],
             axes=axes[:3, :],
         )
