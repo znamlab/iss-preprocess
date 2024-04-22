@@ -547,9 +547,13 @@ def correct_shifts_single_round_roi(
         for ix in range(nx):
             fname = processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
             if not fname.exists():
-                print(f"Not tforms for tile {roi} {ix} {iy}")
+                print(f"No tforms for tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
-                angles.append(np.array(np.nan, ndmin=2))
+                if align_method == "affine":
+                    angles.append(np.zeros((1, 2, 2)) + np.nan)
+                else:
+                    angles.append(np.array(np.nan, ndmin=2))
+
                 continue
             try:
                 tforms = np.load(
@@ -564,7 +568,10 @@ def correct_shifts_single_round_roi(
             except ValueError:
                 print(f"couldn't load tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
-                angles.append(np.array(np.nan, ndmin=2))
+                if align_method == "affine":
+                    angles.append(np.zeros((1, 2, 2)) + np.nan)
+                else:
+                    angles.append(np.array(np.nan, ndmin=2))
 
     shifts = np.stack(shifts, axis=2)
     angles = np.stack(angles, axis=1)
