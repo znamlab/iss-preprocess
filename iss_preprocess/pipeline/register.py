@@ -756,7 +756,8 @@ def register_tile_to_ref(
     processed_path = iss.io.get_processed_path(data_path)
     r, x, y = tile_coors
     target = processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
-    np.savez(target, matrix_between_channels=tforms)
+    # reshape tforms to be like the multichannels tforms
+    np.savez(target, matrix_between_channels=tforms.reshape((1, 3, 3)))
     return tforms
 
 
