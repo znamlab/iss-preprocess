@@ -3,7 +3,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import tifffile
 from matplotlib.animation import FFMpegWriter, FuncAnimation
 from matplotlib.ticker import FixedLocator
@@ -41,6 +40,9 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
         for ich in range(nch):
             global_min[ich] = min(global_min[ich], np.min(spot_colors[iround, ich, :]))
             global_max[ich] = max(global_max[ich], np.max(spot_colors[iround, ich, :]))
+
+    # importing seaborn is slow. Do it only when needed
+    import seaborn as sns
 
     figs = []
     for iround in range(nrounds):
