@@ -660,12 +660,15 @@ def register_tile_to_ref(
     if ref_prefix == reg_prefix:
         raise ValueError("Reference and register prefixes are the same")
     if ref_channels is None:
-        ref_channels = ops["reg2ref_reference_channel"]
+        ref_channels = ops["reg2ref_reference_channels"]
     spref = reg_prefix.split("_")[0].lower()  # short prefix
     if binarise_quantile is None:
         binarise_quantile = ops.get(f"{spref}_binarise_quantile", 0.7)
     if reg_channels is None:
-        reg_channels = ops.get(f"reg2ref_{spref}_channel", ref_channels)
+        # use either the same as ref or what is in the ops
+        reg_channels = ops.get(f"reg2ref_{spref}_channels", ref_channels)
+        # if there is something defined for this acquisition, use it instead
+        reg_channels = ops.get(f"reg2ref_{reg_prefix}_channels", reg_channels)
 
     print(f"Registering {reg_prefix} to {ref_prefix}", flush=True)
     if use_masked_correlation:

@@ -69,9 +69,15 @@ registration_to_reference:
   reference_prefix: "hybridisation_round_2_1"
   # Which channel of the reference to use for registration, can be a list of channels,
   # in which case they will be averaged
-  reg2ref_reference_channel: 2
+  reg2ref_reference_channels: 2
   # by default the same channel is used for the target channel, but this can be changed
-  # here for individual acquisition by specifying `f"reg2ref_{prefix}_channel"`
+  # here for individual acquisition by specifying `f"reg2ref_{prefix}_channels"`. For
+  # single round images, prefix can be the "short" acquisition name or the full prefix.
+  # If both are present the  latter takes precedence (so
+  # "reg2ref_hybridisation_channels" is ignored if
+  # "reg2ref_hybridisation_round_1_1_channels" exists).
+  reg2ref_genes_channels: [0,1,2,3]
+  reg2ref_barcode_channels: [0,1,2,3]
 
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating
