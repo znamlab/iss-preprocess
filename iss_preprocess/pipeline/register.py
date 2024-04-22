@@ -707,9 +707,9 @@ def register_tile_to_ref(
         print(f"Register to {ref_tile_coors}", flush=True)
 
     print("Parameters: ")
-    print(f"reg_channels: {reg_channels}")
-    print(f"ref_channels: {ref_channels}")
-    print(f"binarise_quantile: {binarise_quantile}", flush=True)
+    print(f"    reg_channels: {reg_channels}")
+    print(f"    ref_channels: {ref_channels}")
+    print(f"    binarise_quantile: {binarise_quantile}", flush=True)
 
     ref_all_channels, ref_bad_pixels = iss.pipeline.load_and_register_tile(
         data_path=data_path,
@@ -741,7 +741,7 @@ def register_tile_to_ref(
         reg = reg > np.quantile(reg, binarise_quantile)
         ref = ref > np.quantile(ref, binarise_quantile)
 
-    angles, shifts = estimate_rotation_translation(
+    angle, shift = estimate_rotation_translation(
         ref,
         reg,
         angle_range=1.0,
@@ -751,20 +751,14 @@ def register_tile_to_ref(
         reference_mask=~ref_bad_pixels if use_masked_correlation else None,
         target_mask=~reg_bad_pixels if use_masked_correlation else None,
     )
-    print(f"Angle: {angles}, Shifts: {shifts}")
+    print(f"Angle: {angle}, Shifts: {shift}")
+    # make it into affine matrix
+    tforms = make_transform(s=1, angle=angle, shift=shift, shape=reg.shape[:2])
     processed_path = iss.io.get_processed_path(data_path)
     r, x, y = tile_coors
-    save_dir = processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
-    print(f"Saving results to {save_dir}")
-    # save also scale and make sure that all have the proper shape to match
-    # multi-channel registrations and reuse the ransac function
-    np.savez(
-        save_dir,
-        angles=np.array([[angles]]),
-        shifts=np.array([shifts]),
-        scales=np.array([[1]]),
-    )
-    return angles, shifts
+    target = processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npy"
+    np.save(target, tforms)
+    return tforms
 
 
 def filter_ransac_shifts_to_ref(data_path, prefix, roi_dims, max_residuals=10):
