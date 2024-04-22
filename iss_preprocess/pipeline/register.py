@@ -500,7 +500,6 @@ def correct_shifts_to_ref(data_path, prefix, max_shift=None, fit_angle=False):
             prefix=prefix_to_reg,
             fit_angle=fit_angle,
             max_shift=max_shift,
-            align_method="similarity",  # for now only similarity is supported
         )
         filter_ransac_shifts_to_ref(data_path, prefix, roi_dim, max_residuals=10)
 
@@ -756,8 +755,8 @@ def register_tile_to_ref(
     tforms = make_transform(s=1, angle=angle, shift=shift, shape=reg.shape[:2])
     processed_path = iss.io.get_processed_path(data_path)
     r, x, y = tile_coors
-    target = processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npy"
-    np.save(target, tforms)
+    target = processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
+    np.savez(target, matrix_between_channels=tforms)
     return tforms
 
 
