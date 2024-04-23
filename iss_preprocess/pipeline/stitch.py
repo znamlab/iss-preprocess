@@ -685,10 +685,10 @@ def stitch_and_register(
         stitched = stitch_tiles(
             data_path,
             prefix=reference_prefix,
+            suffix=ref_projection,
             roi=roi,
-            channels=ch,
-            ref_prefix=reference_prefix,
-            filter_r=False,
+            ich=ch,
+            correct_illumination=True,
         ).astype(np.single)
         if stitched_stack_reference is None:
             stitched_stack_reference = stitched
@@ -721,28 +721,37 @@ def stitch_and_register(
         if np.sum(padding[1, :]):
             pad_ref = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[1]]
             stitched_stack_reference = np.pad(stitched_stack_reference, pad_ref)
+    else:
+        padding = np.zeros((2, 2), dtype=int)
+        final_shape = stitched_stack_target.shape
+
+    # setup common args for registration
+    kwargs = dict(
+        angle_range=1.0,
+        niter=3,
+        nangles=11,
+        upsample=False,
+        debug=debug,
+        max_shift=ops["max_shift2ref"],
+        min_shift=0,
+        reference=stitched_stack_reference[::downsample, ::downsample],
+        target=stitched_stack_target[::downsample, ::downsample],
+    )
+    if use_masked_correlation:
+        kwargs["target_mask"] = target_mask
+        kwargs["reference_mask"] = reference_mask
 
     if estimate_scale and estimate_rotation:
-        scale, angle, shift = estimate_scale_rotation_translation(
-            stitched_stack_reference[::downsample, ::downsample],
-            stitched_stack_target[::downsample, ::downsample],
-            niter=3,
-            nangles=11,
-            verbose=True,
+        out = estimate_scale_rotation_translation(
             scale_range=0.01,
-            angle_range=1.0,
-            upsample=False,
+            **kwargs,
         )
+        if debug:
+            angle, shift, scale, debug_dict = out
+        else:
+            angle, shift, scale = out
     elif estimate_rotation:
-        kwargs = dict(angle_range=1.0, niter=3, nangles=11, upsample=None, debug=debug)
-
-        if use_masked_correlation:
-            kwargs["target_mask"] = target_mask
-            kwargs["reference_mask"] = reference_mask
-
         out = estimate_rotation_translation(
-            stitched_stack_reference[::downsample, ::downsample],
-            stitched_stack_target[::downsample, ::downsample],
             **kwargs,
         )
         if debug:
