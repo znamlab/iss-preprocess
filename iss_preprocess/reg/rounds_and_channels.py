@@ -1005,6 +1005,7 @@ def estimate_rotation_translation(
     Returns:
         best_angle (float) in degrees
         shift (tuple) of X and Y shifts
+        debug_info (dict): dictionary with debug info, only if debug=True
 
     """
 
