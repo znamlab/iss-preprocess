@@ -43,7 +43,7 @@ def load_sequencing_rounds(
     tile_coors=(1, 0, 0),
     nrounds=7,
     suffix="max",
-    prefix="round",
+    prefix="genes_round",
     specific_rounds=None,
 ):
     """Load processed tile images across rounds
@@ -56,7 +56,7 @@ def load_sequencing_rounds(
             `specific_rounds` is None. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'fstack'.
         prefix (str, optional): the folder name prefix, before round number. Defaults
-            to "round"
+            to "genes_round"
         specific_round (list, optional): if not None, specify which rounds must be
             loaded and ignores `nrounds`. Defaults to None
 
@@ -296,7 +296,7 @@ def estimate_channel_correction(
     Args:
         data_path (str or Path): Relative path to the data folder
         prefix (str, optional): Folder name prefix, before round number. Defaults
-            to "round".
+            to "genes_round".
         nrounds (int, optional): Number of rounds. Defaults to 7.
 
     Returns:

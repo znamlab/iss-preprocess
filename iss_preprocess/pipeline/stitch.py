@@ -107,7 +107,9 @@ def get_tform_to_ref(data_path, prefix, tile_coors, corrected_shifts=None):
     )
 
     # now find registration to ref
-    if ("round" in prefix) and (not prefix.endswith("round")):
+    if (("genes" in prefix) or ("barcode" in prefix)) and (
+        not prefix.endswith("round")
+    ):
         reg_prefix = "_".join(prefix.split("_")[:-2])
     else:
         reg_prefix = prefix
@@ -323,9 +325,10 @@ def get_tile_corners(data_path, prefix, roi):
     """
     roi_dims = get_roi_dimensions(data_path)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-    if "round" in prefix:
+    if not prefix.endswith("_1"):
+        # we should have "barcode_round" or "genes_round"
         # always use round 1
-        prefix = f"{prefix.split('_')[0]}_round_1_1"
+        prefix = f"{prefix}_1"
     shifts = np.load(
         iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
     )
@@ -773,8 +776,6 @@ def stitch_and_register(
     if debug:
         output.append(debug_dict)
     return tuple(output)
-
-    return (stitched_stack_target, stitched_stack_reference, angle, shift, scale)
 
 
 @slurm_it(conda_env="iss-preprocess")
