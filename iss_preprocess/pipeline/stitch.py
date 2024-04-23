@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-
+from skimage.transform import AffineTransform, warp
 import numpy as np
 import pandas as pd
 from image_tools.registration import phase_correlation as mpc
@@ -59,14 +59,22 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     # if we ever use this function for downstream analyses (e.g. detecting spots)
     # we should make sure to warp once
     # apply the same registration to all channels and rounds
+    if ops["align_method"] == "affine":
+        tform = reg2ref["matrix_between_channels"][0]
+    else:
+        tform = make_transform(
+            s=reg2ref["scales"][0][0],  # same reg for all round and channels
+            angle=reg2ref["angles"][0][0],
+            shift=reg2ref["shifts"][0],
+            shape=stack.shape[:2],
+        )
     stack[bad_pixels] = np.nan
     for ir in range(stack.shape[3]):
         for ic in range(stack.shape[2]):
-            stack[:, :, ic, ir] = transform_image(
+            stack[:, :, ic, ir] = warp(
                 stack[:, :, ic, ir],
-                scale=reg2ref["scales"][0][0],  # same reg for all round and channels
-                angle=reg2ref["angles"][0][0],
-                shift=reg2ref["shifts"][0],
+                AffineTransform(matrix=tform).inverse,
+                preserve_range=True,
                 cval=np.nan,
             )
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
