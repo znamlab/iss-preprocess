@@ -206,7 +206,9 @@ def project_and_average(data_path, force_redo=False):
     print("All jobs submitted", flush=True)
 
 
-def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
+def load_and_register_tile(
+    data_path, tile_coors, prefix, filter_r=True, projection=None
+):
     """Load one single tile
 
     Load a tile of `prefix` with channels/rounds registered, apply illumination
@@ -219,6 +221,8 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             all the rounds.
         filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
             from `ops`. Default to True
+        projection (str, optional): Projection to use. If None, will read from `ops`.
+            Defaults to None
 
     Returns:
         numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
@@ -228,7 +232,8 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
     """
     ops = load_ops(data_path)
     metadata = load_metadata(data_path)
-    projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
+    if projection is None:
+        projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     if filter_r and isinstance(filter_r, bool):
         filter_r = ops["filter_r"]
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
