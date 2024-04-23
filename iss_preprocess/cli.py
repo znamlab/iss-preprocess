@@ -709,18 +709,11 @@ def align_spots(
     help="Directory prefix to registration.",
 )
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
-@click.option(
-    "-f",
-    "--ref_prefix",
-    default="genes_round_1_1",
-    help="Directory prefix to use as a reference for registration.",
-)
 def align_spots_roi(
     path,
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
     roi=1,
-    ref_prefix="genes_round_1_1",
 ):
     from iss_preprocess.pipeline import merge_and_align_spots
 
