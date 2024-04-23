@@ -800,16 +800,19 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
 
     tform2ref = get_shifts_to_ref(data_path, prefix, roi, tilex, tiley)
 
-    # always get tile shape for ref_prefix
-    tile_shape = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")[
-        "tile_shape"
-    ]
-    spots_tform = make_transform(
-        tform2ref["scales"][0][0],
-        tform2ref["angles"][0][0],
-        tform2ref["shifts"][0],
-        tile_shape,
-    )
+    if ops["align_method"] == "similarity":
+        # always get tile shape for ref_prefix
+        tile_shape = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")[
+            "tile_shape"
+        ]
+        spots_tform = make_transform(
+            tform2ref["scales"][0][0],
+            tform2ref["angles"][0][0],
+            tform2ref["shifts"][0],
+            tile_shape,
+        )
+    else:
+        spots_tform = tform2ref["matrix_between_channels"][0]
     transformed_coors = spots_tform @ np.stack(
         [spots["x"], spots["y"], np.ones(len(spots))]
     )
