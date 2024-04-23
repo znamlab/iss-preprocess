@@ -471,7 +471,7 @@ def stitch_tiles(
 
 
 def stitch_registered(
-    data_path, prefix, roi, channels=0, ref_prefix="genes_round", filter_r=False
+    data_path, prefix, roi, channels=0, ref_prefix=None, filter_r=False
 ):
     """Load registered stack and stitch them
 
@@ -482,8 +482,8 @@ def stitch_registered(
         prefix (str): Prefix of acquisition to stitch
         roi (int): Roi ID
         channels (list or int, optional): Channel id(s). Defaults to 0.
-        ref_prefix (str, optional): Prefix of reference acquisition to load shifts.
-            Defaults to "genes_round".
+        ref_prefix (str, optional): Prefix of reference acquisition to load shifts. If
+            None, load from ops. Defaults to None.
         filter_r (bool, optional): Filter image before stitching? Defaults to False.
 
     Returns:
@@ -497,6 +497,8 @@ def stitch_registered(
         channels = np.arange(len(ops["camera_order"]))
     else:
         channels = list(channels)
+    if ref_prefix is None:
+        ref_prefix = ops["reference_prefix"]
 
     processed_path = iss.io.get_processed_path(data_path)
     if ref_prefix == "genes_round":
@@ -665,6 +667,7 @@ def stitch_and_register(
             suffix=target_suffix,
             roi=roi,
             ich=ch,
+            shifts_prefix=reference_prefix,
             correct_illumination=True,
         ).astype(
             np.single
