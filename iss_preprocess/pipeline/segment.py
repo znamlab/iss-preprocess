@@ -1,10 +1,13 @@
 import warnings
+import glob
 from os import system
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from skimage import measure
+from sklearn.preprocessing import StandardScaler
+from sklearn.mixture import GaussianMixture
 from skimage.filters import threshold_triangle
 from skimage.segmentation import expand_labels
 from tqdm import tqdm
@@ -321,11 +324,6 @@ def segment_mcherry_tile(
     tilex,
     tiley,
     suffix="unmixed",
-    r1=4,
-    r2=70,
-    area_threshold=200,
-    elongation_threshold=0.9,
-    circularity_threshold=0.5,
 ):
     """
     Segment the mCherry channel of an image stack.
@@ -337,11 +335,6 @@ def segment_mcherry_tile(
         tilex (int): X coordinate of the tile.
         tiley (int): Y coordinate of the tile.
         suffix (str): Suffix of the image stack.
-        r1 (int): Inner radius of the annulus.
-        r2 (int): Outer radius of the annulus.
-        area_threshold (int): Minimum area of a cell.
-        elongation_threshold (float): Maximum eccentricity of a cell.
-        circularity_threshold (float): Minimum circularity of a cell.
 
     Returns:
         filtered_masks (np.ndarray): Binary image of the filtered masks.
@@ -351,6 +344,7 @@ def segment_mcherry_tile(
 
     # Load the unmixed and original mCherry image stacks
     processed_path = iss.io.get_processed_path(data_path)
+    ops = load_ops(data_path)
     unmixed_fname = (
         f"{prefix}_MMStack_{roi}-"
         + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_unmixed.tif"
@@ -365,7 +359,7 @@ def segment_mcherry_tile(
     stack = iss.io.load_stack(processed_path / prefix / original_fname)
 
     # Apply a hann window filter to the unmixed image to remove halos around cells
-    filt = iss.image.filter_stack(unmixed_stack, r1=r1, r2=r2, dtype=float)
+    filt = iss.image.filter_stack(unmixed_stack, r1=ops["mcherry_r1"], r2=ops["mcherry_r2"], dtype=float)
     binary = (filt > threshold_triangle(filt))[:, :, 0]
 
     # Label the connected components in the binary image
@@ -400,24 +394,26 @@ def segment_mcherry_tile(
     props_df["tilex"] = tilex
     props_df["tiley"] = tiley
 
-    area_threshold = area_threshold
-    # Closer to 1 means more elongated
-    elongation_threshold = elongation_threshold
-    # Closer to 1 means more circular
-    circularity_threshold = circularity_threshold
-
     filtered_df = props_df[
-        (props_df["area"] > area_threshold)
-        & (props_df["eccentricity"] <= elongation_threshold)
-        & (props_df["circularity"] >= circularity_threshold)
+        (props_df["area"] > ops["min_area_threshold"]) &
+        (props_df["area"] < ops["max_area_threshold"]) &
+        (props_df["circularity"] >= ops["min_circularity_threshold"]) &
+        (props_df["circularity"] >= ops["max_circularity_threshold"]) &
+        (props_df["eccentricity"] <= ops["max_elongation_threshold"]) &
+        (props_df["solidity"] >= ops["min_solidity_threshold"]) &
+        (props_df["solidity"] < ops["max_solidity_threshold"]) &
+        (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])  
     ]
 
     rejected_masks_df = props_df[
-        ~(
-            (props_df["area"] > area_threshold)
-            & (props_df["eccentricity"] <= elongation_threshold)
-            & (props_df["circularity"] >= circularity_threshold)
-        )
+        ~(props_df["area"] > ops["min_area_threshold"]) &
+        (props_df["area"] < ops["max_area_threshold"]) &
+        (props_df["circularity"] >= ops["min_circularity_threshold"]) &
+        (props_df["circularity"] >= ops["max_circularity_threshold"]) &
+        (props_df["eccentricity"] <= ops["max_elongation_threshold"]) &
+        (props_df["solidity"] >= ops["min_solidity_threshold"]) &
+        (props_df["solidity"] < ops["max_solidity_threshold"]) &
+        (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])
     ]
 
     # Identify all pixels belonging to the filtered labels
@@ -442,7 +438,6 @@ def segment_mcherry_tile(
     pd.to_pickle(filtered_df, mask_dir / f"{prefix}_df_{roi}_{tilex}_{tiley}.pkl")
 
     return filtered_masks, filtered_df, rejected_masks
-
 
 def load_mask_by_coors(
     data_path,
@@ -812,3 +807,96 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
         allow_pickle=True,
     )
     return all_overlapping_pairs
+
+
+def remove_non_cell_masks(data_path, roi, tilex, tiley):
+    """
+    Remove masks that are not cells based on the clustering results.
+
+    Args:
+        data_path (str): Relative path to the data.
+        roi (int): Region of interest.
+        tilex (int): X coordinate of the tile.
+        tiley (int): Y coordinate of the tile.
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    mask_dir = processed_path / "cells"
+    df_thresh = pd.read_pickle(mask_dir / "df_thresh.pkl")
+    tile = np.load(
+        mask_dir / f"mCherry_1_masks_{roi}_{tilex}_{tiley}.npy", allow_pickle=True
+    )
+    image_df = df_thresh[
+        (df_thresh["roi"] == roi)
+        & (df_thresh["tilex"] == tilex)
+        & (df_thresh["tiley"] == tiley)
+    ]
+    # Remove bad masks
+    for label in np.unique(tile):
+        if label == 0:
+            continue
+        elif label in image_df["label"].astype(np.uint16).values:
+            # Check if the mask is in the bad cluster (0)
+            if image_df[image_df["label"] == label]["cluster_label"].values[0] != 0:
+                continue
+        else:
+            tile[tile == label] = 0
+
+    # Save the edge corrected masks
+    fname = f"mCherry_1_cell_masks_{roi}_{tilex}_{tiley}.npy"
+    np.save(processed_path / "cells" / fname, tile, allow_pickle=True)
+
+
+def find_mcherry_cells(data_path):
+    """
+    Find cell clusters in the mCherry channel using a GMM to cluster
+    cells based on their morphological features. Then remove non-cell
+    masks based on the clustering results and save remaining masks.
+
+    Args:
+        data_path (str): Relative path to the data.
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    df_dir = processed_path / "cells"
+    df_files = glob.glob(str(df_dir / "*.pkl"))
+    dfs = [pd.read_pickle(f) for f in df_files]
+    df = pd.concat(dfs)
+
+    scaler = StandardScaler()
+
+    features = [
+        "area",
+        "circularity",
+        "solidity",
+        "intensity_mean-3",
+        "intensity_mean-2",
+    ]
+
+    df_norm = (df[features] - df[features].min()) / (
+        df[features].max() - df[features].min()
+    )
+    scaled_features = scaler.fit_transform(df_norm[features])
+    df_scaled_features = pd.DataFrame(scaled_features, columns=features)
+
+    #TODO: Remove hardcoded cluster centers (use percentiles?)
+    cluster_centers_scaled = np.array(
+        [
+            [-0.81560289, -1.16570977, -1.16885992, 0.68591332, -0.47768646],
+            [-0.08201876, 0.48188625, 0.38447341, -0.41695244, -0.42873761],
+            [0.97601349, 0.61105821, 0.74187513, -0.18499336, 1.06977134],
+        ]
+    )
+
+    # Fit GMM
+    n_components = 3
+    gmm = GaussianMixture(
+        n_components=n_components,
+        means_init=cluster_centers_scaled,
+        random_state=42,
+        verbose=2,
+    )
+    gmm.fit(df_scaled_features[features])
+    labels = gmm.predict(df_scaled_features[features])
+    df["cluster_label"] = labels + 1
+    df.to_pickle(processed_path / "cells" / "df_thresh.pkl")
+
+    iss.pipeline.batch_process_tiles(data_path, script="remove_non_cell_masks")

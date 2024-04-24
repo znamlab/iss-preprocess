@@ -876,7 +876,6 @@ def setup_flexilims(path):
 )
 def setup_channel_correction(path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
-    from pathlib import Path
 
     from iss_preprocess.pipeline import setup_channel_correction as scc
 
@@ -952,14 +951,35 @@ def plot_overview(
 )
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 @click.option(
-    "-b", "--background", default=3, help="Channel containing background, e.g. 3"
+    "-b", "--background_ch", default=3, help="Channel containing background, e.g. 3"
 )
-@click.option("-g", "--signal", default=2, help="Channel containing signal, e.g. 2")
-def unmix_channels(path, prefix="mCherry_1", suffix="max", background=3, signal=2):
+@click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
+def unmix_channels(path, prefix="mCherry_1", suffix="max", background_ch=3, signal_ch=2):
     """Unmix autofluorescence from signal for all tiles in a dataset."""
     from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.image import unmix_ref_tile
+    from iss_preprocess.io.load import load_ops
+    from iss_preprocess.pipeline import load_and_register_tile
 
-    additional_args = f",PREFIX={prefix},SUFFIX={suffix},BACKGROUND_CH={background},SIGNAL_CH={signal}"
+    ops = load_ops(path)
+    (roi, tilex, tiley) = ops["mcherry_ref_tile"]
+    stack, _ = load_and_register_tile(
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, filter_r=False
+    )
+    print(f"Unmixing autofluorescence from reference tile {roi}, {tilex}, {tiley}")
+    _, coef, intercept = unmix_ref_tile(
+        path,
+        prefix,
+        roi,
+        tilex,
+        tiley,
+        stack,
+        suffix=suffix,
+        background_ch=background_ch,
+        signal_ch=signal_ch,
+    )
+
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix},BACKGROUND_CH={background_ch},SIGNAL_CH={signal_ch},COEF={coef},INTERCEPT={intercept}"
     batch_process_tiles(path, script="unmix_channels", additional_args=additional_args)
 
 
@@ -978,8 +998,10 @@ def unmix_channels(path, prefix="mCherry_1", suffix="max", background=3, signal=
     "-b", "--background_ch", default=3, help="Channel containing background, e.g. 3"
 )
 @click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
+@click.option("-c", "--coef", help="Coefficient for linear unmixing")
+@click.option("-i", "--intercept", help="Intercept for linear unmixing")
 def unmix_tile(
-    path, prefix, roi, tilex, tiley, suffix="max", background_ch=3, signal_ch=2
+    path, prefix, roi, tilex, tiley, suffix="max", background_ch=3, signal_ch=2, coef=None, intercept=None
 ):
     """Unmix autofluorescence from signal for all tiles in a dataset."""
     from iss_preprocess.image import unmix_tile
@@ -998,6 +1020,8 @@ def unmix_tile(
         suffix=suffix,
         background_ch=background_ch,
         signal_ch=signal_ch,
+        coef=coef,
+        intercept=intercept,
     )
 
 
@@ -1039,9 +1063,34 @@ def segment_mcherry_tile(path, prefix, roi, tilex, tiley, suffix="max"):
         tilex,
         tiley,
         suffix,
-        r1=4,
-        r2=70,
-        area_threshold=0,
-        elongation_threshold=99999,
-        circularity_threshold=0.0,
     )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", "--tilex", default=0, help="Tile X position")
+@click.option("-y", "--tiley", default=0, help="Tile Y position.")
+def remove_non_cell_masks(path, roi, tilex, tiley):
+    """Remove masks from mCherry tiles that don't correspond to cells."""
+    from iss_preprocess.pipeline import remove_non_cell_masks
+
+    remove_non_cell_masks(
+        path,
+        roi,
+        tilex,
+        tiley,
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def find_mcherry_cells(path):
+    """Find mCherry cells using a GMM to cluster masks based on their
+    morphological features. Then remove non-cell masks from each tile.
+    """
+    from iss_preprocess.pipeline import find_mcherry_cells
+
+    find_mcherry_cells(path)

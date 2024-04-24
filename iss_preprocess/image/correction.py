@@ -84,7 +84,7 @@ def filter_stack(stack, r1=2, r2=4, dtype=float):
     return stack_filt
 
 
-def unmix_tile(
+def unmix_ref_tile(
     data_path,
     prefix,
     roi,
@@ -94,8 +94,6 @@ def unmix_tile(
     suffix="max",
     background_ch=3,
     signal_ch=2,
-    background_coef=1.1,
-    threshold_background=200,
 ):
     """
     Unmixes two images: one with only background autofluorescence and another with both background and useful signal.
@@ -124,6 +122,10 @@ def unmix_tile(
     background_flat = background_image.ravel()
     mixed_signal_flat = mixed_signal_image.ravel()
 
+    ops = load_ops(data_path)
+    background_coef = ops["background_coef"]
+    threshold_background = ops["threshold_background"]
+
     # Remove pixels that are too dark or too bright
     bright_pixels = (
         (background_flat > threshold_background) & (background_flat < 4090)
@@ -133,23 +135,75 @@ def unmix_tile(
 
     # Initialize and fit Linear model
     model = LinearRegression(positive=True)
-    model.fit(background_flat, mixed_signal_flat)
-    # Predict the background component in the mixed signal image
-    predicted_background_flat = model.predict(background_image.ravel().reshape(-1, 1))
+    try:
+        model.fit(background_flat, mixed_signal_flat)
+        # Predict the background component in the mixed signal image
+        predicted_background_flat = model.predict(background_image.ravel().reshape(-1, 1))
 
-    predicted_background = predicted_background_flat.reshape(background_image.shape)
+        predicted_background = predicted_background_flat.reshape(background_image.shape)
 
-    # Subtract the predicted background from the mixed signal to get the signal image
-    signal_image = (
-        mixed_signal_image - predicted_background * background_coef
-    )  # TODO: Remove fudge factor
-    signal_image = np.clip(signal_image, 0, None)
+        # Subtract the predicted background from the mixed signal to get the signal image
+        signal_image = (
+            mixed_signal_image - (predicted_background * background_coef)
+        )  # TODO: Remove fudge factor
+        signal_image = np.clip(signal_image, 0, None)
+        print(f"Image unmixed with coefficient: {model.coef_[0]}, intercept: {model.intercept_}")
+    except ValueError:
+        raise ValueError("Not enough data passing background threshold to fit model")
 
     write_stack(
         signal_image, image_path.with_name(image_path.name.replace(suffix, "unmixed"))
     )
-    return signal_image
 
+    return signal_image, model.coef_[0], model.intercept_
+
+def unmix_tile(
+    data_path,
+    prefix,
+    roi,
+    tilex,
+    tiley,
+    stack,
+    suffix="max",
+    background_ch=3,
+    signal_ch=2,
+    coef=None,
+    intercept=None,
+):
+    """
+    Unmixes two images: one with only background autofluorescence and another with both background and useful signal.
+    Uses Linear regression for the unmixing process.
+
+    Args:
+        background_image: numpy array of the background image.
+        mixed_signal_image: numpy array of the image with both signal and background.
+        background_coef: Coefficient to multiply the background image by before subtraction.
+        threshold_background: Minimum value for a pixel to be considered background.
+
+    Returns:
+        signal_image: The isolated signal image after background subtraction.
+    """
+
+    processed_path = get_processed_path(data_path)
+    ops = load_ops(data_path)
+    background_coef= ops["background_coef"]
+    print(f"Unmixing with coef: {coef}, intercept: {intercept} and background coef: {background_coef}")
+    fname = (
+        f"{prefix}_MMStack_{roi}-"
+        + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_{suffix}.tif"
+    )
+    image_path = processed_path / prefix / fname
+    background_image = stack[:, :, background_ch, 0]
+    mixed_signal_image = stack[:, :, signal_ch, 0]
+    predicted_background = (background_image * float(coef)) + float(intercept)
+    signal_image = mixed_signal_image - (predicted_background * background_coef)
+    signal_image = np.clip(signal_image, 0, None)
+    #TODO: Don't save files, compute on the fly during segmentation
+    write_stack(
+        signal_image, image_path.with_name(image_path.name.replace(suffix, "unmixed"))
+    )
+
+    return signal_image
 
 def tilestats_and_mean_image(
     data_folder,

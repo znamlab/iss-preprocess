@@ -267,7 +267,7 @@ def load_and_register_tile(
             suffix=projection,
             filter_r=filter_r,
             correct_illumination=True,
-            correct_channels=True,
+            correct_channels=False,
         )
     else:
         stack = load_tile_by_coors(
