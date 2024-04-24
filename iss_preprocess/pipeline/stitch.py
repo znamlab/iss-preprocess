@@ -4,7 +4,7 @@ from skimage.transform import AffineTransform, warp
 import numpy as np
 import pandas as pd
 from image_tools.registration import phase_correlation as mpc
-from image_tools.similarity_transforms import make_transform, transform_image
+from image_tools.similarity_transforms import transform_image
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from skimage.registration import phase_cross_correlation
@@ -653,7 +653,6 @@ def stitch_and_register(
         "stitching is now done on registered tiles", DeprecationWarning, stacklevel=2
     )
     ops = load_ops(data_path)
-    ref_projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
     if target_suffix is None:
         target_suffix = ops[f"{target_prefix.split('_')[0].lower()}_projection"]
 
@@ -828,7 +827,6 @@ def merge_and_align_spots(
 
     """
     processed_path = iss.io.get_processed_path(data_path)
-    reg_path = processed_path / "reg"
 
     # find tile origin, final shape, and shifts in reference coordinates
     ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
