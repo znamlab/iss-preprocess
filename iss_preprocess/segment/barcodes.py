@@ -1,8 +1,5 @@
 import cv2
 import numpy as np
-import pandas as pd
-
-import iss_preprocess as iss
 
 
 def segment_spot_image(
