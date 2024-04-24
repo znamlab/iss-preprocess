@@ -66,11 +66,22 @@ def load_and_register_hyb_tile(
     )
     if correct_illumination:
         stack = apply_illumination_correction(data_path, stack, prefix)
-    stack = apply_corrections(
-        stack,
-        matrix=tforms["matrix_between_channels"],
-        cval=np.nan,
-    )
+    if "matrix_between_channels" not in tforms.keys():
+        stack = apply_corrections(
+            stack,
+            matrix=None,
+            scales=tforms["scales"],
+            angles=tforms["angles"],
+            shifts=tforms["shifts"],
+            cval=np.nan,
+        )
+    else:
+        stack = apply_corrections(
+            stack,
+            matrix=tforms["matrix_between_channels"],
+            cval=np.nan,
+        )
+
     bad_pixels = np.any(np.isnan(stack), axis=(2))
     stack[np.isnan(stack)] = 0
     if filter_r:
