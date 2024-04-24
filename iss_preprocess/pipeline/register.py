@@ -550,7 +550,7 @@ def correct_shifts_single_round_roi(
                 print(f"No tforms for tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
                 if align_method == "affine":
-                    angles.append(np.zeros((1, 2, 2)) + np.nan)
+                    angles.append(np.zeros((4, 2, 2)) + np.nan)
                 else:
                     angles.append(np.array(np.nan, ndmin=2))
 
@@ -569,7 +569,7 @@ def correct_shifts_single_round_roi(
                 print(f"couldn't load tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
                 if align_method == "affine":
-                    angles.append(np.zeros((1, 2, 2)) + np.nan)
+                    angles.append(np.zeros((4, 2, 2)) + np.nan)
                 else:
                     angles.append(np.array(np.nan, ndmin=2))
 
