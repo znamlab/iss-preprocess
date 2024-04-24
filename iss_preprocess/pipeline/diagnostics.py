@@ -266,7 +266,7 @@ def check_affine_channel_registration(
         block_size = ops.get([f"{ops_pref}_reg_block_size"], 256)
     if overlap == "ops":
         overlap = ops.get([f"{ops_pref}_reg_overlap"], 0.5)
-    if not "_1" in prefix:
+    if "_1" not in prefix:
         roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
         multi_rounds = True
     else:
