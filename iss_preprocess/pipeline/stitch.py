@@ -4,7 +4,7 @@ from skimage.transform import AffineTransform, warp
 import numpy as np
 import pandas as pd
 from image_tools.registration import phase_correlation as mpc
-from image_tools.similarity_transforms import transform_image
+from image_tools.similarity_transforms import make_transform, transform_image
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from skimage.registration import phase_cross_correlation
@@ -798,8 +798,7 @@ def merge_and_align_spots(
     data_path,
     roi,
     spots_prefix="barcode_round",
-    reg_prefix="barcode_round_1_1",
-    ref_prefix="genes_round_1_1",
+    ref_prefix=None,
     keep_all_spots=False,
 ):
     """Combine spots across tiles and align to reference coordinates for a single ROI.
@@ -826,6 +825,9 @@ def merge_and_align_spots(
         pandas.DataFrame: DataFrame containing all spots in reference coordinates.
 
     """
+    ops = load_ops(data_path)
+    if ref_prefix is None:
+        ref_prefix = ops["reference_prefix"]
     processed_path = iss.io.get_processed_path(data_path)
 
     # find tile origin, final shape, and shifts in reference coordinates
