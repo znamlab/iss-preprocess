@@ -359,7 +359,9 @@ def segment_mcherry_tile(
     stack = iss.io.load_stack(processed_path / prefix / original_fname)
 
     # Apply a hann window filter to the unmixed image to remove halos around cells
-    filt = iss.image.filter_stack(unmixed_stack, r1=ops["mcherry_r1"], r2=ops["mcherry_r2"], dtype=float)
+    filt = iss.image.filter_stack(
+        unmixed_stack, r1=ops["mcherry_r1"], r2=ops["mcherry_r2"], dtype=float
+    )
     binary = (filt > threshold_triangle(filt))[:, :, 0]
 
     # Label the connected components in the binary image
@@ -395,25 +397,25 @@ def segment_mcherry_tile(
     props_df["tiley"] = tiley
 
     filtered_df = props_df[
-        (props_df["area"] > ops["min_area_threshold"]) &
-        (props_df["area"] < ops["max_area_threshold"]) &
-        (props_df["circularity"] >= ops["min_circularity_threshold"]) &
-        (props_df["circularity"] >= ops["max_circularity_threshold"]) &
-        (props_df["eccentricity"] <= ops["max_elongation_threshold"]) &
-        (props_df["solidity"] >= ops["min_solidity_threshold"]) &
-        (props_df["solidity"] < ops["max_solidity_threshold"]) &
-        (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])  
+        (props_df["area"] > ops["min_area_threshold"])
+        & (props_df["area"] < ops["max_area_threshold"])
+        & (props_df["circularity"] >= ops["min_circularity_threshold"])
+        & (props_df["circularity"] >= ops["max_circularity_threshold"])
+        & (props_df["eccentricity"] <= ops["max_elongation_threshold"])
+        & (props_df["solidity"] >= ops["min_solidity_threshold"])
+        & (props_df["solidity"] < ops["max_solidity_threshold"])
+        & (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])
     ]
 
     rejected_masks_df = props_df[
-        ~(props_df["area"] > ops["min_area_threshold"]) &
-        (props_df["area"] < ops["max_area_threshold"]) &
-        (props_df["circularity"] >= ops["min_circularity_threshold"]) &
-        (props_df["circularity"] >= ops["max_circularity_threshold"]) &
-        (props_df["eccentricity"] <= ops["max_elongation_threshold"]) &
-        (props_df["solidity"] >= ops["min_solidity_threshold"]) &
-        (props_df["solidity"] < ops["max_solidity_threshold"]) &
-        (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])
+        ~(props_df["area"] > ops["min_area_threshold"])
+        & (props_df["area"] < ops["max_area_threshold"])
+        & (props_df["circularity"] >= ops["min_circularity_threshold"])
+        & (props_df["circularity"] >= ops["max_circularity_threshold"])
+        & (props_df["eccentricity"] <= ops["max_elongation_threshold"])
+        & (props_df["solidity"] >= ops["min_solidity_threshold"])
+        & (props_df["solidity"] < ops["max_solidity_threshold"])
+        & (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])
     ]
 
     # Identify all pixels belonging to the filtered labels
@@ -438,6 +440,7 @@ def segment_mcherry_tile(
     pd.to_pickle(filtered_df, mask_dir / f"{prefix}_df_{roi}_{tilex}_{tiley}.pkl")
 
     return filtered_masks, filtered_df, rejected_masks
+
 
 def load_mask_by_coors(
     data_path,
@@ -877,7 +880,7 @@ def find_mcherry_cells(data_path):
     scaled_features = scaler.fit_transform(df_norm[features])
     df_scaled_features = pd.DataFrame(scaled_features, columns=features)
 
-    #TODO: Remove hardcoded cluster centers (use percentiles?)
+    # TODO: Remove hardcoded cluster centers (use percentiles?)
     cluster_centers_scaled = np.array(
         [
             [-0.81560289, -1.16570977, -1.16885992, 0.68591332, -0.47768646],

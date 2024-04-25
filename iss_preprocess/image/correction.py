@@ -138,16 +138,20 @@ def unmix_ref_tile(
     try:
         model.fit(background_flat, mixed_signal_flat)
         # Predict the background component in the mixed signal image
-        predicted_background_flat = model.predict(background_image.ravel().reshape(-1, 1))
+        predicted_background_flat = model.predict(
+            background_image.ravel().reshape(-1, 1)
+        )
 
         predicted_background = predicted_background_flat.reshape(background_image.shape)
 
         # Subtract the predicted background from the mixed signal to get the signal image
-        signal_image = (
-            mixed_signal_image - (predicted_background * background_coef)
+        signal_image = mixed_signal_image - (
+            predicted_background * background_coef
         )  # TODO: Remove fudge factor
         signal_image = np.clip(signal_image, 0, None)
-        print(f"Image unmixed with coefficient: {model.coef_[0]}, intercept: {model.intercept_}")
+        print(
+            f"Image unmixed with coefficient: {model.coef_[0]}, intercept: {model.intercept_}"
+        )
     except ValueError:
         raise ValueError("Not enough data passing background threshold to fit model")
 
@@ -156,6 +160,7 @@ def unmix_ref_tile(
     )
 
     return signal_image, model.coef_[0], model.intercept_
+
 
 def unmix_tile(
     data_path,
@@ -186,8 +191,10 @@ def unmix_tile(
 
     processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
-    background_coef= ops["background_coef"]
-    print(f"Unmixing with coef: {coef}, intercept: {intercept} and background coef: {background_coef}")
+    background_coef = ops["background_coef"]
+    print(
+        f"Unmixing with coef: {coef}, intercept: {intercept} and background coef: {background_coef}"
+    )
     fname = (
         f"{prefix}_MMStack_{roi}-"
         + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_{suffix}.tif"
@@ -198,12 +205,13 @@ def unmix_tile(
     predicted_background = (background_image * float(coef)) + float(intercept)
     signal_image = mixed_signal_image - (predicted_background * background_coef)
     signal_image = np.clip(signal_image, 0, None)
-    #TODO: Don't save files, compute on the fly during segmentation
+    # TODO: Don't save files, compute on the fly during segmentation
     write_stack(
         signal_image, image_path.with_name(image_path.name.replace(suffix, "unmixed"))
     )
 
     return signal_image
+
 
 def tilestats_and_mean_image(
     data_folder,

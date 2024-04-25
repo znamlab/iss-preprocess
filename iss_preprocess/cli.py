@@ -954,7 +954,9 @@ def plot_overview(
     "-b", "--background_ch", default=3, help="Channel containing background, e.g. 3"
 )
 @click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
-def unmix_channels(path, prefix="mCherry_1", suffix="max", background_ch=3, signal_ch=2):
+def unmix_channels(
+    path, prefix="mCherry_1", suffix="max", background_ch=3, signal_ch=2
+):
     """Unmix autofluorescence from signal for all tiles in a dataset."""
     from iss_preprocess.pipeline import batch_process_tiles
     from iss_preprocess.image import unmix_ref_tile
@@ -1001,7 +1003,16 @@ def unmix_channels(path, prefix="mCherry_1", suffix="max", background_ch=3, sign
 @click.option("-c", "--coef", help="Coefficient for linear unmixing")
 @click.option("-i", "--intercept", help="Intercept for linear unmixing")
 def unmix_tile(
-    path, prefix, roi, tilex, tiley, suffix="max", background_ch=3, signal_ch=2, coef=None, intercept=None
+    path,
+    prefix,
+    roi,
+    tilex,
+    tiley,
+    suffix="max",
+    background_ch=3,
+    signal_ch=2,
+    coef=None,
+    intercept=None,
 ):
     """Unmix autofluorescence from signal for all tiles in a dataset."""
     from iss_preprocess.image import unmix_tile
