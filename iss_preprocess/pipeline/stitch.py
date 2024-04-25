@@ -596,15 +596,15 @@ def merge_roi_spots(
 
 def stitch_and_register(
     data_path,
-    reference_prefix,
     target_prefix,
+    reference_prefix=None,
     roi=1,
     downsample=3,
     ref_ch=0,
     target_ch=0,
     estimate_scale=False,
     estimate_rotation=True,
-    target_suffix=None,
+    target_projection=None,
     use_masked_correlation=False,
     debug=False,
 ):
@@ -653,9 +653,11 @@ def stitch_and_register(
         "stitching is now done on registered tiles", DeprecationWarning, stacklevel=2
     )
     ops = load_ops(data_path)
-    if target_suffix is None:
-        target_suffix = ops[f"{target_prefix.split('_')[0].lower()}_projection"]
-
+    ref_projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
+    if target_projection is None:
+        target_projection = ops[f"{target_prefix.split('_')[0].lower()}_projection"]
+    if reference_prefix is None:
+        reference_prefix = ops["reference_prefix"]
     if isinstance(target_ch, int):
         target_ch = [target_ch]
     stitched_stack_target = None
@@ -663,7 +665,7 @@ def stitch_and_register(
         stitched = stitch_tiles(
             data_path,
             target_prefix,
-            suffix=target_suffix,
+            suffix=target_projection,
             roi=roi,
             ich=ch,
             shifts_prefix=reference_prefix,
@@ -687,6 +689,7 @@ def stitch_and_register(
             suffix=ref_projection,
             roi=roi,
             ich=ch,
+            shifts_prefix=reference_prefix,
             correct_illumination=True,
         ).astype(np.single)
         if stitched_stack_reference is None:
@@ -694,15 +697,14 @@ def stitch_and_register(
         else:
             stitched_stack_reference += stitched
     stitched_stack_reference /= len(ref_ch)
-    orig_target_shape = stitched_stack_target.shape
-    orig_referece_shape = stitched_stack_reference.shape
-
     if use_masked_correlation:
         target_mask = np.ones(stitched_stack_target.shape, dtype=bool)
         reference_mask = np.ones(stitched_stack_reference.shape, dtype=bool)
 
     # If they have different shapes, 0 pad the smallest one
+    # If we have the same shift this is not needed
     if stitched_stack_target.shape != stitched_stack_reference.shape:
+        warnings.warn("Stitched stacks have different shapes. Padding to match.")
         stacks_shape = np.vstack(
             (stitched_stack_target.shape, stitched_stack_reference.shape)
         )
@@ -784,8 +786,6 @@ def stitch_and_register(
         shift=shift,
         scale=scale,
         stitched_stack_shape=final_shape,
-        orig_target_shape=orig_target_shape,
-        orig_referece_shape=orig_referece_shape,
     )
     output = [stitched_stack_target, stitched_stack_reference, angle, shift, scale]
     if debug:
