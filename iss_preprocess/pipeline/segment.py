@@ -400,7 +400,7 @@ def segment_mcherry_tile(
         (props_df["area"] > ops["min_area_threshold"])
         & (props_df["area"] < ops["max_area_threshold"])
         & (props_df["circularity"] >= ops["min_circularity_threshold"])
-        & (props_df["circularity"] >= ops["max_circularity_threshold"])
+        & (props_df["circularity"] <= ops["max_circularity_threshold"])
         & (props_df["eccentricity"] <= ops["max_elongation_threshold"])
         & (props_df["solidity"] >= ops["min_solidity_threshold"])
         & (props_df["solidity"] < ops["max_solidity_threshold"])
@@ -863,6 +863,8 @@ def find_mcherry_cells(data_path):
     df_files = glob.glob(str(df_dir / "*.pkl"))
     dfs = [pd.read_pickle(f) for f in df_files]
     df = pd.concat(dfs)
+    if df.empty:
+        raise ValueError("No masks found in any tile.")
 
     scaler = StandardScaler()
 
