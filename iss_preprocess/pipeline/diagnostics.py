@@ -3,7 +3,7 @@ Module containing diagnostic plots to make sure steps of the pipeline run smooth
 
 The functions in here do not compute anything useful, but create figures
 """
-
+import numbers
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -619,15 +619,15 @@ def check_barcode_calling(data_path):
 
 
 @slurm_it(conda_env="iss-preprocess")
-def check_barcode_basecall(data_path, tile_coords=None, ref_tile_index=0):
+def check_barcode_basecall(data_path, tile_coords=None):
     """Check that the basecall is correct
 
     Args:
         path (str): Path to data folder
         tile_coords (list, optional): Tile coordinates to use. Defaults to None.
-        ref_tile_index (int, optional): Index of the reference tile to use if
-            tile_coords is None. Defaults to 0.
 
+    Returns:
+        plt.Figure: Figure(s) with the basecall
     """
     processed_path = iss.io.get_processed_path(data_path)
     figure_folder = processed_path / "figures" / "barcode_round"
@@ -635,9 +635,20 @@ def check_barcode_basecall(data_path, tile_coords=None, ref_tile_index=0):
 
     # get one of the reference tiles
     ops = iss.io.load_ops(data_path)
-    if tile_coords is None:
-        tile_coords = ops["barcode_ref_tiles"][ref_tile_index]
 
+    if tile_coords is None:
+        tile_coords = _get_some_tiles(
+            data_path, prefix="barcode_round_1_1", tile_coords=tile_coords
+        )
+
+    if not isinstance(tile_coords[0], numbers.Number):
+        # it's a list of tile coordinates
+        figs = []
+        for tile in tile_coords:
+            figs.append(check_barcode_basecall(data_path, tile))
+        return figs
+
+    # we have been called with a single tile coordinate
     stack, spot_sign_image, spots = iss.pipeline.sequencing.basecall_tile(
         data_path, tile_coords, save_spots=False
     )

@@ -490,21 +490,17 @@ def basecall(path):
 
     from pathlib import Path
 
-    from iss_preprocess.io.load import load_ops
     from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
 
-    ops = load_ops(path)
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    for index in range(len(ops["barcode_ref_tiles"])):
-        check_barcode_basecall(
-            path,
-            ref_tile_index=index,
-            use_slurm=True,
-            job_dependency=job_ids,
-            slurm_folder=slurm_folder,
-            scripts_name=f"check_basecall_{index}",
-        )
+    check_barcode_basecall(
+        path,
+        use_slurm=True,
+        job_dependency=job_ids,
+        slurm_folder=slurm_folder,
+        scripts_name=f"check_basecall",
+    )
 
 
 @cli.command()
