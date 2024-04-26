@@ -1058,7 +1058,7 @@ def segment_all_mcherry(path, prefix="mCherry_1", suffix="max"):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option("-s", "--suffix", default="unmixed", help="Projection suffix, e.g. 'max'")
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 def segment_mcherry_tile(path, prefix, roi, tilex, tiley, suffix="max"):
     """Segment mCherry channel for a single tile."""
     from iss_preprocess.pipeline import segment_mcherry_tile
