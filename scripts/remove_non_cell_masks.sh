@@ -11,4 +11,4 @@ source activate base
 
 conda activate iss-preprocess
 
-iss remove_non_cell_masks -p $DATAPATH -r $ROI -x $TILEX -y $TILEY
+iss remove-non-cell-masks -p $DATAPATH -r $ROI -x $TILEX -y $TILEY
