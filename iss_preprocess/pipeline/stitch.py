@@ -23,7 +23,7 @@ from . import pipeline
 from .register import align_spots
 
 
-def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
+def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection=None):
     """Load one single tile in the reference coordinates
 
     This load a tile of `prefix` with channels/rounds registered
@@ -35,6 +35,8 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
             all the rounds.
         filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
             from `ops`. Default to True
+        projection (str, optional): Projection to load. If None, will use the one in
+            `ops`. Default to None
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
@@ -43,15 +45,13 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
 
     """
     stack, bad_pixels = pipeline.load_and_register_tile(
-        data_path, tile_coors, prefix, filter_r=filter_r
+        data_path, tile_coors, prefix, filter_r=filter_r, projection=projection
     )
     ops = load_ops(data_path)
     ref_prefix = ops["reference_prefix"]
     if prefix.startswith(ref_prefix):
         # No need to register to ref
         return stack, bad_pixels
-
-    reg2ref = get_tform_to_ref(data_path, prefix, tile_coors)
     # we have data with channels/rounds registered
     # Now find how much the acquisition stitching is shifting the data compared to
     # reference
@@ -59,6 +59,30 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
     # if we ever use this function for downstream analyses (e.g. detecting spots)
     # we should make sure to warp once
     # apply the same registration to all channels and rounds
+
+    stack, bad_pixels = warp_stack_to_ref(data_path, prefix, tile_coors, stack)
+
+    return stack, bad_pixels
+
+
+def warp_stack_to_ref(stack, data_path, prefix, tile_coors):
+    """Warp a stack to the reference coordinates
+
+    Args:
+        stack (np.array): A (X x Y x Nchannels x Nrounds) stack
+        data_path (str): Relative path to data
+        prefix (str): Acquisition to use to find registration parameters
+        tile_coors (tuple): (Roi, tileX, tileY) tuple
+
+    Returns:
+        np.array: A (X x Y x Nchannels x Nrounds) registered stack
+        np.array: A (X x Y) boolean array of bad pixels that fall outside image after
+            registration
+
+    """
+    ops = load_ops(data_path)
+    reg2ref = get_tform_to_ref(data_path, prefix, tile_coors)
+
     if ops["align_method"] == "affine":
         tform = reg2ref["matrix_between_channels"][0]
     else:
