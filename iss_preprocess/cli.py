@@ -630,7 +630,7 @@ def register_to_reference(
 )
 @click.option(
     "-l",
-    "--reload",
+    "--reload/--no-reload",
     default=True,
     help="Whether to reload register_adjacent_tiles shifts.",
 )
