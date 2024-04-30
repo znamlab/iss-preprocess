@@ -466,7 +466,7 @@ def load_mask_by_coors(
     processed_path = iss.io.get_processed_path(data_path)
     tile_roi, tile_x, tile_y = tile_coors
     fname_corrected = f"{prefix}_masks_corrected_{tile_roi}_{tile_x}_{tile_y}.npy"
-    fname = f"{prefix}_masks_{tile_roi}_{tile_x}_{tile_y}.npy"
+    fname = f"{prefix}_cell_masks_{tile_roi}_{tile_x}_{tile_y}.npy"
     if load_raw:
         if (processed_path / "cells" / fname).exists():
             masks = np.load(processed_path / "cells" / fname, allow_pickle=True)
@@ -582,7 +582,7 @@ def get_overlap_regions(
 
 def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh):
     """
-    Dynamically identifies and removes overlapping labels in two adjacent tile overlaps
+    Dynamically identifies and removes overlapping labels in place, in two adjacent tile overlaps
     based on upper and lower overlap percentage thresholds. If the overlap is above the upper
     threshold, the label in the shifted tile is removed. If the overlap is below
     the lower threshold, the shared region is removed from both masks.
@@ -613,7 +613,7 @@ def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh
                     percent_overlap_tile1 = (overlap_area / np.sum(mask1)) * 100
                     percent_overlap_tile2 = (overlap_area / np.sum(mask2)) * 100
                     overlapping_pairs.append(
-                        (label1, label2, (percent_overlap_tile1, percent_overlap_tile2))
+                        (label1, label2, percent_overlap_tile1, percent_overlap_tile2)
                     )
                     # If overlap is above the upper threshold, remove the label from the shifted tile
                     if (
@@ -644,6 +644,17 @@ def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh
 
 
 def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
+    """
+    Remove masks that overlap in adjacent tiles.
+
+    Args:
+        data_path (str): Relative path to the data.
+        prefix (str): Prefix of the image stack.
+        upper_overlap_thresh (float): The upper threshold percentage for considering mask overlap significant.
+
+    Returns:
+        all_overlapping_pairs (list): A list of tuples containing the labels that overlapped and their respective percentages.
+    """
     processed_path = iss.io.get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
     ops = iss.io.load_ops(data_path)
@@ -657,12 +668,12 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
     # First remove masks at the edges of all the tiles
     for roi in roi_dims[:, 0]:
         for tilex in tqdm(
-            range(roi_dims[roi - 1, 1]),
+            range(roi_dims[roi - 1, 1] + 1),
             desc=f"ROI {roi} X-axis",
             total=roi_dims[roi - 1, 1],
         ):
             for tiley in tqdm(
-                range(roi_dims[roi - 1, 2]),
+                range(roi_dims[roi - 1, 2] + 1),
                 desc=f"Tile {tilex} Y-axis",
                 leave=False,
                 total=roi_dims[roi - 1, 2],
@@ -685,18 +696,17 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
     all_overlapping_pairs = []
     for roi in roi_dims[:, 0]:
         for tilex in tqdm(
-            reversed(range(roi_dims[roi - 1, 1])),
+            reversed(range(roi_dims[roi - 1, 1] + 1)),
             desc=f"ROI {roi} X-axis (overlap check)",
             total=roi_dims[roi - 1, 1],
         ):
             for tiley in tqdm(
-                reversed(range(roi_dims[roi - 1, 2])),
+                reversed(range(roi_dims[roi - 1, 2] + 1)),
                 desc=f"Tile {tilex} Y-axis (overlap check)",
                 leave=False,
                 total=roi_dims[roi - 1, 2],
             ):
                 ref_coors = (roi, tilex, tiley)
-
                 # Load reference tile
                 tile_ref = load_mask_by_coors(
                     data_path, tile_coors=ref_coors, prefix=prefix
@@ -739,7 +749,7 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 shifts_fname = (
                     iss.io.get_processed_path(data_path)
                     / "reg"
-                    / f"{prefix}_shifts.npz"
+                    / f"{prefix}_shifts.npz"  # f"{ops['reference_prefix']}_shifts.npz"
                 )
                 shifts = np.load(shifts_fname)
 
@@ -779,8 +789,8 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                     overlapping_pairs_down,
                     overlapping_pairs_down_right,
                 ]:
-                    if pairs_list:  # Checks if the list is not empty
-                        all_overlapping_pairs.extend(pairs_list)
+                    # Checks if the list is not empty
+                    all_overlapping_pairs.extend(pairs_list)
 
                 # Save the corrected masks
                 for tile in [
@@ -789,26 +799,19 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                     (right_coors, tile_right),
                     (down_right_coors, tile_down_right),
                 ]:
-                    tile_roi, tile_x, tile_y = tile[0]
+                    tile_coors, mask = tile
+                    tile_roi, tile_x, tile_y = tile_coors
                     if tile_x >= 0 and tile_y >= 0:
                         fname = (
                             f"{prefix}_masks_corrected_{tile_roi}_{tile_x}_{tile_y}.npy"
                         )
                         np.save(
-                            processed_path / "cells" / fname, tile[1], allow_pickle=True
+                            processed_path / "cells" / fname, mask, allow_pickle=True
                         )
-    all_overlapping_pairs_array = np.array(
-        [
-            (label1, label2, overlap1, overlap2, sum_mask1, sum_mask2)
-            for label1, label2, (
-                overlap1,
-                overlap2,
-            ), sum_mask1, sum_mask2 in all_overlapping_pairs
-        ]
-    )
+
     np.save(
         processed_path / "cells" / f"{prefix}_overlapping_pairs.npy",
-        all_overlapping_pairs_array,
+        np.vstack(all_overlapping_pairs),
         allow_pickle=True,
     )
     return all_overlapping_pairs
