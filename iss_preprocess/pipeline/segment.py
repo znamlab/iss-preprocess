@@ -396,6 +396,8 @@ def segment_mcherry_tile(
     props_df["tilex"] = tilex
     props_df["tiley"] = tiley
 
+    # TODO: these are a lot of threshold and we don't have an easy way to set them
+    # adapt to detect more mask here and filter later.
     filtered_df = props_df[
         (props_df["area"] > ops["min_area_threshold"])
         & (props_df["area"] < ops["max_area_threshold"])
