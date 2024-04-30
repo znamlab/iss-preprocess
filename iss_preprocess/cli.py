@@ -629,12 +629,6 @@ def register_to_reference(
     help="File name prefix for spot files.",
 )
 @click.option(
-    "-g",
-    "--reg-prefix",
-    default="barcode_round_1_1",
-    help="Directory prefix to registration target.",
-)
-@click.option(
     "-l",
     "--reload",
     default=True,
@@ -643,7 +637,6 @@ def register_to_reference(
 def align_spots(
     path,
     spots_prefix="barcode_round",
-    reg_prefix="barcode_round_1_1",
     reload=True,
 ):
     from pathlib import Path
@@ -656,37 +649,25 @@ def align_spots(
 
     slurm_folder = Path.home() / "slurm_logs" / path / "align_spots"
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    reg_job_id = register_within_acquisition(
+    ref_job_id = None
+    ops = load_ops(path)
+    ref_prefix = ops["reference_prefix"]
+
+    ref_job_id = register_within_acquisition(
         path,
-        prefix=reg_prefix,
+        prefix=ref_prefix,
         reload=reload,
         save_plot=True,
         use_slurm=True,
         slurm_folder=slurm_folder,
-        scripts_name="register_within_acquisition_{reg_prefix}",
+        scripts_name=f"register_within_acquisition_{ref_prefix}",
     )
-    ref_job_id = None
-    ops = load_ops(path)
-    ref_prefix = ops["reference_prefix"]
-    if reg_prefix != ref_prefix:
-        ref_job_id = register_within_acquisition(
-            path,
-            prefix=ref_prefix,
-            reload=reload,
-            save_plot=True,
-            use_slurm=True,
-            slurm_folder=slurm_folder,
-            scripts_name="register_within_acquisition_{ref_prefix}",
-        )
 
-    if ref_job_id:
-        reg_job_id = [reg_job_id, ref_job_id]
     merge_and_align_spots_all_rois(
         path,
         spots_prefix=spots_prefix,
-        reg_prefix=reg_prefix,
         ref_prefix=ref_prefix,
-        dependency=reg_job_id,
+        dependency=ref_job_id,
     )
 
 

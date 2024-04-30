@@ -814,8 +814,6 @@ def merge_and_align_spots(
         roi (int): ROI ID to process (as specified in MicroManager).
         spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
-        reg_prefix (str, optional): Acquisition prefix of the image files to use to
-            estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
         ref_prefix (str, optional): Acquisition prefix of the reference acquistion
             to transform spot coordinates to. Defaults to "genes_round_1_1".
         keep_all_spots (bool, optional): If True, keep all spots. Otherwise, keep only
@@ -854,7 +852,6 @@ def merge_and_align_spots(
 def merge_and_align_spots_all_rois(
     data_path,
     spots_prefix="barcode_round",
-    reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
     keep_all_spots=False,
     dependency=None,
@@ -866,8 +863,6 @@ def merge_and_align_spots_all_rois(
         data_path (str): Relative path to data.
         spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
-        reg_prefix (str, optional): Acquisition prefix of the image files to use to
-            estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
         ref_prefix (str, optional): Acquisition prefix to use as a reference for
             registration. Defaults to "genes_round_1_1".
 
@@ -884,11 +879,10 @@ def merge_and_align_spots_all_rois(
             data_path,
             roi,
             spots_prefix=spots_prefix,
-            reg_prefix=reg_prefix,
             ref_prefix=ref_prefix,
             keep_all_spots=keep_all_spots,
             use_slurm=True,
             slurm_folder=slurm_folder,
-            scripts_name=f"iss_align_spots_{roi}.out",
+            scripts_name=f"iss_align_spots_{roi}",
             job_dependency=dependency,
         )
