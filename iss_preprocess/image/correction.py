@@ -127,6 +127,7 @@ def unmix_ref_tile(
     threshold_background = ops["threshold_background"]
 
     # Remove pixels that are too dark or too bright
+    # The max pixel value is 4096, remove only very close to saturation
     bright_pixels = (
         (background_flat > threshold_background) & (background_flat < 4090)
     ) & ((mixed_signal_flat > threshold_background) & (mixed_signal_flat < 4090))
