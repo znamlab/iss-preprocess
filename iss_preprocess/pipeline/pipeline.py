@@ -237,7 +237,6 @@ def load_and_register_tile(
 
     """
     ops = load_ops(data_path)
-    metadata = load_metadata(data_path)
     if projection is None:
         projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     if filter_r and isinstance(filter_r, bool):
