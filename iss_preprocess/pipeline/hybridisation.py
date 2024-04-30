@@ -30,7 +30,6 @@ def load_and_register_hyb_tile(
     filter_r=(2, 4),
     correct_illumination=False,
     correct_channels=False,
-    zero_bad_pixels=False,
 ):
     """Load hybridisation tile and align channels. Optionally, filter, correct
     illumination and channel brightness.
@@ -48,8 +47,6 @@ def load_and_register_hyb_tile(
         correct_illumination (bool, optional): Whether to correct vignetting.
             Defaults to False.
         correct_channels (bool, optional): Whether to normalize channel brightness.
-            Defaults to False.
-        zero_bad_pixels (bool, optional): Whether to set bad pixels to zero.
             Defaults to False.
 
     Returns:
@@ -86,8 +83,8 @@ def load_and_register_hyb_tile(
         )
 
     bad_pixels = np.any(np.isnan(stack), axis=(2))
-    if zero_bad_pixels:
-        stack[np.isnan(stack)] = 0
+    stack = np.nan_to_num(stack)
+
     if filter_r:
         stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
         mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))

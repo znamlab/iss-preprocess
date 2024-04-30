@@ -740,12 +740,14 @@ def register_tile_to_ref(
             ref_channels = [ref_channels]
         ref_all_channels = ref_all_channels[:, :, ref_channels]
     ref = np.nanmean(ref_all_channels, axis=(2, 3))
+    ref = np.nan_to_num(ref)
 
     if reg_channels is not None:
         if isinstance(reg_channels, int):
             reg_channels = [reg_channels]
         reg_all_channels = reg_all_channels[:, :, reg_channels]
     reg = np.nanmean(reg_all_channels, axis=(2, 3))
+    reg = np.nan_to_num(reg)
 
     if ops["reg_median_filter"]:
         ref = median_filter(ref, footprint=disk(ops["reg_median_filter"]), axes=(0, 1))

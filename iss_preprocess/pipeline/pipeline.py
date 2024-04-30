@@ -261,7 +261,6 @@ def load_and_register_tile(
             correct_illumination=True,
             corrected_shifts=ops["corrected_shifts"],
             specific_rounds=rounds,
-            zero_bad_pixels=zero_bad_pixels,
         )
         # the transforms for all rounds are the same and saved with round 1
         prefix = acq_type + "_1_1"
@@ -275,7 +274,6 @@ def load_and_register_tile(
             filter_r=filter_r,
             correct_illumination=True,
             correct_channels=False,
-            zero_bad_pixels=zero_bad_pixels,
         )
     else:
         stack = load_tile_by_coors(
@@ -286,6 +284,9 @@ def load_and_register_tile(
     # ensure we have 4d to match acquisitions with rounds
     if stack.ndim == 3:
         stack = stack[..., np.newaxis]
+
+    if zero_bad_pixels:
+        stack[bad_pixels] = 0
 
     return stack, bad_pixels
 
