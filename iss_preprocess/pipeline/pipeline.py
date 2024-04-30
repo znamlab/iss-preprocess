@@ -264,8 +264,7 @@ def load_and_register_tile(
         )
         # the transforms for all rounds are the same and saved with round 1
         prefix = acq_type + "_1_1"
-
-    elif prefix in metadata["hybridisation"]:
+    else:
         stack, bad_pixels = load_and_register_hyb_tile(
             data_path,
             tile_coors=tile_coors,
@@ -275,12 +274,7 @@ def load_and_register_tile(
             correct_illumination=True,
             correct_channels=False,
         )
-    else:
-        stack = load_tile_by_coors(
-            data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
-        )
-        bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
-        stack = apply_illumination_correction(data_path, stack, prefix)
+
     # ensure we have 4d to match acquisitions with rounds
     if stack.ndim == 3:
         stack = stack[..., np.newaxis]
