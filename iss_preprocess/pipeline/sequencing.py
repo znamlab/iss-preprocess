@@ -149,6 +149,8 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         print(f"No spots detected in tile {tile_coors}")
         return stack, spot_sign_image, spots
     x = np.stack(spots["trace"], axis=2)
+    x = np.nan_to_num(x)
+
     cluster_inds = []
     top_score = []
 
@@ -167,12 +169,11 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         cluster_inds.append(cluster_ind)
         top_score.append(score[np.arange(x_norm.shape[0]), cluster_ind])
 
-    mean_score = np.mean(np.stack(top_score, axis=1), axis=1)
     sequences = np.stack(cluster_inds, axis=1)
     spots["sequence"] = [seq for seq in sequences]
     scores = np.stack(top_score, axis=1)
     spots["scores"] = [s for s in scores]
-    spots["mean_score"] = mean_score
+    spots["mean_score"] = np.nanmean(scores, axis=1)
     spots["bases"] = ["".join(BASES[seq]) for seq in spots["sequence"]]
     spots["dot_product_score"] = barcode_spots_dot_product(spots, cluster_means)
     spots["mean_intensity"] = [np.mean(np.abs(trace)) for trace in spots["trace"]]
