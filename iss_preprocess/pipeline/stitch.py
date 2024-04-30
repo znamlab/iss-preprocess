@@ -60,12 +60,16 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection
     # we should make sure to warp once
     # apply the same registration to all channels and rounds
 
-    stack, bad_pixels = warp_stack_to_ref(data_path, prefix, tile_coors, stack)
+    stack, bad_pixels = warp_stack_to_ref(
+        data_path, prefix, tile_coors, stack, bad_pixels
+    )
 
     return stack, bad_pixels
 
 
-def warp_stack_to_ref(stack, data_path, prefix, tile_coors, interpolation=1):
+def warp_stack_to_ref(
+    stack, data_path, prefix, tile_coors, interpolation=1, bad_pixels=None
+):
     """Warp a stack to the reference coordinates
 
     Args:
@@ -93,7 +97,16 @@ def warp_stack_to_ref(stack, data_path, prefix, tile_coors, interpolation=1):
             shift=reg2ref["shifts"][0],
             shape=stack.shape[:2],
         )
-    stack[bad_pixels] = np.nan
+    if bad_pixels is not None:
+        stack[bad_pixels] = np.nan
+
+    if stack.ndim == 2:
+        # we have just an image, add an axis for channel and one for round
+        stack = stack[:, :, np.newaxis, np.newaxis]
+    elif stack.ndim == 3:
+        # we have an image with multiple channels, add an axis for round
+        stack = stack[:, :, :, np.newaxis]
+
     for ir in range(stack.shape[3]):
         for ic in range(stack.shape[2]):
             stack[:, :, ic, ir] = warp(
@@ -103,6 +116,7 @@ def warp_stack_to_ref(stack, data_path, prefix, tile_coors, interpolation=1):
                 cval=np.nan,
                 order=interpolation,
             )
+
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[bad_pixels] = 0
     return stack, bad_pixels
