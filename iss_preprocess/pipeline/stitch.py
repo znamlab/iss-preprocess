@@ -65,7 +65,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection
     return stack, bad_pixels
 
 
-def warp_stack_to_ref(stack, data_path, prefix, tile_coors):
+def warp_stack_to_ref(stack, data_path, prefix, tile_coors, interpolation=1):
     """Warp a stack to the reference coordinates
 
     Args:
@@ -73,6 +73,7 @@ def warp_stack_to_ref(stack, data_path, prefix, tile_coors):
         data_path (str): Relative path to data
         prefix (str): Acquisition to use to find registration parameters
         tile_coors (tuple): (Roi, tileX, tileY) tuple
+        interpolation (int, optional): Interpolation order. Defaults to 1.
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
@@ -100,6 +101,7 @@ def warp_stack_to_ref(stack, data_path, prefix, tile_coors):
                 AffineTransform(matrix=tform).inverse,
                 preserve_range=True,
                 cval=np.nan,
+                order=interpolation,
             )
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
     stack[bad_pixels] = 0
