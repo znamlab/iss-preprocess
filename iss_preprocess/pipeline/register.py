@@ -717,14 +717,22 @@ def register_tile_to_ref(
     print(f"    ref_channels: {ref_channels}")
     print(f"    binarise_quantile: {binarise_quantile}", flush=True)
 
+    # For registration, we don't want to 0 bad pixels. If one round is bad, we will
+    # average across others so we don't care, if a channel is bad, we should have
+    # signal in the other, if we don't, it's already 0.
     ref_all_channels, ref_bad_pixels = iss.pipeline.load_and_register_tile(
         data_path=data_path,
         tile_coors=ref_tile_coors,
         prefix=ref_prefix,
         filter_r=False,
+        zero_bad_pixels=False,
     )
     reg_all_channels, reg_bad_pixels = iss.pipeline.load_and_register_tile(
-        data_path=data_path, tile_coors=tile_coors, prefix=reg_prefix, filter_r=False
+        data_path=data_path,
+        tile_coors=tile_coors,
+        prefix=reg_prefix,
+        filter_r=False,
+        zero_bad_pixels=False,
     )
 
     if ref_channels is not None:
