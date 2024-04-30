@@ -96,13 +96,15 @@ def unmix_ref_tile(
     signal_ch=2,
 ):
     """
-    Unmixes two images: one with only background autofluorescence and another with both background and useful signal.
-    Uses Linear regression for the unmixing process.
+    Unmixes two images: one with only background autofluorescence and another with both
+    background and useful signal. Uses Linear regression for the unmixing process.
 
+    TODO: docstring is all wrong
     Args:
         background_image: numpy array of the background image.
         mixed_signal_image: numpy array of the image with both signal and background.
-        background_coef: Coefficient to multiply the background image by before subtraction.
+        background_coef: Coefficient to multiply the background image by before
+            subtraction.
         threshold_background: Minimum value for a pixel to be considered background.
 
     Returns:
