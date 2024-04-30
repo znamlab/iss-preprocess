@@ -136,10 +136,10 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         correct_illumination=True,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
-    stack[bad_pixels, :, :] = 0
+
     spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
     spots = detect_spots_by_shape(
-        np.mean(stack, axis=(2, 3)),
+        np.nanmean(stack, axis=(2, 3)),
         spot_sign_image,
         threshold=ops["barcode_detection_threshold_basecalling"],
         rho=ops["barcode_spot_rho"],
