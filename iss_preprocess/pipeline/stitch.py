@@ -511,7 +511,7 @@ def stitch_tiles(
 
 
 def stitch_registered(
-    data_path, prefix, roi, channels=0, ref_prefix=None, filter_r=False
+    data_path, prefix, roi, channels=0, ref_prefix=None, filter_r=False, projection=None
 ):
     """Load registered stack and stitch them
 
@@ -525,6 +525,8 @@ def stitch_registered(
         ref_prefix (str, optional): Prefix of reference acquisition to load shifts. If
             None, load from ops. Defaults to None.
         filter_r (bool, optional): Filter image before stitching? Defaults to False.
+        projection (str, optional): Projection to load. If None, will use the one in
+            `ops`. Default to None
 
     Returns:
         np.array: stitched stack
@@ -561,6 +563,7 @@ def stitch_registered(
                 tile_coors=(roi, ix, iy),
                 prefix=prefix,
                 filter_r=filter_r,
+                projection=projection,
             )
             stack = stack[:, :, channels, 0]  # unique round
             # do not copy 0s over data from previous tile
