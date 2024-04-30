@@ -375,6 +375,7 @@ def load_and_register_sequencing_tile(
     correct_illumination=False,
     nrounds=7,
     specific_rounds=None,
+    zero_bad_pixels=False,
 ):
     """Load sequencing tile and align channels. Optionally, filter, correct
     illumination and channel brightness.
@@ -400,6 +401,7 @@ def load_and_register_sequencing_tile(
             specific_rounds is None. Defaults to 7.
         specific_rounds (list, optional): if not None, specifies which rounds must be
             loaded and ignores `nrounds`. Defaults to None
+        zero_bad_pixels (bool, optional): Whether to zero bad pixels. Defaults to False.
 
     Returns:
         numpy.ndarray: X x Y x Nch x len(specific_rounds) or Nrounds image stack.
@@ -446,7 +448,9 @@ def load_and_register_sequencing_tile(
     stack = align_channels_and_rounds(stack, tforms)
 
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
-    stack[np.isnan(stack)] = 0
+    if zero_bad_pixels:
+        stack[np.isnan(stack)] = 0
+
     if filter_r:
         stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
         mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))

@@ -207,7 +207,12 @@ def project_and_average(data_path, force_redo=False):
 
 
 def load_and_register_tile(
-    data_path, tile_coors, prefix, filter_r=True, projection=None
+    data_path,
+    tile_coors,
+    prefix,
+    filter_r=True,
+    projection=None,
+    zero_bad_pixels=False,
 ):
     """Load one single tile
 
@@ -223,6 +228,7 @@ def load_and_register_tile(
             from `ops`. Default to True
         projection (str, optional): Projection to use. If None, will read from `ops`.
             Defaults to None
+        zero_bad_pixels (bool, optional): Set bad pixels to zero. Defaults to False
 
     Returns:
         numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
@@ -255,6 +261,7 @@ def load_and_register_tile(
             correct_illumination=True,
             corrected_shifts=ops["corrected_shifts"],
             specific_rounds=rounds,
+            zero_bad_pixels=zero_bad_pixels,
         )
         # the transforms for all rounds are the same and saved with round 1
         prefix = acq_type + "_1_1"
@@ -268,6 +275,7 @@ def load_and_register_tile(
             filter_r=filter_r,
             correct_illumination=True,
             correct_channels=False,
+            zero_bad_pixels=zero_bad_pixels,
         )
     else:
         stack = load_tile_by_coors(
@@ -275,8 +283,6 @@ def load_and_register_tile(
         )
         bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
         stack = apply_illumination_correction(data_path, stack, prefix)
-
-    stack[bad_pixels] = 0
     # ensure we have 4d to match acquisitions with rounds
     if stack.ndim == 3:
         stack = stack[..., np.newaxis]
