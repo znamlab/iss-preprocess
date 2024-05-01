@@ -111,7 +111,7 @@ def warp_stack_to_ref(
             shift=reg2ref["shifts"][0],
             shape=stack.shape[:2],
         )
-    if bad_pixels is not None:
+    if (bad_pixels is not None) and np.any(bad_pixels):
         stack[bad_pixels] = np.nan
 
     if stack.ndim == 2:
@@ -570,6 +570,9 @@ def stitch_registered(
     tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros((*(max_origin + tile_shape), len(channels)))
+    if "mask" in prefix:
+        # we will increament the mask IDs while we go through
+        n_mask_id = 0
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack, bad_pixels = load_tile_ref_coors(
@@ -581,6 +584,10 @@ def stitch_registered(
             )
             stack = stack[:, :, channels, 0]  # unique round
             # do not copy 0s over data from previous tile
+            if "mask" in prefix:
+                bad_pixels = (stack[..., 0] == 0) | bad_pixels
+                stack[~bad_pixels, 0] += n_mask_id
+                n_mask_id = max(n_mask_id, np.max(stack[..., 0]))
             valid = np.logical_not(bad_pixels)
             stitched_stack[
                 tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
