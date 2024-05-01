@@ -151,11 +151,16 @@ def add_mask_id(
     roi,
     mask_expansion=5.0,
     masks=None,
+    barcode_df=None,
     barcode_dot_threshold=0.15,
     spot_score_threshold=0.1,
     hyb_score_threshold=0.8,
+    load_genes=True,
+    load_hyb=True,
+    load_barcodes=True,
 ):
-    """Load gene, barcode, and hybridisation spots and add a mask_id column to each spots dataframe
+    """Load gene, barcode, and hybridisation spots and add a mask_id column to each
+    spots dataframe
 
     Args:
         data_path (str): Relative path to data
@@ -164,12 +169,18 @@ def add_mask_id(
             rolonies per cells. None for no expansion. Defaults to 5.
         masks (np.array, optional): Array of labels. If None will load "masks_{roi}".
              Defaults to None.
+        barcode_df (pd.DataFrame, optional): Rabies barcode dataframe, if None, will
+            load "barcode_df_roi{roi}.pkl". Defaults to None.
         barcode_dot_threshold (float, optional): Threshold for the barcode dot product.
             Only spots above the threshold will be counted. Defaults to 0.15.
         spot_score_threshold (float, optional): Threshold for the OMP score. Only spots
             above the threshold will be counted. Defaults to 0.1.
         hyb_score_threshold (float, optional): Threshold for hybridisation spots. Only
             spots above the threshold will be counted. Defaults to 0.8.
+        load_genes (bool, optional): Whether to load gene spots. Defaults to True.
+        load_hyb (bool, optional): Whether to load hybridisation spots. Defaults to True
+        load_barcodes (bool, optional): Whether to load barcode spots. Defaults to True.
+
 
     Returns:
         dict: Dictionary of spots dataframes
@@ -179,22 +190,31 @@ def add_mask_id(
     big_masks = get_big_masks(data_path, roi, masks, mask_expansion)
 
     metadata = load_metadata(data_path=data_path)
-    spot_acquisitions = ["genes_round", "barcode_round"]
+    spot_acquisitions = []
+    if load_genes:
+        spot_acquisitions.append("genes_round")
+    if load_barcodes:
+        spot_acquisitions.append("barcode_round")
     thresholds = dict(
         genes_round=("spot_score", spot_score_threshold),
         barcode_round=("dot_product_score", barcode_dot_threshold),
     )
-    for hyb in metadata["hybridisation"]:
-        spot_acquisitions.append(hyb)
-        thresholds[hyb] = ("score", hyb_score_threshold)
+    if load_hyb:
+        for hyb in metadata["hybridisation"]:
+            spot_acquisitions.append(hyb)
+            thresholds[hyb] = ("score", hyb_score_threshold)
 
     # get the spots dataframes
     spots_dict = dict()
     for prefix in spot_acquisitions:
-        print(f"Loading {prefix}", flush=True)
-        spot_df = pd.read_pickle(processed_path / f"{prefix}_spots_{roi}.pkl")
+        if prefix == "barcode_round" and barcode_df is not None:
+            spot_df = barcode_df
+        else:
+            print(f"Loading {prefix}", flush=True)
+            spot_df = pd.read_pickle(processed_path / f"{prefix}_spots_{roi}.pkl")
         filt_col, threshold = thresholds[prefix]
-        spot_df = spot_df[spot_df[filt_col] > threshold]
+        if threshold is not None:
+            spot_df = spot_df[spot_df[filt_col] > threshold]
         # modify spots in place
         spots_dict[prefix] = spot_mask_value(big_masks, spot_df)
     return spots_dict
