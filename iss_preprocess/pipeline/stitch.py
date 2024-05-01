@@ -44,9 +44,21 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection
             registration
 
     """
-    stack, bad_pixels = pipeline.load_and_register_tile(
-        data_path, tile_coors, prefix, filter_r=filter_r, projection=projection
-    )
+    if "_masks" in prefix:
+        # we have a mask, the load is different
+        stack = iss.io.load_mask_by_coors(
+            data_path, tile_coors, prefix, suffix=projection
+        )
+        prefix = prefix.replace("_masks", "")
+        # make 3D to match the other load
+        bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
+        stack = stack[:, :, np.newaxis]
+        interpolation = 0
+    else:
+        stack, bad_pixels = pipeline.load_and_register_tile(
+            data_path, tile_coors, prefix, filter_r=filter_r, projection=projection
+        )
+        interpolation = 1
     ops = load_ops(data_path)
     ref_prefix = ops["reference_prefix"]
     if prefix.startswith(ref_prefix):
@@ -58,12 +70,14 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection
     # TODO: we are warping the image twice - in `load_and_register_tile` and here
     # if we ever use this function for downstream analyses (e.g. detecting spots)
     # we should make sure to warp once
-    # apply the same registration to all channels and rounds
-
     stack, bad_pixels = warp_stack_to_ref(
-        data_path, prefix, tile_coors, stack, bad_pixels
+        stack=stack,
+        data_path=data_path,
+        prefix=prefix,
+        tile_coors=tile_coors,
+        bad_pixels=bad_pixels,
+        interpolation=interpolation,
     )
-
     return stack, bad_pixels
 
 
