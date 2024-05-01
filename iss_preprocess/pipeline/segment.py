@@ -225,9 +225,13 @@ def segment_spots(
     roi,
     mask_expansion=5.0,
     masks=None,
-    barcode_dot_threshold=0.15,
+    barcode_df=None,
+    barcode_dot_threshold=None,
     spot_score_threshold=0.1,
     hyb_score_threshold=0.8,
+    load_genes=True,
+    load_hyb=True,
+    load_barcodes=True,
 ):
     """Count number of rolonies per cell for barcodes and genes.
 
@@ -246,12 +250,17 @@ def segment_spots(
             rolonies per cells. None for no expansion. Defaults to 5.
         masks (np.array, optional): Array of labels. If None will load "masks_{roi}".
              Defaults to None.
+        barcode_df (pd.DataFrame, optional): Rabies barcode dataframe, if None, will
+            load "barcode_df_roi{roi}.pkl". Defaults to None.
         barcode_dot_threshold (float, optional): Threshold for the barcode dot product.
             Only spots above the threshold will be counted. Defaults to 0.15.
         spot_score_threshold (float, optional): Threshold for the OMP score. Only spots
             above the threshold will be counted. Defaults to 0.1.
         hyb_score_threshold (float, optional): Threshold for hybridisation spots. Only
             spots above the threshold will be counted. Defaults to 0.8.
+        load_genes (bool, optional): Whether to load gene spots. Defaults to True.
+        load_hyb (bool, optional): Whether to load hybridisation spots. Defaults to True
+        load_barcodes (bool, optional): Whether to load barcode spots. Defaults to True.
 
     Returns:
         barcode_df (pd.DataFrame): Count of rolonies per barcode sequence per cell.
@@ -266,20 +275,14 @@ def segment_spots(
         roi=roi,
         mask_expansion=mask_expansion,
         masks=masks,
+        barcode_df=barcode_df,
         barcode_dot_threshold=barcode_dot_threshold,
         spot_score_threshold=spot_score_threshold,
         hyb_score_threshold=hyb_score_threshold,
+        load_genes=load_genes,
+        load_hyb=load_hyb,
+        load_barcodes=load_barcodes,
     )
-
-    thresholds = dict(
-        genes_round=("spot_score", spot_score_threshold),
-        barcode_round=("dot_product_score", barcode_dot_threshold),
-    )
-    for hyb in spots_dict:
-        if hyb in thresholds:
-            # it is genes or barcode
-            continue
-        thresholds[hyb] = ("score", hyb_score_threshold)
 
     # get the spots dataframes
     spots_in_cells = dict()
