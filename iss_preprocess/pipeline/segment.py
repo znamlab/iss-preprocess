@@ -115,7 +115,7 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
             If None, will not get area information. Defaults to 10.
 
     """
-    big_masks = _get_big_masks(data_path, roi, masks, mask_expansion)
+    big_masks = get_big_masks(data_path, roi, masks, mask_expansion)
 
     cell_df = pd.DataFrame(
         measure.regionprops_table(
@@ -176,7 +176,7 @@ def add_mask_id(
 
     """
     processed_path = iss.io.get_processed_path(data_path)
-    big_masks = _get_big_masks(data_path, roi, masks, mask_expansion)
+    big_masks = get_big_masks(data_path, roi, masks, mask_expansion)
 
     metadata = load_metadata(data_path=data_path)
     spot_acquisitions = ["genes_round", "barcode_round"]
@@ -290,7 +290,7 @@ def segment_spots(
     return barcode_df, fused_df
 
 
-def _get_big_masks(data_path, roi, masks, mask_expansion):
+def get_big_masks(data_path, roi, masks, mask_expansion):
     """Small internal function to avoid code duplication
 
     Reload and expand masks if needed
@@ -298,10 +298,11 @@ def _get_big_masks(data_path, roi, masks, mask_expansion):
     Args:
         data_path (str): Relative path to data
         roi (int): ID of the ROI to load
-        mask_expansion (float, optional): Distance in um to expand masks before counting
-            rolonies per cells. None for no expansion. Defaults to 5.
         masks (np.array, optional): Array of labels. If None will load "masks_{roi}".
              Defaults to None.
+        mask_expansion (float, optional): Distance in um to expand masks before counting
+            rolonies per cells. None for no expansion. Defaults to 5.
+
 
     Returns:
         numpy.ndarray: masks expanded
@@ -314,6 +315,14 @@ def _get_big_masks(data_path, roi, masks, mask_expansion):
     else:
         pixel_size = get_pixel_size(data_path, prefix="genes_round_1_1")
         big_masks = expand_labels(masks, distance=int(mask_expansion / pixel_size))
+    max_val = big_masks.max()
+    # find the smallest integer type that can hold the max value
+    if max_val < 256:
+        big_masks = big_masks.astype(np.uint8)
+    elif max_val < 65536:
+        big_masks = big_masks.astype(np.uint16)
+    else:
+        big_masks = big_masks.astype(np.uint32)
     return big_masks
 
 
