@@ -272,6 +272,7 @@ def load_and_register_tile(
             filter_r=filter_r,
             correct_illumination=True,
             correct_channels=False,
+            corrected_shifts=ops["corrected_shifts"],
         )
 
     # ensure we have 4d to match acquisitions with rounds

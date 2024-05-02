@@ -30,6 +30,7 @@ def load_and_register_hyb_tile(
     filter_r=(2, 4),
     correct_illumination=False,
     correct_channels=False,
+    corrected_shifts="best",
 ):
     """Load hybridisation tile and align channels. Optionally, filter, correct
     illumination and channel brightness.
@@ -48,6 +49,8 @@ def load_and_register_hyb_tile(
             Defaults to False.
         correct_channels (bool, optional): Whether to normalize channel brightness.
             Defaults to False.
+        correct_shifts (str, optional): Which shift to use. One of `reference`,
+            `single_tile`, `ransac`, or `best`. Defaults to 'best'.
 
     Returns:
         numpy.ndarray: X x Y x Nch image stack.
@@ -57,10 +60,11 @@ def load_and_register_hyb_tile(
 
     """
     processed_path = iss.io.get_processed_path(data_path)
-    tforms_fname = (
-        f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+    valid_shifts = ["reference", "single_tile", "ransac", "best"]
+    assert corrected_shifts in valid_shifts, (
+        f"unknown shift correction method, must be one of {valid_shifts}",
     )
-    tforms = np.load(processed_path / "reg" / tforms_fname, allow_pickle=True)
+    tforms = get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts)
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
     )
@@ -94,6 +98,41 @@ def load_and_register_hyb_tile(
         norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
         stack = stack / norm_factors[np.newaxis, np.newaxis, :]
     return stack, bad_pixels
+
+
+def get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts):
+    """Load the channelshifts for a given tile and sequencing acquisition.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Prefix of the sequencing round.
+        tile_coors (tuple): Coordinates of the tile to process.
+        corrected_shifts (str): Which shift to use. One of `reference`, `single_tile`,
+            `ransac`, or `best`.
+
+    Returns:
+        np.ndarray: Array of channel and round shifts.
+
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
+    match corrected_shifts:
+        case "reference":
+            tforms_fname = f"tforms_{prefix}.npz"
+            tforms_path = processed_path
+        case "single_tile":
+            tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
+            tforms_path = processed_path / "reg"
+        case "ransac":
+            tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
+            tforms_path = processed_path / "reg"
+        case "best":
+            tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
+            tforms_path = processed_path / "reg"
+        case _:
+            raise ValueError(f"unknown shift correction method: {corrected_shifts}")
+    tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
+    return tforms
 
 
 @slurm_it(conda_env="iss-preprocess")
