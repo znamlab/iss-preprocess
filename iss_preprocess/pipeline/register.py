@@ -778,6 +778,7 @@ def register_tile_to_ref(
     return tforms
 
 
+@slurm_it(conda_env="iss-preprocess", print_job_id=True)
 def register_to_ref_using_stitched_registration(
     data_path,
     reg_prefix,
@@ -839,6 +840,7 @@ def register_to_ref_using_stitched_registration(
 
     for roi in rois:
         # get the transformation from the stitched image to the reference
+        print(f"Registering {reg_prefix} to {ref_prefix} for ROI {roi}")
         estimate_scale = False  # never estimate scale
         (
             stitched_stack_target,
@@ -893,6 +895,7 @@ def register_to_ref_using_stitched_registration(
                 )
                 # reshape tforms to be like the multichannels tforms
                 np.savez(target, matrix_between_channels=tforms.reshape((1, 3, 3)))
+    print("Done")
 
 
 def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
