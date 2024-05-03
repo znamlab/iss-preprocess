@@ -122,7 +122,9 @@ def reproject_failed(
             (processed_path / prefix / "missing_tiles.txt").read_text().split("\n")
         ):
             missing_tiles.append(fname)
-
+    missing_tiles = list(set(missing_tiles))
+    print(f"Reprojecting {len(missing_tiles)} tiles...", flush=True)
+    print(missing_tiles, flush=True)
     for tile in missing_tiles:
         if len(tile) == 0:
             continue
