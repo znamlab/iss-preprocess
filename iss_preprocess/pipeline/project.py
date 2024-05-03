@@ -221,7 +221,9 @@ def project_tile(fname, ops, overwrite=False, sth=13):
 
     Args:
         fname (str): path to tile *without* `'.ome.tif'` extension.
+        ops (dict): dictionary of values from the ops file.
         overwrite (bool): whether to repeat if already completed
+        sth (int): size of the structuring element for the fstack projection.
 
     """
     save_path_fstack = iss.io.get_processed_path(fname + "_fstack.tif")
