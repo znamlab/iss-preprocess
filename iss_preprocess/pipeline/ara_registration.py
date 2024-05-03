@@ -191,24 +191,33 @@ def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplac
     coords = load_coordinate_image(data_path, roi)
     spot_xy = spots.loc[:, ["x", "y"]].values / metadata["downsample_ratio"]
     spot_xy = np.round(spot_xy).astype(int)
-    spot_coords = coords[spot_xy[:, 1], spot_xy[:, 0], :]
+
+    # Filter spots that are outside the valid range
+    valid_x = spot_xy[:, 0] < coords.shape[1]
+    valid_y = spot_xy[:, 1] < coords.shape[0]
+    valid_spots = valid_x & valid_y
+    spots_filtered = spots.iloc[valid_spots].copy()
+    spot_xy_filtered = spot_xy[valid_spots]
+
+    # Use filtered coordinates for further processing
+    spot_coords = coords[spot_xy_filtered[:, 1], spot_xy_filtered[:, 0], :]
     for i, w in enumerate("xyz"):
-        spots[f"ara_{w}"] = spot_coords[:, i]
+        spots_filtered[f"ara_{w}"] = spot_coords[:, i]
     area_map = make_area_image(data_path, roi, atlas_size=atlas_size)
-    spot_area = area_map[spot_xy[:, 1], spot_xy[:, 0]]
-    spots["area_id"] = spot_area
+    spot_area = area_map[spot_xy_filtered[:, 1], spot_xy_filtered[:, 0]]
+    spots_filtered["area_id"] = spot_area
 
     if acronyms:
         atlas_name = "allen_mouse_%dum" % atlas_size
         bg_atlas = bga.bg_atlas.BrainGlobeAtlas(atlas_name)
         labels = bg_atlas.lookup_df.set_index("id")
-        spots["area_acronym"] = "outside"
-        valid = spots.area_id != 0
-        spots.loc[valid, "area_acronym"] = labels.loc[
-            spots.area_id[valid], "acronym"
+        spots_filtered["area_acronym"] = "outside"
+        valid = spots_filtered.area_id != 0
+        spots_filtered.loc[valid, "area_acronym"] = labels.loc[
+            spots_filtered.area_id[valid], "acronym"
         ].values
 
-    return spots
+    return spots_filtered
 
 
 def overview_single_roi(

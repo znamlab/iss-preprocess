@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-
+from skimage.transform import AffineTransform, warp
 import numpy as np
 import pandas as pd
 from image_tools.registration import phase_correlation as mpc
@@ -23,7 +23,7 @@ from . import pipeline
 from .register import align_spots
 
 
-def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
+def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection=None):
     """Load one single tile in the reference coordinates
 
     This load a tile of `prefix` with channels/rounds registered
@@ -35,6 +35,63 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
             all the rounds.
         filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
             from `ops`. Default to True
+        projection (str, optional): Projection to load. If None, will use the one in
+            `ops`. Default to None
+
+    Returns:
+        np.array: A (X x Y x Nchannels x Nrounds) registered stack
+        np.array: A (X x Y) boolean array of bad pixels that fall outside image after
+            registration
+
+    """
+    if "_masks" in prefix:
+        # we have a mask, the load is different
+        stack = iss.io.load_mask_by_coors(
+            data_path, tile_coors, prefix, suffix=projection
+        )
+        prefix = prefix.replace("_masks", "")
+        # make 3D to match the other load
+        bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
+        stack = stack[:, :, np.newaxis]
+        interpolation = 0
+    else:
+        stack, bad_pixels = pipeline.load_and_register_tile(
+            data_path, tile_coors, prefix, filter_r=filter_r, projection=projection
+        )
+        interpolation = 1
+    ops = load_ops(data_path)
+    ref_prefix = ops["reference_prefix"]
+    if prefix.startswith(ref_prefix):
+        # No need to register to ref
+        return stack, bad_pixels
+    # we have data with channels/rounds registered
+    # Now find how much the acquisition stitching is shifting the data compared to
+    # reference
+    # TODO: we are warping the image twice - in `load_and_register_tile` and here
+    # if we ever use this function for downstream analyses (e.g. detecting spots)
+    # we should make sure to warp once
+    stack, bad_pixels = warp_stack_to_ref(
+        stack=stack,
+        data_path=data_path,
+        prefix=prefix,
+        tile_coors=tile_coors,
+        bad_pixels=bad_pixels,
+        interpolation=interpolation,
+    )
+    return stack, bad_pixels
+
+
+def warp_stack_to_ref(
+    stack, data_path, prefix, tile_coors, interpolation=1, bad_pixels=None
+):
+    """Warp a stack to the reference coordinates
+
+    Args:
+        stack (np.array): A (X x Y x Nchannels x Nrounds) stack
+        data_path (str): Relative path to data
+        prefix (str): Acquisition to use to find registration parameters
+        tile_coors (tuple): (Roi, tileX, tileY) tuple
+        interpolation (int, optional): Interpolation order. Defaults to 1.
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
@@ -43,33 +100,74 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
 
     """
     ops = load_ops(data_path)
-    corrected_shifts = ops["corrected_shifts2ref"]
+    reg2ref = get_tform_to_ref(data_path, prefix, tile_coors)
+
+    if ops["align_method"] == "affine":
+        tform = reg2ref["matrix_between_channels"][0]
+    else:
+        tform = make_transform(
+            s=reg2ref["scales"][0][0],  # same reg for all round and channels
+            angle=reg2ref["angles"][0][0],
+            shift=reg2ref["shifts"][0],
+            shape=stack.shape[:2],
+        )
+    if (bad_pixels is not None) and np.any(bad_pixels):
+        stack[bad_pixels] = np.nan
+
+    if stack.ndim == 2:
+        # we have just an image, add an axis for channel and one for round
+        stack = stack[:, :, np.newaxis, np.newaxis]
+    elif stack.ndim == 3:
+        # we have an image with multiple channels, add an axis for round
+        stack = stack[:, :, :, np.newaxis]
+
+    for ir in range(stack.shape[3]):
+        for ic in range(stack.shape[2]):
+            stack[:, :, ic, ir] = warp(
+                stack[:, :, ic, ir],
+                AffineTransform(matrix=tform).inverse,
+                preserve_range=True,
+                cval=np.nan,
+                order=interpolation,
+            )
+
+    bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
+    stack[bad_pixels] = 0
+    return stack, bad_pixels
+
+
+def get_tform_to_ref(data_path, prefix, tile_coors, corrected_shifts=None):
+    """Load the transformation to reference for a tile
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Acquisition prefix
+        tile_coors (tuple): (roi, tileX, tileY) tuple
+        corrected_shifts (str, optional): Method used to correct shifts to reference.
+            If None, will use the one in `ops`. Defaults to None.
+
+    Returns:
+        np.array: A dictionary with the transformation parameters
+
+    """
+    roi, tilex, tiley = tile_coors
+    if corrected_shifts is None:
+        ops = load_ops(data_path)
+        corrected_shifts = ops["corrected_shifts2ref"]
 
     valid_shifts = ["single_tile", "ransac", "best"]
     assert corrected_shifts in valid_shifts, (
         f"unknown shifts2ref correction method, must be one of {valid_shifts}",
     )
 
-    stack, bad_pixels = pipeline.load_and_register_tile(
-        data_path, tile_coors, prefix, filter_r=filter_r
-    )
-
-    if prefix.startswith("genes_round"):
-        # No need to register to ref
-        return stack, bad_pixels
-
-    # we have data with channels/rounds registered
-    # Now find how much the acquisition stitching is shifting the data compared to
-    # reference
-    roi, tilex, tiley = tile_coors
-
     # now find registration to ref
-    if ("round" in prefix) and (not prefix.endswith("round")):
+    if (("genes" in prefix) or ("barcode" in prefix)) and (
+        not prefix.endswith("round")
+    ):
         reg_prefix = "_".join(prefix.split("_")[:-2])
     else:
         reg_prefix = prefix
 
-    stack[bad_pixels] = np.nan
     if corrected_shifts == "single_tile":
         correction_fname = "tforms_to_ref"
     elif corrected_shifts == "ransac":
@@ -81,22 +179,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True):
         / "reg"
         / f"{correction_fname}_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
-    # TODO: we are warping the image twice - in `load_and_register_tile` and here
-    # if we ever use this function for downstream analyses (e.g. detecting spots)
-    # we should make sure to warp once
-    # apply the same registration to all channels and rounds
-    for ir in range(stack.shape[3]):
-        for ic in range(stack.shape[2]):
-            stack[:, :, ic, ir] = transform_image(
-                stack[:, :, ic, ir],
-                scale=reg2ref["scales"][0][0],  # same reg for all round and channels
-                angle=reg2ref["angles"][0][0],
-                shift=reg2ref["shifts"][0],
-                cval=np.nan,
-            )
-    bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
-    stack[bad_pixels] = 0
-    return stack, bad_pixels
+    return reg2ref
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -296,9 +379,10 @@ def get_tile_corners(data_path, prefix, roi):
     """
     roi_dims = get_roi_dimensions(data_path)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-    if "round" in prefix:
+    if not prefix.endswith("_1"):
+        # we should have "barcode_round" or "genes_round"
         # always use round 1
-        prefix = f"{prefix.split('_')[0]}_round_1_1"
+        prefix = f"{prefix}_1"
     shifts = np.load(
         iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
     )
@@ -441,7 +525,7 @@ def stitch_tiles(
 
 
 def stitch_registered(
-    data_path, prefix, roi, channels=0, ref_prefix="genes_round", filter_r=False
+    data_path, prefix, roi, channels=0, ref_prefix=None, filter_r=False, projection=None
 ):
     """Load registered stack and stitch them
 
@@ -452,9 +536,11 @@ def stitch_registered(
         prefix (str): Prefix of acquisition to stitch
         roi (int): Roi ID
         channels (list or int, optional): Channel id(s). Defaults to 0.
-        ref_prefix (str, optional): Prefix of reference acquisition to load shifts.
-            Defaults to "genes_round".
+        ref_prefix (str, optional): Prefix of reference acquisition to load shifts. If
+            None, load from ops. Defaults to None.
         filter_r (bool, optional): Filter image before stitching? Defaults to False.
+        projection (str, optional): Projection to load. If None, will use the one in
+            `ops`. Default to None
 
     Returns:
         np.array: stitched stack
@@ -467,12 +553,14 @@ def stitch_registered(
         channels = np.arange(len(ops["camera_order"]))
     else:
         channels = list(channels)
+    if ref_prefix is None:
+        ref_prefix = ops["reference_prefix"]
 
     processed_path = iss.io.get_processed_path(data_path)
     if ref_prefix == "genes_round":
         ref_prefix = f"{ref_prefix}_{ops['ref_round']}_1"
 
-    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
+    roi_dims = get_roi_dimensions(data_path)
     shifts = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     tile_shape = shifts["tile_shape"]
@@ -482,6 +570,9 @@ def stitch_registered(
     tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros((*(max_origin + tile_shape), len(channels)))
+    if "mask" in prefix:
+        # we will increament the mask IDs while we go through
+        n_mask_id = 0
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack, bad_pixels = load_tile_ref_coors(
@@ -489,9 +580,14 @@ def stitch_registered(
                 tile_coors=(roi, ix, iy),
                 prefix=prefix,
                 filter_r=filter_r,
+                projection=projection,
             )
             stack = stack[:, :, channels, 0]  # unique round
             # do not copy 0s over data from previous tile
+            if "mask" in prefix:
+                bad_pixels = (stack[..., 0] == 0) | bad_pixels
+                stack[~bad_pixels, 0] += n_mask_id
+                n_mask_id = max(n_mask_id, np.max(stack[..., 0]))
             valid = np.logical_not(bad_pixels)
             stitched_stack[
                 tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
@@ -564,15 +660,15 @@ def merge_roi_spots(
 
 def stitch_and_register(
     data_path,
-    reference_prefix,
     target_prefix,
+    reference_prefix=None,
     roi=1,
     downsample=3,
     ref_ch=0,
     target_ch=0,
     estimate_scale=False,
     estimate_rotation=True,
-    target_suffix=None,
+    target_projection=None,
     use_masked_correlation=False,
     debug=False,
 ):
@@ -617,11 +713,15 @@ def stitch_and_register(
         float: Estimated scaling factor.
         dict: Debug information if `debug` is True.
     """
+    warnings.warn(
+        "stitching is now done on registered tiles", DeprecationWarning, stacklevel=2
+    )
     ops = load_ops(data_path)
     ref_projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
-    if target_suffix is None:
-        target_suffix = ops[f"{target_prefix.split('_')[0].lower()}_projection"]
-
+    if target_projection is None:
+        target_projection = ops[f"{target_prefix.split('_')[0].lower()}_projection"]
+    if reference_prefix is None:
+        reference_prefix = ops["reference_prefix"]
     if isinstance(target_ch, int):
         target_ch = [target_ch]
     stitched_stack_target = None
@@ -629,9 +729,10 @@ def stitch_and_register(
         stitched = stitch_tiles(
             data_path,
             target_prefix,
-            suffix=target_suffix,
+            suffix=target_projection,
             roi=roi,
             ich=ch,
+            shifts_prefix=reference_prefix,
             correct_illumination=True,
         ).astype(
             np.single
@@ -649,23 +750,25 @@ def stitch_and_register(
         stitched = stitch_tiles(
             data_path,
             prefix=reference_prefix,
+            suffix=ref_projection,
             roi=roi,
-            channels=ch,
-            ref_prefix=reference_prefix,
-            filter_r=False,
+            ich=ch,
+            shifts_prefix=reference_prefix,
+            correct_illumination=True,
         ).astype(np.single)
         if stitched_stack_reference is None:
             stitched_stack_reference = stitched
         else:
             stitched_stack_reference += stitched
     stitched_stack_reference /= len(ref_ch)
-
     if use_masked_correlation:
         target_mask = np.ones(stitched_stack_target.shape, dtype=bool)
         reference_mask = np.ones(stitched_stack_reference.shape, dtype=bool)
 
     # If they have different shapes, 0 pad the smallest one
+    # If we have the same shift this is not needed
     if stitched_stack_target.shape != stitched_stack_reference.shape:
+        warnings.warn("Stitched stacks have different shapes. Padding to match.")
         stacks_shape = np.vstack(
             (stitched_stack_target.shape, stitched_stack_reference.shape)
         )
@@ -685,28 +788,37 @@ def stitch_and_register(
         if np.sum(padding[1, :]):
             pad_ref = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[1]]
             stitched_stack_reference = np.pad(stitched_stack_reference, pad_ref)
+    else:
+        padding = np.zeros((2, 2), dtype=int)
+        final_shape = stitched_stack_target.shape
+
+    # setup common args for registration
+    kwargs = dict(
+        angle_range=1.0,
+        niter=3,
+        nangles=11,
+        upsample=False,
+        debug=debug,
+        max_shift=ops["max_shift2ref"],
+        min_shift=0,
+        reference=stitched_stack_reference[::downsample, ::downsample],
+        target=stitched_stack_target[::downsample, ::downsample],
+    )
+    if use_masked_correlation:
+        kwargs["target_mask"] = target_mask
+        kwargs["reference_mask"] = reference_mask
 
     if estimate_scale and estimate_rotation:
-        scale, angle, shift = estimate_scale_rotation_translation(
-            stitched_stack_reference[::downsample, ::downsample],
-            stitched_stack_target[::downsample, ::downsample],
-            niter=3,
-            nangles=11,
-            verbose=True,
+        out = estimate_scale_rotation_translation(
             scale_range=0.01,
-            angle_range=1.0,
-            upsample=False,
+            **kwargs,
         )
+        if debug:
+            angle, shift, scale, debug_dict = out
+        else:
+            angle, shift, scale = out
     elif estimate_rotation:
-        kwargs = dict(angle_range=1.0, niter=3, nangles=11, upsample=None, debug=debug)
-
-        if use_masked_correlation:
-            kwargs["target_mask"] = target_mask
-            kwargs["reference_mask"] = reference_mask
-
         out = estimate_rotation_translation(
-            stitched_stack_reference[::downsample, ::downsample],
-            stitched_stack_target[::downsample, ::downsample],
             **kwargs,
         )
         if debug:
@@ -715,7 +827,7 @@ def stitch_and_register(
             angle, shift = out
         scale = 1
     else:
-        shift, _ = mpc.phase_correlation(
+        shift, _, _, _ = mpc.phase_correlation(
             stitched_stack_reference[::downsample, ::downsample],
             stitched_stack_target[::downsample, ::downsample],
         )
@@ -744,16 +856,13 @@ def stitch_and_register(
         output.append(debug_dict)
     return tuple(output)
 
-    return (stitched_stack_target, stitched_stack_reference, angle, shift, scale)
-
 
 @slurm_it(conda_env="iss-preprocess")
 def merge_and_align_spots(
     data_path,
     roi,
     spots_prefix="barcode_round",
-    reg_prefix="barcode_round_1_1",
-    ref_prefix="genes_round_1_1",
+    ref_prefix=None,
     keep_all_spots=False,
 ):
     """Combine spots across tiles and align to reference coordinates for a single ROI.
@@ -769,8 +878,6 @@ def merge_and_align_spots(
         roi (int): ROI ID to process (as specified in MicroManager).
         spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
-        reg_prefix (str, optional): Acquisition prefix of the image files to use to
-            estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
         ref_prefix (str, optional): Acquisition prefix of the reference acquistion
             to transform spot coordinates to. Defaults to "genes_round_1_1".
         keep_all_spots (bool, optional): If True, keep all spots. Otherwise, keep only
@@ -780,42 +887,19 @@ def merge_and_align_spots(
         pandas.DataFrame: DataFrame containing all spots in reference coordinates.
 
     """
+    ops = load_ops(data_path)
+    if ref_prefix is None:
+        ref_prefix = ops["reference_prefix"]
     processed_path = iss.io.get_processed_path(data_path)
-    reg_path = processed_path / "reg"
 
     # find tile origin, final shape, and shifts in reference coordinates
     ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
     ref_centers = np.mean(ref_corners, axis=3)
     ref_origins = ref_corners[..., 0]
 
-    if ref_prefix.startswith(spots_prefix):
-        # no need to register
-        trans_centers = ref_centers
-    else:
-        # get transform to global coordinate and apply to reg_centers
-        iss.pipeline.stitch_and_register(
-            data_path,
-            reference_prefix=ref_prefix,
-            target_prefix=reg_prefix,
-            roi=roi,
-            downsample=5,
-            ref_ch=0,
-            target_ch=0,
-            estimate_scale=False,
-        )
-        tform2ref = np.load(reg_path / f"{reg_prefix}_roi{roi}_tform_to_ref.npz")
-        tform2ref = make_transform(
-            tform2ref["scale"],
-            tform2ref["angle"],
-            tform2ref["shift"],
-            ref_corners[0, 0, :, 2].astype(int),
-        )
-        trans_centers = np.pad(ref_centers, ((0, 0), (0, 0), (0, 1)), constant_values=1)
-        trans_centers = (
-            tform2ref[np.newaxis, np.newaxis, ...] @ trans_centers[..., np.newaxis]
-        )
-        trans_centers = trans_centers[..., :-1, 0]
-
+    # always use the center of the reference tile for spot merging
+    # we might have to change that
+    trans_centers = ref_centers
     spots = merge_roi_spots(
         data_path,
         prefix=spots_prefix,
@@ -832,7 +916,6 @@ def merge_and_align_spots(
 def merge_and_align_spots_all_rois(
     data_path,
     spots_prefix="barcode_round",
-    reg_prefix="barcode_round_1_1",
     ref_prefix="genes_round_1_1",
     keep_all_spots=False,
     dependency=None,
@@ -844,8 +927,6 @@ def merge_and_align_spots_all_rois(
         data_path (str): Relative path to data.
         spots_prefix (str, optional): Filename prefix of the spot files to combine.
             Defaults to "barcode_round".
-        reg_prefix (str, optional): Acquisition prefix of the image files to use to
-            estimate the tranformation to reference image. Defaults to "barcode_round_1_1".
         ref_prefix (str, optional): Acquisition prefix to use as a reference for
             registration. Defaults to "genes_round_1_1".
 
@@ -862,11 +943,10 @@ def merge_and_align_spots_all_rois(
             data_path,
             roi,
             spots_prefix=spots_prefix,
-            reg_prefix=reg_prefix,
             ref_prefix=ref_prefix,
             keep_all_spots=keep_all_spots,
             use_slurm=True,
             slurm_folder=slurm_folder,
-            scripts_name=f"iss_align_spots_{roi}.out",
+            scripts_name=f"iss_align_spots_{roi}",
             job_dependency=dependency,
         )

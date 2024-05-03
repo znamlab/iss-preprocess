@@ -1,10 +1,13 @@
 import warnings
+import glob
 from os import system
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from skimage import measure
+from sklearn.preprocessing import StandardScaler
+from sklearn.mixture import GaussianMixture
 from skimage.filters import threshold_triangle
 from skimage.segmentation import expand_labels
 from tqdm import tqdm
@@ -112,7 +115,7 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
             If None, will not get area information. Defaults to 10.
 
     """
-    big_masks = _get_big_masks(data_path, roi, masks, mask_expansion)
+    big_masks = get_big_masks(data_path, roi, masks, mask_expansion)
 
     cell_df = pd.DataFrame(
         measure.regionprops_table(
@@ -148,11 +151,16 @@ def add_mask_id(
     roi,
     mask_expansion=5.0,
     masks=None,
+    barcode_df=None,
     barcode_dot_threshold=0.15,
     spot_score_threshold=0.1,
     hyb_score_threshold=0.8,
+    load_genes=True,
+    load_hyb=True,
+    load_barcodes=True,
 ):
-    """Load gene, barcode, and hybridisation spots and add a mask_id column to each spots dataframe
+    """Load gene, barcode, and hybridisation spots and add a mask_id column to each
+    spots dataframe
 
     Args:
         data_path (str): Relative path to data
@@ -161,37 +169,52 @@ def add_mask_id(
             rolonies per cells. None for no expansion. Defaults to 5.
         masks (np.array, optional): Array of labels. If None will load "masks_{roi}".
              Defaults to None.
+        barcode_df (pd.DataFrame, optional): Rabies barcode dataframe, if None, will
+            load "barcode_df_roi{roi}.pkl". Defaults to None.
         barcode_dot_threshold (float, optional): Threshold for the barcode dot product.
             Only spots above the threshold will be counted. Defaults to 0.15.
         spot_score_threshold (float, optional): Threshold for the OMP score. Only spots
             above the threshold will be counted. Defaults to 0.1.
         hyb_score_threshold (float, optional): Threshold for hybridisation spots. Only
             spots above the threshold will be counted. Defaults to 0.8.
+        load_genes (bool, optional): Whether to load gene spots. Defaults to True.
+        load_hyb (bool, optional): Whether to load hybridisation spots. Defaults to True
+        load_barcodes (bool, optional): Whether to load barcode spots. Defaults to True.
+
 
     Returns:
         dict: Dictionary of spots dataframes
 
     """
     processed_path = iss.io.get_processed_path(data_path)
-    big_masks = _get_big_masks(data_path, roi, masks, mask_expansion)
+    big_masks = get_big_masks(data_path, roi, masks, mask_expansion)
 
     metadata = load_metadata(data_path=data_path)
-    spot_acquisitions = ["genes_round", "barcode_round"]
+    spot_acquisitions = []
+    if load_genes:
+        spot_acquisitions.append("genes_round")
+    if load_barcodes:
+        spot_acquisitions.append("barcode_round")
     thresholds = dict(
         genes_round=("spot_score", spot_score_threshold),
         barcode_round=("dot_product_score", barcode_dot_threshold),
     )
-    for hyb in metadata["hybridisation"]:
-        spot_acquisitions.append(hyb)
-        thresholds[hyb] = ("score", hyb_score_threshold)
+    if load_hyb:
+        for hyb in metadata["hybridisation"]:
+            spot_acquisitions.append(hyb)
+            thresholds[hyb] = ("score", hyb_score_threshold)
 
     # get the spots dataframes
     spots_dict = dict()
     for prefix in spot_acquisitions:
-        print(f"Loading {prefix}", flush=True)
-        spot_df = pd.read_pickle(processed_path / f"{prefix}_spots_{roi}.pkl")
+        if prefix == "barcode_round" and barcode_df is not None:
+            spot_df = barcode_df
+        else:
+            print(f"Loading {prefix}", flush=True)
+            spot_df = pd.read_pickle(processed_path / f"{prefix}_spots_{roi}.pkl")
         filt_col, threshold = thresholds[prefix]
-        spot_df = spot_df[spot_df[filt_col] > threshold]
+        if threshold is not None:
+            spot_df = spot_df[spot_df[filt_col] > threshold]
         # modify spots in place
         spots_dict[prefix] = spot_mask_value(big_masks, spot_df)
     return spots_dict
@@ -202,9 +225,13 @@ def segment_spots(
     roi,
     mask_expansion=5.0,
     masks=None,
-    barcode_dot_threshold=0.15,
+    barcode_df=None,
+    barcode_dot_threshold=None,
     spot_score_threshold=0.1,
     hyb_score_threshold=0.8,
+    load_genes=True,
+    load_hyb=True,
+    load_barcodes=True,
 ):
     """Count number of rolonies per cell for barcodes and genes.
 
@@ -223,12 +250,17 @@ def segment_spots(
             rolonies per cells. None for no expansion. Defaults to 5.
         masks (np.array, optional): Array of labels. If None will load "masks_{roi}".
              Defaults to None.
+        barcode_df (pd.DataFrame, optional): Rabies barcode dataframe, if None, will
+            load "barcode_df_roi{roi}.pkl". Defaults to None.
         barcode_dot_threshold (float, optional): Threshold for the barcode dot product.
             Only spots above the threshold will be counted. Defaults to 0.15.
         spot_score_threshold (float, optional): Threshold for the OMP score. Only spots
             above the threshold will be counted. Defaults to 0.1.
         hyb_score_threshold (float, optional): Threshold for hybridisation spots. Only
             spots above the threshold will be counted. Defaults to 0.8.
+        load_genes (bool, optional): Whether to load gene spots. Defaults to True.
+        load_hyb (bool, optional): Whether to load hybridisation spots. Defaults to True
+        load_barcodes (bool, optional): Whether to load barcode spots. Defaults to True.
 
     Returns:
         barcode_df (pd.DataFrame): Count of rolonies per barcode sequence per cell.
@@ -243,20 +275,14 @@ def segment_spots(
         roi=roi,
         mask_expansion=mask_expansion,
         masks=masks,
+        barcode_df=barcode_df,
         barcode_dot_threshold=barcode_dot_threshold,
         spot_score_threshold=spot_score_threshold,
         hyb_score_threshold=hyb_score_threshold,
+        load_genes=load_genes,
+        load_hyb=load_hyb,
+        load_barcodes=load_barcodes,
     )
-
-    thresholds = dict(
-        genes_round=("spot_score", spot_score_threshold),
-        barcode_round=("dot_product_score", barcode_dot_threshold),
-    )
-    for hyb in spots_dict:
-        if hyb in thresholds:
-            # it is genes or barcode
-            continue
-        thresholds[hyb] = ("score", hyb_score_threshold)
 
     # get the spots dataframes
     spots_in_cells = dict()
@@ -287,7 +313,7 @@ def segment_spots(
     return barcode_df, fused_df
 
 
-def _get_big_masks(data_path, roi, masks, mask_expansion):
+def get_big_masks(data_path, roi, masks, mask_expansion):
     """Small internal function to avoid code duplication
 
     Reload and expand masks if needed
@@ -295,10 +321,11 @@ def _get_big_masks(data_path, roi, masks, mask_expansion):
     Args:
         data_path (str): Relative path to data
         roi (int): ID of the ROI to load
-        mask_expansion (float, optional): Distance in um to expand masks before counting
-            rolonies per cells. None for no expansion. Defaults to 5.
         masks (np.array, optional): Array of labels. If None will load "masks_{roi}".
              Defaults to None.
+        mask_expansion (float, optional): Distance in um to expand masks before counting
+            rolonies per cells. None for no expansion. Defaults to 5.
+
 
     Returns:
         numpy.ndarray: masks expanded
@@ -311,6 +338,14 @@ def _get_big_masks(data_path, roi, masks, mask_expansion):
     else:
         pixel_size = get_pixel_size(data_path, prefix="genes_round_1_1")
         big_masks = expand_labels(masks, distance=int(mask_expansion / pixel_size))
+    max_val = big_masks.max()
+    # find the smallest integer type that can hold the max value
+    if max_val < 256:
+        big_masks = big_masks.astype(np.uint8)
+    elif max_val < 65536:
+        big_masks = big_masks.astype(np.uint16)
+    else:
+        big_masks = big_masks.astype(np.uint32)
     return big_masks
 
 
@@ -321,11 +356,6 @@ def segment_mcherry_tile(
     tilex,
     tiley,
     suffix="unmixed",
-    r1=4,
-    r2=70,
-    area_threshold=200,
-    elongation_threshold=0.9,
-    circularity_threshold=0.5,
 ):
     """
     Segment the mCherry channel of an image stack.
@@ -337,11 +367,6 @@ def segment_mcherry_tile(
         tilex (int): X coordinate of the tile.
         tiley (int): Y coordinate of the tile.
         suffix (str): Suffix of the image stack.
-        r1 (int): Inner radius of the annulus.
-        r2 (int): Outer radius of the annulus.
-        area_threshold (int): Minimum area of a cell.
-        elongation_threshold (float): Maximum eccentricity of a cell.
-        circularity_threshold (float): Minimum circularity of a cell.
 
     Returns:
         filtered_masks (np.ndarray): Binary image of the filtered masks.
@@ -351,6 +376,7 @@ def segment_mcherry_tile(
 
     # Load the unmixed and original mCherry image stacks
     processed_path = iss.io.get_processed_path(data_path)
+    ops = load_ops(data_path)
     unmixed_fname = (
         f"{prefix}_MMStack_{roi}-"
         + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_unmixed.tif"
@@ -362,10 +388,12 @@ def segment_mcherry_tile(
         f"{prefix}_MMStack_{roi}-"
         + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_{suffix}.tif"
     )
-    stack = iss.io.load_stack(processed_path / prefix / original_fname)[:, :, 0]
+    stack = iss.io.load_stack(processed_path / prefix / original_fname)
 
     # Apply a hann window filter to the unmixed image to remove halos around cells
-    filt = iss.image.filter_stack(unmixed_stack, r1=r1, r2=r2, dtype=float)
+    filt = iss.image.filter_stack(
+        unmixed_stack, r1=ops["mcherry_r1"], r2=ops["mcherry_r2"], dtype=float
+    )
     binary = (filt > threshold_triangle(filt))[:, :, 0]
 
     # Label the connected components in the binary image
@@ -377,42 +405,51 @@ def segment_mcherry_tile(
         properties=(
             "label",
             "area",
-            "convex_area",
-            "perimeter",
-            "mean_intensity",
-            "max_intensity",
-            "min_intensity",
             "centroid",
+            "eccentricity",
             "major_axis_length",
             "minor_axis_length",
-            "eccentricity",
-            "inertia_tensor_eigvals",
+            "intensity_max",
+            "intensity_mean",
+            "intensity_min",
+            "perimeter",
+            "solidity",
         ),
     )
 
     props_df = pd.DataFrame(props)
-    props_df["convexity"] = props_df["area"] / props_df["convex_area"]
     props_df["circularity"] = (
         4 * np.pi * props_df["area"] / (props_df["perimeter"] ** 2)
     )
-    area_threshold = area_threshold
-    # Closer to 1 means more elongated
-    elongation_threshold = elongation_threshold
-    # Closer to 1 means more circular
-    circularity_threshold = circularity_threshold
+    props_df["intensity_ratio"] = (
+        props_df["intensity_mean-2"] / props_df["intensity_mean-3"]
+    )
+    props_df["roi"] = roi
+    props_df["tilex"] = tilex
+    props_df["tiley"] = tiley
 
+    # TODO: these are a lot of threshold and we don't have an easy way to set them
+    # adapt to detect more mask here and filter later.
     filtered_df = props_df[
-        (props_df["area"] > area_threshold)
-        & (props_df["eccentricity"] <= elongation_threshold)
-        & (props_df["circularity"] >= circularity_threshold)
+        (props_df["area"] > ops["min_area_threshold"])
+        & (props_df["area"] < ops["max_area_threshold"])
+        & (props_df["circularity"] >= ops["min_circularity_threshold"])
+        & (props_df["circularity"] <= ops["max_circularity_threshold"])
+        & (props_df["eccentricity"] <= ops["max_elongation_threshold"])
+        & (props_df["solidity"] >= ops["min_solidity_threshold"])
+        & (props_df["solidity"] < ops["max_solidity_threshold"])
+        & (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])
     ]
 
     rejected_masks_df = props_df[
-        ~(
-            (props_df["area"] > area_threshold)
-            & (props_df["eccentricity"] <= elongation_threshold)
-            & (props_df["circularity"] >= circularity_threshold)
-        )
+        ~(props_df["area"] > ops["min_area_threshold"])
+        & (props_df["area"] < ops["max_area_threshold"])
+        & (props_df["circularity"] >= ops["min_circularity_threshold"])
+        & (props_df["circularity"] >= ops["max_circularity_threshold"])
+        & (props_df["eccentricity"] <= ops["max_elongation_threshold"])
+        & (props_df["solidity"] >= ops["min_solidity_threshold"])
+        & (props_df["solidity"] < ops["max_solidity_threshold"])
+        & (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])
     ]
 
     # Identify all pixels belonging to the filtered labels
@@ -461,7 +498,7 @@ def load_mask_by_coors(
     processed_path = iss.io.get_processed_path(data_path)
     tile_roi, tile_x, tile_y = tile_coors
     fname_corrected = f"{prefix}_masks_corrected_{tile_roi}_{tile_x}_{tile_y}.npy"
-    fname = f"{prefix}_masks_{tile_roi}_{tile_x}_{tile_y}.npy"
+    fname = f"{prefix}_cell_masks_{tile_roi}_{tile_x}_{tile_y}.npy"
     if load_raw:
         if (processed_path / "cells" / fname).exists():
             masks = np.load(processed_path / "cells" / fname, allow_pickle=True)
@@ -577,7 +614,7 @@ def get_overlap_regions(
 
 def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh):
     """
-    Dynamically identifies and removes overlapping labels in two adjacent tile overlaps
+    Dynamically identifies and removes overlapping labels in place, in two adjacent tile overlaps
     based on upper and lower overlap percentage thresholds. If the overlap is above the upper
     threshold, the label in the shifted tile is removed. If the overlap is below
     the lower threshold, the shared region is removed from both masks.
@@ -608,7 +645,7 @@ def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh
                     percent_overlap_tile1 = (overlap_area / np.sum(mask1)) * 100
                     percent_overlap_tile2 = (overlap_area / np.sum(mask2)) * 100
                     overlapping_pairs.append(
-                        (label1, label2, (percent_overlap_tile1, percent_overlap_tile2))
+                        (label1, label2, percent_overlap_tile1, percent_overlap_tile2)
                     )
                     # If overlap is above the upper threshold, remove the label from the shifted tile
                     if (
@@ -639,6 +676,17 @@ def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh
 
 
 def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
+    """
+    Remove masks that overlap in adjacent tiles.
+
+    Args:
+        data_path (str): Relative path to the data.
+        prefix (str): Prefix of the image stack.
+        upper_overlap_thresh (float): The upper threshold percentage for considering mask overlap significant.
+
+    Returns:
+        all_overlapping_pairs (list): A list of tuples containing the labels that overlapped and their respective percentages.
+    """
     processed_path = iss.io.get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
     ops = iss.io.load_ops(data_path)
@@ -652,12 +700,12 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
     # First remove masks at the edges of all the tiles
     for roi in roi_dims[:, 0]:
         for tilex in tqdm(
-            range(roi_dims[roi - 1, 1]),
+            range(roi_dims[roi - 1, 1] + 1),
             desc=f"ROI {roi} X-axis",
             total=roi_dims[roi - 1, 1],
         ):
             for tiley in tqdm(
-                range(roi_dims[roi - 1, 2]),
+                range(roi_dims[roi - 1, 2] + 1),
                 desc=f"Tile {tilex} Y-axis",
                 leave=False,
                 total=roi_dims[roi - 1, 2],
@@ -680,18 +728,17 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
     all_overlapping_pairs = []
     for roi in roi_dims[:, 0]:
         for tilex in tqdm(
-            reversed(range(roi_dims[roi - 1, 1])),
+            reversed(range(roi_dims[roi - 1, 1] + 1)),
             desc=f"ROI {roi} X-axis (overlap check)",
             total=roi_dims[roi - 1, 1],
         ):
             for tiley in tqdm(
-                reversed(range(roi_dims[roi - 1, 2])),
+                reversed(range(roi_dims[roi - 1, 2] + 1)),
                 desc=f"Tile {tilex} Y-axis (overlap check)",
                 leave=False,
                 total=roi_dims[roi - 1, 2],
             ):
                 ref_coors = (roi, tilex, tiley)
-
                 # Load reference tile
                 tile_ref = load_mask_by_coors(
                     data_path, tile_coors=ref_coors, prefix=prefix
@@ -734,7 +781,7 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 shifts_fname = (
                     iss.io.get_processed_path(data_path)
                     / "reg"
-                    / f"{prefix}_shifts.npz"
+                    / f"{prefix}_shifts.npz"  # f"{ops['reference_prefix']}_shifts.npz"
                 )
                 shifts = np.load(shifts_fname)
 
@@ -774,8 +821,8 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                     overlapping_pairs_down,
                     overlapping_pairs_down_right,
                 ]:
-                    if pairs_list:  # Checks if the list is not empty
-                        all_overlapping_pairs.extend(pairs_list)
+                    # Checks if the list is not empty
+                    all_overlapping_pairs.extend(pairs_list)
 
                 # Save the corrected masks
                 for tile in [
@@ -784,26 +831,114 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                     (right_coors, tile_right),
                     (down_right_coors, tile_down_right),
                 ]:
-                    tile_roi, tile_x, tile_y = tile[0]
+                    tile_coors, mask = tile
+                    tile_roi, tile_x, tile_y = tile_coors
                     if tile_x >= 0 and tile_y >= 0:
                         fname = (
                             f"{prefix}_masks_corrected_{tile_roi}_{tile_x}_{tile_y}.npy"
                         )
                         np.save(
-                            processed_path / "cells" / fname, tile[1], allow_pickle=True
+                            processed_path / "cells" / fname, mask, allow_pickle=True
                         )
-    all_overlapping_pairs_array = np.array(
-        [
-            (label1, label2, overlap1, overlap2, sum_mask1, sum_mask2)
-            for label1, label2, (
-                overlap1,
-                overlap2,
-            ), sum_mask1, sum_mask2 in all_overlapping_pairs
-        ]
-    )
+
     np.save(
         processed_path / "cells" / f"{prefix}_overlapping_pairs.npy",
-        all_overlapping_pairs_array,
+        np.vstack(all_overlapping_pairs),
         allow_pickle=True,
     )
     return all_overlapping_pairs
+
+
+def remove_non_cell_masks(data_path, roi, tilex, tiley):
+    """
+    Remove masks that are not cells based on the clustering results.
+
+    Args:
+        data_path (str): Relative path to the data.
+        roi (int): Region of interest.
+        tilex (int): X coordinate of the tile.
+        tiley (int): Y coordinate of the tile.
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    mask_dir = processed_path / "cells"
+    df_thresh = pd.read_pickle(mask_dir / "df_thresh.pkl")
+    tile = np.load(
+        mask_dir / f"mCherry_1_masks_{roi}_{tilex}_{tiley}.npy", allow_pickle=True
+    )
+    image_df = df_thresh[
+        (df_thresh["roi"] == roi)
+        & (df_thresh["tilex"] == tilex)
+        & (df_thresh["tiley"] == tiley)
+    ]
+    # Remove bad masks
+    for label in np.unique(tile):
+        if label == 0:
+            continue
+        elif label in image_df["label"].astype(np.uint16).values:
+            # Check if the mask is in the bad cluster (0)
+            if image_df[image_df["label"] == label]["cluster_label"].values[0] != 0:
+                continue
+        else:
+            tile[tile == label] = 0
+
+    # Save the edge corrected masks
+    fname = f"mCherry_1_cell_masks_{roi}_{tilex}_{tiley}.npy"
+    np.save(processed_path / "cells" / fname, tile, allow_pickle=True)
+
+
+def find_mcherry_cells(data_path):
+    """
+    Find cell clusters in the mCherry channel using a GMM to cluster
+    cells based on their morphological features. Then remove non-cell
+    masks based on the clustering results and save remaining masks.
+
+    Args:
+        data_path (str): Relative path to the data.
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    df_dir = processed_path / "cells"
+    df_files = glob.glob(str(df_dir / "*.pkl"))
+    dfs = [pd.read_pickle(f) for f in df_files]
+    df = pd.concat(dfs)
+    if df.empty:
+        raise ValueError("No masks found in any tile.")
+
+    scaler = StandardScaler()
+
+    features = [
+        "area",
+        "circularity",
+        "solidity",
+        "intensity_mean-3",
+        "intensity_mean-2",
+    ]
+
+    df_norm = (df[features] - df[features].min()) / (
+        df[features].max() - df[features].min()
+    )
+    scaled_features = scaler.fit_transform(df_norm[features])
+    df_scaled_features = pd.DataFrame(scaled_features, columns=features)
+
+    # TODO: Remove hardcoded cluster centers (use percentiles?)
+    cluster_centers_scaled = np.array(
+        [
+            [-0.81560289, -1.16570977, -1.16885992, 0.68591332, -0.47768646],
+            [-0.08201876, 0.48188625, 0.38447341, -0.41695244, -0.42873761],
+            [0.97601349, 0.61105821, 0.74187513, -0.18499336, 1.06977134],
+        ]
+    )
+
+    # Fit GMM
+    n_components = 3
+    gmm = GaussianMixture(
+        n_components=n_components,
+        means_init=cluster_centers_scaled,
+        random_state=42,
+        verbose=2,
+    )
+    gmm.fit(df_scaled_features[features])
+    labels = gmm.predict(df_scaled_features[features])
+    df["cluster_label"] = labels + 1
+    df.to_pickle(processed_path / "cells" / "df_thresh.pkl")
+
+    iss.pipeline.batch_process_tiles(data_path, script="remove_non_cell_masks")

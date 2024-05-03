@@ -8,7 +8,7 @@ from ..coppafish import scaled_k_means
 BASES = np.array(["G", "T", "A", "C"])
 
 
-def get_cluster_means(spots, score_thresh=0.0):
+def get_cluster_means(spots, initial_cluster_mean, score_thresh=0.0):
     """Find the mean of the 4 clusters (one per channel)
 
     Args:
@@ -33,7 +33,7 @@ def get_cluster_means(spots, score_thresh=0.0):
     cluster_inds = []
     for iround in range(nrounds):
         _, _, cluster_ind, _, _, _ = scaled_k_means(
-            spot_colors[iround, :, :].T, np.eye(nch), score_thresh=score_thresh
+            spot_colors[iround, :, :].T, initial_cluster_mean, score_thresh=score_thresh
         )
         cluster_mean = np.zeros((nch, nch))
         for icluster in range(nch):
@@ -165,37 +165,3 @@ def call_genes(sequences, codebook):
         genes.append(codebook.iloc[dist_series.argmin()]["gene"])
         errors.append(dist)
     return genes, errors
-
-
-def correct_barcode_sequences(spots, max_edit_distance=2):
-    sequences = np.stack(spots["sequence"].to_numpy())
-    unique_sequences, counts = np.unique(sequences, axis=0, return_counts=True)
-    # sort sequences according to abundance
-    order = np.flip(np.argsort(counts))
-    unique_sequences = unique_sequences[order]
-    counts = counts[order]
-
-    corrected_sequences = unique_sequences.copy()
-    reassigned = np.zeros(corrected_sequences.shape[0])
-    for i, sequence in enumerate(unique_sequences):
-        # if within edit distance and lower in the list (i.e. lower abundance),
-        # then update the sequence
-        edit_distance = np.sum((unique_sequences - sequence) != 0, axis=1)
-        sequences_to_correct = np.logical_and(
-            edit_distance <= max_edit_distance, np.logical_not(reassigned)
-        )
-        sequences_to_correct[: i + 1] = False
-        corrected_sequences[sequences_to_correct, :] = sequence
-        reassigned[sequences_to_correct] = True
-
-    for original_sequence, new_sequence in zip(unique_sequences, corrected_sequences):
-        if not np.array_equal(original_sequence, new_sequence):
-            sequences[
-                np.all((sequences - original_sequence) == 0, axis=1), :
-            ] = new_sequence
-
-    spots["corrected_sequence"] = [seq for seq in sequences]
-    spots["corrected_bases"] = [
-        "".join(BASES[seq]) for seq in spots["corrected_sequence"]
-    ]
-    return spots

@@ -88,7 +88,7 @@ but will **not** change ``angles_within_channels``, ``angles_between_channels`` 
 ``scales_between_channels``.
 
 .. note::
-    ``angles_within_channels`` and ``angles_across_channels`` might actually vary due to the
+    ``angles_within_channels`` and ``angles_between_channels`` might actually vary due to the
     dichroic wobble but in practice registration works well using values from the reference tile.
 
 The output is saved in the `reg` subfolder as

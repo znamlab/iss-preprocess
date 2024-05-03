@@ -4,12 +4,13 @@ import multiprocessing
 import numpy as np
 import scipy.fft
 import scipy.ndimage
+from image_tools.registration import affine_by_block as abb
 from image_tools.registration import phase_correlation as mpc
 from image_tools.similarity_transforms import make_transform, transform_image
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from skimage.registration import phase_cross_correlation
-from skimage.transform import SimilarityTransform, warp
+from skimage.transform import AffineTransform, warp
 
 
 def register_channels_and_rounds(
@@ -21,6 +22,7 @@ def register_channels_and_rounds(
     max_shift=None,
     debug=False,
     use_masked_correlation=False,
+    affine_by_block=True,
 ):
     """
     Estimate transformation matrices for alignment across channels and rounds.
@@ -35,13 +37,17 @@ def register_channels_and_rounds(
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
         debug (bool): whether to return debug info, default: False
         use_masked_correlation (bool): whether to use masked phase correlation
+        affine_by_block (bool): whether to use affine by block registration instead of
+            similarity transforms for channel alignment. Default: True
 
     Returns:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
         shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
-        scales_between_channels (np.array): Nchannels array of scales
-        angles_between_channels (np.array): Nchannels array of angles
-        shifts_between_channels (np.array): Nchannels x 2 array of shifts
+        accross_channels_params (list): Nchannels list of affine transformations if
+            affine_by_block, a list of scales_between_channels (Nchannels array of
+            scales), angles_between_channels (Nchannels array of angles), and
+            shifts_between_channels (Nchannels x 2 array of shifts)
+        debug_info (dict): dictionary with debug info, only if debug=True
     """
 
     # first register images across rounds within each channel
@@ -65,20 +71,32 @@ def register_channels_and_rounds(
     std_stack, mean_stack = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
-    out_across = list(
-        estimate_correction(
-            std_stack,
-            ch_to_align=ref_ch,
-            upsample=5,
-            max_shift=max_shift,
-            median_filter_size=median_filter,
-            use_masked_correlation=use_masked_correlation,
-            debug=debug,
+    if affine_by_block:
+        out_across = list(
+            correct_by_block(
+                std_stack,
+                ch_to_align=ref_ch,
+                median_filter_size=median_filter,
+                debug=debug,
+            )
         )
-    )
-    if debug:
-        debug_info["estimate_correction"] = out_across.pop(-1)
-    output = [angles_within_channels, shifts_within_channels] + out_across
+        if debug:
+            debug_info["correct_by_block"] = out_across.pop(-1)
+    else:
+        out_across = list(
+            estimate_correction(
+                std_stack,
+                ch_to_align=ref_ch,
+                upsample=5,
+                max_shift=max_shift,
+                median_filter_size=median_filter,
+                use_masked_correlation=use_masked_correlation,
+                debug=debug,
+            )
+        )
+        if debug:
+            debug_info["estimate_correction"] = out_across.pop(-1)
+    output = [angles_within_channels, shifts_within_channels] + [out_across]
 
     if debug:
         output.append(debug_info)
@@ -88,9 +106,7 @@ def register_channels_and_rounds(
 def generate_channel_round_transforms(
     angles_within_channels,
     shifts_within_channels,
-    scales_between_channels,
-    angles_between_channels,
-    shifts_between_channels,
+    matrix_between_channels,
     stack_shape,
     align_channels=True,
     ref_ch=0,
@@ -100,9 +116,7 @@ def generate_channel_round_transforms(
     Args:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
         shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
-        scales_between_channels (np.array): Nchannels array of scales
-        angles_between_channels (np.array): Nchannels array of angles
-        shifts_between_channels (np.array): Nchannels x 2 array of shifts
+        matrix_between_channels (list): Nchannels list of affine transformations matrices
         stack_shape (tuple): shape of the stack
         align_channels (bool): whether to register channels to each other
 
@@ -120,12 +134,7 @@ def generate_channel_round_transforms(
         else:
             use_ch = ref_ch
         for iround in range(nrounds):
-            tforms[ich, iround] = make_transform(
-                scales_between_channels[use_ch],
-                angles_between_channels[use_ch],
-                shifts_between_channels[use_ch],
-                stack_shape,
-            ) @ make_transform(
+            tforms[ich, iround] = matrix_between_channels[use_ch] @ make_transform(
                 1.0,
                 angles_within_channels[use_ch][iround],
                 shifts_within_channels[use_ch][iround],
@@ -151,7 +160,7 @@ def align_channels_and_rounds(stack, tforms):
 
     for ich in range(nchannels):
         for iround in range(nrounds):
-            tform = SimilarityTransform(matrix=tforms[ich, iround])
+            tform = AffineTransform(matrix=tforms[ich, iround])
             reg_stack[:, :, ich, iround] = warp(
                 stack[:, :, ich, iround],
                 tform.inverse,
@@ -173,6 +182,7 @@ def align_within_channels(
     max_shift=None,
     use_masked_correlation=False,
     debug=False,
+    multiprocess=True,
 ):
     """Align images within each channel.
 
@@ -191,6 +201,7 @@ def align_within_channels(
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
         use_masked_correlation (bool): whether to use masked phase correlation
         debug (bool): whether to return debug info, default: False
+        multiprocess (bool): whether to use multiprocessing, default: True
 
     Returns:
         angles (np.array): Nchannels x Nrounds array of angles
@@ -227,9 +238,12 @@ def align_within_channels(
         for iround in range(nrounds)
     ]
 
-    # TODO: Process tasks in parallel, each process uses ~3Gb RAM so limit to amount available
-    with multiprocessing.Pool(15) as pool:
-        results = pool.map(_process_single_rotation_translation, pool_args)
+    if multiprocess:
+        # TODO: Process tasks in parallel, each process uses ~3Gb RAM so limit to amount
+        with multiprocessing.Pool(15) as pool:
+            results = pool.map(_process_single_rotation_translation, pool_args)
+    else:
+        results = [_process_single_rotation_translation(args) for args in pool_args]
 
     # Organize results
     angles_channels = [[None] * nrounds for _ in range(nchannels)]
@@ -297,35 +311,95 @@ def _process_single_rotation_translation(args):
     return ref_ch, iround, 0.0, [0.0, 0.0]
 
 
-def estimate_shifts_and_angles_for_tile(
-    stack, scales, ref_ch=0, binarise_quantile=0.9, max_shift=None, debug=False
+def estimate_affine_for_tile(
+    stack,
+    tform_matrix=None,
+    max_shift=None,
+    ref_ch=0,
+    block_size=512,
+    overlap=0.6,
+    correlation_threshold=0.01,
+    binarise_quantile=None,
+    debug=False,
 ):
-    """Estimate shifts and angles. Registration is carried out on thresholded images
-    using the provided quantile threshold.
+    """Estimate affine transformations for a single tile
+
+    Args:
+        stack (np.array): X x Y x Nchannels images stack
+        tform_matrix (np.array, optional): Nchannels list of affine transformations
+            matrices for initial alignment. Default: None
+        max_shift (int): maximum shift to avoid spurious cross-correlations
+        ref_ch (int): reference channel
+        block_size (int): size of the block to use for registration, default: 512
+        overlap (float): overlap between blocks, default: 0.6
+        correlation_threshold (float): threshold for correlation to use for fitting
+            affine transformations, default: 0.01
+        binarise_quantile (float): quantile to use for binarisation of each block
+            default: None
+        debug (bool): whether to return debug info, default: False
+
+    Returns:
+        matrix (np.array): Nchannels list of affine transformations matrices
+        debug_info (dict): dictionary with debug info, only if debug=True
+    """
+    # run affine by block on image transformed by the matrix
+    if tform_matrix is not None:
+        moving_image = apply_corrections(stack, matrix=tform_matrix)
+    else:
+        moving_image = stack
+    # We do the median filtering in the parent function to do it before corrections
+    out = correct_by_block(
+        moving_image,
+        ch_to_align=ref_ch,
+        median_filter_size=None,
+        block_size=block_size,
+        overlap=overlap,
+        max_shift=max_shift,
+        correlation_threshold=correlation_threshold,
+        binarise_quantile=binarise_quantile,
+        debug=debug,
+    )
+    if debug:
+        matrix, debug_info = out
+    else:
+        matrix = out
+    if tform_matrix is not None:
+        # multiply the matrix by the tform_matrix to get the whole transform
+        nch = stack.shape[2]
+        for ich in range(nch):
+            matrix[ich] = matrix[ich] @ tform_matrix[ich]
+    if debug:
+        return matrix, debug_info
+    return matrix
+
+
+def estimate_shifts_and_angles_for_tile(
+    stack,
+    scales=None,
+    ref_ch=0,
+    max_shift=None,
+    debug=False,
+):
+    """Estimate shifts and angles for a single tile
 
     Args:
         stack (np.array): X x Y x Nchannels images stack
         scales (np.array): Nchannels array of scales
         ref_ch (int): reference channel
-        binarise_quantile (float): quantile to use for thresholding
         max_shift (int): maximum shift to avoid spurious cross-correlations
         debug (bool): whether to return debug info, default: False
 
     Returns:
-        angles (np.array): Nchannels array of angles
-        shifts (np.array): Nchannels x 2 array of shifts
+        angles (np.array): Nchannels array of angles, if tfom_matrix is None
+        shifts (np.array): Nchannels x 2 array of shifts, if tfom_matrix is None
         debug_info (dict): dictionary with debug info, only if debug=True
 
     """
     nch = stack.shape[2]
-    angles = []
-    shifts = []
-    if binarise_quantile is not None:
-        for ich in range(nch):
-            ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
-            stack[:, :, ich] = stack[:, :, ich] > ref_thresh
     if debug:
         debug_info = {}
+    angles = []
+    shifts = []
     for ich in range(nch):
         if ref_ch != ich:
             out = estimate_rotation_translation(
@@ -355,21 +429,20 @@ def estimate_shifts_and_angles_for_tile(
 def estimate_shifts_for_tile(
     stack,
     angles_within_channels,
-    scales_between_channels,
-    angles_between_channels,
+    matrix_between_channels,
     ref_ch=0,
     ref_round=0,
     max_shift=None,
     min_shift=None,
     median_filter_size=None,
 ):
-    """Use precomputed rotations and scale factors to re-estimate shifts for every round and between channels.
+    """Use precomputed rotations and scale factors to re-estimate shifts for every round
+    and between channels.
 
     Args:
         stack (np.array): X x Y x Nchannels x Nrounds images stack
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
-        scales_between_channels (np.array): Nchannels x Nchannels array of scale factors
-        angles_between_channels (np.array): Nchannels x Nchannels array of angles
+        matrix_between_channels (list): Nchannels list of affine transformations matrices
         ref_ch (int): reference channel
         ref_round (int): reference round
         max_shift (int): maximum shift to avoid spurious cross-correlations
@@ -412,29 +485,30 @@ def estimate_shifts_for_tile(
     std_stack, _ = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
-    shifts_between_channels = []
+    matrix_between_channels_new = matrix_between_channels.copy()
     for ich in range(nchannels):
         # TODO this always uses upsample. Is that what we want?
-        shifts_between_channels.append(
-            phase_cross_correlation(
-                std_stack[:, :, ref_ch],
-                transform_image(
-                    std_stack[:, :, ich],
-                    scale=scales_between_channels[ich],
-                    angle=angles_between_channels[ich],
-                ),
-                upsample_factor=5,
-            )[0]
+        moving_image = warp(
+            std_stack[:, :, ich],
+            AffineTransform(matrix=matrix_between_channels[ich]).inverse,
+            preserve_range=True,
+            cval=0,
         )
+        extra_shifts_between_channels = phase_cross_correlation(
+            std_stack[:, :, ref_ch],
+            moving_image,
+            upsample_factor=5,
+        )[0]
+        # add extra_shift to the matrix, matrix is x/y, shifts are row/column
+        matrix_between_channels_new[ich][:2, 2] += extra_shifts_between_channels[::-1]
+
     tforms = generate_channel_round_transforms(
         angles_within_channels,
         shifts_within_channels,
-        scales_between_channels,
-        angles_between_channels,
-        shifts_between_channels,
+        matrix_between_channels_new,
         stack.shape[:2],
     )
-    return tforms, shifts_within_channels, shifts_between_channels
+    return tforms, shifts_within_channels, matrix_between_channels_new
 
 
 def get_channel_reference_images(stack, angles_channels, shifts_channels):
@@ -457,32 +531,24 @@ def get_channel_reference_images(stack, angles_channels, shifts_channels):
     mean_stack = np.zeros((stack.shape[:3]))
 
     for ich in range(nchannels):
-        std_stack[:, :, ich] = np.std(
-            apply_corrections(
-                stack[:, :, ich, :],
-                np.ones((nrounds)),
-                angles_channels[ich],
-                shifts_channels[ich],
-            ),
-            axis=2,
+        corrected = apply_corrections(
+            stack[:, :, ich, :],
+            scales=np.ones((nrounds)),
+            angles=angles_channels[ich],
+            shifts=shifts_channels[ich],
         )
-        mean_stack[:, :, ich] = np.mean(
-            apply_corrections(
-                stack[:, :, ich, :],
-                np.ones((nrounds)),
-                angles_channels[ich],
-                shifts_channels[ich],
-            ),
-            axis=2,
-        )
+        std_stack[:, :, ich] = np.std(corrected, axis=2)
+        mean_stack[:, :, ich] = np.mean(corrected, axis=2)
     return std_stack, mean_stack
 
 
-def apply_corrections(im, scales, angles, shifts, cval=0.0):
+def apply_corrections(im, matrix=None, scales=None, angles=None, shifts=None, cval=0.0):
     """Apply scale, rotation and shift corrections to a multichannel image.
 
     Args:
         im (np.array): X x Y x Nchannels image
+        matrix (np.array): Nchannels list of affine transformations matrices. If
+            provided, scales, angles and shifts are ignored.
         scales (np.array): Nchannels array of scale factors
         angles (np.array): Nchannels array of angles
         shifts (np.array): Nchannels x 2 array of shifts
@@ -494,12 +560,98 @@ def apply_corrections(im, scales, angles, shifts, cval=0.0):
     """
     nchannels = im.shape[2]
     im_reg = np.zeros(im.shape)
-    for channel, scale, angle, shift in zip(range(nchannels), scales, angles, shifts):
-        im_reg[:, :, channel] = transform_image(
-            im[:, :, channel], scale=scale, angle=angle, shift=shift, cval=cval
-        )
+    if matrix is None:
+        for ch, scale, angle, shift in zip(range(nchannels), scales, angles, shifts):
+            im_reg[:, :, ch] = transform_image(
+                im[:, :, ch], scale=scale, angle=angle, shift=shift, cval=cval
+            )
+    else:
+        for ch, mat in enumerate(matrix):
+            im_reg[:, :, ch] = warp(
+                im[:, :, ch],
+                AffineTransform(matrix=mat).inverse,
+                preserve_range=True,
+                cval=cval,
+            )
 
     return im_reg
+
+
+def correct_by_block(
+    im,
+    ch_to_align,
+    median_filter_size=None,
+    block_size=256,  # todo make ops
+    overlap=0.5,
+    max_shift=None,
+    correlation_threshold=None,
+    binarise_quantile=None,
+    debug=False,
+):
+    """Estimate affine transformations by block for each channel of a multichannel image.
+
+    Args:
+        im (np.array): X x Y x Nchannels image
+        ch_to_align (int): channel to align to
+        median_filter_size (int, optional): size of median filter to apply to the stack.
+        block_size (int, optional): size of the block to use for registration. Default: 256
+        overlap (float, optional): overlap between blocks. Default: 0.5
+        max_shift (int, optional): maximum shift to avoid spurious cross-correlations.
+            Default: None
+        correlation_threshold (float, optional): threshold for correlation to use for fitting
+            affine transformations. None to keep all values. Default: None
+        binarise_quantile (float, optional): quantile to use for binarisation of
+            each block. Default: None
+        debug (bool, optional): whether to return debug info, default: False
+
+    Returns:
+        output (list): Nchannels list of affine transformations
+        debug_info (dict): dictionary with debug info, only if debug=True
+    """
+
+    nchannels = im.shape[2]
+    if median_filter_size is not None:
+        print(f"Filtering with median filter of size {median_filter_size}")
+        assert isinstance(
+            median_filter_size, int
+        ), "reg_median_filter must be an integer"
+        im = median_filter(im, footprint=disk(median_filter_size), axes=(0, 1))
+    reference = im[:, :, ch_to_align]
+    matrix_list = []
+    if debug:
+        db = {}
+    for channel in range(nchannels):
+        if channel != ch_to_align:
+            target = im[:, :, channel]
+            try:
+                params = abb.find_affine_by_block(
+                    reference,
+                    target,
+                    block_size=block_size,
+                    overlap=overlap,
+                    max_shift=max_shift,
+                    correlation_threshold=correlation_threshold,
+                    binarise_quantile=binarise_quantile,
+                    debug=debug,
+                )
+                if debug:
+                    params, db[channel] = params
+                print(f"Channel {channel} affine: {np.round(params, 3)}", flush=True)
+            except ValueError as e:
+                print(f"Channel {channel} failed to register: {e}", flush=True)
+                params = np.array([1, 0, 0, 0, 1, 0])
+        else:
+            params = np.array([1, 0, 0, 0, 1, 0])
+        # make a 3x3 matrix from the 6 parameters
+        matrix = np.zeros((3, 3))
+        matrix[0] = params[:3]
+        matrix[1] = params[3:]
+        matrix[2] = [0, 0, 1]
+        matrix_list.append(matrix)
+
+    if debug:
+        return matrix_list, db
+    return matrix_list
 
 
 def estimate_correction(
@@ -571,9 +723,17 @@ def estimate_correction(
     # Organize results
     if debug:
         scales, angles, shifts, debug_info = zip(*results)
-        return list(scales), list(angles), list(shifts), list(debug_info)
-    scales, angles, shifts = zip(*results)
-    return list(scales), list(angles), list(shifts)
+    else:
+        scales, angles, shifts = zip(*results)
+    # make a matrix from the shifts, scales and angles
+    matrix_list = [
+        make_transform(scale, angle, shift, im.shape[:2])
+        for scale, angle, shift in zip(scales, angles, shifts)
+    ]
+
+    if debug:
+        return matrix_list, debug_info
+    return matrix_list
 
 
 def _process_single_scale_rotation_translation(args):
@@ -845,6 +1005,7 @@ def estimate_rotation_translation(
     Returns:
         best_angle (float) in degrees
         shift (tuple) of X and Y shifts
+        debug_info (dict): dictionary with debug info, only if debug=True
 
     """
 

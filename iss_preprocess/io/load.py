@@ -162,12 +162,31 @@ def get_pixel_size(data_path, prefix="genes_round_1_1"):
 
     Args:
         data_path (str): Relative path to data.
-        prefix (str, optional): Which acquisition prefix to use. Defaults to "genes_round_1_1".
+        prefix (str, optional): Which acquisition prefix to use. Defaults to
+            "genes_round_1_1".
 
+    Returns:
+        float: Pixel size in microns
     """
     acq_data = load_micromanager_metadata(data_path, prefix=prefix)
     pixel_size = acq_data["FrameKey-0-0-0"]["PixelSizeUm"]
     return pixel_size
+
+
+def get_z_step(data_path, prefix="genes_round_1_1"):
+    """Get z step size from MicroManager metadata.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): Which acquisition prefix to use. Defaults to
+            "genes_round_1_1".
+
+    Returns:
+        float: Z step size in microns
+    """
+    acq_data = load_micromanager_metadata(data_path, prefix=prefix)
+    z_step = acq_data["Summary"]["z-step_um"]
+    return z_step
 
 
 def load_micromanager_metadata(data_path, prefix):
@@ -290,8 +309,8 @@ def get_tile_ome(fname, fmetadata):
         frame_keys = list(metadata.keys())[1:]
         if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
             # THIS IS CRAP.
-            # There is an issue with micromanager and the ome metadata are not always correct
-            # use indexmap instead (which is from micromanager but is correct)
+            # There is an issue with micromanager and the ome metadata are not always
+            # correct use indexmap instead (which is from micromanager but is correct)
             umeta = stack.micromanager_metadata
             indexmap = umeta["IndexMap"]
             zs = indexmap[:, 1]
@@ -380,3 +399,24 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
     if save:
         np.save(roi_dims_file, roi_list)
     return roi_list
+
+
+def load_mask_by_coors(data_path, tile_coors, prefix, suffix="corrected"):
+    """Load masks for a single tile.
+
+    Args:
+        data_path (str): Relative path to data
+        tile_coors (tuple): Tile coordinates (roi, xpos, ypos)
+        prefix (str): Prefix of acquisition to load
+        suffix (str, optional): Suffix of the mask file. Defaults to "corrected".
+
+    Returns:
+        numpy.ndarray: Masks for the tile
+        numpy.ndarray: Bad pixels for the tile (all True)
+    """
+    processed_path = get_processed_path(data_path)
+    tname = "_".join(map(str, tile_coors))
+    masks_file = processed_path / "cells" / f"{prefix}_{suffix}_{tname}.npy"
+    masks = np.load(masks_file)
+
+    return masks

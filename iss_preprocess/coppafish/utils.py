@@ -154,6 +154,9 @@ def scaled_k_means(
     if len(np.array([score_thresh]).flatten()) == 1:
         # if single threshold, set the same for each cluster
         score_thresh = np.ones(n_clusters) * score_thresh
+    elif isinstance(score_thresh, list):
+        score_thresh = np.array(score_thresh)
+        assert len(score_thresh) == n_clusters, "score_thresh must be length n_clusters"
 
     for i in range(n_iter):
         cluster_ind_old = cluster_ind.copy()

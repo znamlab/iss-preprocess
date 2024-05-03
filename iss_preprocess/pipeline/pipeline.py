@@ -206,11 +206,18 @@ def project_and_average(data_path, force_redo=False):
     print("All jobs submitted", flush=True)
 
 
-def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
+def load_and_register_tile(
+    data_path,
+    tile_coors,
+    prefix,
+    filter_r=True,
+    projection=None,
+    zero_bad_pixels=False,
+):
     """Load one single tile
 
-    Load a tile of `prefix` with channels/rounds registered, apply illumination correction
-    and filtering.
+    Load a tile of `prefix` with channels/rounds registered, apply illumination
+    correction and filtering.
 
     Args:
         data_path (str): Relative path to data
@@ -219,15 +226,19 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             all the rounds.
         filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
             from `ops`. Default to True
+        projection (str, optional): Projection to use. If None, will read from `ops`.
+            Defaults to None
+        zero_bad_pixels (bool, optional): Set bad pixels to zero. Defaults to False
 
     Returns:
         numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
-        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after registration
+        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after
+            registration
 
     """
     ops = load_ops(data_path)
-    metadata = load_metadata(data_path)
-    projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
+    if projection is None:
+        projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     if filter_r and isinstance(filter_r, bool):
         filter_r = ops["filter_r"]
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
@@ -252,8 +263,7 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
         )
         # the transforms for all rounds are the same and saved with round 1
         prefix = acq_type + "_1_1"
-
-    elif prefix in metadata["hybridisation"]:
+    else:
         stack, bad_pixels = load_and_register_hyb_tile(
             data_path,
             tile_coors=tile_coors,
@@ -261,19 +271,15 @@ def load_and_register_tile(data_path, tile_coors, prefix, filter_r=True):
             suffix=projection,
             filter_r=filter_r,
             correct_illumination=True,
-            correct_channels=True,
+            correct_channels=False,
         )
-    else:
-        stack = load_tile_by_coors(
-            data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
-        )
-        bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
-        stack = apply_illumination_correction(data_path, stack, prefix)
 
-    stack[bad_pixels] = 0
     # ensure we have 4d to match acquisitions with rounds
     if stack.ndim == 3:
         stack = stack[..., np.newaxis]
+
+    if zero_bad_pixels:
+        stack[bad_pixels] = 0
 
     return stack, bad_pixels
 
@@ -288,7 +294,10 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
             load `genes_round_1_1` dimensions
         additional_args (str, optional): Additional environment variable to export
             to pass to the sbatch job. Should start with a leading comma.
-            Defaults to "".
+            Defaults to ""
+
+    Returns:
+        list: List of job IDs for the slurm jobs created.
 
     """
     if roi_dims is None:

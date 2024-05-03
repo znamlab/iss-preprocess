@@ -43,7 +43,7 @@ def load_sequencing_rounds(
     tile_coors=(1, 0, 0),
     nrounds=7,
     suffix="max",
-    prefix="round",
+    prefix="genes_round",
     specific_rounds=None,
 ):
     """Load processed tile images across rounds
@@ -56,7 +56,7 @@ def load_sequencing_rounds(
             `specific_rounds` is None. Defaults to 7.
         suffix (str, optional): File name suffix. Defaults to 'fstack'.
         prefix (str, optional): the folder name prefix, before round number. Defaults
-            to "round"
+            to "genes_round"
         specific_round (list, optional): if not None, specify which rounds must be
             loaded and ignores `nrounds`. Defaults to None
 
@@ -93,31 +93,11 @@ def setup_barcode_calling(data_path):
 
     """
     ops = load_ops(data_path)
-    all_spots = []
-    for ref_tile in ops["barcode_ref_tiles"]:
-        print(f"detecting spots in tile {ref_tile}")
-        stack, _ = load_and_register_sequencing_tile(
-            data_path,
-            ref_tile,
-            filter_r=ops["filter_r"],
-            prefix="barcode_round",
-            suffix=ops["barcode_projection"],
-            nrounds=ops["barcode_rounds"],
-            correct_channels=ops["barcode_correct_channels"],
-            corrected_shifts=ops["corrected_shifts"],
-            correct_illumination=False,
-        )
-        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
-        spots = detect_isolated_spots(
-            np.std(stack, axis=(2, 3)),
-            detection_threshold=ops["barcode_detection_threshold"],
-            isolation_threshold=ops["barcode_isolation_threshold"],
-        )
-        extract_spots(spots, stack, ops["spot_extraction_radius"])
-        all_spots.append(spots)
-    all_spots = pd.concat(all_spots, ignore_index=True)
+    all_spots, _ = get_reference_spots(data_path, prefix="barcode")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
-        all_spots, score_thresh=ops["barcode_cluster_score_thresh"]
+        all_spots,
+        score_thresh=ops["barcode_cluster_score_thresh"],
+        initial_cluster_mean=np.array(ops["initial_cluster_means"]),
     )
     processed_path = iss.io.get_processed_path(data_path)
     np.savez(
@@ -156,10 +136,10 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         correct_illumination=True,
     )
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
-    stack[bad_pixels, :, :] = 0
+
     spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
     spots = detect_spots_by_shape(
-        np.mean(stack, axis=(2, 3)),
+        np.nanmean(stack, axis=(2, 3)),
         spot_sign_image,
         threshold=ops["barcode_detection_threshold_basecalling"],
         rho=ops["barcode_spot_rho"],
@@ -169,6 +149,8 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         print(f"No spots detected in tile {tile_coors}")
         return stack, spot_sign_image, spots
     x = np.stack(spots["trace"], axis=2)
+    x = np.nan_to_num(x)
+
     cluster_inds = []
     top_score = []
 
@@ -187,12 +169,11 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         cluster_inds.append(cluster_ind)
         top_score.append(score[np.arange(x_norm.shape[0]), cluster_ind])
 
-    mean_score = np.mean(np.stack(top_score, axis=1), axis=1)
     sequences = np.stack(cluster_inds, axis=1)
     spots["sequence"] = [seq for seq in sequences]
     scores = np.stack(top_score, axis=1)
     spots["scores"] = [s for s in scores]
-    spots["mean_score"] = mean_score
+    spots["mean_score"] = np.nanmean(scores, axis=1)
     spots["bases"] = ["".join(BASES[seq]) for seq in spots["sequence"]]
     spots["dot_product_score"] = barcode_spots_dot_product(spots, cluster_means)
     spots["mean_intensity"] = [np.mean(np.abs(trace)) for trace in spots["trace"]]
@@ -224,32 +205,11 @@ def setup_omp(data_path):
     """
     ops = load_ops(data_path)
     processed_path = iss.io.get_processed_path(data_path)
-    all_spots = []
-    for ref_tile in ops["genes_ref_tiles"]:
-        print(f"detecting spots in tile {ref_tile}")
-        stack, bad_pixels = load_and_register_sequencing_tile(
-            data_path,
-            ref_tile,
-            filter_r=ops["filter_r"],
-            prefix="genes_round",
-            suffix=ops["genes_projection"],
-            correct_channels=ops["genes_correct_channels"],
-            corrected_shifts=ops["corrected_shifts"],
-            nrounds=ops["genes_rounds"],
-        )
-        stack[bad_pixels, :, :] = 0
-        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
-        spots = detect_isolated_spots(
-            np.mean(stack, axis=(2, 3)),
-            detection_threshold=ops["genes_detection_threshold"],
-            isolation_threshold=ops["genes_isolation_threshold"],
-        )
-
-        extract_spots(spots, stack, ops["spot_extraction_radius"])
-        all_spots.append(spots)
-    all_spots = pd.concat(all_spots, ignore_index=True)
+    all_spots, norm_shifts = get_reference_spots(data_path, prefix="genes")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
-        all_spots, score_thresh=ops["genes_cluster_score_thresh"]
+        all_spots,
+        initial_cluster_mean=np.array(ops["initial_cluster_means"]),
+        score_thresh=ops["genes_cluster_score_thresh"],
     )
     np.savez(
         processed_path / "reference_gene_spots.npz",
@@ -263,8 +223,7 @@ def setup_omp(data_path):
         names=["gii", "seq", "gene"],
     )
     gene_dict, gene_names = make_gene_templates(cluster_means, codebook)
-
-    norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
+    norm_shift = np.min(norm_shifts)
     np.savez(
         processed_path / "gene_dict.npz",
         gene_dict=gene_dict,
@@ -274,6 +233,54 @@ def setup_omp(data_path):
     )
     iss.pipeline.check_omp_setup(data_path)
     return gene_dict, gene_names, norm_shift
+
+
+def get_reference_spots(data_path, prefix="genes"):
+    """Load the reference spots for the given dataset.
+
+    Internal function for setup_omp and setup_barcode_calling.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): Short prefix, either 'genes' or 'barcode'. Defaults to
+            'genes'.
+
+    Returns:
+        pandas.DataFrame: Detected spots.
+        list: Normalisation shifts.
+
+    """
+    ops = load_ops(data_path)
+    all_spots = []
+    norm_shifts = []
+    for ref_tile in ops[f"{prefix}_ref_tiles"]:
+        print(f"detecting spots in tile {ref_tile}")
+        stack, bad_pixels = load_and_register_sequencing_tile(
+            data_path,
+            ref_tile,
+            filter_r=ops["filter_r"],
+            prefix=f"{prefix}_round",
+            suffix=ops[f"{prefix}_projection"],
+            nrounds=ops[f"{prefix}_rounds"],
+            correct_channels=ops[f"{prefix}_correct_channels"],
+            corrected_shifts=ops["corrected_shifts"],
+            correct_illumination=False,
+        )
+        stack[bad_pixels, :, :] = 0
+        stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+        spots = detect_isolated_spots(
+            np.mean(stack, axis=(2, 3)),
+            detection_threshold=ops[f"{prefix}_detection_threshold"],
+            isolation_threshold=ops[f"{prefix}_isolation_threshold"],
+        )
+
+        extract_spots(spots, stack, ops["spot_extraction_radius"])
+        all_spots.append(spots)
+        norm_shift = np.sqrt(np.median(np.sum(stack**2, axis=(2, 3))))
+        norm_shifts.append(norm_shift)
+
+    all_spots = pd.concat(all_spots, ignore_index=True)
+    return all_spots, norm_shifts
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -290,7 +297,7 @@ def estimate_channel_correction(
     Args:
         data_path (str or Path): Relative path to the data folder
         prefix (str, optional): Folder name prefix, before round number. Defaults
-            to "round".
+            to "genes_round".
         nrounds (int, optional): Number of rounds. Defaults to 7.
 
     Returns:
@@ -431,9 +438,7 @@ def load_and_register_sequencing_tile(
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],
-        tforms["scales_between_channels"],
-        tforms["angles_between_channels"],
-        tforms["shifts_between_channels"],
+        tforms["matrix_between_channels"],
         stack.shape[:2],
         align_channels=ops["align_channels"],
         ref_ch=ops["ref_ch"],
@@ -442,7 +447,8 @@ def load_and_register_sequencing_tile(
     stack = align_channels_and_rounds(stack, tforms)
 
     bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
-    stack[np.isnan(stack)] = 0
+    stack = np.nan_to_num(stack)
+
     if filter_r:
         stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
         mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))

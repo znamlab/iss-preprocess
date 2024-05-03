@@ -178,6 +178,7 @@ def register_ref_tile(path, prefix, diag):
     from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
     slurm_folder = Path.home() / "slurm_logs" / path
+    scripts_name = f"register_ref_tile_{prefix}"
     slurm_folder.mkdir(parents=True, exist_ok=True)
     slurm_options = {"mem": "128G"} if diag else None
     job_id = register_reference_tile(
@@ -187,13 +188,16 @@ def register_ref_tile(path, prefix, diag):
         use_slurm=True,
         slurm_folder=str(slurm_folder),
         slurm_options=slurm_options,
+        scripts_name=scripts_name,
     )
+    scripts_name = f"check_ref_tile_registration_{prefix}"
     check_ref_tile_registration(
         path,
         prefix,
         use_slurm=True,
         slurm_folder=str(slurm_folder),
         job_dependency=job_id,
+        scripts_name=scripts_name,
     )
 
 
@@ -268,14 +272,16 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="max"):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-def register_hyb_tile(path, prefix, roi, tilex, tiley, suffix="max"):
+def register_hyb_tile(path, prefix, roi, tilex, tiley):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
-    from iss_preprocess.pipeline import estimate_shifts_and_angles_by_coors
+    from iss_preprocess.pipeline import register_fluorescent_tile
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}/{prefix}")
-    estimate_shifts_and_angles_by_coors(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
+    register_fluorescent_tile(
+        path,
+        tile_coors=(roi, tilex, tiley),
+        prefix=prefix,
+        reference_prefix=None,
     )
 
 
@@ -296,21 +302,20 @@ def estimate_shifts(path, prefix, suffix="max"):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
-@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-def estimate_hyb_shifts(path, prefix=None, suffix="max"):
+def estimate_hyb_shifts(path, prefix=None):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.io import load_metadata
     from iss_preprocess.pipeline import batch_process_tiles
 
     if prefix:
-        additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+        additional_args = f",PREFIX={prefix}"
         batch_process_tiles(
             path, script="register_hyb_tile", additional_args=additional_args
         )
     else:
         metadata = load_metadata(path)
         for hyb_round in metadata["hybridisation"].keys():
-            additional_args = f",PREFIX={hyb_round},SUFFIX={suffix}"
+            additional_args = f",PREFIX={hyb_round}"
             batch_process_tiles(
                 path, script="register_hyb_tile", additional_args=additional_args
             )
@@ -363,14 +368,39 @@ def correct_shifts(path, prefix, use_slurm=False):
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
-def correct_hyb_shifts(path, prefix=None):
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+def correct_hyb_shifts(path, prefix=None, use_slurm=False):
     """
     Correct X-Y shifts for hybridisation rounds using robust regression
     across tiles.
     """
     from iss_preprocess.pipeline import correct_hyb_shifts
+    from iss_preprocess.pipeline import diagnostics as diag
 
-    correct_hyb_shifts(path, prefix)
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+
+    job_id = correct_hyb_shifts(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_hyb_shifts_{prefix}",
+    )
+    diag.check_shift_correction(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_shift_correction_{prefix}",
+        within=False,
+    )
 
 
 @cli.command()
@@ -383,7 +413,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     across tiles.
     """
     from iss_preprocess.pipeline import correct_shifts_to_ref
-    from iss_preprocess.pipeline.diagnostics import check_reg_to_ref_correction
+    from iss_preprocess.pipeline import diagnostics as diag
 
     if use_slurm:
         from pathlib import Path
@@ -394,9 +424,13 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         slurm_folder = None
 
     job_id = correct_shifts_to_ref(
-        path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_shifts_to_ref_{prefix}",
     )
-    check_reg_to_ref_correction(
+    diag.check_reg_to_ref_correction(
         path,
         prefix,
         rois=None,
@@ -404,6 +438,16 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_reg_to_ref_correction_{prefix}",
+    )
+    diag.check_registration_to_reference(
+        path,
+        prefix=prefix,
+        ref_prefix=None,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_tile_reg_to_ref_{prefix}",
     )
 
 
@@ -446,21 +490,17 @@ def basecall(path):
 
     from pathlib import Path
 
-    from iss_preprocess.io.load import load_ops
     from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
 
-    ops = load_ops(path)
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    for index in range(len(ops["barcode_ref_tiles"])):
-        check_barcode_basecall(
-            path,
-            ref_tile_index=index,
-            use_slurm=True,
-            job_dependency=job_ids,
-            slurm_folder=slurm_folder,
-            scripts_name=f"check_basecall_{index}",
-        )
+    check_barcode_basecall(
+        path,
+        use_slurm=True,
+        job_dependency=job_ids,
+        slurm_folder=slurm_folder,
+        scripts_name=f"check_basecall",
+    )
 
 
 @cli.command()
@@ -546,28 +586,9 @@ def segment_all(path, prefix, use_gpu=False):
     default="barcode_round",
     help="Directory prefix to registration target.",
 )
-@click.option(
-    "-f",
-    "--ref-prefix",
-    default="genes_round",
-    help="Directory prefix to registration reference.",
-)
 @click.option("-r", "--roi", default=None, help="ROI number. None for all.")
 @click.option("-x", "--tilex", default=None, help="Tile X position. None for all.")
 @click.option("-y", "--tiley", default=None, help="Tile Y position. None for all.")
-@click.option(
-    "-c",
-    "--reg-channels",
-    default=None,
-    help="Channels of the target to register (comma separated string of integer).",
-    type=str,
-)
-@click.option(
-    "--ref-channels",
-    default=None,
-    help="Channels of the reference to register (comma separated string of integer).",
-    type=str,
-)
 @click.option(
     "-m/",
     "--use-masked-correlation/--no-use-masked-correlation",
@@ -577,68 +598,24 @@ def segment_all(path, prefix, use_gpu=False):
 def register_to_reference(
     path,
     reg_prefix,
-    ref_prefix,
     roi,
     tilex,
     tiley,
-    reg_channels,
     use_masked_correlation,
-    ref_channels,
 ):
     """Register an acquisition to reference tile by tile."""
     if any([x is None for x in [roi, tilex, tiley]]):
-        print("Batch processing all tiles", flush=True)
-        from iss_preprocess.io import get_roi_dimensions
-        from iss_preprocess.pipeline import batch_process_tiles
+        from iss_preprocess.pipeline import register
 
-        roi_dims = get_roi_dimensions(path)
-        additional_args = (
-            f",REG_PREFIX={reg_prefix},REF_PREFIX={ref_prefix},"
-            f"REG_CHANNELS={reg_channels},REF_CHANNELS={ref_channels},"
-            + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
-        )
-        batch_process_tiles(
-            path,
-            "register_tile_to_ref",
-            additional_args=additional_args,
-            roi_dims=roi_dims,
-        )
+        register.register_all_tiles_to_ref(path, reg_prefix, use_masked_correlation)
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
         from iss_preprocess.pipeline import register
 
-        if reg_channels == "None":
-            reg_channels = None
-        if reg_channels is not None:
-            reg_channels = [int(x) for x in reg_channels.split(",")]
-        if ref_channels == "None":
-            ref_channels = None
-        if ref_channels is not None:
-            ref_channels = [int(x) for x in ref_channels.split(",")]
-        from iss_preprocess.io.load import load_ops
-
-        ops = load_ops(path)
-        ops_name = f"{reg_prefix.split('_')[0].lower()}_binarise_quantile"
-        if ops_name in ops:
-            binarise_quantile = ops[ops_name]
-        else:
-            binarise_quantile = 0.7
-        from iss_preprocess.io.load import load_ops
-
-        ops = load_ops(path)
-        ops_name = f"{reg_prefix.split('_')[0].lower()}_binarise_quantile"
-        if ops_name in ops:
-            binarise_quantile = ops[ops_name]
-        else:
-            binarise_quantile = 0.7
         register.register_tile_to_ref(
             data_path=path,
-            tile_coors=(roi, tilex, tiley),
             reg_prefix=reg_prefix,
-            ref_prefix=ref_prefix,
-            reg_channels=reg_channels,
-            ref_channels=ref_channels,
-            binarise_quantile=binarise_quantile,
+            tile_coors=(int(roi), int(tilex), int(tiley)),
             use_masked_correlation=use_masked_correlation,
         )
 
@@ -652,28 +629,14 @@ def register_to_reference(
     help="File name prefix for spot files.",
 )
 @click.option(
-    "-g",
-    "--reg-prefix",
-    default="barcode_round_1_1",
-    help="Directory prefix to registration target.",
-)
-@click.option(
-    "-r",
-    "--ref-prefix",
-    default="genes_round_1_1",
-    help="Directory prefix to registration reference.",
-)
-@click.option(
     "-l",
-    "--reload",
+    "--reload/--no-reload",
     default=True,
     help="Whether to reload register_adjacent_tiles shifts.",
 )
 def align_spots(
     path,
     spots_prefix="barcode_round",
-    reg_prefix="barcode_round_1_1",
-    ref_prefix="genes_round_1_1",
     reload=True,
 ):
     from pathlib import Path
@@ -682,38 +645,29 @@ def align_spots(
         merge_and_align_spots_all_rois,
         register_within_acquisition,
     )
+    from iss_preprocess.io import load_ops
 
     slurm_folder = Path.home() / "slurm_logs" / path / "align_spots"
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    reg_job_id = register_within_acquisition(
+    ref_job_id = None
+    ops = load_ops(path)
+    ref_prefix = ops["reference_prefix"]
+
+    ref_job_id = register_within_acquisition(
         path,
-        prefix=reg_prefix,
+        prefix=ref_prefix,
         reload=reload,
         save_plot=True,
         use_slurm=True,
         slurm_folder=slurm_folder,
-        scripts_name="register_within_acquisition_{reg_prefix}",
+        scripts_name=f"register_within_acquisition_{ref_prefix}",
     )
-    ref_job_id = None
-    if reg_prefix != ref_prefix:
-        ref_job_id = register_within_acquisition(
-            path,
-            prefix=ref_prefix,
-            reload=reload,
-            save_plot=True,
-            use_slurm=True,
-            slurm_folder=slurm_folder,
-            scripts_name="register_within_acquisition_{ref_prefix}",
-        )
 
-    if ref_job_id:
-        reg_job_id = [reg_job_id, ref_job_id]
     merge_and_align_spots_all_rois(
         path,
         spots_prefix=spots_prefix,
-        reg_prefix=reg_prefix,
         ref_prefix=ref_prefix,
-        dependency=reg_job_id,
+        dependency=ref_job_id,
     )
 
 
@@ -732,36 +686,13 @@ def align_spots(
     help="Directory prefix to registration.",
 )
 @click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
-@click.option(
-    "-f",
-    "--ref_prefix",
-    default="genes_round_1_1",
-    help="Directory prefix to use as a reference for registration.",
-)
 def align_spots_roi(
     path,
     spots_prefix="barcode_round",
     reg_prefix="barcode_round_1_1",
     roi=1,
-    ref_prefix="genes_round_1_1",
 ):
-    from iss_preprocess.pipeline import (
-        merge_and_align_spots,
-        stitch_and_register,
-    )
-
-    click.echo(f"Registering ROI {roi} to {ref_prefix} using {reg_prefix}")
-    if ref_prefix != reg_prefix:
-        stitch_and_register(
-            path,
-            reference_prefix=ref_prefix,
-            target_prefix=reg_prefix,
-            roi=roi,
-            downsample=5,
-            ref_ch=0,
-            target_ch=0,
-            estimate_scale=False,
-        )
+    from iss_preprocess.pipeline import merge_and_align_spots
 
     merge_and_align_spots(
         path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
@@ -917,21 +848,15 @@ def setup_flexilims(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+@click.option(
+    "--use-slurm/--local", is_flag=True, default=True, help="Whether to use slurm"
+)
 def setup_channel_correction(path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
-    from pathlib import Path
 
-    from iss_preprocess.pipeline import setup_channel_correction
+    from iss_preprocess.pipeline import setup_channel_correction as scc
 
-    slurm_folder = Path.home() / "slurm_logs" / path
-    slurm_folder.mkdir(parents=True, exist_ok=True)
-    setup_channel_correction(
-        path,
-        use_slurm=use_slurm,
-        slurm_folder=slurm_folder,
-        scripts_name="setup_channel_correction",
-    )
+    scc(path, use_slurm=use_slurm)
     click.echo("Channel correction setup complete.")
 
 
@@ -1003,14 +928,37 @@ def plot_overview(
 )
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 @click.option(
-    "-b", "--background", default=3, help="Channel containing background, e.g. 3"
+    "-b", "--background_ch", default=3, help="Channel containing background, e.g. 3"
 )
-@click.option("-g", "--signal", default=2, help="Channel containing signal, e.g. 2")
-def unmix_channels(path, prefix="mCherry_1", suffix="max", background=3, signal=2):
+@click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
+def unmix_channels(
+    path, prefix="mCherry_1", suffix="max", background_ch=3, signal_ch=2
+):
     """Unmix autofluorescence from signal for all tiles in a dataset."""
     from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.image import unmix_ref_tile
+    from iss_preprocess.io.load import load_ops
+    from iss_preprocess.pipeline import load_and_register_tile
 
-    additional_args = f",PREFIX={prefix},SUFFIX={suffix},BACKGROUND_CH={background},SIGNAL_CH={signal}"
+    ops = load_ops(path)
+    (roi, tilex, tiley) = ops["mcherry_ref_tile"]
+    stack, _ = load_and_register_tile(
+        path, tile_coors=(roi, tilex, tiley), prefix=prefix, filter_r=False
+    )
+    print(f"Unmixing autofluorescence from reference tile {roi}, {tilex}, {tiley}")
+    _, coef, intercept = unmix_ref_tile(
+        path,
+        prefix,
+        roi,
+        tilex,
+        tiley,
+        stack,
+        suffix=suffix,
+        background_ch=background_ch,
+        signal_ch=signal_ch,
+    )
+
+    additional_args = f",PREFIX={prefix},SUFFIX={suffix},BACKGROUND_CH={background_ch},SIGNAL_CH={signal_ch},COEF={coef},INTERCEPT={intercept}"
     batch_process_tiles(path, script="unmix_channels", additional_args=additional_args)
 
 
@@ -1029,8 +977,19 @@ def unmix_channels(path, prefix="mCherry_1", suffix="max", background=3, signal=
     "-b", "--background_ch", default=3, help="Channel containing background, e.g. 3"
 )
 @click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
+@click.option("-c", "--coef", help="Coefficient for linear unmixing")
+@click.option("-i", "--intercept", help="Intercept for linear unmixing")
 def unmix_tile(
-    path, prefix, roi, tilex, tiley, suffix="max", background_ch=3, signal_ch=2
+    path,
+    prefix,
+    roi,
+    tilex,
+    tiley,
+    suffix="max",
+    background_ch=3,
+    signal_ch=2,
+    coef=None,
+    intercept=None,
 ):
     """Unmix autofluorescence from signal for all tiles in a dataset."""
     from iss_preprocess.image import unmix_tile
@@ -1049,6 +1008,8 @@ def unmix_tile(
         suffix=suffix,
         background_ch=background_ch,
         signal_ch=signal_ch,
+        coef=coef,
+        intercept=intercept,
     )
 
 
@@ -1078,7 +1039,7 @@ def segment_all_mcherry(path, prefix="mCherry_1", suffix="max"):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option("-s", "--suffix", default="unmixed", help="Projection suffix, e.g. 'max'")
+@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 def segment_mcherry_tile(path, prefix, roi, tilex, tiley, suffix="max"):
     """Segment mCherry channel for a single tile."""
     from iss_preprocess.pipeline import segment_mcherry_tile
@@ -1090,9 +1051,34 @@ def segment_mcherry_tile(path, prefix, roi, tilex, tiley, suffix="max"):
         tilex,
         tiley,
         suffix,
-        r1=4,
-        r2=70,
-        area_threshold=200,
-        elongation_threshold=0.9,
-        circularity_threshold=0.5,
     )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", "--tilex", default=0, help="Tile X position")
+@click.option("-y", "--tiley", default=0, help="Tile Y position.")
+def remove_non_cell_masks(path, roi, tilex, tiley):
+    """Remove masks from mCherry tiles that don't correspond to cells."""
+    from iss_preprocess.pipeline import remove_non_cell_masks
+
+    remove_non_cell_masks(
+        path,
+        roi,
+        tilex,
+        tiley,
+    )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def find_mcherry_cells(path):
+    """Find mCherry cells using a GMM to cluster masks based on their
+    morphological features. Then remove non-cell masks from each tile.
+    """
+    from iss_preprocess.pipeline import find_mcherry_cells
+
+    find_mcherry_cells(path)
