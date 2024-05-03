@@ -483,7 +483,7 @@ def create_all_single_averages(
             print(f"{folder} average already exists. Skipping")
             continue
         print(f"Creating single average {folder}", flush=True)
-        projection = ops[f"{folder.split('_')[0].lower()}_projection"]
+        projection = ops[f"averaging_projection"]
         slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
         slurm_folder.mkdir(parents=True, exist_ok=True)
         job_ids.append(
