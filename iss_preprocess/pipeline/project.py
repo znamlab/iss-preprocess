@@ -122,7 +122,9 @@ def reproject_failed(
             (processed_path / prefix / "missing_tiles.txt").read_text().split("\n")
         ):
             missing_tiles.append(fname)
-
+    missing_tiles = list(set(missing_tiles))
+    print(f"Reprojecting {len(missing_tiles)} tiles...", flush=True)
+    print(missing_tiles, flush=True)
     for tile in missing_tiles:
         if len(tile) == 0:
             continue
@@ -219,7 +221,9 @@ def project_tile(fname, ops, overwrite=False, sth=13):
 
     Args:
         fname (str): path to tile *without* `'.ome.tif'` extension.
+        ops (dict): dictionary of values from the ops file.
         overwrite (bool): whether to repeat if already completed
+        sth (int): size of the structuring element for the fstack projection.
 
     """
     save_path_fstack = iss.io.get_processed_path(fname + "_fstack.tif")

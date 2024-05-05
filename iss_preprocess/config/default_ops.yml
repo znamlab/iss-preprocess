@@ -5,6 +5,8 @@ projection:
 
 # Parameters for illumination correction, channel brightness correction and filtering
 image_correction:
+  # Image projection to use for illumination correction
+  averaging_projection: median
   # To compute the average for illumination correction, individual images are clipped to
   # this value before averaging to avoid bright outliers
   average_clip_value: 2000
