@@ -463,7 +463,7 @@ def correct_hyb_shifts(data_path, prefix=None):
         for roi in roi_dims[use_rois, :]:
             print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
             correct_shifts_single_round_roi(
-                data_path, roi, prefix=hyb_round, fit_angle=False
+                data_path, roi, prefix=hyb_round, fit_angle=False, n_chans=4
             )
             filter_ransac_shifts(
                 data_path,
@@ -500,6 +500,7 @@ def correct_shifts_to_ref(data_path, prefix, max_shift=None, fit_angle=False):
             prefix=prefix_to_reg,
             fit_angle=fit_angle,
             max_shift=max_shift,
+            n_chans=1,  # we register one channel since they are all aligned already
         )
         filter_ransac_shifts(data_path, prefix_to_reg, roi_dim, max_residuals=10)
 
@@ -511,6 +512,7 @@ def correct_shifts_single_round_roi(
     max_shift=500,
     fit_angle=True,
     align_method=None,
+    n_chans=None,
 ):
     """Use robust regression across tiles to correct shifts and angles
     for a single hybridisation round and ROI.
@@ -549,8 +551,10 @@ def correct_shifts_single_round_roi(
             if not fname.exists():
                 print(f"No tforms for tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
+                if n_chans is None:
+                    raise ValueError("n_chans must be provided if tforms are missing")
                 if align_method == "affine":
-                    angles.append(np.zeros((4, 2, 2)) + np.nan)
+                    angles.append(np.zeros((n_chans, 2, 2)) + np.nan)
                 else:
                     angles.append(np.array(np.nan, ndmin=2))
 
@@ -567,9 +571,11 @@ def correct_shifts_single_round_roi(
                     angles.append(tforms["angles"])
             except ValueError:
                 print(f"couldn't load tile {roi} {ix} {iy}")
+                if n_chans is None:
+                    raise ValueError("n_chans must be provided if tforms are missing")
                 shifts.append(np.array([[np.nan, np.nan]]))
                 if align_method == "affine":
-                    angles.append(np.zeros((4, 2, 2)) + np.nan)
+                    angles.append(np.zeros((n_chans, 2, 2)) + np.nan)
                 else:
                     angles.append(np.array(np.nan, ndmin=2))
 
