@@ -238,11 +238,18 @@ def setup_barcodes(path, use_slurm=True):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def setup_hybridisation(path):
+@click.option(
+    "-n",
+    "--prefix",
+    default=None,
+    help="Path prefix, e.g. 'hybridisation_round'. If None,"
+    + " all hybridisation rounds are processed.",
+)
+def setup_hybridisation(path, prefix=None):
     """Estimate bleedthrough matrices for hybridisation spots."""
     from iss_preprocess.pipeline import setup_hyb_spot_calling
 
-    setup_hyb_spot_calling(path)
+    setup_hyb_spot_calling(path, prefix)
 
 
 @cli.command()

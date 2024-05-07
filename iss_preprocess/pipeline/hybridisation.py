@@ -192,17 +192,24 @@ def estimate_channel_correction_hybridisation(data_path):
         np.savez(save_path, pixel_dist=pixel_dist, norm_factors=norm_factors)
 
 
-def setup_hyb_spot_calling(data_path, vis=True):
+def setup_hyb_spot_calling(data_path, prefix=None, vis=True):
     """Prepare and save bleedthrough matrices for hybridisation rounds.
 
     Args:
         data_path (str): Relative path to data
+        prefix (list, optional): List of prefix of hybridisation rounds to process.
+            If None, all hybridisation rounds are processed. Defaults to None.
         vis (bool, optional): Whether to generate diagnostic plots. Defaults to True.
 
     """
     processed_path = iss.io.get_processed_path(data_path)
     metadata = load_metadata(data_path)
-    for hyb_round in metadata["hybridisation"].keys():
+    if prefix is None:
+        prefix = list(metadata["hybridisation"].keys())
+    elif isinstance(prefix, str):
+        prefix = [prefix]
+
+    for hyb_round in prefix:
         cluster_means, spot_colors, cluster_inds, genes = hyb_spot_cluster_means(
             data_path, hyb_round
         )
