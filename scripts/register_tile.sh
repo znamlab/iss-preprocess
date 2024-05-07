@@ -4,6 +4,8 @@
 #SBATCH --time=30:00
 #SBATCH --mem=8G
 #SBATCH --partition=ncpu
+
+. ~/.bashrc
 ml purge
 
 ml Anaconda3

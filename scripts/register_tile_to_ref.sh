@@ -15,6 +15,7 @@ echo "  ROI: $ROI"
 echo "  TILEX: $TILEX"
 echo "  TILEY: $TILEY"
 
+. ~/.bashrc
 echo "Loading modules"
 ml purge
 
