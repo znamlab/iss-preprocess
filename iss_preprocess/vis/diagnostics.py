@@ -542,7 +542,7 @@ def plot_registration_correlograms(
         elif what == "estimate_correction":
             _plot_between_channels_correlogram(data, target_folder, figure_name, mshift)
         else:
-            raise NotImplementedError(f"Unknown correlogram output: {what}", flush=True)
+            raise NotImplementedError(f"Unknown correlogram output: {what}")
     plt.close("all")
     print(f"Saved figures to {target_folder}")
 
