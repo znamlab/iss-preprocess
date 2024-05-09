@@ -541,6 +541,13 @@ def plot_registration_correlograms(
             _plot_within_channel_correlogram(data, target_folder, figure_name, mshift)
         elif what == "estimate_correction":
             _plot_between_channels_correlogram(data, target_folder, figure_name, mshift)
+        elif what == "correct_by_block":
+            tile_coors = ops["ref_tile"]
+            fig = plt.figure(figsize=(2 * 7, 1.5 * 3))
+            iss.vis.diagnostics.plot_affine_debug_images(data, fig=fig)
+            fig.suptitle(f"{prefix} - Tile {tile_coors}")
+            tile_name = "_".join([str(x) for x in tile_coors])
+            fig.savefig(target_folder / f"affine_debug_{prefix}_{tile_name}.png")
         else:
             raise NotImplementedError(f"Unknown correlogram output: {what}")
     plt.close("all")
