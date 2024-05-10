@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=iss_reg_to_ref
 #SBATCH --ntasks=1
-#SBATCH --time=30:00
+#SBATCH --time=1:00:00
 #SBATCH --mem=16G
 #SBATCH --partition=ncpu
 
