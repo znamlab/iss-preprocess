@@ -374,6 +374,7 @@ def check_shift_correction(
         data_path (str): Relative path to data folder
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
     """
+    print(f"Checking shift correction for {prefix}")
     processed_path = iss.io.get_processed_path(data_path)
     target_folder = processed_path / "figures" / "registration" / prefix
     target_folder.mkdir(exist_ok=True, parents=True)
@@ -430,6 +431,7 @@ def check_shift_correction(
         return raw, corrected, best
 
     if within:
+        print("Plotting within channel shifts")
         # For "within channels" we plot the shifts for each channel and each round
         fig = plt.figure(figsize=(4 * nr * 2, 2 * 4 * nc))
         for roi, *ntiles in ndims:
@@ -477,6 +479,7 @@ def check_shift_correction(
             fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
             fig.savefig(target_folder / (fname + ".png"))
     if between:
+        print("Plotting between channel shifts")
         # now do "between channels"
         nrois = len(ndims)
         nrows = nrois * 4
@@ -494,8 +497,8 @@ def check_shift_correction(
                     raw=raw_to_plot,
                     corrected=corr_to_plot,
                     col_labels=[f"Channel {i} {feat}" for i in np.arange(nc)],
-                    range_min=[1 if ifeat < 2 else 0.1] * nc,
-                    range_max=[5 if ifeat < 2 else 1] * nc,
+                    range_min=[5 if ifeat < 2 else 0.1] * nc,
+                    range_max=[20 if ifeat < 2 else 1] * nc,
                     axes=axes[ir * 4 : ir * 4 + 3, ifeat * nc : (ifeat + 1) * nc],
                     line_labels=("Raw", f"ROI {ir}\nCorrected", "Difference"),
                 )
@@ -522,6 +525,7 @@ def check_shift_correction(
         )
         fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
         fig.savefig(target_folder / (fname + ".png"))
+    print("Done")
 
 
 def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_round"):
