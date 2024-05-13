@@ -410,7 +410,7 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
 
             # first for within, it's easy shifts are saved separatly
             if "shifts_within_channels" not in tforms_init.keys():
-                # must be a non-round acquisition
+                # it must be a non-round acquisition, let's skip
                 pass
             else:
                 shifts_init = tforms_init["shifts_within_channels"]
@@ -424,11 +424,14 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
 
             # then for between, we need to update the matrix
             matrix_init = tforms_init["matrix_between_channels"]
+            # replace the NaN with inf to replace them
+            matrix_init[np.isnan(matrix_init)] = np.inf
             matrix_corrected = tforms_corrected["matrix_between_channels"]
             residuals = np.abs(matrix_init[:, :2, 2] - matrix_corrected[:, :2, 2])
             matrix_best = matrix_init.copy()
-            bad = residuals > max_residuals
-            matrix_best[:, :2, 2][bad] = matrix_corrected[:, :2, 2][bad]
+            good = np.all(residuals < max_residuals, axis=1)
+            matrix_best[~good] = matrix_corrected[~good]
+            tforms_best["matrix_between_channels"] = matrix_best
 
             tforms_best.update({"allow_pickle": True})
             np.savez(
