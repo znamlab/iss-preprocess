@@ -639,16 +639,17 @@ def correct_by_block(
                 print(f"Channel {channel} affine: {np.round(params, 3)}", flush=True)
             except ValueError as e:
                 print(f"Channel {channel} failed to register: {e}", flush=True)
-                params = np.array([1, 0, 0, 0, 1, 0])
+                params = np.array([1.0, 0, 0, 0, 1, 0]) * np.nan
             # The transform should not be too weird
             if np.abs(params[0] - 1) > 0.1 or np.abs(params[4] - 1) > 0.1:
                 print(f"Channel {channel} transform too weird on diagonal, skipping")
-                params = np.array([1, 0, 0, 0, 1, 0])
+                params = np.array([1.0, 0, 0, 0, 1, 0]) * np.nan
             # the b and d parameters should be close to 0
             if np.abs(params[1]) > 0.3 or np.abs(params[3]) > 0.3:
                 print(f"Channel {channel} transform too weird, skipping")
-                params = np.array([1, 0, 0, 0, 1, 0])
+                params = np.array([1.0, 0, 0, 0, 1, 0]) * np.nan
         else:
+            # it is the reference channel
             params = np.array([1, 0, 0, 0, 1, 0])
         # make a 3x3 matrix from the 6 parameters
         matrix = np.zeros((3, 3))
