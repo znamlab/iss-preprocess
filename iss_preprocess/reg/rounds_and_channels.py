@@ -640,6 +640,14 @@ def correct_by_block(
             except ValueError as e:
                 print(f"Channel {channel} failed to register: {e}", flush=True)
                 params = np.array([1, 0, 0, 0, 1, 0])
+            # The transform should not be too weird
+            if np.abs(params[0] - 1) > 0.1 or np.abs(params[4] - 1) > 0.1:
+                print(f"Channel {channel} transform too weird on diagonal, skipping")
+                params = np.array([1, 0, 0, 0, 1, 0])
+            # the b and d parameters should be close to 0
+            if np.abs(params[1]) > 0.3 or np.abs(params[3]) > 0.3:
+                print(f"Channel {channel} transform too weird, skipping")
+                params = np.array([1, 0, 0, 0, 1, 0])
         else:
             params = np.array([1, 0, 0, 0, 1, 0])
         # make a 3x3 matrix from the 6 parameters
