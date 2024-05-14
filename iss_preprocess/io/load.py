@@ -46,6 +46,36 @@ def get_processed_path(data_path):
     return processed_path / data_path
 
 
+def get_raw_filename(data_path, prefix, tile_coors):
+    """Return the root name of raw data for a tile.
+
+    Raw file names may take on different patterns depending on micromanager version.
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of acquisition to load
+        tile_coors (tuple): Tile coordinates (roi, xpos, ypos)
+
+    Returns:
+        str: Root name of the raw data file
+
+    """
+    data_dir = get_raw_path(data_path) / prefix
+
+    # Define the patterns
+    pattern1 = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
+    pattern2 = f"{prefix}_MMStack_Pos-{tile_coors[0]}-{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
+    # Search for files matching either pattern
+    for p in data_dir.glob("*.tif"):
+        if p.name.startswith(pattern1 + ".ome.tif"):
+            return pattern1
+        elif p.name.startswith(pattern2 + ".ome.tif"):
+            return pattern2
+    raise ValueError(
+        f"Could not find any files matching the patterns {pattern1} or {pattern2} in {data_dir}"
+    )
+
+
 def load_hyb_probes_metadata():
     """Load the hybridisation probes metadata.
 
@@ -379,6 +409,13 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{proj}.tif"
     else:
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
+    matcher = re.compile(pattern=pattern)
+    matches = [matcher.match(fname) for fname in fnames]  # non match will be None
+    if not any(matches):
+        if not fnames:
+            pattern = rf"{prefix}_MMStack_Pos-(\d*)-(\d\d\d)_(\d\d\d)_{proj}.tif"
+        else:
+            pattern = rf"{prefix}_MMStack_Pos-(\d*)-(\d\d\d)_(\d\d\d).ome.tif"
     matcher = re.compile(pattern=pattern)
     matches = [matcher.match(fname) for fname in fnames]  # non match will be None
     try:

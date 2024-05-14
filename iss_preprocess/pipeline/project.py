@@ -181,7 +181,10 @@ def project_round(data_path, prefix, overwrite=False, overview=True):
     )
     # copy one of the tiff metadata files
     raw_path = iss.io.get_raw_path(data_path)
-    metadata_fname = f"{prefix}_MMStack_{roi_dims[0][0]}-Pos000_000_metadata.txt"
+    metadata_fname = (
+        iss.io.get_raw_filename(data_path, prefix, tile_coors=(roi_dims[0][0], 0, 0))
+        + "_metadata.txt"
+    )
     if not (target_path / metadata_fname).exists():
         shutil.copy(
             raw_path / prefix / metadata_fname,
@@ -210,7 +213,7 @@ def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
             Defaults to False.
 
     """
-    fname = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
+    fname = iss.io.get_raw_filename(data_path, prefix, tile_coors)
     tile_path = str(Path(data_path) / prefix / fname)
     ops = load_ops(data_path)
     project_tile(tile_path, ops, overwrite=overwrite)
