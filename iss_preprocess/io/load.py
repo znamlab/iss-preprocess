@@ -320,24 +320,28 @@ def load_stack(fname):
         return np.stack(ims, axis=2)
 
 
-def get_tile_ome(fname, fmetadata):
+def get_tile_ome(fname, fmetadata=None, use_indexmap=None):
     """
     Load OME TIFF tile.
 
     Args:
         fname (str): path to OME TIFF
-        fmetadata (str): path to OME metadata file
+        fmetadata (str, optional): path to OME metadata file. Required if use_indexmap
+            is False or None. Defaults to None.
+        use_indexmap (bool, optional): Whether to use the indexmap from micromanager
+            metadata. If True, the metadata file is not required. Defaults to None.
 
     Returns:
         numpy.ndarray: X x Y x C x Z z-stack.
 
     """
     with TiffFile(fname) as stack:
-        with open(fmetadata) as json_file:
-            metadata = json.load(json_file)
+        if not use_indexmap:
+            with open(fmetadata) as json_file:
+                metadata = json.load(json_file)
+            frame_keys = list(metadata.keys())[1:]
 
-        frame_keys = list(metadata.keys())[1:]
-        if metadata[frame_keys[0]]["Core-Focus"] == "Piezo":
+        if use_indexmap or (metadata[frame_keys[0]]["Core-Focus"] == "Piezo"):
             # THIS IS CRAP.
             # There is an issue with micromanager and the ome metadata are not always
             # correct use indexmap instead (which is from micromanager but is correct)
@@ -349,6 +353,7 @@ def get_tile_ome(fname, fmetadata):
             unique_zs = sorted(list(set(zs)))
 
         else:
+            # metadata is now required since we have an upstairs style tiff
             z_ids = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
             unique_zs = sorted(list(set(z_ids)))
             zs = [unique_zs.index(z) for z in z_ids]
