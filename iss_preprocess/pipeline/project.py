@@ -248,7 +248,9 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
     print(f"loading {fname}\n")
     im = get_tile_ome(
         iss.io.get_raw_path(fname + ".ome.tif"),
-        iss.io.get_raw_path(fname + "_metadata.txt"),
+        iss.io.get_raw_path(fname + "_metadata.txt"),  # note that this won't be used
+        # if use_indexmap is True
+        use_indexmap=True,
     )
     print("computing projection\n")
     iss.io.get_processed_path(fname).parent.mkdir(parents=True, exist_ok=True)
