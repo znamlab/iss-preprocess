@@ -216,10 +216,14 @@ def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     fname = iss.io.get_raw_filename(data_path, prefix, tile_coors)
     tile_path = str(Path(data_path) / prefix / fname)
     ops = load_ops(data_path)
-    project_tile(tile_path, ops, overwrite=overwrite)
+    # we want to ensure that file all have the same name after projection, even if raw
+    # might be different
+    r, x, y = tile_coors
+    target = f"{prefix}_MMStack_{r}-Pos{x:03d}_{y:03d}"
+    project_tile(tile_path, ops, overwrite=overwrite, target_name=target)
 
 
-def project_tile(fname, ops, overwrite=False, sth=13):
+def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
     """Calculates extended depth of field and max intensity projections for a single tile.
 
     Args:
@@ -227,11 +231,15 @@ def project_tile(fname, ops, overwrite=False, sth=13):
         ops (dict): dictionary of values from the ops file.
         overwrite (bool): whether to repeat if already completed
         sth (int): size of the structuring element for the fstack projection.
+        target_name (str): name of the target file. If None, it will be the same as the
+            input file.
 
     """
-    save_path_fstack = iss.io.get_processed_path(fname + "_fstack.tif")
-    save_path_max = iss.io.get_processed_path(fname + "_max.tif")
-    save_path_median = iss.io.get_processed_path(fname + "_median.tif")
+    if target_name is None:
+        target_name = fname
+    save_path_fstack = iss.io.get_processed_path(target_name + "_fstack.tif")
+    save_path_max = iss.io.get_processed_path(target_name + "_max.tif")
+    save_path_median = iss.io.get_processed_path(target_name + "_median.tif")
     if not overwrite and (
         save_path_fstack.exists() or save_path_max.exists() or save_path_median.exists()
     ):
