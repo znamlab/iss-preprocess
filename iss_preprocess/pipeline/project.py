@@ -219,7 +219,7 @@ def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     # we want to ensure that file all have the same name after projection, even if raw
     # might be different
     r, x, y = tile_coors
-    target = f"{prefix}_MMStack_{r}-Pos{x:03d}_{y:03d}"
+    target = f"{data_path}{prefix}/{prefix}_MMStack_{r}-Pos{x:03d}_{y:03d}"
     project_tile(tile_path, ops, overwrite=overwrite, target_name=target)
 
 
@@ -237,6 +237,7 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
     """
     if target_name is None:
         target_name = fname
+    print(f"Target name: {target_name}")
     save_path_fstack = iss.io.get_processed_path(target_name + "_fstack.tif")
     save_path_max = iss.io.get_processed_path(target_name + "_max.tif")
     save_path_median = iss.io.get_processed_path(target_name + "_median.tif")
@@ -271,7 +272,7 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
     # To check if the focus was correct, we also save a small projectiong along Z
     std_z = np.std(im, axis=(0, 1))
     perc_z = np.percentile(im, 99.9, axis=(0, 1))
-    np_z_profile = iss.io.get_processed_path(fname + "_zprofile.npz")
+    np_z_profile = iss.io.get_processed_path(target_name + "_zprofile.npz")
     np.savez(np_z_profile, std=std_z, top_1permille=perc_z)
 
 
