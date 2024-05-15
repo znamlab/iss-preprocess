@@ -219,7 +219,7 @@ def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     # we want to ensure that file all have the same name after projection, even if raw
     # might be different
     r, x, y = tile_coors
-    target = f"{data_path}{prefix}/{prefix}_MMStack_{r}-Pos{x:03d}_{y:03d}"
+    target = str(Path(data_path) / prefix / f"{prefix}_MMStack_{r}-Pos{x:03d}_{y:03d}")
     project_tile(tile_path, ops, overwrite=overwrite, target_name=target)
 
 
