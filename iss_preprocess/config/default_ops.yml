@@ -80,6 +80,9 @@ registration_to_reference:
   # "reg2ref_hybridisation_round_1_1_channels" exists).
   reg2ref_genes_channels: [0,1,2,3]
   reg2ref_barcode_channels: [0,1,2,3]
+  # similarly, the reference channel can be changed for a specific acquisition (for
+  # instance if you want to alternate between dapi and anchor)
+  reg2ref_reference_channels_for_mCherry: [2,3]
 
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating

@@ -702,9 +702,11 @@ def register_tile_to_ref(
         ref_prefix = ops["reference_prefix"]
     if ref_prefix == reg_prefix:
         raise ValueError("Reference and register prefixes are the same")
+    spref = reg_prefix.split("_")[0]  # short prefix
     if ref_channels is None:
         ref_channels = ops["reg2ref_reference_channels"]
-    spref = reg_prefix.split("_")[0].lower()  # short prefix
+        ref_channels = ops.get(f"reg2ref_reference_channels_for_{spref}", ref_channels)
+
     if binarise_quantile is None:
         binarise_quantile = ops.get(f"{spref}_binarise_quantile", 0.7)
     if reg_channels is None:
