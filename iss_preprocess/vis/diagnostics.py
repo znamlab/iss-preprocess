@@ -9,7 +9,7 @@ import pandas as pd
 from matplotlib.animation import FFMpegWriter, FuncAnimation
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from natsort import natsorted
-
+from znamutils import slurm_it
 import iss_preprocess as iss
 from iss_preprocess.pipeline import ara_registration as ara_reg
 from iss_preprocess.pipeline import sequencing
@@ -797,3 +797,90 @@ def check_rolonies_registration(
 
     anim = FuncAnimation(fig, animate, frames=reg_stack.shape[3], interval=200)
     anim.save(savefname, writer=FFMpegWriter(fps=2))
+
+
+@slurm_it(conda_env="iss-preprocess")
+def check_barcode_mcherry_reg(
+    data_path,
+    roi,
+    barcode_prefix="barcode_round_1_1",
+    mcherry_prefix="mCherry_1",
+    target=None,
+):
+    """Check registration of barcode and mCherry to reference on whole stitched image
+
+    Args:
+        data_path (str): Path to data
+        roi (int): ROI number
+        barcode_prefix (str, optional): Prefix for barcode. Defaults to
+            "barcode_round_1_1".
+        mcherry_prefix (str, optional): Prefix for mCherry. Defaults to "mCherry_1".
+        target (str, optional): Path to save the figure to. Defaults to None.
+
+    Returns:
+        plt.Figure: Figure instance
+    """
+
+    ops = iss.io.load_ops(data_path)
+    ref_prefix = ops["reference_prefix"]
+    ref_ch = ops["reg2ref_reference_channels"]
+    print(f"Stitching ref")
+    ref = iss.pipeline.stitch_registered(
+        data_path, prefix=ref_prefix, roi=roi, channels=ref_ch
+    )
+    ref = np.nanmean(ref, axis=2)
+
+    bc_chans = ops.get("reg2ref_barcode_channels", [0, 1, 2, 3])
+    print(f"Stitching barcode")
+    barcode_round_1 = iss.pipeline.stitch_registered(
+        data_path, prefix=barcode_prefix, roi=roi, channels=bc_chans
+    )
+    barcode_round_1 = np.nanmax(barcode_round_1, axis=2)
+    mch_chan = ops.get("reg2ref_mCherry_channels", [3])
+    print(f"Stitching mCherry")
+    mcherry = iss.pipeline.stitch_registered(
+        data_path, prefix=mcherry_prefix, roi=roi, channels=mch_chan
+    )
+    mcherry = np.nanmean(mcherry, axis=2)
+
+    st = np.dstack([ref, mcherry, barcode_round_1])
+    rgb = iss.vis.to_rgb(
+        st,
+        colors=[(0, 0, 1), (1, 0, 0), (0, 1, 0)],
+        vmin=np.nanpercentile(st, 1, axis=(0, 1)),
+        vmax=np.nanpercentile(st, 99.9, axis=(0, 1)),
+    )
+
+    aspect_ratio = rgb.shape[1] / rgb.shape[0]
+    print(aspect_ratio)
+    fig = plt.figure(figsize=(10 * aspect_ratio, 20))
+    ax = fig.add_subplot(2, 1, 1)
+    ax.imshow(rgb, interpolation="none")
+    ax.set_axis_off()
+
+    fw, fh = ref.shape[:2]
+    w = int(fw // 4 * aspect_ratio)
+    h = fh // 4
+    margin = [fw // 6, fh // 6]
+    for ix in range(2):
+        for iy in range(2):
+            ax = fig.add_subplot(4, 2, ix + 2 * iy + 5)
+            xlims = np.array([margin[0], margin[0] + w])
+            if ix:
+                xlims = fw - xlims[::-1]
+            ylims = np.array([margin[1], margin[1] + h])
+            if iy:
+                ylims = fh - ylims[::-1]
+            s_corner = st[ylims[0] : ylims[1], xlims[0] : xlims[1]]
+            rgb_part = iss.vis.to_rgb(
+                s_corner,
+                colors=[(0, 0, 1), (1, 0, 0), (0, 1, 0)],
+                vmin=np.nanpercentile(s_corner, 1, axis=(0, 1)),
+                vmax=np.nanpercentile(s_corner, 99.9, axis=(0, 1)),
+            )
+            ax.imshow(rgb_part, interpolation="none")
+            ax.set_axis_off()
+    fig.tight_layout()
+    if target is not None:
+        fig.savefig(target, dpi=300)
+    return fig
