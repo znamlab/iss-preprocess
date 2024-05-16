@@ -852,25 +852,24 @@ def register_to_ref_using_stitched_registration(
     for roi in rois:
         # get the transformation from the stitched image to the reference
         print(f"Registering {reg_prefix} to {ref_prefix} for ROI {roi}")
-        estimate_scale = False  # never estimate scale
         (
             stitched_stack_target,
-            _,
+            stitched_stack_reference,
             angle,
             shift,
             scale,
         ) = iss.pipeline.stitch.stitch_and_register(
             data_path,
-            ref_prefix,
-            reg_prefix,
-            roi,
-            downsample,
-            ref_channels,
-            reg_channels,
-            estimate_scale,
-            estimate_rotation,
-            target_suffix,
-            use_masked_correlation,
+            reference_prefix=ref_prefix,
+            target_prefix=reg_prefix,
+            roi=roi,
+            downsample=downsample,
+            ref_ch=ref_channels,
+            target_ch=reg_channels,
+            estimate_scale=False,  # never estimate scale
+            estimate_rotation=estimate_rotation,
+            target_projection=target_suffix,
+            use_masked_correlation=use_masked_correlation,
             debug=False,
         )
 
