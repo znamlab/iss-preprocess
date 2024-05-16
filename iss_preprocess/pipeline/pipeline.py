@@ -84,19 +84,9 @@ def project_and_average(data_path, force_redo=False):
     print(f"\nto_process: {to_process}")
     for prefix in to_process:
         if not force_redo:
-            # Skip if already projected
-            if ops["use_flexilims"]:
-                flm_dataset = flz.get_entity(
-                    name="_".join([mouse, chamber, f"project_round_{prefix}"]),
-                    flexilims_session=flm_sess,
-                )
-                if flm_dataset is not None:
-                    print(f"{prefix} is already projected, continuing", flush=True)
-                    continue
-            else:
-                if (processed_path / prefix / "missing_tiles.txt").exists():
-                    print(f"{prefix} is already projected, continuing", flush=True)
-                    continue
+            if (processed_path / prefix / "missing_tiles.txt").exists():
+                print(f"{prefix} is already projected, continuing", flush=True)
+                continue
         tileproj_job_ids, _ = iss.pipeline.project_round(
             data_path, prefix, overview=False
         )
@@ -174,25 +164,15 @@ def project_and_average(data_path, force_redo=False):
     # 'round' type, use it if so, otherwise use single average.
     po_job_ids = []
     for prefix in to_process:
-        if ops["use_flexilims"]:
-            flm_dataset = flz.get_entity(
-                name="_".join([mouse, chamber, f"plot_single_overview_{prefix}"]),
-                flexilims_session=flm_sess,
-            )
-            if not force_redo:
-                if flm_dataset:
-                    print(f"{prefix} is already plotted, continuing", flush=True)
-                    continue
-        else:
-            if not force_redo:
-                if (
-                    processed_path
-                    / "figures"
-                    / "round_overviews"
-                    / f"{Path(data_path).parts[2]}_roi_01_{prefix}_channels_0_1_2_3.png"
-                ).exists():
-                    print(f"{prefix} is already plotted, continuing", flush=True)
-                    continue
+        if not force_redo:
+            if (
+                processed_path
+                / "figures"
+                / "round_overviews"
+                / f"{Path(data_path).parts[2]}_roi_01_{prefix}_channels_0_1_2_3.png"
+            ).exists():
+                print(f"{prefix} is already plotted, continuing", flush=True)
+                continue
         job_id = iss.vis.plot_overview_images(
             data_path,
             prefix,
