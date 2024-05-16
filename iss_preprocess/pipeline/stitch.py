@@ -92,6 +92,9 @@ def warp_stack_to_ref(
         prefix (str): Acquisition to use to find registration parameters
         tile_coors (tuple): (Roi, tileX, tileY) tuple
         interpolation (int, optional): Interpolation order. Defaults to 1.
+        bad_pixels (np.array, optional): A (X x Y) boolean array of bad pixels that fall
+            outside image after registration. If None, will not apply any mask. Defaults
+            to None.
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
