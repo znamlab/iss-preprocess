@@ -720,11 +720,13 @@ def stitch_and_register(
         "stitching is now done on registered tiles", DeprecationWarning, stacklevel=2
     )
     ops = load_ops(data_path)
-    ref_projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
+
     if target_projection is None:
         target_projection = ops[f"{target_prefix.split('_')[0].lower()}_projection"]
     if reference_prefix is None:
         reference_prefix = ops["reference_prefix"]
+
+    ref_projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
     if isinstance(target_ch, int):
         target_ch = [target_ch]
     stitched_stack_target = None
@@ -765,36 +767,20 @@ def stitch_and_register(
             stitched_stack_reference += stitched
     stitched_stack_reference /= len(ref_ch)
     if use_masked_correlation:
-        target_mask = np.ones(stitched_stack_target.shape, dtype=bool)
-        reference_mask = np.ones(stitched_stack_reference.shape, dtype=bool)
+        target_mask = stitched_stack_target > 0
+        reference_mask = stitched_stack_reference > 0
 
-    # If they have different shapes, 0 pad the smallest one
-    # If we have the same shift this is not needed
+    # If they have different shapes, crop to the smallest size
     if stitched_stack_target.shape != stitched_stack_reference.shape:
         warnings.warn("Stitched stacks have different shapes. Padding to match.")
         stacks_shape = np.vstack(
             (stitched_stack_target.shape, stitched_stack_reference.shape)
         )
-        final_shape = np.max(stacks_shape, axis=0)
-        padding = final_shape[np.newaxis, :] - stacks_shape
-        if padding.max() > 100:
-            warnings.warn(
-                f"Large shape difference: {padding}."
-                + " Check that everything is fine."
-            )
-        if np.sum(padding[0, :]):
-            pad_target = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[0]]
-            # if uneven, need to add one after
-            stitched_stack_target = np.pad(stitched_stack_target, pad_target)
-            if use_masked_correlation:
-                target_mask = np.pad(target_mask, pad_target)
-        if np.sum(padding[1, :]):
-            pad_ref = [[int(p / 2), int(p / 2) + (p % 2)] for p in padding[1]]
-            stitched_stack_reference = np.pad(stitched_stack_reference, pad_ref)
+        fshape = np.min(stacks_shape, axis=0)
+        stitched_stack_target = stitched_stack_target[: fshape[0], : fshape[1]]
+        stitched_stack_reference = stitched_stack_reference[: fshape[0], : fshape[1]]
     else:
-        padding = np.zeros((2, 2), dtype=int)
-        final_shape = stitched_stack_target.shape
-
+        fshape = stitched_stack_target.shape
     # setup common args for registration
     kwargs = dict(
         angle_range=1.0,
@@ -804,12 +790,12 @@ def stitch_and_register(
         debug=debug,
         max_shift=ops["max_shift2ref"],
         min_shift=0,
-        reference=stitched_stack_reference[::downsample, ::downsample],
-        target=stitched_stack_target[::downsample, ::downsample],
+        reference=stitched_stack_reference[::downsample, ::downsample].astype(float),
+        target=stitched_stack_target[::downsample, ::downsample].astype(float),
     )
     if use_masked_correlation:
-        kwargs["target_mask"] = target_mask
-        kwargs["reference_mask"] = reference_mask
+        kwargs["target_mask"] = target_mask[::downsample, ::downsample]
+        kwargs["reference_mask"] = reference_mask[::downsample, ::downsample]
 
     if estimate_scale and estimate_rotation:
         out = estimate_scale_rotation_translation(
@@ -841,9 +827,6 @@ def stitch_and_register(
     stitched_stack_target = transform_image(
         stitched_stack_target, scale=scale, angle=angle, shift=shift
     )
-    # Adapt shift to be able to use the same transform without padding
-    shift += padding[0] // 2
-    shift -= padding[1] // 2
 
     fname = f"{target_prefix}_roi{roi}_tform_to_ref.npz"
     print(f"Saving {fname} in the reg folder")
@@ -852,7 +835,7 @@ def stitch_and_register(
         angle=angle,
         shift=shift,
         scale=scale,
-        stitched_stack_shape=final_shape,
+        stitched_stack_shape=fshape,
     )
     output = [stitched_stack_target, stitched_stack_reference, angle, shift, scale]
     if debug:
