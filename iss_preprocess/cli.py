@@ -614,6 +614,11 @@ def segment_all(path, prefix, use_gpu=False):
     default=False,
     help="Whether to use masked correlation.",
 )
+@click.option(
+    "--use-stitched",
+    is_flag=True,
+    help="Use stitched images for registration instead of running it tile by tile.",
+)
 def register_to_reference(
     path,
     reg_prefix,
@@ -621,16 +626,47 @@ def register_to_reference(
     tilex,
     tiley,
     use_masked_correlation,
+    use_stitched,
 ):
     """Register an acquisition to reference tile by tile."""
-    if any([x is None for x in [roi, tilex, tiley]]):
-        from iss_preprocess.pipeline import register
+    from iss_preprocess.pipeline import register
 
+    if use_stitched:
+        from pathlib import Path
+
+        if not use_masked_correlation:
+            print("!!! Stitched registration might fail without masked correlation !!!")
+        if roi is None:
+            from iss_preprocess.io import get_roi_dimensions
+
+            roi_dims = get_roi_dimensions(path)
+            rois = roi_dims[:, 0]
+        elif isinstance(roi, int):
+            rois = [roi]
+
+        slurm_folder = Path.home() / "slurm_logs" / path
+        for roi in rois:
+            script_name = f"register_to_ref_{reg_prefix}_roi_{roi}"
+            register.register_to_ref_using_stitched_registration(
+                data_path=path,
+                roi=roi,
+                reg_prefix=reg_prefix,
+                ref_prefix=None,
+                ref_channels=None,
+                reg_channels=None,
+                estimate_rotation=True,
+                target_suffix=None,
+                use_masked_correlation=use_masked_correlation,
+                downsample=3,
+                use_slurm=True,
+                slurm_folder=slurm_folder,
+                scripts_name=script_name,
+            )
+        return
+    if any([x is None for x in [roi, tilex, tiley]]):
         register.register_all_tiles_to_ref(path, reg_prefix, use_masked_correlation)
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
-        from iss_preprocess.pipeline import register
-
         register.register_tile_to_ref(
             data_path=path,
             reg_prefix=reg_prefix,
