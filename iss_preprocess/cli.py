@@ -385,30 +385,41 @@ def correct_hyb_shifts(path, prefix=None, use_slurm=False):
     from iss_preprocess.pipeline import correct_hyb_shifts
     from iss_preprocess.pipeline import diagnostics as diag
 
-    if use_slurm:
-        from pathlib import Path
+    if prefix is None:
+        from iss_preprocess.io import load_metadata
 
-        slurm_folder = Path.home() / "slurm_logs" / path
-        slurm_folder.mkdir(parents=True, exist_ok=True)
+        metadata = load_metadata(path)
+        prefixes = metadata["hybridisation"].keys()
     else:
-        slurm_folder = None
+        prefixes = [prefix]
+    for prefix in prefixes:
+        print(f"Correcting shifts for {prefix}")
+        if use_slurm:
+            from pathlib import Path
 
-    job_id = correct_hyb_shifts(
-        path,
-        prefix,
-        use_slurm=use_slurm,
-        slurm_folder=slurm_folder,
-        scripts_name=f"correct_hyb_shifts_{prefix}",
-    )
-    diag.check_shift_correction(
-        path,
-        prefix,
-        use_slurm=use_slurm,
-        slurm_folder=slurm_folder,
-        job_dependency=job_id if use_slurm else None,
-        scripts_name=f"check_shift_correction_{prefix}",
-        within=False,
-    )
+            slurm_folder = Path.home() / "slurm_logs" / path
+            slurm_folder.mkdir(parents=True, exist_ok=True)
+        else:
+            slurm_folder = None
+
+        job_id = correct_hyb_shifts(
+            path,
+            prefix,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            scripts_name=f"correct_hyb_shifts_{prefix}",
+        )
+        job2 = diag.check_shift_correction(
+            path,
+            prefix,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=job_id if use_slurm else None,
+            scripts_name=f"check_shift_correction_{prefix}",
+            within=False,
+        )
+        if use_slurm:
+            print(f"Started 2 jobs: {job_id}, {job2}")
 
 
 @cli.command()
