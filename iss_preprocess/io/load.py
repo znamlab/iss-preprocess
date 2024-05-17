@@ -2,6 +2,7 @@ import json
 import re
 import warnings
 from pathlib import Path
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -158,7 +159,6 @@ def load_ops(data_path):
     return ops
 
 
-# AB: LGTM 10/01/23
 def load_metadata(data_path):
     """Load the metadata.yml file
 
@@ -171,18 +171,20 @@ def load_metadata(data_path):
         dict: Content of `{chamber}_metadata.yml`
 
     """
-    metadata_fname = get_raw_path(data_path) / (Path(data_path).name + "_metadata.yml")
-    if not metadata_fname.exists():
-        metadata_fname = get_processed_path(data_path) / (
-            Path(data_path).name + "_metadata.yml"
-        )
-        if metadata_fname.exists():
-            print("Metadata not found in raw data, loading from processed data")
+    process_fname = get_processed_path(data_path) / (
+        Path(data_path).name + "_metadata.yml"
+    )
+
+    if not process_fname.exists():
+        raw_fname = get_raw_path(data_path) / (Path(data_path).name + "_metadata.yml")
+        if raw_fname.exists():
+            print("Metadata not found in processed data, copying from raw data")
+            shutil.copy(raw_fname, process_fname)
         else:
             raise FileNotFoundError(
-                f"Metadata not found.\n{metadata_fname} does not exist"
+                f"Metadata not found.\n{process_fname} does not exist"
             )
-    with open(metadata_fname, "r") as f:
+    with open(process_fname, "r") as f:
         metadata = yaml.safe_load(f)
     return metadata
 
