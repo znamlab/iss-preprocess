@@ -191,7 +191,7 @@ def register_ref_tile(path, prefix, diag):
         scripts_name=scripts_name,
     )
     scripts_name = f"check_ref_tile_registration_{prefix}"
-    check_ref_tile_registration(
+    job2 = check_ref_tile_registration(
         path,
         prefix,
         use_slurm=True,
@@ -199,6 +199,7 @@ def register_ref_tile(path, prefix, diag):
         job_dependency=job_id,
         scripts_name=scripts_name,
     )
+    print(f"Started 2 jobs: {job_id}, {job2}")
 
 
 @cli.command()
