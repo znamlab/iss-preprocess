@@ -936,6 +936,15 @@ def call_spots(path, genes, barcodes, hybridisation):
     """Call spots for genes, barcodes and hybridisation rounds"""
     from iss_preprocess.pipeline import call_spots
 
+    called = []
+    for spot_type in ["genes", "barcodes", "hybridisation"]:
+        if locals()[spot_type]:
+            called.append(spot_type)
+    if not called:
+        print("No spots to call.")
+        return
+    print(f"Calling spots for {', '.join(called)}")
+
     call_spots(path, genes, barcodes, hybridisation)
 
 
