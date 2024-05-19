@@ -246,11 +246,21 @@ def setup_barcodes(path, use_slurm=True):
     help="Path prefix, e.g. 'hybridisation_round'. If None,"
     + " all hybridisation rounds are processed.",
 )
-def setup_hybridisation(path, prefix=None):
+@click.option(
+    "--use-slurm/--local", is_flag=True, default=True, help="Whether to use slurm"
+)
+def setup_hybridisation(path, prefix=None, use_slurm=True):
     """Estimate bleedthrough matrices for hybridisation spots."""
     from iss_preprocess.pipeline import setup_hyb_spot_calling
 
-    setup_hyb_spot_calling(path, prefix)
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+    setup_hyb_spot_calling(path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder)
 
 
 @cli.command()

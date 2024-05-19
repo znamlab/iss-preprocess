@@ -192,6 +192,7 @@ def estimate_channel_correction_hybridisation(data_path):
         np.savez(save_path, pixel_dist=pixel_dist, norm_factors=norm_factors)
 
 
+@slurm_it(conda_env="iss-preprocess")
 def setup_hyb_spot_calling(data_path, prefix=None, vis=True):
     """Prepare and save bleedthrough matrices for hybridisation rounds.
 
@@ -209,7 +210,10 @@ def setup_hyb_spot_calling(data_path, prefix=None, vis=True):
     elif isinstance(prefix, str):
         prefix = [prefix]
 
+    print("setting up hybridisation spot calling. Will process the following rounds:")
+    print(prefix)
     for hyb_round in prefix:
+        print(f"processing {hyb_round}")
         cluster_means, spot_colors, cluster_inds, genes = hyb_spot_cluster_means(
             data_path, hyb_round
         )
@@ -226,7 +230,7 @@ def setup_hyb_spot_calling(data_path, prefix=None, vis=True):
             spot_colors=spot_colors,
             cluster_inds=cluster_inds,
         )
-    iss.pipeline.check_hybridisation_setup(data_path)
+    iss.pipeline.check_hybridisation_setup(data_path, prefixes=prefix)
 
 
 def hyb_spot_cluster_means(data_path, prefix):

@@ -574,18 +574,21 @@ def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_rou
     )
 
 
-def check_hybridisation_setup(data_path):
+def check_hybridisation_setup(data_path, prefixes):
     """Plot the hybridisation spot clusters scatter plots and bleedthrough matrices
 
     Args:
         data_path (str): Relative path to data folder
+        prefixes (list): Prefix of the acquisition to check
 
     """
     processed_path = iss.io.get_processed_path(data_path)
     figure_folder = processed_path / "figures"
     figure_folder.mkdir(exist_ok=True)
-    metadata = iss.io.load_metadata(data_path)
-    for hyb_round in metadata["hybridisation"].keys():
+    if prefixes is None:
+        metadata = iss.io.load_metadata(data_path)
+        prefixes = metadata["hybridisation"].keys()
+    for hyb_round in prefixes:
         reference_hyb_spots = np.load(
             processed_path / f"{hyb_round}_cluster_means.npz", allow_pickle=True
         )
