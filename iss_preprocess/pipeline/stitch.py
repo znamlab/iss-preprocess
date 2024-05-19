@@ -766,9 +766,6 @@ def stitch_and_register(
         else:
             stitched_stack_reference += stitched
     stitched_stack_reference /= len(ref_ch)
-    if use_masked_correlation:
-        target_mask = stitched_stack_target > 0
-        reference_mask = stitched_stack_reference > 0
 
     # If they have different shapes, crop to the smallest size
     if stitched_stack_target.shape != stitched_stack_reference.shape:
@@ -781,6 +778,11 @@ def stitch_and_register(
         stitched_stack_reference = stitched_stack_reference[: fshape[0], : fshape[1]]
     else:
         fshape = stitched_stack_target.shape
+
+    if use_masked_correlation:
+        target_mask = stitched_stack_target > 0
+        reference_mask = stitched_stack_reference > 0
+
     # setup common args for registration
     kwargs = dict(
         angle_range=1.0,
