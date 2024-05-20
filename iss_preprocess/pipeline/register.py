@@ -853,6 +853,18 @@ def register_to_ref_using_stitched_registration(
 
     # get the transformation from the stitched image to the reference
     print(f"Registering {reg_prefix} to {ref_prefix} for ROI {roi}")
+    print(f"    mask: {use_masked_correlation}")
+    print(f"    ref_channels: {ref_channels}")
+    print(f"    reg_channels: {reg_channels}")
+    print(f"    estimate_rotation: {estimate_rotation}")
+    print(f"    downsample: {downsample}")
+    print(f"    save_plot: {save_plot}")
+
+    # first register within if needed
+    iss.pipeline.register_within_acquisition(
+        data_path, prefix=ref_prefix, reload=True, save_plot=True, use_slurm=False
+    )
+
     (
         stitched_stack_target,
         stitched_stack_reference,
