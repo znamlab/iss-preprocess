@@ -439,6 +439,7 @@ def stitch_tiles(
     ich=0,
     correct_illumination=False,
     shifts_prefix=None,
+    register_channels=True,
 ):
     """Load and stitch tile images using saved tile shifts.
 
@@ -454,6 +455,8 @@ def stitch_tiles(
             illumination if True, return raw data otherwise. Default to False
         shifts_prefix (str, optional): prefix to use to load tile shifts. If not
             provided, use `prefix`. Defaults to None.
+        register_channels (bool, optional): If True, register channels before stitching.
+            Defaults to True.
 
     Returns:
         numpy.ndarray: stitched image.
@@ -465,6 +468,7 @@ def stitch_tiles(
     if not shifts_prefix:
         shifts_prefix = prefix
     shift_file = processed_path / "reg" / f"{shifts_prefix}_shifts.npz"
+    print(f"Loading shifts from {shift_file}")
     if shift_file.exists():
         shifts = np.load(shift_file)
     else:
@@ -507,19 +511,33 @@ def stitch_tiles(
     )
     tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
+    print(max_origin)
     stitched_stack = np.zeros(max_origin + tile_shape)
-    if correct_illumination:
-        ops = load_ops(data_path)
-        average_image_fname = processed_path / "averages" / f"{prefix}_average.tif"
-        average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
-        # TODO: use the illumination corerction function?
-    for ix in range(ntiles[0]):
-        for iy in range(ntiles[1]):
+    if register_channels:
+
+        def load_func(data_path, tile_coors, prefix):
+            stack, _ = iss.pipeline.load_and_register_tile(
+                data_path, tile_coors, prefix=prefix, filter_r=False, projection=suffix
+            )
+            return stack[:, :, ich, 0]
+
+    else:
+        if correct_illumination:
+            ops = load_ops(data_path)
+            average_image_fname = processed_path / "averages" / f"{prefix}_average.tif"
+            average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
+
+        def load_func(data_path, tile_coors, prefix):
             stack = load_tile_by_coors(
-                data_path, tile_coors=(roi, ix, iy), suffix=suffix, prefix=prefix
+                data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
             )[:, :, ich]
             if correct_illumination:
                 stack = (stack.astype(float) - ops["black_level"][ich]) / average_image
+            return stack
+
+    for ix in range(ntiles[0]):
+        for iy in range(ntiles[1]):
+            stack = load_func(data_path, (roi, ix, iy), prefix=prefix)
             stitched_stack[
                 tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
                 tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],

@@ -552,6 +552,7 @@ def plot_single_overview(
             suffix="max",
             ich=c,
             correct_illumination=correct_illumination,
+            register_channels=False,  # so that it can run before reg
         )
         if downsample_factor > 1:
             small_stack = block_reduce(
