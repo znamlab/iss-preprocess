@@ -844,7 +844,7 @@ def register_to_ref_using_stitched_registration(
         raise ValueError("Reference and register prefixes are the same")
     if ref_channels is None:
         ref_channels = ops["reg2ref_reference_channels"]
-    spref = reg_prefix.split("_")[0].lower()  # short prefix
+    spref = reg_prefix.split("_")[0]  # short prefix
     if reg_channels is None:
         # use either the same as ref or what is in the ops
         reg_channels = ops.get(f"reg2ref_{spref}_channels", ref_channels)
