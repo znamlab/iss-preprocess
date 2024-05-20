@@ -1411,3 +1411,59 @@ def check_tile_reg2ref(
         fname = f"check_reg2ref_{tname}_{correction}"
         fig.savefig(target_folder / f"{fname}.png")
         plt.close(fig)  # close the figure to avoid memory leak
+
+
+def check_reg2ref_using_stitched(
+    data_path,
+    reg_prefix,
+    ref_prefix,
+    roi,
+    stitched_stack_reference,
+    stitched_stack_target,
+    ref_centers=None,
+    trans_centers=None,
+):
+    """Check the registration to reference done on stitched images
+
+    Args:
+        data_path (str): Relative path to data
+        reg_prefix (str): Prefix of the registered images
+        ref_prefix (str): Prefix of the reference images
+        roi (int): ROI to process
+        stitched_stack_reference (np.ndarray): Stitched stack of the reference images
+        stitched_stack_target (np.ndarray): Stitched stack of the registered images
+        ref_centers (np.ndarray): Reference centers to plot. Defaults
+            to None.
+        trans_centers (np.ndarray): Transformed centers to plot. Defaults
+
+    Returns:
+        plt.Figure: Figure
+    """
+
+    save_folder = iss.io.get_processed_path(data_path) / "figures" / "registration"
+    save_folder /= f"{reg_prefix}_to_{ref_prefix}"
+    save_folder.mkdir(parents=True, exist_ok=True)
+    save_path = save_folder / f"{reg_prefix}_to_{ref_prefix}_roi_{roi}.png"
+    st = np.dstack([stitched_stack_reference, stitched_stack_target])
+    rgb = iss.vis.to_rgb(
+        st, colors=[(1, 0, 0), (0, 1, 0)], vmax=np.nanpercentile(st, 99.9, axis=(0, 1))
+    )
+    del st
+
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111)
+    ax.imshow(rgb, zoerder=0)
+    if ref_centers is not None:
+        flat_refc = ref_centers.reshape(-1, 2)
+        ax.scatter(flat_refc[:, 1], flat_refc[:, 0], c="blue", s=1, zorder=2)
+    if trans_centers is not None:
+        flat_trac = trans_centers.reshape(-1, 2)
+        ax.scatter(flat_trac[:, 1], flat_trac[:, 0], c="orange", s=2, zorder=3)
+    if trans_centers is not None and ref_centers is not None:
+        for c, t in zip(flat_refc, flat_trac):
+            ax.plot([c[1], t[1]], [c[0], t[0]], "k", zorder=1)
+    ax.set_axis_off()
+    fig.savefig(save_path, dpi=1200)
+    print(f"Saving plot to {save_path}")
+    del rgb
+    return fig

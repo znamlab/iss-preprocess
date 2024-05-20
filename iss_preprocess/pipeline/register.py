@@ -809,6 +809,7 @@ def register_to_ref_using_stitched_registration(
     target_suffix=None,
     use_masked_correlation=False,
     downsample=3,
+    save_plot=True,
 ):
     """Register all tiles to the reference using the stitched registration
 
@@ -832,6 +833,7 @@ def register_to_ref_using_stitched_registration(
         target_suffix (str, optional): Suffix of the target tile. Defaults to None.
         use_masked_correlation (bool, optional): Use masked correlation. Defaults to False.
         downsample (int, optional): Downsample factor. Defaults to 3.
+        save_plot (bool, optional): Save a diagnostic plot. Defaults to True.
 
     Returns:
         None
@@ -918,6 +920,19 @@ def register_to_ref_using_stitched_registration(
             )
             # reshape tforms to be like the multichannels tforms
             np.savez(target, matrix_between_channels=tforms.reshape((1, 3, 3)))
+
+    if save_plot:
+        iss.pipeline.diagnostics.check_reg2ref_using_stitched(
+            data_path,
+            reg_prefix,
+            ref_prefix,
+            roi,
+            stitched_stack_reference,
+            stitched_stack_target,
+            ref_centers,
+            trans_centers,
+        )
+
     print("Done")
 
 
