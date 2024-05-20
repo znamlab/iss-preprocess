@@ -661,16 +661,11 @@ def register_to_reference(
                 data_path=path,
                 roi=roi,
                 reg_prefix=reg_prefix,
-                ref_prefix=None,
-                ref_channels=None,
-                reg_channels=None,
-                estimate_rotation=True,
-                target_suffix=None,
                 use_masked_correlation=use_masked_correlation,
-                downsample=3,
                 use_slurm=True,
                 slurm_folder=slurm_folder,
                 scripts_name=script_name,
+                save_plot=True,
             )
         return
     if any([x is None for x in [roi, tilex, tiley]]):
