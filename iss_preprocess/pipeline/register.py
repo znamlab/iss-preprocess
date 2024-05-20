@@ -797,7 +797,7 @@ def register_tile_to_ref(
     return tforms
 
 
-@slurm_it(conda_env="iss-preprocess", print_job_id=True)
+@slurm_it(conda_env="iss-preprocess", print_job_id=True, slurm_options=dict(mem="72G"))
 def register_to_ref_using_stitched_registration(
     data_path,
     roi,
