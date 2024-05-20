@@ -1,3 +1,4 @@
+from warnings import warn
 import numpy as np
 import pandas as pd
 from scipy.ndimage import median_filter
@@ -497,14 +498,21 @@ def correct_shifts_to_ref(data_path, prefix, max_shift=None, fit_angle=False):
     prefix_to_reg = f"to_ref_{prefix}"
     for roi_dim in roi_dims[use_rois, :]:
         print(f"correcting shifts for ROI {roi_dim}, {prefix_to_reg} from {data_path}")
-        correct_shifts_single_round_roi(
-            data_path,
-            roi_dim,
-            prefix=prefix_to_reg,
-            fit_angle=fit_angle,
-            max_shift=max_shift,
-            n_chans=1,  # we register one channel since they are all aligned already
-        )
+        try:
+            correct_shifts_single_round_roi(
+                data_path,
+                roi_dim,
+                prefix=prefix_to_reg,
+                fit_angle=fit_angle,
+                max_shift=max_shift,
+                n_chans=1,  # we register one channel since they are all aligned already
+            )
+        except ValueError:
+            txt = f"!!! Could not correct shifts for ROI {roi_dim[0]}, {prefix_to_reg}"
+            # We both warn and print to make sure the message is seen in out and err
+            warn(txt)
+            print(txt)
+            continue
         filter_ransac_shifts(data_path, prefix_to_reg, roi_dim, max_residuals=10)
 
 
