@@ -651,8 +651,8 @@ def register_to_reference(
 
             roi_dims = get_roi_dimensions(path)
             rois = roi_dims[:, 0]
-        elif isinstance(roi, int):
-            rois = [roi]
+        elif isinstance(roi, int) or isinstance(roi, str):
+            rois = [int(roi)]
 
         slurm_folder = Path.home() / "slurm_logs" / path
         for roi in rois:
