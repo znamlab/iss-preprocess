@@ -336,7 +336,7 @@ def plot_tilestats_distributions(
         single_rounds = natsorted([k for k in distri if k.startswith(prefix)])
         for ir, round_name in enumerate(single_rounds):
             ax.axvline(ops["average_clip_value"], color="black")
-            ax = fig.add_subplot(11, 2, ir * 2 + ip + 3, sharex=fig.axes[0])
+            ax = fig.add_subplot(nrounds[ip], 2, ir * 2 + ip + 3, sharex=fig.axes[0])
             ax.set_ylabel(f"{round_name.split('_')[-2]} - all")
             data = distri.pop(round_name)
             for c, i in enumerate(np.argsort(camera_order)):
