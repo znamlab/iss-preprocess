@@ -516,7 +516,12 @@ def stitch_tiles(
 
         def load_func(data_path, tile_coors, prefix):
             stack, _ = iss.pipeline.load_and_register_tile(
-                data_path, tile_coors, prefix=prefix, filter_r=False, projection=suffix
+                data_path,
+                tile_coors,
+                prefix=prefix,
+                filter_r=False,
+                projection=suffix,
+                correct_illumination=correct_illumination,
             )
             return stack[:, :, ich, 0]
 

@@ -193,6 +193,7 @@ def load_and_register_tile(
     filter_r=True,
     projection=None,
     zero_bad_pixels=False,
+    correct_illumination=True,
 ):
     """Load one single tile
 
@@ -209,6 +210,8 @@ def load_and_register_tile(
         projection (str, optional): Projection to use. If None, will read from `ops`.
             Defaults to None
         zero_bad_pixels (bool, optional): Set bad pixels to zero. Defaults to False
+        correct_illumination (bool, optional): Apply illumination correction. Defaults
+            to True
 
     Returns:
         numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
@@ -237,7 +240,7 @@ def load_and_register_tile(
             prefix=acq_type,
             filter_r=filter_r,
             correct_channels=True,
-            correct_illumination=True,
+            correct_illumination=correct_illumination,
             corrected_shifts=ops["corrected_shifts"],
             specific_rounds=rounds,
         )
@@ -250,7 +253,7 @@ def load_and_register_tile(
             prefix=prefix,
             suffix=projection,
             filter_r=filter_r,
-            correct_illumination=True,
+            correct_illumination=correct_illumination,
             correct_channels=False,
             corrected_shifts=ops["corrected_shifts"],
         )
