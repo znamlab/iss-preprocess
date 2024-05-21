@@ -235,7 +235,7 @@ def estimate_shifts_by_coors(
     (_, shifts_within_channels, matrix_between_channels) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
-        reference_tforms["matrix_between_channels"][0],
+        reference_tforms["matrix_between_channels"],
         ref_ch=ops["ref_ch"],
         ref_round=ops["ref_round"],
         max_shift=ops["rounds_max_shift"],
