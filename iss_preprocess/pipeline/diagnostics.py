@@ -1446,11 +1446,11 @@ def check_reg2ref_using_stitched(
     save_path = save_folder / f"{reg_prefix}_to_{ref_prefix}_roi_{roi}.png"
     st = np.dstack([stitched_stack_reference, stitched_stack_target])
     rgb = iss.vis.to_rgb(
-        st, colors=[(1, 0, 0), (0, 1, 0)], vmax=np.nanpercentile(st, 99, axis=(0, 1))
+        st, colors=[(0, 1, 0), (1, 0, 1)], vmax=np.nanpercentile(st, 99, axis=(0, 1))
     )
     del st
-
-    fig = plt.figure(figsize=(10, 10))
+    aspect_ratio = rgb.shape[0] / rgb.shape[1]
+    fig = plt.figure(figsize=(5, 5 * aspect_ratio))
     ax = fig.add_subplot(111)
     ax.imshow(rgb, zorder=0)
     if ref_centers is not None:
@@ -1463,6 +1463,7 @@ def check_reg2ref_using_stitched(
         for c, t in zip(flat_refc, flat_trac):
             ax.plot([c[1], t[1]], [c[0], t[0]], "k", zorder=1)
     ax.set_axis_off()
+    fig.tight_layout()
     fig.savefig(save_path, dpi=1200)
     print(f"Saving plot to {save_path}")
     del rgb
