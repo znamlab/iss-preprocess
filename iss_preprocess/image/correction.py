@@ -30,7 +30,8 @@ def apply_illumination_correction(data_path, stack, prefix, dtype=float):
     """
     processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
-    average_image_fname = processed_path / "averages" / f"{prefix}_average.tif"
+    fname = ops.get(f"{prefix}_average_for_correction", f"{prefix}_average.tif")
+    average_image_fname = processed_path / "averages" / fname
     average_image = load_stack(average_image_fname).astype(float)
 
     if stack.ndim == 4:
