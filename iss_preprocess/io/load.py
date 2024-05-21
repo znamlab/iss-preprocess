@@ -301,6 +301,9 @@ def load_tile_by_coors(
             + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_median.tif"
         )
         stack -= load_stack(get_processed_path(data_path) / prefix / fname)
+        # add back black level
+        ops = load_ops(data_path)
+        stack += ops["black_level"][None, None, :].astype(stack.dtype)
     return stack
 
 
