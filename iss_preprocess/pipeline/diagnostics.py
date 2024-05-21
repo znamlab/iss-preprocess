@@ -795,6 +795,7 @@ def check_spot_sign_image(data_path):
     plt.savefig(figure_folder / "spot_sign_image.png")
 
 
+@slurm_it(conda_env="iss-preprocess")
 def check_illumination_correction(
     data_path,
     grand_averages=("barcode_round", "genes_round"),
