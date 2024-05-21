@@ -375,17 +375,18 @@ def create_single_average(
     print(f"    suffix={suffix}")
     print(f"    n_batch={n_batch}")
     print(f"    combine_tilestats={combine_tilestats}")
-    print("\nArgs read from ops file")
+    print("\nArgs read from ops file", flush=True)
     ops = load_ops(data_path)
     for ops_values in ["average_clip_value", "average_median_filter", "black_level"]:
         print(f"    {ops_values}={ops[ops_values]}")
     print("", flush=True)
 
     processed_path = iss.io.get_processed_path(data_path)
-    if prefix_filter is None:
-        target_file = f"{subfolder}_average.tif"
-    else:
+
+    if prefix_filter:
         target_file = f"{prefix_filter}_average.tif"
+    else:
+        target_file = f"{subfolder}_average.tif"
     target_stats = target_file.replace("_average.tif", "_tilestats.npy")
     target_file = processed_path / "averages" / target_file
     target_stats = processed_path / "averages" / target_stats
@@ -504,6 +505,7 @@ def create_grand_averages(
     job_ids = []
     slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
     slurm_folder.mkdir(parents=True, exist_ok=True)
+    prefix_todo = list(prefix_todo) + [""]
     for kind in prefix_todo:
         print(f"Creating grand average {kind}", flush=True)
         job_ids.append(
@@ -522,6 +524,16 @@ def create_grand_averages(
                 job_dependency=dependency if dependency else None,
             )
         )
+
+    iss.pipeline.diagnostics.check_illumination_correction(
+        data_path,
+        grand_averages=prefix_todo[:-1],
+        plot_tilestats=True,
+        verbose=True,
+        slurm_folder=slurm_folder,
+        use_slurm=True,
+        job_dependency=job_ids,
+    )
     return job_ids
 
 

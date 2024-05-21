@@ -23,6 +23,9 @@ image_correction:
   # Whether to use an exponential fit to estimate channel brightness correction across
   # rounds
   fit_channel_correction: true
+  # Specific channel correction for individual acquisitions
+  # The default is to load f"{prefix}_average.tif" but that can be changed here
+  mCherry_1_average_for_correction: averages_average.tif
 
 # Parameters for registration across rounds and channels
 registration:
