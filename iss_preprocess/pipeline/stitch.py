@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 from image_tools.registration import phase_correlation as mpc
 from image_tools.similarity_transforms import make_transform, transform_image
-from scipy.ndimage import median_filter
+from scipy.ndimage import median_filter, binary_erosion
 from skimage.morphology import disk
 from skimage.registration import phase_cross_correlation
+from skimage import transform
 from znamutils import slurm_it
 
 import iss_preprocess as iss
@@ -468,7 +469,6 @@ def stitch_tiles(
     if not shifts_prefix:
         shifts_prefix = prefix
     shift_file = processed_path / "reg" / f"{shifts_prefix}_shifts.npz"
-    print(f"Loading shifts from {shift_file}")
     if shift_file.exists():
         shifts = np.load(shift_file)
     else:
@@ -511,7 +511,6 @@ def stitch_tiles(
     )
     tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
-    print(max_origin)
     stitched_stack = np.zeros(max_origin + tile_shape)
     if register_channels:
 
@@ -797,9 +796,15 @@ def stitch_and_register(
     else:
         fshape = stitched_stack_target.shape
 
-    if use_masked_correlation:
-        target_mask = stitched_stack_target > 0
-        reference_mask = stitched_stack_reference > 0
+    def prep_stack(stack, downsample):
+        if stack.dtype != bool:
+            ma = np.nanpercentile(stack, 99)
+            stack = np.clip(stack, 0, ma)
+            stack = stack / ma
+        # downsample
+        new_size = np.array(stack.shape) // downsample
+        stack = transform.resize(stack, new_size)
+        return stack
 
     # setup common args for registration
     kwargs = dict(
@@ -808,14 +813,14 @@ def stitch_and_register(
         nangles=11,
         upsample=False,
         debug=debug,
-        max_shift=ops["max_shift2ref"],
+        max_shift=ops["max_shift2ref"] / downsample,
         min_shift=0,
-        reference=stitched_stack_reference[::downsample, ::downsample].astype(float),
-        target=stitched_stack_target[::downsample, ::downsample].astype(float),
+        reference=prep_stack(stitched_stack_reference, downsample),
+        target=prep_stack(stitched_stack_target, downsample),
     )
     if use_masked_correlation:
-        kwargs["target_mask"] = target_mask[::downsample, ::downsample]
-        kwargs["reference_mask"] = reference_mask[::downsample, ::downsample]
+        kwargs["target_mask"] = prep_stack(stitched_stack_target != 0, downsample)
+        kwargs["reference_mask"] = prep_stack(stitched_stack_reference != 0, downsample)
 
     if estimate_scale and estimate_rotation:
         out = estimate_scale_rotation_translation(
@@ -836,10 +841,7 @@ def stitch_and_register(
             angle, shift = out
         scale = 1
     else:
-        shift, _, _, _ = mpc.phase_correlation(
-            stitched_stack_reference[::downsample, ::downsample],
-            stitched_stack_target[::downsample, ::downsample],
-        )
+        shift, _, _, _ = mpc.phase_correlation(kwargs["reference"], kwargs["target"])
         scale = 1
         angle = 0
     shift *= downsample

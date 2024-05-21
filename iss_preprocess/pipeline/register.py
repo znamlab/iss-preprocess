@@ -808,7 +808,7 @@ def register_to_ref_using_stitched_registration(
     estimate_rotation=True,
     target_suffix=None,
     use_masked_correlation=False,
-    downsample=3,
+    downsample=5,
     save_plot=True,
 ):
     """Register all tiles to the reference using the stitched registration
@@ -887,7 +887,7 @@ def register_to_ref_using_stitched_registration(
         use_masked_correlation=use_masked_correlation,
         debug=False,
     )
-
+    print(f"Angle: {angle}, Shifts: {shift}, Scale: {scale}")
     # transform the center of each tile
     tform2ref = make_transform(
         scale,
