@@ -655,9 +655,10 @@ def plot_spot_called_base(spots, ax, iround, base_color=None, **kwargs):
         None
 
     """
+    bases = np.hstack([iss.call.BASES, "N"])
     if base_color is None:
-        channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
-        base_color = {b: c for b, c in zip(iss.call.BASES, channel_colors)}
+        channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1], [0.5, 0.5, 0.5])
+        base_color = {b: c for b, c in zip(bases, channel_colors)}
 
     default_kwargs = dict(
         fontweight="bold",
