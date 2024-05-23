@@ -268,6 +268,48 @@ def load_and_register_tile(
     return stack, bad_pixels
 
 
+def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=None):
+    """Load a raw stack and apply illumination correction and channel registration.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition to load.
+        tile_coors (tuple): (Roi, tileX, tileY) tuple
+        corrected_shifts (str, optional): Shift correction method. Defaults to None.
+
+    Returns:
+        numpy.ndarray: A (X x Y x Nchannels) registered stack
+
+    """
+
+    if corrected_shifts is None:
+        ops = iss.io.load_ops(data_path)
+        corrected_shifts = ops["corrected_shifts"]
+    valid_shifts = ["reference", "single_tile", "ransac", "best"]
+    assert corrected_shifts in valid_shifts, (
+        f"unknown shift correction method, must be one of {valid_shifts}",
+    )
+    tforms = iss.pipeline.hybridisation.get_channel_shifts(
+        data_path, prefix, tile_coors, corrected_shifts
+    )
+    fname = iss.io.get_raw_filename(data_path, prefix, tile_coors)
+    tile_path = str(Path(data_path) / prefix / fname)
+
+    stack = iss.io.load.get_tile_ome(
+        iss.io.get_raw_path(tile_path + ".ome.tif"),
+        None,
+        use_indexmap=True,
+    )
+    stack = iss.image.correction.apply_illumination_correction(data_path, stack, prefix)
+    c_stack = np.zeros_like(stack)
+    for z in np.arange(stack.shape[-1]):
+        c_stack[..., z] = iss.reg.rounds_and_channels.apply_corrections(
+            stack[..., z], matrix=tforms["matrix_between_channels"], cval=np.nan
+        )
+
+    return c_stack
+
+
 def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     """Start sbatch scripts for all tiles across all rois.
 
