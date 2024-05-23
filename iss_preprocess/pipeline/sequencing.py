@@ -93,6 +93,7 @@ def setup_barcode_calling(data_path):
 
     """
     ops = load_ops(data_path)
+    print("detecting barcode spots")
     all_spots, _ = get_reference_spots(data_path, prefix="barcode")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
         all_spots,
@@ -107,6 +108,7 @@ def setup_barcode_calling(data_path):
     )
     np.save(processed_path / "barcode_cluster_means.npy", cluster_means)
     iss.pipeline.check_barcode_calling(data_path)
+    print("barcode calling setup complete")
     return cluster_means, all_spots
 
 
@@ -124,6 +126,7 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     ops = load_ops(data_path)
     cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
 
+    print(f"Loading and registering tile {tile_coors}")
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
@@ -138,12 +141,14 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 
     spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
+    print(f"Detecting spots in tile {tile_coors}")
     spots = detect_spots_by_shape(
         np.nanmean(stack, axis=(2, 3)),
         spot_sign_image,
         threshold=ops["barcode_detection_threshold_basecalling"],
         rho=ops["barcode_spot_rho"],
     )
+    print(f"Extracting spots in tile {tile_coors}")
     extract_spots(spots, stack, ops["spot_extraction_radius"])
     if len(spots) == 0:
         print(f"No spots detected in tile {tile_coors}")
@@ -154,6 +159,7 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     cluster_inds = []
     top_score = []
 
+    print(f"Basecalling tile {tile_coors}")
     # TODO: perhaps we should apply background correction before basecalling?
     for iround in range(ops["barcode_rounds"]):
         this_round_means = cluster_means[iround] / np.linalg.norm(
@@ -170,6 +176,7 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
         top_score.append(score[np.arange(x_norm.shape[0]), cluster_ind])
 
     sequences = np.stack(cluster_inds, axis=1)
+    print("Adding quality metrics to spots")
     spots["sequence"] = [seq for seq in sequences]
     scores = np.stack(top_score, axis=1)
     spots["scores"] = [s for s in scores]
@@ -180,10 +187,12 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     if save_spots:
         save_dir = processed_path / "spots"
         save_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Saving spots to {save_dir}")
         spots.to_pickle(
             save_dir
             / f"barcode_round_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
         )
+    print(f"Basecalling complete for tile {tile_coors}")
     return stack, spot_sign_image, spots
 
 
