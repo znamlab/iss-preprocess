@@ -152,38 +152,49 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     extract_spots(spots, stack, ops["spot_extraction_radius"])
     if len(spots) == 0:
         print(f"No spots detected in tile {tile_coors}")
-        return stack, spot_sign_image, spots
-    x = np.stack(spots["trace"], axis=2)
-    x = np.nan_to_num(x)
+        col2add = [
+            "sequence",
+            "scores",
+            "mean_score",
+            "bases",
+            "dot_product_score",
+            "mean_intensity",
+        ]
+        spots = pd.DataFrame(columns=spots.columns.tolist() + col2add)
+    else:
+        x = np.stack(spots["trace"], axis=2)
+        x = np.nan_to_num(x)
 
-    cluster_inds = []
-    top_score = []
+        cluster_inds = []
+        top_score = []
 
-    print(f"Basecalling tile {tile_coors}")
-    # TODO: perhaps we should apply background correction before basecalling?
-    for iround in range(ops["barcode_rounds"]):
-        this_round_means = cluster_means[iround] / np.linalg.norm(
-            cluster_means[iround], axis=1, keepdims=True
-        )
-        x_norm = x[iround, :, :].T / np.linalg.norm(
-            x[iround, :, :].T, axis=1, keepdims=True
-        )
+        print(f"Basecalling tile {tile_coors}")
+        # TODO: perhaps we should apply background correction before basecalling?
+        for iround in range(ops["barcode_rounds"]):
+            this_round_means = cluster_means[iround] / np.linalg.norm(
+                cluster_means[iround], axis=1, keepdims=True
+            )
+            x_norm = x[iround, :, :].T / np.linalg.norm(
+                x[iround, :, :].T, axis=1, keepdims=True
+            )
 
-        # should be Spots x Channels matrix @ Channels x Clusters matrix
-        score = x_norm @ this_round_means.T
-        cluster_ind = np.argmax(score, axis=1)
-        cluster_inds.append(cluster_ind)
-        top_score.append(score[np.arange(x_norm.shape[0]), cluster_ind])
+            # should be Spots x Channels matrix @ Channels x Clusters matrix
+            score = x_norm @ this_round_means.T
+            cluster_ind = np.argmax(score, axis=1)
+            top_score.append(score[np.arange(x_norm.shape[0]), cluster_ind])
+            cluster_ind[np.isnan(score).any(axis=1)] = cluster_means[iround].shape[0]
+            cluster_inds.append(cluster_ind)
 
-    sequences = np.stack(cluster_inds, axis=1)
-    print("Adding quality metrics to spots")
-    spots["sequence"] = [seq for seq in sequences]
-    scores = np.stack(top_score, axis=1)
-    spots["scores"] = [s for s in scores]
-    spots["mean_score"] = np.nanmean(scores, axis=1)
-    spots["bases"] = ["".join(BASES[seq]) for seq in spots["sequence"]]
-    spots["dot_product_score"] = barcode_spots_dot_product(spots, cluster_means)
-    spots["mean_intensity"] = [np.mean(np.abs(trace)) for trace in spots["trace"]]
+        sequences = np.stack(cluster_inds, axis=1)
+        print("Adding quality metrics to spots")
+        spots["sequence"] = [seq for seq in sequences]
+        scores = np.stack(top_score, axis=1)
+        spots["scores"] = [s for s in scores]
+        spots["mean_score"] = np.nanmean(scores, axis=1)
+        bases = np.hstack([BASES, ["N"]])
+        spots["bases"] = ["".join(bases[seq]) for seq in spots["sequence"]]
+        spots["dot_product_score"] = barcode_spots_dot_product(spots, cluster_means)
+        spots["mean_intensity"] = [np.mean(np.abs(trace)) for trace in spots["trace"]]
     if save_spots:
         save_dir = processed_path / "spots"
         save_dir.mkdir(parents=True, exist_ok=True)

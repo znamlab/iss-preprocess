@@ -124,17 +124,21 @@ def barcode_spots_dot_product(
         List of dot product scores for each spot.
 
     """
-    nrounds = cluster_means.shape[0]
     nchannels = cluster_means.shape[1]
-    background_vectors = make_background_vectors(nrounds=nrounds, nchannels=nchannels)
+
     dot_product_scores = []
     for i, spot in spots.iterrows():
         if np.all(np.isfinite(spot["trace"])):
+            valid = spot[sequence_column] != 4
+            background_vectors = make_background_vectors(
+                nrounds=np.sum(valid), nchannels=nchannels
+            )
+
             synthetic_trace = cluster_means[
-                np.arange(nrounds), :, spot[sequence_column]
+                np.arange(np.sum(valid)), :, spot[sequence_column][valid]
             ].flatten()
             synthetic_trace /= np.linalg.norm(synthetic_trace)
-            y = spot["trace"].flatten()
+            y = spot["trace"][valid].flatten()
             norm_y = np.linalg.norm(y)
             y /= norm_y + norm_shift
             coefs_background, _, _, _ = np.linalg.lstsq(
