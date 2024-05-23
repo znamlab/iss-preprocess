@@ -32,15 +32,19 @@ def apply_illumination_correction(data_path, stack, prefix, dtype=float):
     ops = load_ops(data_path)
     fname = ops.get(f"{prefix}_average_for_correction", f"{prefix}_average.tif")
     average_image_fname = processed_path / "averages" / fname
-    average_image = load_stack(average_image_fname).astype(float)
-
+    avg_image = load_stack(average_image_fname).astype(float)
+    # find rounds that do not have data
+    no_data = np.logical_not(np.any(stack, axis=(0, 1, 2)))
     if stack.ndim == 4:
-        stack = (
+        corrected = (
             stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
-        ) / average_image[:, :, :, np.newaxis]
+        ) / avg_image[:, :, :, np.newaxis]
+        corrected[..., no_data] *= 0
+    elif no_data:
+        corrected = stack
     else:
-        stack = (stack - ops["black_level"][np.newaxis, np.newaxis, :]) / average_image
-    return stack.astype(dtype)
+        corrected = (stack - ops["black_level"][np.newaxis, np.newaxis, :]) / avg_image
+    return corrected.astype(dtype)
 
 
 def filter_stack(stack, r1=2, r2=4, dtype=float):

@@ -303,7 +303,8 @@ def load_tile_by_coors(
         stack -= load_stack(get_processed_path(data_path) / prefix / fname)
         # add back black level
         ops = load_ops(data_path)
-        stack += ops["black_level"][None, None, :].astype(stack.dtype)
+        if np.any(stack):  # don't change corrupted stacks
+            stack += ops["black_level"][None, None, :].astype(stack.dtype)
     return stack
 
 
