@@ -355,6 +355,7 @@ def create_single_average(
         subfolder (str): subfolder in folder_path containing the tifs to average.
         subtract_black (bool): Subtract black level (read from `ops`)
         n_batch (int): Number of batch to average before taking their median.
+            If None, will do as many batches as images.
         prefix_filter (str, optional): prefix name to filter tifs. Only file starting
             with `prefix` will be averaged. Defaults to None.
         suffix (str, optional): suffix to filter tifs. Defaults to None
@@ -430,6 +431,7 @@ def create_all_single_averages(
     Args:
         data_path (str): Path to data, relative to project.
         n_batch (int): Number of batch to average before taking their median.
+            If None, will do as many batches as images.
         todo (tuple): type of acquisition to process. Default to `("genes_rounds",
             "barcode_rounds", "fluorescence", "hybridisation")`. Ignored if `to_average`
             is not None.
@@ -493,7 +495,7 @@ def create_all_single_averages(
 def create_grand_averages(
     data_path,
     prefix_todo=("genes_round", "barcode_round"),
-    n_batch=1,
+    n_batch=None,
     dependency=None,
 ):
     """Average single acquisition averages into grand average
@@ -502,6 +504,8 @@ def create_grand_averages(
         data_path (str): Path to the folder, relative to `projects` folder
         prefix_todo (tuple, optional): List of str, names of the tifs to average.
             Defaults to ("genes_round", "barcode_round").
+        n_batch (int, optional): Number of batch to average before taking their median.
+            If None, will do as many batches as images. Defaults to None.
 
     """
     subfolder = "averages"

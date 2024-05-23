@@ -241,8 +241,8 @@ def tilestats_and_mean_image(
         suffix (str, optional): suffix to filter images to average. Defaults to "", no
             filter
         n_batch (int, optional): If 1 average everything, otherwise makes `n_batch`
-            averages and take the median of those. All averages must fit in RAM.
-            Defaults to None
+            averages and take the median of those. All averages must fit in RAM. If
+            `None`, create as many batches as tiffs. Defaults to 1.
         black_level (float, optional): image black level to subtract before calculating
             each mean image. Defaults to 0
         max_value (float, optional): image values are clipped to this value *after*
@@ -285,6 +285,8 @@ def tilestats_and_mean_image(
     black_level = np.asarray(black_level)  # in case we have just a float
     if verbose:
         print(f"Averaging {len(tiffs)} tifs in {im_name}.", flush=True)
+    if n_batch is None:
+        n_batch = len(tiffs)
 
     if n_batch == 1:
         mean_image, tilestats = _mean_tiffs(
