@@ -2,7 +2,7 @@ import warnings
 import glob
 from os import system
 from pathlib import Path
-
+from znamutils import slurm_it
 import numpy as np
 import pandas as pd
 from skimage import measure
@@ -48,6 +48,133 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
         command = f"sbatch {args} {script_path}"
         print(command)
         system(command)
+
+
+@slurm_it(
+    conda_env="iss-preprocess", slurm_options={"partition": "gpu", "gpus-per-node": 1}
+)
+def segment_tile(
+    data_path,
+    tile_coors,
+    prefix="DAPI_1",
+    use_raw_stack=True,
+    use_gpu=False,
+):
+    """Run segmentation on a single roi.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple): Coordinates of the tile to segment.
+        prefix (str, optional): Acquisition prefix to use for segmentation.
+            Defaults to "DAPI_1".
+        use_raw_stack (bool, optional): Whether to use the raw stack and do 3d
+            segmentation. Defaults to True.
+        use_gpu (bool, optional): Whether to use GPU. Defaults to False.
+    """
+    print("Loading data")
+    if use_raw_stack:
+        stitch_threshold = 0.3
+        raw_stack = iss.pipeline.load_and_register_raw_stack(
+            data_path, prefix, tile_coors
+        )
+        raw_stack = np.nan_to_num(raw_stack, 0)
+        img = np.clip(raw_stack, 0, 2**16 - 1).astype(np.uint16)
+        z_axis = 3
+    else:
+        stitch_threshold = 0
+        img = iss.pipeline.load_and_register_tile(data_path, tile_coors, prefix)
+        z_axis = None
+
+    print(f"segmenting {data_path} {tile_coors} {prefix}")
+    ops = iss.io.load_ops(data_path)
+    pretrained_model = ops["cellpose_pretrained_model"]
+    if pretrained_model is not None:
+        pretrained_model = iss.io.get_processed_path(pretrained_model)
+    masks = cellpose_segmentation(
+        img,
+        z_axis=z_axis,
+        channel_axis=2,
+        use_gpu=use_gpu,
+        channels=ops["cellpose_channels"],
+        flow_threshold=ops["cellpose_flow_threshold"],
+        min_pix=ops["cellpose_min_pix"],
+        dilate_pix=ops["cellpose_dilate_pix"],
+        diameter=ops["cellpose_diameter"],
+        rescale=ops["cellpose_rescale"],
+        model_type=ops["cellpose_model_type"],
+        pretrained_model=pretrained_model,
+        debug=False,
+        stitch_threshold=stitch_threshold,
+        normalize=dict(normalize=True, norm3D=True),
+        cellprob_threshold=0.0,
+        do_3D=False,
+        anisotropy=None,
+    )
+
+    target = iss.io.get_processed_path(data_path) / "segmentation"
+    tile_name = "_".join(map(str, tile_coors))
+    target /= f"{prefix}_masks_{tile_name}.npy"
+    np.save(target, masks)
+    return img, masks
+
+
+@slurm_it(
+    conda_env="iss-preprocess", slurm_options={"partition": "gpu", "gpus-per-node": 1}
+)
+def run_cell_pos(
+    fname,
+    target,
+    channel,
+    model_type="cyto3",
+    use_gpu=True,
+    flow_threshold=0.4,
+    rescale=0.4,
+    anisotropy=1,
+    min_size=20,
+    do_3D=True,
+    plot=False,
+    save=True,
+):
+    from cellpose.models import CellposeModel
+
+    img = iss.io.get_tile_ome(
+        iss.io.get_raw_path(f"{fname}.ome.tif"), use_indexmap=True
+    )[..., channel, :]
+    model = CellposeModel(gpu=use_gpu, model_type=model_type)
+    cellpose_kwargs = dict(
+        rescale=rescale, anisotropy=anisotropy, min_size=min_size, do_3D=do_3D
+    )
+    masks, flows, styles = model.eval(
+        img,
+        channels=[0, 0],
+        tile=True,
+        flow_threshold=flow_threshold,
+        **cellpose_kwargs,
+    )
+    if save:
+        np.savez(target, masks=masks, flows=flows, styles=styles)
+    if plot:
+        import matplotlib.pyplot as plt
+
+        z_middle = img.shape[-1] // 2
+        aspect = img.shape[0] / img.shape[1]
+        fig = plt.figure(figsize=(6, 6 * aspect))
+        ax = fig.add_subplot(1, 1, 1)
+        ax.imshow(img[..., z_middle], vmax=np.nanquantile(img, 0.99), cmap="gray")
+        print(masks.shape)
+        if masks.ndim == 3:
+            masks = np.nanmax(masks, axis=2)
+        ax.contour(
+            masks,
+            linewidths=0.5,
+            alpha=0.5,
+            levels=np.arange(masks.max()),
+            cmap="prism",
+        )
+        txt = " - ".join([f"{k}: {v}" for k, v in cellpose_kwargs.items()])
+        ax.set_title(txt)
+        fig.tight_layout()
+        fig.savefig(target.replace(".npz", ".png"), dpi=1200)
 
 
 def segment_roi(
@@ -675,6 +802,7 @@ def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh
     return overlapping_pairs
 
 
+@slurm_it(conda_env="iss-preprocess", print_job_id=True)
 def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
     """
     Remove masks that overlap in adjacent tiles.

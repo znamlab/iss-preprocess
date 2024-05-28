@@ -5,12 +5,13 @@ from skimage.morphology import dilation
 
 def cellpose_segmentation(
     img,
-    channels=(0, 0),
+    channels,
     flow_threshold=0.4,
     min_pix=0,
     dilate_pix=0,
     rescale=0.55,
-    model_type="cyto",
+    model_type="cyto3",
+    pretrained_model=None,
     use_gpu=False,
     debug=False,
     **kwargs,
@@ -19,7 +20,7 @@ def cellpose_segmentation(
 
     Args:
         img (np.array): reference image
-        channels (tuple, optional): channels to use for segmentation. Defaults to (0,0)
+        channels (tuple): channels to use for segmentation.
         flow_threshold (float, optional): flow threshold for cellpose cell detection.
             Defaults to 0.4.
         min_pix (int, optional): minimum number of pixels to keep mask. Defaults to 0.
@@ -37,7 +38,9 @@ def cellpose_segmentation(
     """
     from cellpose.models import CellposeModel
 
-    model = CellposeModel(gpu=use_gpu, model_type=model_type)
+    model = CellposeModel(
+        gpu=use_gpu, model_type=model_type, pretrained_model=pretrained_model
+    )
     masks, flows, styles = model.eval(
         img,
         rescale=rescale,

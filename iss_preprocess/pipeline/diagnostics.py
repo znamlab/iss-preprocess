@@ -1196,7 +1196,7 @@ def check_segmentation(
         )[..., 0]
     elif stitched_stack.ndim == 3:
         ops = iss.io.load_ops(data_path)
-        stitched_stack = stitched_stack[..., ops["segmentation_channels"][0]]
+        stitched_stack = stitched_stack[..., ops["cellpose_channels"][0]]
 
     # normalize the stack and downsample by 2 using block_reduce
     stitched_stack = block_reduce(stitched_stack, (2, 2), np.mean)

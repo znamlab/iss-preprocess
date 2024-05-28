@@ -195,10 +195,16 @@ barcode:
 # Cellpose segmentation
 cellpose:
   cellpose_flow_threshold: 0.4
-  cellpose_model: cyto
-  cellpose_rescale: 0.55
-  # Channels to use for segmentation, will average across these channels before running cellpose
-  segmentation_channels: [0, 0]
+  cellpose_min_pix: 10
+  cellpose_dilate_pix: 5
+  cellpose_model_type: cyto
+  # path to custom pretrained model, will replace cellpose_model_type
+  cellpose_pretrained_model: null
+  cellpose_rescale: null
+  cellpose_diameter: 40
+  # Channels to use for segmentation
+  cellpose_channels: [0, 0]
+
 
 # Atlas registration
 atlas:
