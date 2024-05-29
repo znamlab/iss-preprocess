@@ -326,6 +326,24 @@ def load_stack(fname):
         return np.stack(ims, axis=2)
 
 
+def get_zprofile(data_path, prefix, tile_coords):
+    """Load the zprofile for a tile
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of acquisition to load
+        tile_coords (tuple): Tile coordinates (roi, xpos, ypos)
+
+    Returns:
+        dict: Z profile for the tile, with 'std' and 'top_1permille' keys
+    """
+    folder = get_processed_path(data_path) / prefix
+    r, x, y = tile_coords
+    fname = f"{prefix}_MMStack_{r}-Pos{x:03}_{y:03}_zprofile.npz"
+    zprofile = np.load(folder / fname)
+    return dict(zprofile)
+
+
 def get_tile_ome(fname, fmetadata=None, use_indexmap=None):
     """
     Load OME TIFF tile.
