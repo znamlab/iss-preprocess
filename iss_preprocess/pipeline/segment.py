@@ -72,21 +72,16 @@ def segment_tile(
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
     """
     print("Loading data")
+    ops = iss.io.load_ops(data_path)
+    img = get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack)
     if use_raw_stack:
         stitch_threshold = 0.3
-        raw_stack = iss.pipeline.load_and_register_raw_stack(
-            data_path, prefix, tile_coors
-        )
-        raw_stack = np.nan_to_num(raw_stack, 0)
-        img = np.clip(raw_stack, 0, 2**16 - 1).astype(np.uint16)
         z_axis = 3
     else:
         stitch_threshold = 0
-        img = iss.pipeline.load_and_register_tile(data_path, tile_coors, prefix)
         z_axis = None
 
     print(f"segmenting {data_path} {tile_coors} {prefix}")
-    ops = iss.io.load_ops(data_path)
     pretrained_model = ops["cellpose_pretrained_model"]
     if pretrained_model is not None:
         pretrained_model = iss.io.get_processed_path(pretrained_model)
@@ -95,7 +90,7 @@ def segment_tile(
         z_axis=z_axis,
         channel_axis=2,
         use_gpu=use_gpu,
-        channels=ops["cellpose_channels"],
+        channels=[0, 1],  # channel selection is made in get_stack_for_cellpose
         flow_threshold=ops["cellpose_flow_threshold"],
         min_pix=ops["cellpose_min_pix"],
         dilate_pix=ops["cellpose_dilate_pix"],
@@ -105,7 +100,7 @@ def segment_tile(
         pretrained_model=pretrained_model,
         debug=False,
         stitch_threshold=stitch_threshold,
-        normalize=dict(normalize=True, norm3D=True),
+        normalize=dict(normalize=True, norm3D=False),
         cellprob_threshold=0.0,
         do_3D=False,
         anisotropy=None,
@@ -115,7 +110,48 @@ def segment_tile(
     tile_name = "_".join(map(str, tile_coors))
     target /= f"{prefix}_masks_{tile_name}.npy"
     np.save(target, masks)
+    print(f"Saved masks to {target}")
     return img, masks
+
+
+def get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack=True):
+    """Load the stack to segment with cellpose.
+
+    This will load a stack with 2 channels from the raw data or the registered stack.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition prefix to use for segmentation.
+        tile_coors (tuple): Coordinates of the tile to segment.
+        use_raw_stack (bool, optional): Whether to use the raw stack or the projected
+            stack. Defaults to True.
+
+    Returns:
+        numpy.ndarray: X x Y x channels (x Z) stack.
+    """
+    ops = iss.io.load_ops(data_path)
+    channels = ops["cellpose_channels"]
+    if use_raw_stack:
+        raw_stack = iss.pipeline.load_and_register_raw_stack(
+            data_path, prefix, tile_coors
+        )
+        raw_stack = np.nan_to_num(raw_stack, 0)
+        raw_stack = np.clip(raw_stack, 0, 2**16 - 1).astype(np.uint16)
+        z_shift = ops.get("cellpose_channel_z_shift", 0)
+        if z_shift:
+            shape = np.array(raw_stack.shape)
+            shape[2] = 2
+            shape[3] -= z_shift
+            img = np.zeros(shape, dtype=raw_stack.dtype)
+            img[..., 0, :] = raw_stack[..., channels[0], :-z_shift]
+            img[..., 1, :] = raw_stack[..., channels[1], z_shift:]
+            channels = [0, 1]
+        else:
+            img = raw_stack[..., channels, :]
+    else:
+        img = iss.pipeline.load_and_register_tile(data_path, tile_coors, prefix)
+        img = img[..., channels]
+    return img
 
 
 @slurm_it(

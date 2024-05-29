@@ -204,6 +204,9 @@ cellpose:
   cellpose_diameter: 40
   # Channels to use for segmentation
   cellpose_channels: [0, 0]
+  # the two channels might not have the same z focus, if so, specify the z shift here
+  # Positives values means that the second channel focus is in planes with higher z
+  cellpose_channel_z_shift: 0
 
 
 # Atlas registration

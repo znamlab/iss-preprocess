@@ -9,7 +9,6 @@ def cellpose_segmentation(
     flow_threshold=0.4,
     min_pix=0,
     dilate_pix=0,
-    rescale=0.55,
     model_type="cyto3",
     pretrained_model=None,
     use_gpu=False,
@@ -43,7 +42,6 @@ def cellpose_segmentation(
     )
     masks, flows, styles = model.eval(
         img,
-        rescale=rescale,
         channels=channels,
         flow_threshold=flow_threshold,
         tile=True,
