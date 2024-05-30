@@ -143,8 +143,12 @@ def get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack=True):
             shape[2] = 2
             shape[3] -= z_shift
             img = np.zeros(shape, dtype=raw_stack.dtype)
-            img[..., 0, :] = raw_stack[..., channels[0], :-z_shift]
-            img[..., 1, :] = raw_stack[..., channels[1], z_shift:]
+            if z_shift > 0:
+                img[..., 0, :] = raw_stack[..., channels[0], :-z_shift]
+                img[..., 1, :] = raw_stack[..., channels[1], z_shift:]
+            else:
+                img[..., 0, :] = raw_stack[..., channels[0], -z_shift:]
+                img[..., 1, :] = raw_stack[..., channels[1], :z_shift]
             channels = [0, 1]
         else:
             img = raw_stack[..., channels, :]
