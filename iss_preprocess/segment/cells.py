@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from skimage.morphology import dilation
 
 
@@ -51,7 +52,7 @@ def cellpose_segmentation(
         print(f"Filtering masks with less than {min_pix} pixels")
         nmasks = np.max(masks)
         npix = np.empty(nmasks)
-        for mask in range(nmasks):
+        for mask in tqdm(range(nmasks), total=nmasks):
             npix[mask] = np.sum(masks == mask + 1)
             if npix[mask] < min_pix:
                 masks[masks == mask + 1] = 0
