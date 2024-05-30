@@ -48,13 +48,18 @@ def cellpose_segmentation(
         **kwargs,
     )
     if min_pix > 0:
+        print(f"Filtering masks with less than {min_pix} pixels")
         nmasks = np.max(masks)
         npix = np.empty(nmasks)
         for mask in range(nmasks):
             npix[mask] = np.sum(masks == mask + 1)
             if npix[mask] < min_pix:
                 masks[masks == mask + 1] = 0
+        print(f"Filtered {np.sum(npix < min_pix)} masks")
+        print(f"Average mask size: {np.mean(npix[npix > min_pix])} pixels")
 
+    if dilate_pix > 0:
+        print(f"Dilating masks by {dilate_pix} pixels")
     for i in range(dilate_pix):
         masks_dilated = dilation(masks)
         masks[masks == 0] = masks_dilated[masks == 0]
