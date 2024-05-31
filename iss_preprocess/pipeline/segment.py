@@ -51,12 +51,73 @@ def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
         system(command)
 
 
+def segment_all_tiles(
+    data_path,
+    prefix="DAPI_1",
+    use_raw_stack=True,
+    use_gpu=False,
+    use_rois=None,
+    tile_list=None,
+):
+    """Start batch jobs for segmentation for each tile.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): acquisition prefix to use for segmentation.
+            Defaults to "DAPI_1".
+        use_raw_stack (bool, optional): Whether to use the raw stack and do 3d
+            segmentation. Defaults to True.
+        use_gpu (bool, optional): Whether to use GPU. Defaults to False.
+        use_rois (list, optional): List of ROIs to process. If None, will use all ROIs.
+            Defaults to None.
+        tile_list (list, optional): List of tiles to process. If provided will ignore
+            use_rois. If None, will use all tiles.
+
+    Returns:
+        list: List of job IDs for the slurm jobs.
+    """
+    # create the list of tiles to process
+    if tile_list is None:
+        roi_dims = get_roi_dimensions(data_path)
+        if use_rois is None:
+            ops = iss.io.load_ops(data_path)
+            use_rois = ops.get("use_rois", roi_dims[:, 0])
+        tile_list = [
+            (r, ix, iy)
+            for r in use_rois
+            for ix in range(roi_dims[r, 1] + 1)
+            for iy in range(roi_dims[r, 2] + 1)
+        ]
+
+    slurm_folder = Path.home() / "slurm_logs" / data_path / "segmentation"
+    slurm_folder.mkdir(exist_ok=True, parents=True)
+    job_ids = segment_tile(
+        data_path,
+        prefix=prefix,
+        use_gpu=use_gpu,
+        use_raw_stack=use_raw_stack,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        batch_param_names=["roi", "tx", "ty"],
+        batch_param_list=tile_list,
+    )
+    return job_ids
+
+
 @slurm_it(
-    conda_env="iss-preprocess", slurm_options={"partition": "gpu", "gpus-per-node": 1}
+    conda_env="iss-preprocess",
+    slurm_options={
+        "partition": "gpu",
+        "gpus-per-node": 1,
+        "mem": "64GB",
+        "time": "3:00:00",
+    },
 )
 def segment_tile(
     data_path,
-    tile_coors,
+    roi=None,
+    tx=None,
+    ty=None,
     prefix="DAPI_1",
     use_raw_stack=True,
     use_gpu=False,
@@ -65,13 +126,18 @@ def segment_tile(
 
     Args:
         data_path (str): Relative path to data.
-        tile_coors (tuple): Coordinates of the tile to segment.
+        roi (int): ROI to process.
+        tx (int): Tile x coordinate.
+        ty (int): Tile y coordinate.
         prefix (str, optional): Acquisition prefix to use for segmentation.
             Defaults to "DAPI_1".
         use_raw_stack (bool, optional): Whether to use the raw stack and do 3d
             segmentation. Defaults to True.
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
     """
+    # we make tile_coors keyword only to avoid confusion with the slurm_it decorator
+    print(f"Segmenting {data_path} {prefix} roi {roi} x={tx} y={ty}", flush=True)
+    tile_coors = (roi, tx, ty)
     print("Loading data")
     ops = iss.io.load_ops(data_path)
     img = get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack)
