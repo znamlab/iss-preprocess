@@ -241,7 +241,7 @@ def _separate_masks(masks, min_pix_size):
     return binary_masks, individual_masks
 
 
-def _fuse_masks(source, target, binary_masks, projected_mask):
+def _fuse_masks(source, target, binary_masks, projected_mask, min_pix_size):
     """Inner function to fuse two masks.
 
     If the masks barely overlap, we ignore the intersection.
@@ -253,6 +253,7 @@ def _fuse_masks(source, target, binary_masks, projected_mask):
         target (int): ID of the target mask.
         binary_masks (np.array): 2D array of binary masks.
         projected_mask (np.array): 2D array of projected masks.
+        min_pix_size (int): Minimum number of pixels in the center plane to keep a mask.
 
     Returns:
         np.array: 2D array of projected masks.
@@ -276,14 +277,14 @@ def _fuse_masks(source, target, binary_masks, projected_mask):
         s_mask = binary_dilation(s_mask, iterations=5)
         t_mask = binary_erosion(t_mask, iterations=5)
         t_mask = binary_dilation(t_mask, iterations=5)
+        if np.sum(t_mask) > min_pix_size:
+            projected_mask[t_mask] = target
+        if np.sum(s_mask) > min_pix_size:
+            projected_mask[s_mask] = source
 
-        projected_mask[s_mask] = source
-        projected_mask[t_mask] = target
+    if (np.sum(t_mask) < min_pix_size) or (np.sum(s_mask) < min_pix_size):
+        return projected_mask
 
-    if np.sum(t_mask) < 200:
-        raise ValueError("Too small t")
-    if np.sum(s_mask) < 200:
-        raise ValueError("Too small s")
     if t_in_s > 0.7:
         clean_s = s_mask.copy()
         clean_s[t_mask] = 0
