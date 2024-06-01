@@ -1067,6 +1067,7 @@ def check_tile_shifts(
     return figs
 
 
+@slurm_it(conda_env="iss-preprocess")
 def check_omp_thresholds(
     data_path,
     spot_score_thresholds=(0.05, 0.075, 0.1, 0.125, 0.15, 0.2),

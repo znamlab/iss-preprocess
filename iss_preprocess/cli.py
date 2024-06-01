@@ -497,14 +497,33 @@ def spot_sign_image(path, prefix="genes_round"):
 @click.option("-r", "--roi", default=None, help="Number of the ROI..")
 @click.option("-x", "--tilex", default=None, help="Tile X position")
 @click.option("-y", "--tiley", default=None, help="Tile Y position.")
-def check_omp(path, roi, tilex, tiley):
+@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+def check_omp(path, roi, tilex, tiley, use_slurm=True):
     """Compute average spot image."""
     from iss_preprocess.pipeline import check_omp_thresholds
 
-    if roi is not None and tilex is not None and tiley is not None:
-        check_omp_thresholds(path, tile_coors=(roi, tilex, tiley))
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs" / path / "check_omp"
+        slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
-        check_omp_thresholds(path)
+        slurm_folder = None
+    if roi is not None and tilex is not None and tiley is not None:
+        check_omp_thresholds(
+            path,
+            tile_coors=(roi, tilex, tiley),
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            scripts_name=f"check_omp",
+        )
+    else:
+        check_omp_thresholds(
+            path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            scripts_name=f"check_omp",
+        )
 
 
 @cli.command()
