@@ -55,7 +55,7 @@ def segment_all_tiles(
     data_path,
     prefix="DAPI_1",
     use_raw_stack=True,
-    use_gpu=False,
+    use_gpu=True,
     use_rois=None,
     tile_list=None,
 ):
@@ -67,7 +67,7 @@ def segment_all_tiles(
             Defaults to "DAPI_1".
         use_raw_stack (bool, optional): Whether to use the raw stack and do 3d
             segmentation. Defaults to True.
-        use_gpu (bool, optional): Whether to use GPU. Defaults to False.
+        use_gpu (bool, optional): Whether to use GPU. Defaults to True.
         use_rois (list, optional): List of ROIs to process. If None, will use all ROIs.
             Defaults to None.
         tile_list (list, optional): List of tiles to process. If provided will ignore
@@ -173,7 +173,7 @@ def segment_tile(
         anisotropy=None,
     )
 
-    target = iss.io.get_processed_path(data_path) / "segmentation"
+    target = iss.io.get_processed_path(data_path) / "cells"
     target.mkdir(exist_ok=True)
     tile_name = "_".join(map(str, tile_coors))
     fname = f"{prefix}_masks_{tile_name}.npy"
@@ -974,10 +974,7 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
     processed_path = iss.io.get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
     ops = iss.io.load_ops(data_path)
-
     # Remove all old files with "masks_corrected" in the name
-    import glob
-
     for f in glob.glob(str(processed_path / "cells" / f"{prefix}_masks_corrected*")):
         Path(f).unlink()
 
@@ -1010,7 +1007,15 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
 
     # Now remove overlapping masks
     all_overlapping_pairs = []
+    if (ops["x_tile_direction"] != "right_to_left") or (
+        ops["y_tile_direction"] != "top_to_bottom"
+    ):
+        warnings.warn(
+            "This function is only tested for right_to_left and top_to_bottom tile direction"
+        )
     for roi in roi_dims[:, 0]:
+        # TODO: this might fail with other microscope
+
         for tilex in tqdm(
             reversed(range(roi_dims[roi - 1, 1] + 1)),
             desc=f"ROI {roi} X-axis (overlap check)",
@@ -1074,6 +1079,8 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                     )
 
                 # Create code that loads adjacent tiles and checks for masks that overlap
+                # we use the prefix shift, not the reference as we want to be sure to
+                # find duplicates and we will not stitch
                 shifts_fname = (
                     iss.io.get_processed_path(data_path)
                     / "reg"
