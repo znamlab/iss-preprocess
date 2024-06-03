@@ -47,9 +47,7 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection
     """
     if "_masks" in prefix:
         # we have a mask, the load is different
-        stack = iss.io.load_mask_by_coors(
-            data_path, tile_coors, prefix, suffix=projection
-        )
+        stack = iss.io.load_mask_by_coors(data_path, prefix, tile_coors, projection)
         prefix = prefix.replace("_masks", "")
         # make 3D to match the other load
         bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
