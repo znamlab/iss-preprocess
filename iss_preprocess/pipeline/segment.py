@@ -799,46 +799,6 @@ def segment_mcherry_tile(
     return filtered_masks, filtered_df, rejected_masks
 
 
-def load_mask_by_coors(
-    data_path,
-    prefix="mCherry",
-    tile_coors=(1, 0, 0),
-    load_raw=False,
-):
-    """Load processed tile images
-
-    Args:
-        data_path (str): relative path to dataset.
-        prefix (str, optional): Full folder name prefix, including round number.
-            Defaults to "mCherry"
-        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
-            Defaults to (1,0,0).
-
-    Returns:
-        numpy.ndarray: X x Y x channels stack.
-
-    """
-    processed_path = iss.io.get_processed_path(data_path)
-    tile_roi, tile_x, tile_y = tile_coors
-    fname_corrected = f"{prefix}_masks_corrected_{tile_roi}_{tile_x}_{tile_y}.npy"
-    fname = f"{prefix}_cell_masks_{tile_roi}_{tile_x}_{tile_y}.npy"
-    if load_raw:
-        if (processed_path / "cells" / fname).exists():
-            masks = np.load(processed_path / "cells" / fname, allow_pickle=True)
-        else:
-            raise FileNotFoundError(f"Could not find mask file {fname}")
-        return masks
-
-    if (processed_path / "cells" / fname_corrected).exists():
-        masks = np.load(processed_path / "cells" / fname_corrected, allow_pickle=True)
-    elif (processed_path / "cells" / fname).exists():
-        masks = np.load(processed_path / "cells" / fname, allow_pickle=True)
-    else:
-        raise FileNotFoundError(f"Could not find mask file {fname}")
-
-    return masks
-
-
 def find_edge_touching_masks(masks):
     """
     Finds masks that touch the edge of the image.
@@ -1035,11 +995,11 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 total=roi_dims[roi - 1, 2],
             ):
                 coors = (roi, tilex, tiley)
-                tile = load_mask_by_coors(
+                tile = iss.io.load.load_mask_by_coors(
                     data_path,
                     tile_coors=coors,
                     prefix=prefix,
-                    load_raw=True,
+                    suffix="",
                 )
                 corrected_masks, _ = find_edge_touching_masks(tile)
                 # Save the edge corrected masks
@@ -1064,8 +1024,11 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
             ):
                 ref_coors = (roi, tilex, tiley)
                 # Load reference tile
-                tile_ref = load_mask_by_coors(
-                    data_path, tile_coors=ref_coors, prefix=prefix
+                tile_ref = iss.io.load.load_mask_by_coors(
+                    data_path,
+                    tile_coors=ref_coors,
+                    prefix=prefix,
+                    suffix="corrected",
                 )
 
                 # Check if adjacent down tile exists and load it
@@ -1074,8 +1037,11 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 if down_coors[2] < 0:
                     tile_down = np.zeros_like(tile_ref)
                 else:
-                    tile_down = load_mask_by_coors(
-                        data_path, tile_coors=down_coors, prefix=prefix
+                    tile_down = iss.io.load.load_mask_by_coors(
+                        data_path,
+                        tile_coors=down_coors,
+                        prefix=prefix,
+                        suffix="corrected",
                     )
 
                 # Check if adjacent right tile exists and load it
@@ -1084,8 +1050,11 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 if right_coors[1] < 0:
                     tile_right = np.zeros_like(tile_ref)
                 else:
-                    tile_right = load_mask_by_coors(
-                        data_path, tile_coors=right_coors, prefix=prefix
+                    tile_right = iss.io.load.load_mask_by_coors(
+                        data_path,
+                        tile_coors=right_coors,
+                        prefix=prefix,
+                        suffix="corrected",
                     )
 
                 # Check if adjacent down right tile exists and load it
@@ -1097,8 +1066,11 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 if down_right_coors[1] < 0 or down_right_coors[2] < 0:
                     tile_down_right = np.zeros_like(tile_ref)
                 else:
-                    tile_down_right = load_mask_by_coors(
-                        data_path, tile_coors=down_right_coors, prefix=prefix
+                    tile_down_right = iss.io.load.load_mask_by_coors(
+                        data_path,
+                        tile_coors=down_right_coors,
+                        prefix=prefix,
+                        suffix="corrected",
                     )
 
                 # Create code that loads adjacent tiles and checks for masks that overlap

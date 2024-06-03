@@ -467,22 +467,41 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
     return roi_list
 
 
-def load_mask_by_coors(data_path, tile_coors, prefix, suffix="corrected"):
+def load_mask_by_coors(
+    data_path,
+    prefix,
+    tile_coors,
+    suffix="corrected",
+):
     """Load masks for a single tile.
 
+    If the corrected mask is not found, the raw mask is loaded instead.
+
     Args:
-        data_path (str): Relative path to data
-        tile_coors (tuple): Tile coordinates (roi, xpos, ypos)
-        prefix (str): Prefix of acquisition to load
-        suffix (str, optional): Suffix of the mask file. Defaults to "corrected".
+        data_path (str): relative path to dataset.
+        prefix (str): Full folder name prefix, including round number.
+        tile_coors (tuple): Coordinates of tile to load: ROI, Xpos, Ypos.
+        suffix (str, optional): Suffix to add to the file name. Defaults to "corrected".
 
     Returns:
-        numpy.ndarray: Masks for the tile
-        numpy.ndarray: Bad pixels for the tile (all True)
+        numpy.ndarray: X x Y x channels stack.
+
     """
     processed_path = get_processed_path(data_path)
-    tname = "_".join(map(str, tile_coors))
-    masks_file = processed_path / "cells" / f"{prefix}_{suffix}_{tname}.npy"
-    masks = np.load(masks_file)
+    tile_roi, tile_x, tile_y = tile_coors
+    if suffix:
+        suffix = f"_{suffix}"
+    else:
+        suffix = ""
+    if "masks" in prefix:
+        mask_name = suffix
+    else:
+        mask_name = f"_masks{suffix}"
 
-    return masks
+    fname = f"{prefix}{mask_name}_{tile_roi}_{tile_x}_{tile_y}.npy"
+
+    if (processed_path / "cells" / fname).exists():
+        masks = np.load(processed_path / "cells" / fname, allow_pickle=True)
+        return masks
+    else:
+        raise FileNotFoundError(f"Could not find mask file {fname}")
