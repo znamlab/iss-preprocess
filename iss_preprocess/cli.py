@@ -1174,7 +1174,7 @@ def find_mcherry_cells(path):
 
 @cli.command()
 @click.option("-j", "--jobsinfo", help="Job ids and args file.")
-def handle_failed(job_info_path):
+def handle_failed(jobsinfo):
     from iss_preprocess.pipeline import handle_failed_jobs
 
-    handle_failed_jobs(job_info_path)
+    handle_failed_jobs(jobsinfo)

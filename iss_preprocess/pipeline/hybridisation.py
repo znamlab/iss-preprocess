@@ -339,7 +339,7 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
                 prefix,
                 use_slurm=True,
                 slurm_folder=slurm_folder,
-                script_name=f"iss_hyb_spots_tile_{roi}_{ix}_{iy}.out",
+                scripts_name=f"iss_hyb_spots_tile_{roi}_{ix}_{iy}.out",
             )
 
 
