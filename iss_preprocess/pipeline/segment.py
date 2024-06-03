@@ -82,12 +82,12 @@ def segment_all_tiles(
         if use_rois is None:
             ops = iss.io.load_ops(data_path)
             use_rois = ops.get("use_rois", roi_dims[:, 0])
-        tile_list = [
-            (r, ix, iy)
-            for r in use_rois
-            for ix in range(roi_dims[r, 1] + 1)
-            for iy in range(roi_dims[r, 2] + 1)
-        ]
+        tile_list = []
+        for r in use_rois:
+            _, nx, ny = roi_dims[roi_dims[:, 0] == r][0]
+            tile_list.extend(
+                [(r, ix, iy) for ix in range(nx + 1) for iy in range(ny + 1)]
+            )
 
     slurm_folder = Path.home() / "slurm_logs" / data_path / "segmentation"
     slurm_folder.mkdir(exist_ok=True, parents=True)
@@ -269,7 +269,9 @@ def project_mask(masks, min_pix_size):
         to_compare = to_compare[to_compare != source]
         assert len(to_compare) > 0, f"No overlapping masks for {source}"
         for target in to_compare:
-            projected_mask = _fuse_masks(source, target, binary_masks, projected_mask)
+            projected_mask = _fuse_masks(
+                source, target, binary_masks, projected_mask, min_pix_size
+            )
 
     return binary_masks, individual_masks, projected_mask
 
