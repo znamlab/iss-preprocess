@@ -426,22 +426,28 @@ def handle_failed_jobs(job_info_path):
     import pandas as pd
 
     failed_params = []
+    unique_nodes = set()
     df_job_info = pd.read_csv(job_info_path)
     for job_id in df_job_info["job_ids"]:
         job_info = subprocess.check_output(
-            f"sacct -j {job_id} --format=State", shell=True
+            f"sacct -j {job_id} --format=State,NodeList", shell=True
         ).decode("utf-8")
         if "TIMEOUT" in job_info or "FAILED" in job_info:
             failed_params.append(
                 df_job_info[df_job_info["job_ids"] == job_id]["arg_list"].values[0]
             )
-
+            lines = job_info.strip().split("\n")
+            for line in lines[2:]:
+                columns = line.split()
+                unique_nodes.update(columns[1].split(","))
+    excluded_nodes = ",".join(list(unique_nodes))
     retry_job_ids = []
     if len(failed_params) == 0:
         print("No failed jobs to retry")
         return retry_job_ids
 
     for args in failed_params:
+        args = args + f" --exclude={excluded_nodes}"
         print(f"Retrying failed job with args: {args}")
         process = subprocess.Popen(
             shlex.split(args),
