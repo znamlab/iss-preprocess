@@ -144,6 +144,16 @@ def segment_tile(
     if use_raw_stack:
         stitch_threshold = 0.3
         z_axis = 3
+
+        # filter out of focus planes
+        z_std = np.nanstd(img[..., 0, :], axis=(0, 1))
+        focus = z_std.argmax()
+        nplanes = ops["cellpose_zplanes_around_focus"]
+        in_focus = np.arange(-nplanes, nplanes + 1) + focus
+        in_focus = in_focus[(in_focus >= 0) & (in_focus < img.shape[-1])]
+        img = img[..., in_focus]
+        print(f"Focus on plane {focus}", flush=True)
+        print(f"Using planes {in_focus}", flush=True)
     else:
         stitch_threshold = 0
         z_axis = None
@@ -172,24 +182,27 @@ def segment_tile(
         do_3D=False,
         anisotropy=None,
     )
-
+    # we can get OOM errors if we don't delete the img
+    del img
     target = iss.io.get_processed_path(data_path) / "cells"
     target.mkdir(exist_ok=True)
     tile_name = "_".join(map(str, tile_coors))
     fname = f"{prefix}_masks_{tile_name}.npy"
     if use_raw_stack:
-        # project masks to a single plane
-        _, _, projected_mask = project_mask(masks, min_pix_size=ops["cellpose_min_pix"])
         # save raw 3D masks
         raw_target = target / "raw_masks"
         raw_target.mkdir(exist_ok=True)
         np.save(raw_target / fname, masks)
+        # filter in focus plane
+        # z_std = iss.io.load_z
+        # project masks to a single plane
+        projected_mask = project_mask(masks, min_pix_size=ops["cellpose_min_pix"])
         masks = projected_mask
 
     np.save(target / fname, masks)
     print(f"Saved masks to {target}")
 
-    return img, masks
+    return masks
 
 
 def get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack=True):
@@ -248,7 +261,8 @@ def project_mask(masks, min_pix_size):
         np.array: 2D array of projected masks.
     """
     print("Separating masks")
-    binary_masks, individual_masks = _separate_masks(masks, min_pix_size=min_pix_size)
+    binary_masks = _separate_masks(masks, min_pix_size=min_pix_size)
+    del masks
 
     # First merge all the masks that do not overlap
     n_masks = np.sum(binary_masks, axis=0)
@@ -260,7 +274,7 @@ def project_mask(masks, min_pix_size):
         if n_masks[m].max() == 1:
             projected_mask[m] = i_m + 1
         else:
-            overlapping[i_m + 1] = np.unique(individual_masks[:, m])
+            overlapping[i_m + 1] = np.unique(np.where(binary_masks[:, m])[0]) + 1
 
     print("Merging overlapping masks")
     for source, to_compare in tqdm(overlapping.items()):
@@ -273,7 +287,7 @@ def project_mask(masks, min_pix_size):
                 source, target, binary_masks, projected_mask, min_pix_size
             )
 
-    return binary_masks, individual_masks, projected_mask
+    return projected_mask
 
 
 def _separate_masks(masks, min_pix_size):
@@ -294,7 +308,6 @@ def _separate_masks(masks, min_pix_size):
 
     # separate masks, keeping only one plane per mask
     binary_masks = np.zeros((len(mask_ids), *masks.shape[1:]), dtype=bool)
-    individual_masks = np.zeros((len(mask_ids), *masks.shape[1:]), dtype="int16")
     for i_m, mask_id in tqdm(enumerate(mask_ids), total=len(mask_ids)):
         # Find the center z plane of the mask
         mask = masks == mask_id
@@ -305,8 +318,7 @@ def _separate_masks(masks, min_pix_size):
         if np.sum(mask[center_z]) < min_pix_size:
             continue
         binary_masks[i_m] = mask[center_z]
-        individual_masks[i_m] = mask[center_z] * (i_m + 1)
-    return binary_masks, individual_masks
+    return binary_masks
 
 
 def _fuse_masks(source, target, binary_masks, projected_mask, min_pix_size):
