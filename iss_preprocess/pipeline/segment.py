@@ -728,37 +728,27 @@ def segment_mcherry_tile(
     return filtered_masks, filtered_df, rejected_masks
 
 
-def find_edge_touching_masks(masks):
+def find_edge_touching_masks(masks, border_width=4):
     """
     Finds masks that touch the edge of the image.
 
     Args:
-        masks (np.ndarray): The binary or labeled mask array where each cell is represented
-                            by a unique integer, and background is 0.
+        masks (np.ndarray): The binary or labeled mask array where each cell is
+            represented by a unique integer, and background is 0.
+        border_width (int): The width of the border to consider when checking for edge
+            touching. Defaults to 4.
 
     Returns:
         edge_touching_labels (list): A list of unique labels that touch the edge of the image.
     """
-    # Initialize an empty list to store labels of masks that touch the edge
-    edge_touching_labels = []
-
-    # Get the unique labels in the masks excluding the background (0)
-    unique_labels = np.unique(masks)
-    unique_labels = unique_labels[unique_labels != 0]
-
-    # Check each label to see if it touches the edge
-    for label in unique_labels:
-        # Find the mask for the current label
-        mask = masks == label
-
-        # Check if the mask touches the top or bottom edge
-        if np.any(mask[0, :]) or np.any(mask[-1, :]):
-            edge_touching_labels.append(label)
-            continue  # Skip to the next label as this one already touches an edge
-
-        # Check if the mask touches the left or right edge
-        if np.any(mask[:, 0]) or np.any(mask[:, -1]):
-            edge_touching_labels.append(label)
+    if border_width < 1:
+        raise ValueError("Border width must be at least 1.")
+    # Find edge touching label
+    edge_touching_labels = set(np.unique(masks[:, border_width - 1]))
+    edge_touching_labels.update(np.unique(masks[:, -border_width]))
+    edge_touching_labels.update(np.unique(masks[border_width - 1, :]))
+    edge_touching_labels.update(np.unique(masks[-border_width, :]))
+    edge_touching_labels = list(edge_touching_labels)
 
     # Set all masks that touch the edge to 0
     for label in edge_touching_labels:
