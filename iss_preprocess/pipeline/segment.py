@@ -744,10 +744,10 @@ def find_edge_touching_masks(masks, border_width=4):
     if border_width < 1:
         raise ValueError("Border width must be at least 1.")
     # Find edge touching label
-    edge_touching_labels = set(np.unique(masks[:, border_width - 1]))
-    edge_touching_labels.update(np.unique(masks[:, -border_width]))
-    edge_touching_labels.update(np.unique(masks[border_width - 1, :]))
-    edge_touching_labels.update(np.unique(masks[-border_width, :]))
+    edge_touching_labels = set(np.unique(masks[:, :border_width]))
+    edge_touching_labels.update(np.unique(masks[:, -border_width:]))
+    edge_touching_labels.update(np.unique(masks[:border_width, :]))
+    edge_touching_labels.update(np.unique(masks[-border_width:, :]))
     edge_touching_labels = list(edge_touching_labels)
 
     # Set all masks that touch the edge to 0
