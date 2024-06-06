@@ -6,7 +6,6 @@ from pathlib import Path
 from znamutils import slurm_it
 import numpy as np
 import pandas as pd
-from scipy.ndimage import binary_erosion, binary_dilation
 from skimage import measure
 from sklearn.preprocessing import StandardScaler
 from sklearn.mixture import GaussianMixture
@@ -16,7 +15,7 @@ from skimage.segmentation import expand_labels
 import iss_preprocess as iss
 
 from ..io import get_pixel_size, get_roi_dimensions, load_metadata, load_ops
-from ..segment import cellpose_segmentation, count_spots, spot_mask_value
+from ..segment import cellpose_segmentation, count_spots, spot_mask_value, project_mask
 from . import ara_registration as ara_reg
 from . import diagnostics
 from .stitch import stitch_registered
@@ -58,6 +57,8 @@ def segment_all_tiles(
     use_gpu=True,
     use_rois=None,
     tile_list=None,
+    rerun_cellpose=False,
+    use_slurm=True,
 ):
     """Start batch jobs for segmentation for each tile.
 
@@ -72,10 +73,15 @@ def segment_all_tiles(
             Defaults to None.
         tile_list (list, optional): List of tiles to process. If provided will ignore
             use_rois. If None, will use all tiles.
+        rerun_cellpose (bool, optional): Whether to rerun cellpose even if the raw masks
+            already exist (used only if use_raw_stack is True). Defaults to False.
+        use_slurm (bool, optional): Whether to use slurm. Defaults to True.
 
     Returns:
         list: List of job IDs for the slurm jobs.
     """
+    if isinstance(tile_list[0], int):
+        tile_list = [tile_list]
     # create the list of tiles to process
     if tile_list is None:
         roi_dims = get_roi_dimensions(data_path)
@@ -91,16 +97,55 @@ def segment_all_tiles(
 
     slurm_folder = Path.home() / "slurm_logs" / data_path / "segmentation"
     slurm_folder.mkdir(exist_ok=True, parents=True)
-    job_ids = segment_tile(
-        data_path,
-        prefix=prefix,
-        use_gpu=use_gpu,
-        use_raw_stack=use_raw_stack,
-        use_slurm=True,
-        slurm_folder=slurm_folder,
-        batch_param_names=["roi", "tx", "ty"],
-        batch_param_list=tile_list,
-    )
+
+    ops = iss.io.load_ops(data_path)
+    target = iss.io.get_processed_path(data_path) / "cells"
+    target.mkdir(exist_ok=True)
+    if use_raw_stack:
+        # save raw 3D masks
+        raw_target = target / "raw_masks"
+        raw_target.mkdir(exist_ok=True)
+
+    # find which tile needs to go through cellpose
+    tile_2cellpose = []
+    for tile_coors in tile_list:
+        assert len(tile_coors) == 3, "Tile coordinates should be a tuple of 3 elements"
+        tile_name = "_".join(map(str, tile_coors))
+        fname = f"{prefix}_masks_{tile_name}.npy"
+        save_raw_masks = True
+        if use_raw_stack and (not rerun_cellpose) and (raw_target / fname).exists():
+            continue
+        tile_2cellpose.append(tile_coors)
+    done = len(tile_list) - len(tile_2cellpose)
+    print(f"Raw masks already exist for {done}/{len(tile_list)} tiles")
+
+    # Running cellpose on slurm
+    if len(tile_2cellpose):
+        job_ids = run_cellpose_segmentation(
+            data_path=data_path,
+            prefix=prefix,
+            use_raw_stack=use_raw_stack,
+            use_gpu=use_gpu,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            batch_param_names=["roi", "tx", "ty"],
+            batch_param_list=tile_2cellpose,
+        )
+    else:
+        job_ids = []
+
+    if use_raw_stack:
+        # project masks to a single plane
+        job_ids2 = run_mask_projection(
+            data_path=data_path,
+            prefix=prefix,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            batch_param_names=["roi", "tx", "ty"],
+            batch_param_list=tile_list,
+            job_dependency=job_ids,
+        )
+        job_ids += job_ids2
     return job_ids
 
 
@@ -109,36 +154,14 @@ def segment_all_tiles(
     slurm_options={
         "partition": "gpu",
         "gpus-per-node": 1,
-        "mem": "64GB",
-        "time": "3:00:00",
+        "mem": "32GB",
+        "time": "1:00:00",
     },
 )
-def segment_tile(
-    data_path,
-    roi=None,
-    tx=None,
-    ty=None,
-    prefix="DAPI_1",
-    use_raw_stack=True,
-    use_gpu=False,
+def run_cellpose_segmentation(
+    data_path, prefix, roi=None, tx=None, ty=None, use_raw_stack=True, use_gpu=True
 ):
-    """Run segmentation on a single roi.
-
-    Args:
-        data_path (str): Relative path to data.
-        roi (int): ROI to process.
-        tx (int): Tile x coordinate.
-        ty (int): Tile y coordinate.
-        prefix (str, optional): Acquisition prefix to use for segmentation.
-            Defaults to "DAPI_1".
-        use_raw_stack (bool, optional): Whether to use the raw stack and do 3d
-            segmentation. Defaults to True.
-        use_gpu (bool, optional): Whether to use GPU. Defaults to False.
-    """
-    # we make tile_coors keyword only to avoid confusion with the slurm_it decorator
-    print(f"Segmenting {data_path} {prefix} roi {roi} x={tx} y={ty}", flush=True)
     tile_coors = (roi, tx, ty)
-    print("Loading data")
     ops = iss.io.load_ops(data_path)
     img = get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack)
     if use_raw_stack:
@@ -182,26 +205,56 @@ def segment_tile(
         do_3D=False,
         anisotropy=None,
     )
-    # we can get OOM errors if we don't delete the img
-    del img
     target = iss.io.get_processed_path(data_path) / "cells"
-    target.mkdir(exist_ok=True)
     tile_name = "_".join(map(str, tile_coors))
     fname = f"{prefix}_masks_{tile_name}.npy"
+
     if use_raw_stack:
-        # save raw 3D masks
         raw_target = target / "raw_masks"
-        raw_target.mkdir(exist_ok=True)
         np.save(raw_target / fname, masks)
-        # filter in focus plane
-        # z_std = iss.io.load_z
-        # project masks to a single plane
-        projected_mask = project_mask(masks, min_pix_size=ops["cellpose_min_pix"])
-        masks = projected_mask
+        print(f"Saved masks to {raw_target}")
+    else:
+        np.save(target / fname, masks)
+        print(f"Saved masks to {target}")
+    return masks
 
+
+@slurm_it(conda_env="iss-preprocess", slurm_options={"mem": "64GB", "time": "2:00:00"})
+def run_mask_projection(
+    data_path,
+    prefix,
+    roi=None,
+    tx=None,
+    ty=None,
+):
+    """Project masks to a single plane.
+
+    Wrapper around iss.segment.cell.project_mask to run on slurm.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition prefix to use for segmentation.
+        roi (int): ROI ID to segment as specificied in MicroManager (i.e. 1-based).
+        tx (int): X coordinate of the tile.
+        ty (int): Y coordinate of the tile.
+
+    Returns:
+        numpy.ndarray: X x Y x channels (x Z) stack.
+    """
+    print(
+        f"Projecting masks for {data_path} {prefix} roi{roi} tile {tx}/{ty}", flush=True
+    )
+    # if we project, that means we use raw masks
+    ops = iss.io.load_ops(data_path)
+    tile_coors = (roi, tx, ty)
+    target = iss.io.get_processed_path(data_path) / "cells"
+    tile_name = "_".join(map(str, tile_coors))
+    fname = f"{prefix}_masks_{tile_name}.npy"
+    raw_target = target / "raw_masks"
+    raw_masks = np.load(raw_target / fname)
+    masks = project_mask(raw_masks, min_pix_size=ops["cellpose_min_pix"])
     np.save(target / fname, masks)
-    print(f"Saved masks to {target}")
-
+    print(f"Saved projected masks to {target}")
     return masks
 
 
@@ -247,142 +300,6 @@ def get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack=True):
         img = iss.pipeline.load_and_register_tile(data_path, tile_coors, prefix)
         img = img[..., channels]
     return img
-
-
-def project_mask(masks, min_pix_size):
-    """Project masks to a single plane.
-
-    Args:
-        masks (np.array): 3D array of masks.
-        min_pix_size (int): Minimum number of pixels in the center plane to keep a mask.
-
-
-    Returns:
-        np.array: 2D array of projected masks.
-    """
-    print("Separating masks")
-    binary_masks = _separate_masks(masks, min_pix_size=min_pix_size)
-    del masks
-
-    # First merge all the masks that do not overlap
-    n_masks = np.sum(binary_masks, axis=0)
-    projected_mask = np.zeros_like(n_masks)
-    # Find part with overlapping masks
-    overlapping = {}
-    print("Finding overlapping masks")
-    for i_m, m in tqdm(enumerate(binary_masks), total=len(binary_masks)):
-        if n_masks[m].max() == 1:
-            projected_mask[m] = i_m + 1
-        else:
-            overlapping[i_m + 1] = np.unique(np.where(binary_masks[:, m])[0]) + 1
-
-    print("Merging overlapping masks")
-    for source, to_compare in tqdm(overlapping.items()):
-        to_compare = to_compare[to_compare != 0]
-        # also remove source
-        to_compare = to_compare[to_compare != source]
-        assert len(to_compare) > 0, f"No overlapping masks for {source}"
-        for target in to_compare:
-            projected_mask = _fuse_masks(
-                source, target, binary_masks, projected_mask, min_pix_size
-            )
-
-    return projected_mask
-
-
-def _separate_masks(masks, min_pix_size):
-    """Innner function to separate masks and keep only one plane per mask.
-
-    For each mask, find the center plane and keep only that one.
-
-    Args:
-        masks (np.array): 3D array of masks.
-        min_pix_size (int): Minimum number of pixels in the center plane to keep a mask.
-
-    Returns:
-        binary_masks (np.array): 2D array of binary masks.
-        individual_masks (np.array): 2D array of masks with unique values.
-    """
-
-    mask_ids = np.unique(masks[masks != 0])
-
-    # separate masks, keeping only one plane per mask
-    binary_masks = np.zeros((len(mask_ids), *masks.shape[1:]), dtype=bool)
-    for i_m, mask_id in tqdm(enumerate(mask_ids), total=len(mask_ids)):
-        # Find the center z plane of the mask
-        mask = masks == mask_id
-        npx_per_plane = np.sum(mask, axis=(1, 2))
-        mask_z = np.where(npx_per_plane > npx_per_plane.max() * 0.3)[0]
-        center_z = mask_z[len(mask_z) // 2]
-        # if the mask is too small, skip it
-        if np.sum(mask[center_z]) < min_pix_size:
-            continue
-        binary_masks[i_m] = mask[center_z]
-    return binary_masks
-
-
-def _fuse_masks(source, target, binary_masks, projected_mask, min_pix_size):
-    """Inner function to fuse two masks.
-
-    If the masks barely overlap, we ignore the intersection.
-    If the masks overlap but are not the same, we try to remove the intersection
-    and keep the rest of the mask.
-
-    Args:
-        source (int): ID of the source mask.
-        target (int): ID of the target mask.
-        binary_masks (np.array): 2D array of binary masks.
-        projected_mask (np.array): 2D array of projected masks.
-        min_pix_size (int): Minimum number of pixels in the center plane to keep a mask.
-
-    Returns:
-        np.array: 2D array of projected masks.
-    """
-    s_mask = binary_masks[source - 1].copy()
-    t_mask = binary_masks[target - 1].copy()
-
-    intersection = np.logical_and(s_mask, t_mask)
-    union = np.logical_or(s_mask, t_mask)
-    i_over_u = np.sum(intersection) / np.sum(union)
-    t_in_s = np.sum(intersection) / np.sum(t_mask)
-    s_in_t = np.sum(intersection) / np.sum(s_mask)
-    barely_overlap = i_over_u < 0.01
-    overlap_but_2cells = (i_over_u < 0.6) and (s_in_t < 0.7) and (t_in_s < 0.7)
-    if barely_overlap or overlap_but_2cells:
-        # barely overlapping, we can ignore the intersection
-        s_mask[intersection] = 0
-        t_mask[intersection] = 0
-        # erode and dilate to remove weird shape
-        s_mask = binary_erosion(s_mask, iterations=5)
-        s_mask = binary_dilation(s_mask, iterations=5)
-        t_mask = binary_erosion(t_mask, iterations=5)
-        t_mask = binary_dilation(t_mask, iterations=5)
-        if np.sum(t_mask) > min_pix_size:
-            projected_mask[t_mask] = target
-        if np.sum(s_mask) > min_pix_size:
-            projected_mask[s_mask] = source
-
-    if (np.sum(t_mask) < min_pix_size) or (np.sum(s_mask) < min_pix_size):
-        return projected_mask
-
-    if t_in_s > 0.7:
-        clean_s = s_mask.copy()
-        clean_s[t_mask] = 0
-        clean_s = binary_erosion(clean_s, iterations=5)
-        clean_s = binary_dilation(clean_s, iterations=5)
-        projected_mask[s_mask] = 0
-        projected_mask[clean_s] = source
-        projected_mask[t_mask] = target
-    if s_in_t > 0.7:
-        clean_t = t_mask.copy()
-        clean_t[s_mask] = 0
-        clean_t = binary_erosion(clean_t, iterations=5)
-        clean_t = binary_dilation(clean_t, iterations=5)
-        projected_mask[t_mask] = 0
-        projected_mask[clean_t] = target
-        projected_mask[s_mask] = source
-
-    return projected_mask
 
 
 def segment_roi(
