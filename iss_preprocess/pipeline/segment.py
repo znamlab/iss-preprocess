@@ -80,8 +80,6 @@ def segment_all_tiles(
     Returns:
         list: List of job IDs for the slurm jobs.
     """
-    if isinstance(tile_list[0], int):
-        tile_list = [tile_list]
     # create the list of tiles to process
     if tile_list is None:
         roi_dims = get_roi_dimensions(data_path)
@@ -94,6 +92,8 @@ def segment_all_tiles(
             tile_list.extend(
                 [(r, ix, iy) for ix in range(nx + 1) for iy in range(ny + 1)]
             )
+    elif isinstance(tile_list[0], int):
+        tile_list = [tile_list]
 
     slurm_folder = Path.home() / "slurm_logs" / data_path / "segmentation"
     slurm_folder.mkdir(exist_ok=True, parents=True)
