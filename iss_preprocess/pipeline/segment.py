@@ -121,31 +121,48 @@ def segment_all_tiles(
 
     # Running cellpose on slurm
     if len(tile_2cellpose):
-        job_ids = run_cellpose_segmentation(
-            data_path=data_path,
-            prefix=prefix,
-            use_raw_stack=use_raw_stack,
-            use_gpu=use_gpu,
-            use_slurm=use_slurm,
-            slurm_folder=slurm_folder,
-            batch_param_names=["roi", "tx", "ty"],
-            batch_param_list=tile_2cellpose,
-        )
+        if use_slurm:
+            job_ids = run_cellpose_segmentation(
+                data_path=data_path,
+                prefix=prefix,
+                use_raw_stack=use_raw_stack,
+                use_gpu=use_gpu,
+                use_slurm=use_slurm,
+                slurm_folder=slurm_folder,
+                batch_param_names=["roi", "tx", "ty"],
+                batch_param_list=tile_2cellpose,
+            )
+        else:
+            for roi, tx, ty in tile_2cellpose:
+                run_cellpose_segmentation(
+                    data_path,
+                    prefix,
+                    roi=roi,
+                    tx=tx,
+                    ty=ty,
+                    use_raw_stack=use_raw_stack,
+                    use_gpu=use_gpu,
+                )
+            job_ids = []
     else:
         job_ids = []
 
     if use_raw_stack:
         # project masks to a single plane
-        job_ids2 = run_mask_projection(
-            data_path=data_path,
-            prefix=prefix,
-            use_slurm=use_slurm,
-            slurm_folder=slurm_folder,
-            batch_param_names=["roi", "tx", "ty"],
-            batch_param_list=tile_list,
-            job_dependency=job_ids,
-        )
-        job_ids += job_ids2
+        if use_slurm:
+            job_ids2 = run_mask_projection(
+                data_path=data_path,
+                prefix=prefix,
+                use_slurm=use_slurm,
+                slurm_folder=slurm_folder,
+                batch_param_names=["roi", "tx", "ty"],
+                batch_param_list=tile_list,
+                job_dependency=job_ids,
+            )
+            job_ids += job_ids2
+        else:
+            for roi, tx, ty in tile_list:
+                run_mask_projection(data_path, prefix, roi=roi, tx=tx, ty=ty)
     return job_ids
 
 
