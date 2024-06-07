@@ -146,13 +146,21 @@ def project_mask(masks, min_pix_size):
     overlapping = {}
     print("Finding overlapping masks")
     for i_m, m in tqdm(enumerate(binary_masks), total=len(binary_masks)):
+        if not np.any(m):
+            # mask that are too small are emptied by _separate_masks
+            continue
         if n_masks[m].max() == 1:
             projected_mask[m] = i_m + 1
         else:
             ovl_masks_index = np.unique(np.where(binary_masks[:, m])[0])
             # remove masks found only on a single plane
             ovl_masks_index = ovl_masks_index[n_planes_per_mask[ovl_masks_index] > 1]
-            overlapping[i_m + 1] = ovl_masks_index + 1
+            # check if we have any overlap left after removing single plane masks
+            if np.sum(ovl_masks_index != i_m) > 0:
+                overlapping[i_m + 1] = ovl_masks_index + 1
+            else:
+                # no overlap, keep the mask
+                projected_mask[m] = i_m + 1
 
     print("Merging overlapping masks")
     for source, to_compare in tqdm(overlapping.items()):
