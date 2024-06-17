@@ -910,6 +910,21 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
     processed_path = iss.io.get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
     ops = iss.io.load_ops(data_path)
+
+    # ensure that we have within acq registration
+    ref_ch = ops["ref_ch"]
+    iss.pipeline.stitch.register_within_acquisition(
+        data_path,
+        prefix=prefix,
+        ref_roi=None,
+        ref_ch=ops["ref_ch"],
+        suffix=ops[f"{prefix.split('_')[0]}_projection"],
+        correct_illumination=False,
+        reload=True,
+        save_plot=True,
+        dimension_prefix=ops["reference_prefix"],
+        use_slurm=False,
+    )
     # Remove all old files with "masks_corrected" in the name
     for f in glob.glob(str(processed_path / "cells" / f"{prefix}_masks_corrected*")):
         Path(f).unlink()
@@ -934,7 +949,7 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                     prefix=prefix,
                     suffix="",
                 )
-                corrected_masks, _ = find_edge_touching_masks(tile)
+                corrected_masks, _ = find_edge_touching_masks(tile, border_width=4)
                 # Save the edge corrected masks
                 fname = f"{prefix}_masks_corrected_{roi}_{tilex}_{tiley}.npy"
                 np.save(
