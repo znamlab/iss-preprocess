@@ -259,7 +259,8 @@ def run_mask_projection(
         numpy.ndarray: X x Y x channels (x Z) stack.
     """
     print(
-        f"Projecting masks for {data_path} {prefix} roi{roi} tile {tx}/{ty}", flush=True
+        f"Projecting masks for {data_path} {prefix} roi {roi} tile {tx},{ty}",
+        flush=True,
     )
     # if we project, that means we use raw masks
     ops = iss.io.load_ops(data_path)
@@ -853,11 +854,13 @@ def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh
     while labels_changed:
         labels_changed = False  # Reset flag for this iteration
         unique_labels_1 = np.unique(overlap_ref[overlap_ref != 0])
-        unique_labels_2 = np.unique(overlap_shifted[overlap_shifted != 0])
+        # unique_labels_2 = np.unique(overlap_shifted[overlap_shifted != 0])
 
         for label1 in unique_labels_1:
             mask1 = overlap_ref == label1
-            for label2 in unique_labels_2:
+            overlapping_masks = np.unique(overlap_shifted[mask1])
+            overlapping_masks = overlapping_masks[overlapping_masks != 0]
+            for label2 in overlapping_masks:
                 mask2 = overlap_shifted == label2
                 if np.any(mask1 & mask2):  # Check if there's any overlap
                     overlap_area = np.sum(mask1 & mask2)
