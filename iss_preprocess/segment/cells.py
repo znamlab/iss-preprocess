@@ -199,6 +199,9 @@ def _separate_masks(masks, min_pix_size):
         # Find the center z plane of the mask
         mask = masks == mask_id
         npx_per_plane = np.sum(mask, axis=(1, 2))
+        # If the mask is only on a single plane, skip it
+        if np.sum(npx_per_plane > 0) == 1:
+            continue
         mask_z = np.where(npx_per_plane > npx_per_plane.max() * 0.3)[0]
         center_z = mask_z[len(mask_z) // 2]
         n_planes_per_mask[i_m] = len(mask_z)
