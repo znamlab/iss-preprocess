@@ -210,6 +210,10 @@ cellpose:
   # how many planes around the estimated focus to use for cellpose (only for 3D data)
   cellpose_zplanes_around_focus: 5
 
+# generic segmentation parameters
+segmentation:
+  # which acquisition to use for cell segmentation
+  segmentation_prefix: hybridisation_round_3_1
 
 # Atlas registration
 atlas:
