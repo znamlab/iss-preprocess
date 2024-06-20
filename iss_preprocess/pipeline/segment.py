@@ -921,7 +921,7 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
         prefix=prefix,
         ref_roi=None,
         ref_ch=ops["ref_ch"],
-        suffix=ops[f"{prefix.split('_')[0]}_projection"],
+        suffix=ops[f"{prefix.split('_')[0].lower()}_projection"],
         correct_illumination=False,
         reload=True,
         save_plot=True,
@@ -1155,7 +1155,7 @@ def find_mcherry_cells(data_path):
     processed_path = iss.io.get_processed_path(data_path)
     df_dir = processed_path / "cells"
     df_files = glob.glob(str(df_dir / "*.pkl"))
-    dfs = [pd.read_pickle(f) for f in df_files]
+    dfs = [pd.read_pickle(f) for f in df_files if "mcherry" in f.lower()]
     df = pd.concat(dfs)
     if df.empty:
         raise ValueError("No masks found in any tile.")
