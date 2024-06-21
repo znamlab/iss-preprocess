@@ -439,6 +439,7 @@ def stitch_tiles(
     correct_illumination=False,
     shifts_prefix=None,
     register_channels=True,
+    allow_quick_estimate=False,
 ):
     """Load and stitch tile images using saved tile shifts.
 
@@ -456,6 +457,8 @@ def stitch_tiles(
             provided, use `prefix`. Defaults to None.
         register_channels (bool, optional): If True, register channels before stitching.
             Defaults to True.
+        allow_quick_estimate (bool, optional): If True, will estimate shifts from a
+            single tile if shifts.npz is not found. Defaults to False.
 
     Returns:
         numpy.ndarray: stitched image.
@@ -469,7 +472,7 @@ def stitch_tiles(
     shift_file = processed_path / "reg" / f"{shifts_prefix}_shifts.npz"
     if shift_file.exists():
         shifts = np.load(shift_file)
-    else:
+    elif allow_quick_estimate:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
         ops = load_ops(data_path)
         try:
@@ -503,6 +506,9 @@ def stitch_tiles(
             suffix="max",
             prefix=prefix,
         )
+    else:
+        raise FileNotFoundError(f"Cannot find {shift_file}")
+
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles

@@ -553,6 +553,7 @@ def plot_single_overview(
             ich=c,
             correct_illumination=correct_illumination,
             register_channels=False,  # so that it can run before reg
+            allow_quick_estimate=True,
         )
         if downsample_factor > 1:
             small_stack = block_reduce(
