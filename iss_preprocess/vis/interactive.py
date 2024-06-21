@@ -46,40 +46,7 @@ def load_tile(
         for hyb in metadata["hybridisation"]:
             if hyb in exclude_prefix:
                 continue
-            probes = metadata["hybridisation"][hyb]["probes"]
-            fluorescence = metadata["hybridisation"][hyb].get("fluorescence", {})
-            if not len(probes) and not len(fluorescence):
-                continue
-            stack, bad_pixels = load_tile_ref_coors(
-                data_path, prefix=hyb, tile_coors=tile_coors, filter_r=False
-            )
-
-            probe_info = iss.io.load_hyb_probes_metadata()
-            # probe info contains the channel information in 1-based wavelength order
-            wave_order = list(np.argsort(ops["camera_order"]))
-            chan2color = [["cyan", "green", "red", "magenta"][c] for c in wave_order]
-            channels = {i: [] for i in range(4)}
-            for prob in probes:
-                pinfo = probe_info[prob]
-                channels[ops["camera_order"].index(pinfo["channel"])].append(
-                    pinfo["target"]
-                )
-            for lab, ch in fluorescence.items():
-                channels[ops["camera_order"].index(ch)].append(lab)
-
-            for ch, targets in channels.items():
-                if not len(targets):
-                    continue
-                img = stack[:, :, ch, 0]
-                cl = np.nanpercentile(img, [0, 99])
-                viewer.add_image(
-                    data=img,
-                    name=", ".join(targets),
-                    colormap=chan2color[ch],
-                    contrast_limits=cl,
-                    blending="additive",
-                    rgb=False,
-                )
+            _load_hyb_img(data_path, tile_coors, hyb, viewer)
 
     if load_spots:
         # load the rolonies
@@ -142,6 +109,42 @@ def _load_seq_img(data_path, tile_coors, prefix, mode="max"):
     return data, cl, rgb
 
 
+def _load_hyb_img(data_path, tile_coors, hyb_prefix, viewer):
+    metadata = iss.io.load_metadata(data_path)
+    probes = metadata["hybridisation"][hyb_prefix]["probes"]
+    fluorescence = metadata["hybridisation"][hyb_prefix].get("fluorescence", {})
+    if not len(probes) and not len(fluorescence):
+        return
+    stack, bad_pixels = load_tile_ref_coors(
+        data_path, prefix=hyb_prefix, tile_coors=tile_coors, filter_r=False
+    )
+
+    probe_info = iss.io.load_hyb_probes_metadata()
+    # probe info contains the channel information in 1-based wavelength order
+    wave_order = list(np.argsort(ops["camera_order"]))
+    chan2color = [["cyan", "green", "red", "magenta"][c] for c in wave_order]
+    channels = {i: [] for i in range(4)}
+    for prob in probes:
+        pinfo = probe_info[prob]
+        channels[ops["camera_order"].index(pinfo["channel"])].append(pinfo["target"])
+    for lab, ch in fluorescence.items():
+        channels[ops["camera_order"].index(ch)].append(lab)
+
+    for ch, targets in channels.items():
+        if not len(targets):
+            continue
+        img = stack[:, :, ch, 0]
+        cl = np.nanpercentile(img, [0, 99])
+        viewer.add_image(
+            data=img,
+            name=", ".join(targets),
+            colormap=chan2color[ch],
+            contrast_limits=cl,
+            blending="additive",
+            rgb=False,
+        )
+
+
 if __name__ == "__main__":
     data_path = "becalia_rabies_barseq/BRAC8498.3e/chamber_08"
     ops = iss.io.load_ops(data_path)
@@ -154,5 +157,6 @@ if __name__ == "__main__":
         load_genes_images=False,
         load_spots=False,
         load_hyb=True,
+        load_masks=False,
         exclude_prefix=["hybridisation_round_1_1"],
     )
