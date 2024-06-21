@@ -358,7 +358,7 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     clusters = np.load(
         processed_path / f"{prefix}_cluster_means.npz", allow_pickle=True
     )
-    print(f"detecting spots in tile {tile_coors}")
+    print("loading and registering tile")
     stack, _ = load_and_register_hyb_tile(
         data_path,
         tile_coors=tile_coors,
@@ -367,10 +367,12 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
         correct_illumination=True,
         correct_channels=ops["hybridisation_correct_channels"],
     )
+    print(f"detecting spots in tile {tile_coors}")
     spots = detect_spots(
         np.max(stack, axis=2), threshold=ops["hybridisation_detection_threshold"]
     )
     if spots.shape[0]:
+        print(f"Found {spots.shape[0]} spots. Extracting")
         stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
         spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
         iss.pipeline.extract_spots(spots, stack, ops["spot_extraction_radius"])
@@ -401,3 +403,4 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     spots.to_pickle(
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
+    print(f"saved spots for {prefix} tile {tile_coors} to {save_dir}")
