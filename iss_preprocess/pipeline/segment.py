@@ -602,7 +602,7 @@ def get_big_masks(data_path, roi, masks, mask_expansion):
 
     """
     if masks is None:
-        masks = np.load(iss.io.get_processed_path(data_path) / f"masks_{roi}.npy")
+        raise IOError("masks should be provided")
     if mask_expansion is None:
         big_masks = masks
     else:

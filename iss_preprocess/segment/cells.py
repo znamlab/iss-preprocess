@@ -3,6 +3,40 @@ import pandas as pd
 from tqdm import tqdm
 from skimage.morphology import dilation
 from scipy.ndimage import binary_erosion, binary_dilation
+import iss_preprocess as iss
+
+
+def get_cell_masks(data_path, roi, projection="corrected", mask_expansion=None):
+    """Small wrapper to get cell masks from a given data path.
+
+    Wrap to ensure we use the same projection for all calls
+
+    Args:
+        data_path (str): Path to acquisition data (chamber folder)
+        roi (int): Region of interest
+        projection (str, optional): Projection to use. Defaults to "corrected".
+        mask_expansion (int, optional): Expansion of the mask. If None, reads from ops.
+            Defaults to None.
+
+    Returns:
+        np.ndarray: Cell masks
+    """
+    ops = iss.io.load_ops(data_path)
+    if mask_expansion is None:
+        mask_expansion = ops["mask_expansion"]
+
+    seg_prefix = f"{ops['segmentation_prefix']}_masks"
+    masks = iss.pipeline.stitch_registered(
+        data_path,
+        prefix=seg_prefix,
+        roi=roi,
+        projection=projection,
+    )
+    if mask_expansion > 0:
+        masks = iss.pipeline.segment.get_big_masks(
+            data_path, roi, masks, mask_expansion
+        )
+    return masks
 
 
 def cellpose_segmentation(

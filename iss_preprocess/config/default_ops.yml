@@ -214,6 +214,8 @@ cellpose:
 segmentation:
   # which acquisition to use for cell segmentation
   segmentation_prefix: hybridisation_round_3_1
+  # mask expansion in microns
+  mask_expansion: 5
 
 # Atlas registration
 atlas:
