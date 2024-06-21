@@ -904,6 +904,7 @@ def merge_and_align_spots(
         pandas.DataFrame: DataFrame containing all spots in reference coordinates.
 
     """
+    print(f"Aligning spots for ROI {roi}")
     ops = load_ops(data_path)
     if ref_prefix is None:
         ref_prefix = ops["reference_prefix"]
@@ -925,8 +926,9 @@ def merge_and_align_spots(
         iroi=roi,
         keep_all_spots=keep_all_spots,
     )
-
-    spots.to_pickle(processed_path / f"{spots_prefix}_spots_{roi}.pkl")
+    fname = processed_path / f"{spots_prefix}_spots_{roi}.pkl"
+    spots.to_pickle(fname)
+    print(f"Saved spots for ROI in {fname}")
     return spots
 
 
