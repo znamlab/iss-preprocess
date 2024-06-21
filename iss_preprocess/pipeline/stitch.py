@@ -966,6 +966,6 @@ def merge_and_align_spots_all_rois(
             keep_all_spots=keep_all_spots,
             use_slurm=True,
             slurm_folder=slurm_folder,
-            scripts_name=f"iss_align_spots_{roi}",
+            scripts_name=f"iss_align_spots_{spots_prefix}_{roi}",
             job_dependency=dependency,
         )
