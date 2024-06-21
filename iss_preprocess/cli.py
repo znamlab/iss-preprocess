@@ -789,13 +789,22 @@ def hyb_spots(path):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-r", "--roi", default=1, help="Number of the ROI to segment.")
 @click.option("-n", "--prefix", help="Path prefix for spot detection")
-def hyb_spots_roi(path, prefix, roi=1):
+@click.option("-r", "--roi", default=None, help="Number of the ROI..")
+@click.option("-x", "--tilex", default=None, help="Tile X position")
+@click.option("-y", "--tiley", default=None, help="Tile Y position.")
+def extract_hyb_spots(path, prefix, roi, tilex, tiley):
     """Detect hybridisation spots in a single ROI / hybridisation round"""
-    from iss_preprocess.pipeline import extract_hyb_spots_roi
 
-    extract_hyb_spots_roi(path, prefix, roi)
+    if tilex is not None and tiley is not None:
+        from iss_preprocess.pipeline.hybridisation import extract_hyb_spots_tile
+
+        tile_coors = (roi, tilex, tiley)
+        extract_hyb_spots_tile(path, tile_coors, prefix)
+    else:
+        from iss_preprocess.pipeline.hybridisation import extract_hyb_spots_roi
+
+        extract_hyb_spots_roi(path, prefix, roi)
 
 
 @cli.command()

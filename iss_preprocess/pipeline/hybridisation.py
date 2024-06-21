@@ -7,7 +7,6 @@ from skimage.morphology import binary_dilation
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-
 from ..call import extract_spots
 from ..coppafish import scaled_k_means
 from ..image import apply_illumination_correction, compute_distribution, filter_stack
@@ -328,22 +327,18 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
 
     """
     roi_dims = get_roi_dimensions(data_path)
-    ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-    for ix in range(ntiles[0]):
-        for iy in range(ntiles[1]):
-            slurm_folder = Path.home() / "slurm_logs" / data_path / prefix
-            slurm_folder.mkdir(parents=True, exist_ok=True)
-            extract_hyb_spots_tile(
-                data_path,
-                (roi, ix, iy),
-                prefix,
-                use_slurm=True,
-                slurm_folder=slurm_folder,
-                scripts_name=f"iss_hyb_spots_tile_{roi}_{ix}_{iy}.out",
-            )
+    if roi is not None:
+        roi_dims = roi_dims[roi_dims[:, 0] == int(roi), :]
+        assert len(roi_dims), f"no ROI {roi} found in roi_dims for {data_path}"
+    iss.pipeline.batch_process_tiles(
+        data_path,
+        "extract_hyb_spots",
+        roi_dims=roi_dims,
+        additional_args=f",PREFIX={prefix}",
+    )
 
 
-@slurm_it(conda_env="iss-preprocess")
+@slurm_it(conda_env="iss-preprocess", slurm_options={"mem": "16G", "time": "1:00:00"})
 def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     """Detect hybridisation spots for a given tile.
 
