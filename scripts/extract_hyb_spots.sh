@@ -23,4 +23,4 @@ source activate base
 
 conda activate iss-preprocess
 
-iss hyb-spots-roi -p $DATAPATH -r $ROI -n $PREFIX
+iss extract-hyb-spots -p $DATAPATH -r $ROI -n $PREFIX -x $TILEX -y $TILEY
