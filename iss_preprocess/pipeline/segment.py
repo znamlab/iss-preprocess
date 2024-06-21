@@ -15,7 +15,13 @@ from skimage.segmentation import expand_labels
 import iss_preprocess as iss
 
 from ..io import get_pixel_size, get_roi_dimensions, load_metadata, load_ops
-from ..segment import cellpose_segmentation, count_spots, spot_mask_value, project_mask
+from ..segment import (
+    cellpose_segmentation,
+    count_spots,
+    spot_mask_value,
+    project_mask,
+    get_cell_masks,
+)
 from . import ara_registration as ara_reg
 from . import diagnostics
 from .stitch import stitch_registered
@@ -419,8 +425,7 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
 def add_mask_id(
     data_path,
     roi,
-    mask_expansion=5.0,
-    masks=None,
+    masks,
     barcode_df=None,
     barcode_dot_threshold=0.15,
     spot_score_threshold=0.1,
@@ -435,10 +440,7 @@ def add_mask_id(
     Args:
         data_path (str): Relative path to data
         roi (int): ID of the ROI to load
-        mask_expansion (float, optional): Distance in um to expand masks before counting
-            rolonies per cells. None for no expansion. Defaults to 5.
-        masks (np.array, optional): Array of labels. If None will load "masks_{roi}".
-             Defaults to None.
+        masks (np.array): Array of labels.
         barcode_df (pd.DataFrame, optional): Rabies barcode dataframe, if None, will
             load "barcode_df_roi{roi}.pkl". Defaults to None.
         barcode_dot_threshold (float, optional): Threshold for the barcode dot product.
@@ -457,7 +459,6 @@ def add_mask_id(
 
     """
     processed_path = iss.io.get_processed_path(data_path)
-    big_masks = get_big_masks(data_path, roi, masks, mask_expansion)
 
     metadata = load_metadata(data_path=data_path)
     spot_acquisitions = []
@@ -486,14 +487,13 @@ def add_mask_id(
         if threshold is not None:
             spot_df = spot_df[spot_df[filt_col] > threshold]
         # modify spots in place
-        spots_dict[prefix] = spot_mask_value(big_masks, spot_df)
+        spots_dict[prefix] = spot_mask_value(masks, spot_df)
     return spots_dict
 
 
 def segment_spots(
     data_path,
     roi,
-    mask_expansion=5.0,
     masks=None,
     barcode_df=None,
     barcode_dot_threshold=None,
@@ -516,10 +516,8 @@ def segment_spots(
     Args:
         data_path (str): Relative path to data
         roi (int): ID of the ROI to load
-        mask_expansion (float, optional): Distance in um to expand masks before counting
-            rolonies per cells. None for no expansion. Defaults to 5.
-        masks (np.array, optional): Array of labels. If None will load "masks_{roi}".
-             Defaults to None.
+        masks (np.array, optional): Array of labels. If None will load using
+            "get_cell_masks". Defaults to None.
         barcode_df (pd.DataFrame, optional): Rabies barcode dataframe, if None, will
             load "barcode_df_roi{roi}.pkl". Defaults to None.
         barcode_dot_threshold (float, optional): Threshold for the barcode dot product.
@@ -540,10 +538,11 @@ def segment_spots(
 
     """
     # add the mask_id column to spots_df
+    if masks is None:
+        masks = get_cell_masks(data_path, roi, mask_expansion=None)
     spots_dict = add_mask_id(
         data_path,
         roi=roi,
-        mask_expansion=mask_expansion,
         masks=masks,
         barcode_df=barcode_df,
         barcode_dot_threshold=barcode_dot_threshold,
