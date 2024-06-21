@@ -224,6 +224,7 @@ def register_within_acquisition(
     save_fname = iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
 
     if reload and save_fname.exists():
+        print("Reloading saved shifts")
         return np.load(save_fname)
     ops = load_ops(data_path)
     if ref_roi is None:
@@ -267,6 +268,7 @@ def register_within_acquisition(
     np.savez(
         save_fname, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape
     )
+    print(f"Saved shifts to {save_fname}")
     return shifts[:2], shifts[2:], tile_shape
 
 
