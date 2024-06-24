@@ -965,11 +965,14 @@ def estimate_rotation_angle(
     best_angle_index = np.argmax(max_cc)
     best_angle = angles[best_angle_index]
     if debug:
-        # to save memory, cut xcorr with max_shift
-        _, hrow, hcol = np.array(all_cc.shape) // 2
-        all_cc = all_cc[
-            :, hrow - max_shift : hrow + max_shift, hcol - max_shift : hcol + max_shift
-        ].copy()
+        if max_shift is not None:
+            # to save memory, cut xcorr with max_shift
+            _, hrow, hcol = np.array(all_cc.shape) // 2
+            all_cc = all_cc[
+                :,
+                hrow - max_shift : hrow + max_shift,
+                hcol - max_shift : hcol + max_shift,
+            ].copy()
         return best_angle, max_cc[best_angle_index], dict(xcorr=all_cc, angles=angles)
     return best_angle, max_cc[best_angle_index]
 
