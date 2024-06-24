@@ -31,11 +31,9 @@ def get_cell_masks(data_path, roi, projection="corrected", mask_expansion=None):
         prefix=seg_prefix,
         roi=roi,
         projection=projection,
-    )
+    )[..., 0]
     if mask_expansion > 0:
-        masks = iss.pipeline.segment.get_big_masks(
-            data_path, roi, masks, mask_expansion
-        )
+        masks = iss.pipeline.segment.get_big_masks(data_path, masks, mask_expansion)
     return masks
 
 
