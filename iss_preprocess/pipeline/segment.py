@@ -391,7 +391,12 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
             If None, will not get area information. Defaults to 10.
 
     """
-    big_masks = get_big_masks(data_path, roi, masks, mask_expansion)
+    if masks is None:
+        big_masks = get_cell_masks(
+            data_path, roi, projection="corrected", mask_expansion=mask_expansion
+        )
+    elif mask_expansion is not None or (mask_expansion >= 0):
+        raise ValueError("mask_expansion should be None if masks are provided")
 
     cell_df = pd.DataFrame(
         measure.regionprops_table(
@@ -561,11 +566,12 @@ def segment_spots(
         cell_df = count_spots(spots=spot_df, grouping_column=grouping_column)
         spots_in_cells[prefix] = cell_df
 
-    # Save barcodes
-    barcode_df = spots_in_cells.pop("barcode_round")
     save_dir = iss.io.get_processed_path(data_path) / "cells"
     save_dir.mkdir(exist_ok=True)
-    barcode_df.to_pickle(save_dir / f"barcode_df_roi{roi}.pkl")
+    # Save barcodes
+    if "barcode_round" in spots_in_cells:
+        barcode_df = spots_in_cells.pop("barcode_round")
+        barcode_df.to_pickle(save_dir / f"barcode_df_roi{roi}.pkl")
 
     # Fuse genes and hybridisation
     fused_df = spots_in_cells.pop("genes_round")
@@ -582,16 +588,14 @@ def segment_spots(
     return barcode_df, fused_df
 
 
-def get_big_masks(data_path, roi, masks, mask_expansion):
+def get_big_masks(data_path, masks, mask_expansion):
     """Small internal function to avoid code duplication
 
     Reload and expand masks if needed
 
     Args:
         data_path (str): Relative path to data
-        roi (int): ID of the ROI to load
-        masks (np.array, optional): Array of labels. If None will load "masks_{roi}".
-             Defaults to None.
+        masks (np.array): Array of labels.
         mask_expansion (float, optional): Distance in um to expand masks before counting
             rolonies per cells. None for no expansion. Defaults to 5.
 
