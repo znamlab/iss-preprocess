@@ -14,7 +14,9 @@ def load_roi(
     roi,
     add_hyb=True,
     add_genes=True,
+    add_rabies=True,
     image_to_load=("genes", "hyb", "rab", "reference", "mCherry"),
+    masks_to_load=("rabies_cells",),
 ):
     """Load one tile in the interactive viewer"""
     viewer = napari.Viewer()
@@ -50,12 +52,13 @@ def load_roi(
                 name=f"{name} - ch {ic}",
                 colormap=col,
                 blending="additive",
+                contrast_limits=[0, img.max()],
             )
 
     # add hyb spots
     if add_hyb:
         print("Adding hybridisation spots")
-        sp = pd.read_pickle(manual_folder / f"{mouse}_{chamber}_{roi}_hyb_spots.npy")
+        sp = pd.read_pickle(manual_folder / f"{mouse}_{chamber}_{roi}_hyb_spots.pkl")
         col = dict(Gad1="blue", Vip="green", Slc17a7="red", Sst="orange")
         for gene, spdf in sp.groupby("gene"):
             coord = spdf[["y", "x"]].values
@@ -71,7 +74,7 @@ def load_roi(
     # add genes spots
     if add_genes:
         print("Adding genes spots")
-        sp = pd.read_pickle(manual_folder / f"{mouse}_{chamber}_{roi}_genes_spots.npy")
+        sp = pd.read_pickle(manual_folder / f"{mouse}_{chamber}_{roi}_genes_spots.pkl")
         colors = mpl.colormaps["tab20"].colors
         # list of all valid symbols
         symbols = [
@@ -122,39 +125,66 @@ def load_roi(
 
     # add rabies mask
     print("Adding rabies masks")
-    rab_mask = imread(manual_folder / f"{mouse}_{chamber}_{roi}_rabies_cells_mask.tif")
-    if rab_mask.ndim == 3:
-        rab_mask = rab_mask[..., 0]
-    viewer.add_labels(
-        data=rab_mask.astype("int32"),
-        name="Rabies cells",
-    )
+    for mask in masks_to_load:
+        rab_mask = imread(manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_mask.tif")
+        if rab_mask.ndim == 3:
+            rab_mask = rab_mask[..., 0]
+        viewer.add_labels(
+            data=rab_mask.astype("int32"),
+            name=mask.replace("_", " "),
+        )
 
     # add rabies spots
-    print("Adding rabies spots")
-    rab_pts = np.load(
-        manual_folder / f"{mouse}_{chamber}_{roi}_rabies_spots.npy", allow_pickle=True
-    ).astype(float)
-    point_properties = {
-        "barcode": rab_pts[:, 2] % 20,
-        "mask": rab_pts[:, 3] % 20,
-    }
-    coord = rab_pts[:, :2].copy()
-    mch_points_layer = viewer.add_points(
-        coord[:, ::-1],
-        properties=point_properties,
-        face_color="mask",
-        face_colormap="tab20",
-        edge_color="barcode",
-        edge_colormap="tab20",
-        edge_width=0.3,
-        name="Rabies spots",
+    if add_rabies:
+        print("Adding rabies spots")
+        rab_pts = np.load(
+            manual_folder / f"{mouse}_{chamber}_{roi}_rabies_spots.npy",
+            allow_pickle=True,
+        ).astype(float)
+        point_properties = {
+            "barcode": rab_pts[:, 2] % 20,
+            "mask": rab_pts[:, 3] % 20,
+        }
+        coord = rab_pts[:, :2].copy()
+        mch_points_layer = viewer.add_points(
+            coord[:, ::-1],
+            properties=point_properties,
+            face_color="mask",
+            face_colormap="tab20",
+            edge_color="barcode",
+            edge_colormap="tab20",
+            edge_width=0.3,
+            name="Rabies spots",
+        )
+
+    # Add cortex layer
+    fname = manual_folder / f"cortex_{mouse}_{chamber}_roi_{roi}.csv"
+    if fname.exists():
+        cortex = pd.read_csv(fname)
+        data = cortex[["axis-0", "axis-1"]].values
+    else:
+        data = []
+    # add the polygons
+    shapes_layer = viewer.add_shapes(
+        data,
+        shape_type="polygon",
+        edge_width=5,
+        edge_color="coral",
+        face_color="royalblue",
+        name="Cortex",
+        opacity=0.5,
     )
 
     # add empty output layer
     print("Adding output layer")
+    fname = manual_folder / f"starter_cells_{mouse}_{chamber}_roi_{roi}.csv"
+    if fname.exists():
+        starter_cells = pd.read_csv(fname)
+        data = starter_cells[["axis-0", "axis-1"]].values
+    else:
+        data = []
     mch_points_layer = viewer.add_points(
-        [],
+        data,
         face_color="white",
         edge_color="black",
         edge_width=0.2,
@@ -170,7 +200,7 @@ if __name__ == "__main__":
     project = "becalia_rabies_barseq"
     mouse = "BRAC8498.3e"
     chamber = "chamber_08"
-    roi = 3
+    roi = 2
     data_path = f"{project}/{mouse}/{chamber}"
     ops = iss.io.load_ops(data_path)
     load_roi(
@@ -178,8 +208,9 @@ if __name__ == "__main__":
         mouse,
         chamber,
         roi,
-        add_hyb=True,
-        add_genes=True,
+        add_hyb=False,
+        add_genes=False,
         image_to_load=("genes", "hyb", "rab", "reference", "mCherry"),
+        masks_to_load=[],
     )
     print("Done")
