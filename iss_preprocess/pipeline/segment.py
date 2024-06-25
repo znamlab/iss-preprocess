@@ -372,7 +372,7 @@ def segment_roi(
     )
 
 
-def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_size=10):
+def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=None, atlas_size=10):
     """Make cell dataframe
 
     The index will be the mask ID.
@@ -386,21 +386,21 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=5.0, atlas_si
         masks (np.array, optional): Array of labels, if None will load `masks_{roi}.npy`
             from the reg folder. Defaults to None.
         mask_expansion (float, optional): Distance in um to expand masks before counting
-            rolonies per cells. None for no expansion. Defaults to 5.
+            rolonies per cells. None for no expansion. Defaults to None.
         atlas_size (int, optional): Size of the atlas to use to load ARA information.
             If None, will not get area information. Defaults to 10.
 
     """
     if masks is None:
-        big_masks = get_cell_masks(
+        masks = get_cell_masks(
             data_path, roi, projection="corrected", mask_expansion=mask_expansion
         )
-    elif mask_expansion is not None or (mask_expansion >= 0):
+    elif (mask_expansion is not None) and (mask_expansion >= 0):
         raise ValueError("mask_expansion should be None if masks are provided")
 
     cell_df = pd.DataFrame(
         measure.regionprops_table(
-            big_masks, properties=("label", "centroid", "area", "bbox")
+            masks, properties=("label", "centroid", "area", "bbox")
         )
     )
     cell_df.set_index("label", drop=False, inplace=True)
