@@ -123,7 +123,7 @@ def spot_mask_value(masks, spots):
     return spots
 
 
-def count_spots(spots, grouping_column, masks=None):
+def count_spots(spots, grouping_column, masks=None, mask_id_column="mask_id"):
     """
     Count number of rolonies within each mask and return a DataFrame of counts.
 
@@ -133,19 +133,21 @@ def count_spots(spots, grouping_column, masks=None):
             'bases'
         masks (numpy.ndarray, optional): cell masks. Must be positive integers. Can be
             None If spots already includes a "mask_id" columns. Defaults to None.
+        mask_id_column (str, optional): name of the column containing the mask id.
+            Defaults to "mask_id".
 
     Returns:
         A DataFrame of counts by unique values of `grouping_column`.
 
     """
     if masks is None:
-        assert "mask_id" in spots.columns
+        assert mask_id_column in spots.columns
     else:
         spots = spot_mask_value(masks, spots)
     # count the number of occurence of each ("mask_id", genes or barcode) pair
     cell_df = pd.DataFrame(
-        spots.loc[:, ["mask_id", grouping_column]]
-        .groupby(["mask_id", grouping_column])
+        spots.loc[:, [mask_id_column, grouping_column]]
+        .groupby([mask_id_column, grouping_column])
         .aggregate(len)
     )
 
