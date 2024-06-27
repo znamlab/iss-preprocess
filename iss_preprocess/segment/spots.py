@@ -85,7 +85,7 @@ def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None)
         numpy.ndarray: Convolution results
 
     """
-    kernel_size = gaussian_width * 8
+    kernel_size = gaussian_width * 20
     kernel_size += 1 - kernel_size % 2  # kernel shape must be odd
     kernel = cv2.getGaussianKernel(kernel_size, sigma=int(gaussian_width))
     # set the initial value so that single pixels after convolution have a peak of 1
