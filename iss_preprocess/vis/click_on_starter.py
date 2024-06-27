@@ -17,6 +17,7 @@ def load_roi(
     add_rabies=True,
     image_to_load=("genes", "hyb", "rab", "reference", "mCherry"),
     masks_to_load=("rabies_cells",),
+    barcode_to_plot=(),
 ):
     """Load one tile in the interactive viewer"""
     viewer = napari.Viewer()
@@ -78,19 +79,15 @@ def load_roi(
         colors = mpl.colormaps["tab20"].colors
         # list of all valid symbols
         symbols = [
-            "arrow",
             "clobber",
             "cross",
             "diamond",
             "disc",
-            "hbar",
             "ring",
             "square",
             "star",
-            "tailed_arrow",
             "triangle_down",
             "triangle_up",
-            "vbar",
             "x",
         ]
         split_genes = False
@@ -140,22 +137,42 @@ def load_roi(
         rab_pts = np.load(
             manual_folder / f"{mouse}_{chamber}_{roi}_rabies_spots.npy",
             allow_pickle=True,
-        ).astype(float)
-        point_properties = {
-            "barcode": rab_pts[:, 2] % 20,
-            "mask": rab_pts[:, 3] % 20,
-        }
-        coord = rab_pts[:, :2].copy()
+        )
+        barcode_id = rab_pts[:, 2].astype(float) % 20
+        mask_id = rab_pts[:, 3].astype(float) % 20
+        mask = rab_pts[:, 3].astype(str)
+        barcode = rab_pts[:, 4].astype(str)
+
+        coord = rab_pts[:, :2].astype(float)
         mch_points_layer = viewer.add_points(
             coord[:, ::-1],
-            properties=point_properties,
-            face_color="mask",
+            properties=dict(
+                barcode_id=barcode_id, mask=mask_id, barcode=barcode, cell_mask=mask
+            ),
+            face_color="mask_id",
             face_colormap="tab20",
-            edge_color="barcode",
+            edge_color="barcode_id",
             edge_colormap="tab20",
             edge_width=0.3,
             name="Rabies spots",
         )
+        for barcode in barcode_to_plot:
+            print(f"Adding rabies barcode {barcode}")
+            valid_pts = rab_pts[:, 4] == barcode
+            if valid_pts.sum() == 0:
+                print(f"    no points for {barcode}")
+                continue
+            mch_points_layer = viewer.add_points(
+                coord[valid_pts, ::-1],
+                properties=dict(barcode_id=barcode_id[valid_pts], mask=mask[valid_pts]),
+                face_color="mask",
+                face_colormap="tab20",
+                edge_color="barcode_id",
+                edge_colormap="tab20",
+                edge_width=0.3,
+                size=50,
+                name=f"Rabies {barcode}",
+            )
 
     # Add cortex layer
     fname = manual_folder / f"cortex_{mouse}_{chamber}_roi_{roi}.csv"
@@ -199,7 +216,7 @@ def load_roi(
 if __name__ == "__main__":
     project = "becalia_rabies_barseq"
     mouse = "BRAC8498.3e"
-    chamber = "chamber_08"
+    chamber = "chamber_10"
     roi = 2
     data_path = f"{project}/{mouse}/{chamber}"
     ops = iss.io.load_ops(data_path)
@@ -208,9 +225,9 @@ if __name__ == "__main__":
         mouse,
         chamber,
         roi,
-        add_hyb=False,
-        add_genes=False,
-        image_to_load=("genes", "hyb", "rab", "reference", "mCherry"),
-        masks_to_load=[],
+        add_hyb=True,
+        add_genes=True,
+        add_rabies=True,
+        image_to_load=("hyb", "reference", "mCherry"),
     )
     print("Done")
