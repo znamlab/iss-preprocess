@@ -389,13 +389,14 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=None, atlas_s
             rolonies per cells. None for no expansion. Defaults to None.
         atlas_size (int, optional): Size of the atlas to use to load ARA information.
             If None, will not get area information. Defaults to 10.
-
+    Returns:
+        cell_df (pd.DataFrame): Dataframe with the cell information
     """
     if masks is None:
         masks = get_cell_masks(
             data_path, roi, projection="corrected", mask_expansion=mask_expansion
         )
-    elif (mask_expansion is not None) and (mask_expansion >= 0):
+    elif mask_expansion is not None:
         raise ValueError("mask_expansion should be None if masks are provided")
 
     cell_df = pd.DataFrame(
