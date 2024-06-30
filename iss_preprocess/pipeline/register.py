@@ -452,7 +452,7 @@ def correct_hyb_shifts(data_path, prefix=None):
             processes all hybridisation acquisitions.
 
     """
-    roi_dims = get_roi_dimensions(data_path)
+    roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]

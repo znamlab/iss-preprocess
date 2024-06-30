@@ -323,12 +323,17 @@ def estimate_shifts(path, prefix, suffix="max"):
 def estimate_hyb_shifts(path, prefix=None):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.io import load_metadata
+    from iss_preprocess.io import get_roi_dimensions
     from iss_preprocess.pipeline import batch_process_tiles
 
     if prefix:
+        roi_dims = get_roi_dimensions(path, prefix)
         additional_args = f",PREFIX={prefix}"
         batch_process_tiles(
-            path, script="register_hyb_tile", additional_args=additional_args
+            path,
+            script="register_hyb_tile",
+            roi_dims=roi_dims,
+            additional_args=additional_args,
         )
     else:
         metadata = load_metadata(path)
@@ -422,6 +427,7 @@ def correct_hyb_shifts(path, prefix=None, use_slurm=False):
         job2 = diag.check_shift_correction(
             path,
             prefix,
+            roi_dimension_prefix=prefix,
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
             job_dependency=job_id if use_slurm else None,
