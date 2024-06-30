@@ -6,7 +6,7 @@
 #SBATCH --partition=ncpu
 echo "Starting job $SLURM_JOB_ID"
 echo "Running on $SLURM_JOB_NODELIST"
-echo "Starting register_tile_to_ref.sh"
+echo "Starting segment_mcherry_tile.sh"
 echo "Parameters:"
 echo "  DATAPATH: $DATAPATH"
 echo "  ROI: $ROI"
