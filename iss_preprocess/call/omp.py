@@ -259,8 +259,13 @@ def omp_weighted(
         max_comp (int): maximum number of components to include.
         tol (float): tolerance threshold that determines the minimum fraction of
             the residual norm to retain a component.
-        alpha (float): parameter for weighted OMP.
-        beta_squared (float): parameter for weighted OMP.
+        alpha (float): Controls the influence of the previously selected components
+        on the current weights. Higher alpha increases the effect of the selected
+        components' contributions, making the algorithm more sensitive to the
+        already chosen components.
+        beta_squared (float): This parameter sets a baseline for the variance
+        in the weights calculation. It ensures that the weights are not solely
+        dependent on the residuals but also have a minimum variance that can stabilize the process.
         weighted (bool): whether to use weighted OMP. Default is True.
         refit_background (bool): whether to refit background coefficients on every iteration.
             Default is True.

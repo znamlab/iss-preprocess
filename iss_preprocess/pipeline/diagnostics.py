@@ -1153,6 +1153,105 @@ def check_omp_thresholds(
 
     plt.figure(figsize=(20, 20))
     plt.imshow(im, cmap="inferno", vmax=vmax)
+    plt.colorbar()
+    plt.axis("off")
+    plt.tight_layout()
+    plt.savefig(
+        processed_path / "figures" / "omp_spot_score_thresholds_image.png", dpi=300
+    )
+
+
+@slurm_it(conda_env="iss-preprocess")
+def check_omp_alpha_thresholds(
+    data_path,
+    spot_score_thresholds=(0.05, 0.075, 0.1, 0.125, 0.15, 0.2),
+    omp_thresholds=(0.10, 0.125, 0.15, 0.2, 0.25, 0.3),
+    alphas=(10, 50, 100, 200, 300, 400),
+    tile_coors=None,
+):
+    processed_path = iss.io.get_processed_path(data_path)
+    ops = iss.io.load_ops(data_path)
+    if tile_coors is None:
+        tile_coors = ops["ref_tile"]
+    stack, bad_pixels = iss.pipeline.load_and_register_sequencing_tile(
+        data_path,
+        tile_coors,
+        filter_r=ops["filter_r"],
+        prefix="genes_round",
+        suffix=ops["genes_projection"],
+        nrounds=ops["genes_rounds"],
+        correct_channels=ops["genes_correct_channels"],
+        corrected_shifts=ops["corrected_shifts"],
+        correct_illumination=True,
+    )
+    stack = stack[1400:1800, 1400:1800, np.argsort(ops["camera_order"]), :]
+
+    all_gene_spots = []
+    omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
+
+    for alpha in alphas:
+        temp_gene_spots = []
+        for omp_threshold in omp_thresholds:
+            g, _, _ = iss.call.run_omp(
+                stack,
+                omp_stat["gene_dict"],
+                tol=omp_threshold,
+                weighted=True,
+                refit_background=True,
+                alpha=alpha,  # Use the current alpha value
+                beta_squared=ops["omp_beta_squared"],
+                norm_shift=omp_stat["norm_shift"],
+                max_comp=ops["omp_max_genes"],
+                min_intensity=ops["omp_min_intensity"],
+            )
+            spot_sign_image = iss.pipeline.load_spot_sign_image(
+                data_path, ops["spot_shape_threshold"]
+            )
+            gene_spots = iss.call.find_gene_spots(
+                g,
+                spot_sign_image,
+                rho=2,  # Set rho value to 2
+                spot_score_threshold=0.05,
+            )
+            for df, gene in zip(gene_spots, omp_stat["gene_names"]):
+                df["gene"] = gene
+            temp_gene_spots.append(gene_spots)
+        all_gene_spots.append(temp_gene_spots)
+
+    im = np.std(stack, axis=(2, 3))
+    vmax = np.percentile(im, 99.99)
+    neg_max = np.sum(np.sign(spot_sign_image) == -1)
+    pos_max = np.sum(np.sign(spot_sign_image) == 1)
+    # white background figure
+    for alpha_index, alpha in enumerate(alphas):
+        plt.figure(figsize=(30, 30), facecolor="w")
+        for i in range(len(omp_thresholds)):
+            for j in range(len(spot_score_thresholds)):
+                spots = pd.concat(all_gene_spots[alpha_index][i])
+                spots["spot_score"] = (
+                    spots["neg_pixels"] + spots["pos_pixels"] * 2
+                ) / (neg_max + pos_max * 2)
+                spots = spots[spots["spot_score"] > spot_score_thresholds[j]]
+                plt.subplot(
+                    len(omp_thresholds),
+                    len(spot_score_thresholds),
+                    i * len(spot_score_thresholds) + j + 1,
+                )
+                plt.imshow(im, cmap="bwr", vmax=vmax, vmin=-vmax)
+                plt.plot(spots.x, spots.y, "xk", ms=2)
+                plt.axis("off")
+                plt.title(
+                    f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}; alpha {alpha}"
+                )
+        plt.tight_layout()
+        plt.savefig(
+            processed_path / "figures" / f"omp_spot_score_thresholds_alpha_{alpha}.png",
+            dpi=300,
+        )
+
+    plt.figure(figsize=(20, 20))
+    plt.imshow(im, cmap="inferno", vmax=vmax)
+    plt.colorbar()
     plt.axis("off")
     plt.tight_layout()
     plt.savefig(

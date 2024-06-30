@@ -534,6 +534,40 @@ def check_omp(path, roi, tilex, tiley, use_slurm=True):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-r", "--roi", default=None, help="Number of the ROI..")
+@click.option("-x", "--tilex", default=None, help="Tile X position")
+@click.option("-y", "--tiley", default=None, help="Tile Y position.")
+@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+def check_omp_alpha(path, roi, tilex, tiley, use_slurm=True):
+    """Compute average spot image."""
+    from iss_preprocess.pipeline import check_omp_alpha_thresholds
+
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs" / path / "check_omp"
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+    if roi is not None and tilex is not None and tiley is not None:
+        check_omp_alpha_thresholds(
+            path,
+            tile_coors=(roi, tilex, tiley),
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            scripts_name=f"check_omp",
+        )
+    else:
+        check_omp_alpha_thresholds(
+            path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            scripts_name=f"check_omp",
+        )
+
+
+@cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def basecall(path):
     """Start batch jobs to run basecalling for barcodes on all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
