@@ -15,17 +15,19 @@ echo "  ROI: $ROI"
 echo "  TILEX: $TILEX"
 echo "  TILEY: $TILEY"
 
+echo "Sourcing bashrc"
 . ~/.bashrc
 echo "Loading modules"
 ml purge
-
 ml Anaconda3
-
-echo "Setting up conda environment"
+echo "Modules loaded"
 source activate base
 conda activate iss-preprocess
+echo "Conda environment activated"
+echo "Checking iss command"
+which iss
+echo "Running python script"
 
-echo "Running script"
 if $USE_MASK; then
     echo "Using mask"
     iss register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY -m

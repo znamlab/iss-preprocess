@@ -13,13 +13,17 @@ echo "  ROI: $ROI"
 echo "  TILEX: $TILEX"
 echo "  TILEY: $TILEY"
 
-echo "Loading modules"
+echo "Sourcing bashrc"
 . ~/.bashrc
+echo "Loading modules"
 ml purge
-
 ml Anaconda3
+echo "Modules loaded"
 source activate base
-
 conda activate iss-preprocess
+echo "Conda environment activated"
+echo "Checking iss command"
+which iss
+echo "Running python script"
 
 iss segment-mcherry-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY -s $SUFFIX
