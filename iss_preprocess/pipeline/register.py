@@ -184,6 +184,7 @@ def register_fluorescent_tile(
                 tform_matrix=tform_matrix,
                 ref_ch=ops["ref_ch"],
                 max_shift=ops["rounds_max_shift"],
+                max_residual=max_residual,
                 debug=debug,
                 block_size=block_size,
                 overlap=overlap,
