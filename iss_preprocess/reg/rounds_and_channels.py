@@ -317,6 +317,7 @@ def estimate_affine_for_tile(
     max_shift=None,
     ref_ch=0,
     block_size=512,
+    max_residual=2,
     overlap=0.6,
     correlation_threshold=0.01,
     binarise_quantile=None,
@@ -331,6 +332,8 @@ def estimate_affine_for_tile(
         max_shift (int): maximum shift to avoid spurious cross-correlations
         ref_ch (int): reference channel
         block_size (int): size of the block to use for registration, default: 512
+        max_residual (int): maximum residual to include shift in the final fit in
+            affine_by_block, defaults to 2
         overlap (float): overlap between blocks, default: 0.6
         correlation_threshold (float): threshold for correlation to use for fitting
             affine transformations, default: 0.01
@@ -353,6 +356,7 @@ def estimate_affine_for_tile(
         ch_to_align=ref_ch,
         median_filter_size=None,
         block_size=block_size,
+        max_residual=max_residual,
         overlap=overlap,
         max_shift=max_shift,
         correlation_threshold=correlation_threshold,
@@ -586,6 +590,7 @@ def correct_by_block(
     max_shift=None,
     correlation_threshold=None,
     binarise_quantile=None,
+    max_residual=2,
     debug=False,
 ):
     """Estimate affine transformations by block for each channel of a multichannel image.
@@ -602,6 +607,8 @@ def correct_by_block(
             affine transformations. None to keep all values. Default: None
         binarise_quantile (float, optional): quantile to use for binarisation of
             each block. Default: None
+        max_residual (int, optional): maximum residual to include shift in the final
+            fit in affine_by_block. defaults to 2
         debug (bool, optional): whether to return debug info, default: False
 
     Returns:
@@ -632,6 +639,7 @@ def correct_by_block(
                     max_shift=max_shift,
                     correlation_threshold=correlation_threshold,
                     binarise_quantile=binarise_quantile,
+                    max_residual=max_residual,
                     debug=debug,
                 )
                 if debug:

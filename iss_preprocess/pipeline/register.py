@@ -134,6 +134,8 @@ def register_fluorescent_tile(
         stack = median_filter(stack, footprint=disk(median_filter_size), axes=(0, 1))
 
     binarise_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
+    ref_ch = ops["ref_ch"]
+    ref_ch = ops.get(f"{prefix.split('_')[0].lower()}_ref_ch", ref_ch)
     match ops["align_method"]:
         case "similarity":
             if reference_prefix is None:
@@ -150,7 +152,7 @@ def register_fluorescent_tile(
             out = estimate_shifts_and_angles_for_tile(
                 stack,
                 scales=reference_tforms["scales_between_channels"],
-                ref_ch=ops["ref_ch"],
+                ref_ch=ref_ch,
                 max_shift=ops["rounds_max_shift"],
                 debug=debug,
             )
@@ -168,6 +170,7 @@ def register_fluorescent_tile(
             block_size = ops.get(f"{ops_prefix}_reg_block_size", 256)
             overlap = ops.get(f"{ops_prefix}_reg_block_overlap", 0.5)
             correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
+            max_residual = ops.get(f"{ops_prefix}_max_residual", 2)
             print("Registration parameters:")
             print(f"    block size {block_size}\n    overlap {overlap}")
             print(f"    correlation threshold {correlation_threshold}")
