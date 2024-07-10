@@ -257,15 +257,23 @@ def check_affine_channel_registration(
     binarise_quantile="ops",
     block_size="ops",
     overlap="ops",
+    max_residual="ops",
+    ref_ch="ops",
 ):
     ops = iss.io.load_ops(data_path)
     ops_pref = prefix.split("_")[0].lower()
     if binarise_quantile == "ops":
         binarise_quantile = ops[f"{ops_pref}_binarise_quantile"]
     if block_size == "ops":
-        block_size = ops.get([f"{ops_pref}_reg_block_size"], 256)
+        block_size = ops.get(f"{ops_pref}_reg_block_size", 256)
     if overlap == "ops":
-        overlap = ops.get([f"{ops_pref}_reg_overlap"], 0.5)
+        overlap = ops.get(f"{ops_pref}_reg_overlap", 0.5)
+    if max_residual == "ops":
+        max_residual = ops.get(f"{ops_pref}_max_residual", 2)
+
+    if ref_ch == "ops":
+        ref_ch = ops["ref_ch"]
+        ref_ch = ops.get(f"{ops_pref}_ref_ch", ref_ch)
     if "_1" not in prefix:
         roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
         multi_rounds = True
@@ -312,7 +320,7 @@ def check_affine_channel_registration(
             print("This function is only for affine registration")
             return
         ops = iss.io.load_ops(data_path)
-        ref_ch = ops["ref_ch"]
+
         median_filter = ops["reg_median_filter"]
 
         if multi_rounds:
@@ -345,6 +353,7 @@ def check_affine_channel_registration(
             ch_to_align=ref_ch,
             median_filter_size=median_filter,
             binarise_quantile=binarise_quantile,
+            max_residual=max_residual,
             debug=True,
             block_size=block_size,
             overlap=overlap,
