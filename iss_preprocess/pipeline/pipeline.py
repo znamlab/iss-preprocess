@@ -515,7 +515,7 @@ def create_single_average(
     for ops_values in [
         "average_clip_value",
         "average_median_filter",
-        "average_mean_filter",
+        "average_gaussian_filter",
         "black_level",
     ]:
         print(f"    {ops_values}={ops[ops_values]}")
@@ -542,8 +542,8 @@ def create_single_average(
         n_batch=n_batch,
         max_value=ops["average_clip_value"],
         verbose=True,
+        gaussian_filter_size=ops["average_gaussian_filter"],
         median_filter_size=ops["average_median_filter"],
-        mean_filter_size=ops["average_mean_filter"],
         normalise=True,
         suffix=suffix,
         combine_tilestats=combine_tilestats,

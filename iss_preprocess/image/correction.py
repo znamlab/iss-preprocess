@@ -2,7 +2,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from scipy.ndimage import median_filter, uniform_filter
+from scipy.ndimage import median_filter, gaussian_filter
 from skimage.morphology import disk
 from sklearn.linear_model import LinearRegression
 
@@ -230,7 +230,7 @@ def tilestats_and_mean_image(
     max_value=10000,
     verbose=False,
     median_filter_size=None,
-    mean_filter_size=None,
+    gaussian_filter_size=None,
     normalise=False,
     combine_tilestats=False,
     exclude_tiffs=None,
@@ -302,7 +302,7 @@ def tilestats_and_mean_image(
             max_value,
             verbose,
             median_filter_size,
-            mean_filter_size,
+            gaussian_filter_size,
             normalise,
             combine_tilestats,
         )
@@ -324,7 +324,7 @@ def tilestats_and_mean_image(
                 max_value,
                 verbose,
                 median_filter_size,
-                mean_filter_size,
+                gaussian_filter_size,
                 normalise,
                 combine_tilestats,
             )
@@ -344,7 +344,7 @@ def _mean_tiffs(
     max_value,
     verbose,
     median_filter_size,
-    mean_filter_size,
+    gaussian_filter_size,
     normalise,
     combine_tilestats,
 ):
@@ -387,9 +387,9 @@ def _mean_tiffs(
         mean_image = median_filter(
             mean_image, footprint=disk(median_filter_size), axes=(0, 1)
         )
-    if mean_filter_size is not None:
-        mean_image = uniform_filter(
-            mean_image, size=mean_filter_size, mode="nearest", axes=(0, 1)
+    if gaussian_filter_size is not None:
+        mean_image = gaussian_filter(
+            mean_image, sigma=gaussian_filter_size, mode="nearest", axes=(0, 1)
         )
 
     if normalise:
