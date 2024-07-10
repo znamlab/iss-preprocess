@@ -444,6 +444,8 @@ def check_shift_correction(
         # For "within channels" we plot the shifts for each channel and each round
         fig = plt.figure(figsize=(4 * nr * 2, 2 * 4 * nc))
         for roi, *ntiles in ndims:
+            # need to add 1 because of get_roi_dim
+            ntiles = [n + 1 for n in ntiles]
             raw, corrected, best = get_data("within", roi, nr=nr, ntiles=ntiles)
             corr_feature = ["Shift x", "Shift y"]
             fig.clear()
