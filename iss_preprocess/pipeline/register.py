@@ -175,6 +175,9 @@ def register_fluorescent_tile(
             print(f"    block size {block_size}\n    overlap {overlap}")
             print(f"    correlation threshold {correlation_threshold}")
             print(f"    binarise quantile {binarise_quantile}")
+            print(f"    max residual {max_residual}")
+            print(f"    ref channel {ref_ch}")
+            print(f"    max shift {ops['rounds_max_shift']}")
             if reference_prefix is None:
                 tform_matrix = None
             else:
@@ -182,7 +185,7 @@ def register_fluorescent_tile(
             matrix = estimate_affine_for_tile(
                 stack,
                 tform_matrix=tform_matrix,
-                ref_ch=ops["ref_ch"],
+                ref_ch=ref_ch,
                 max_shift=ops["rounds_max_shift"],
                 max_residual=max_residual,
                 debug=debug,
