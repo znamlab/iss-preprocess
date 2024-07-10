@@ -10,8 +10,11 @@ image_correction:
   # To compute the average for illumination correction, individual images are clipped to
   # this value before averaging to avoid bright outliers
   average_clip_value: 2000
-  # Size of the median filter apply to images for illumination correction before averaging
-  average_median_filter: 5
+  # Size of the median/mean filter apply to images for illumination correction before
+  # averaging. Median filter is applied before mean if both are provided
+  average_median_filter: null
+  average_mean_filter: 100
+
   # Path to calibration images for black level estimation, relative to processed data path
   dark_frame_path: becalia_iss_microscope/calibration/20221209_dark_frame/20221209_dark_frame_MMStack_Pos0.ome.tif
   # Data quantile to use for channel brightness correction - should correspond to bright rolonies

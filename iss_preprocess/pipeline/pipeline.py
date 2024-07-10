@@ -512,7 +512,12 @@ def create_single_average(
     print(f"    combine_tilestats={combine_tilestats}")
     print("\nArgs read from ops file", flush=True)
     ops = load_ops(data_path)
-    for ops_values in ["average_clip_value", "average_median_filter", "black_level"]:
+    for ops_values in [
+        "average_clip_value",
+        "average_median_filter",
+        "average_mean_filter",
+        "black_level",
+    ]:
         print(f"    {ops_values}={ops[ops_values]}")
     print("", flush=True)
 
@@ -538,6 +543,7 @@ def create_single_average(
         max_value=ops["average_clip_value"],
         verbose=True,
         median_filter_size=ops["average_median_filter"],
+        mean_filter_size=ops["average_mean_filter"],
         normalise=True,
         suffix=suffix,
         combine_tilestats=combine_tilestats,
