@@ -555,9 +555,9 @@ def correct_shifts_single_round_roi(
     if align_method is None:
         align_method = ops["align_method"]
 
-    roi = roi_dims[0]
-    nx = roi_dims[1] + 1
-    ny = roi_dims[2] + 1
+
+def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
+    processed_path = iss.io.get_processed_path(data_path)
     shifts = []
     angles = []
     for iy in range(ny):
@@ -596,7 +596,50 @@ def correct_shifts_single_round_roi(
 
     shifts = np.stack(shifts, axis=2)
     angles = np.stack(angles, axis=1)
+    return shifts, angles
 
+
+def correct_shifts_single_round_roi(
+    data_path,
+    roi_dims,
+    prefix="hybridisation_1_1",
+    max_shift=500,
+    fit_angle=True,
+    align_method=None,
+    n_chans=None,
+):
+    """Use robust regression across tiles to correct shifts and angles
+    for a single hybridisation round and ROI.
+
+    Args:
+        data_path (str): Relative path to data.
+        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles,
+            Ytiles) format.
+        prefix (str, optional): Prefix of the round to be processed.
+            Defaults to "hybridisation_1_1".
+        max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
+            Tiles with larger absolute shifts will not be included in the fit but will
+            still have their corrected shifts estimated. Defaults to 500.
+        fit_angle (bool, optional): Fit the angle with robust regression if True,
+            otherwise takes the median. Defaults to True
+        align_method (str, optional): Method to use for alignment. If None, will be
+            read from ops. Defaults to None.
+
+    Returns:
+        None
+    """
+
+    processed_path = iss.io.get_processed_path(data_path)
+    ops = load_ops(data_path)
+    if align_method is None:
+        align_method = ops["align_method"]
+
+    roi = roi_dims[0]
+    nx = roi_dims[1] + 1
+    ny = roi_dims[2] + 1
+    shifts, angles = _load_shift_roi(
+        data_path, prefix, roi, nx, ny, align_method, n_chans
+    )
     xs, ys = np.meshgrid(range(nx), range(ny))
     shifts_corrected = np.zeros(shifts.shape)
     angles_corrected = np.zeros(angles.shape)
