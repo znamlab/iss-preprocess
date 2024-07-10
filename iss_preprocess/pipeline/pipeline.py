@@ -639,6 +639,14 @@ def create_grand_averages(
             If None, will do as many batches as images. Defaults to None.
 
     """
+    if prefix_todo is None:
+        prefix_todo = []
+        metadata = load_metadata(data_path)
+        if metadata["genes_rounds"] > 0:
+            prefix_todo.append("genes_round")
+        if metadata["barcode_rounds"] > 0:
+            prefix_todo.append("barcode_round")
+
     subfolder = "averages"
     job_ids = []
     slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"

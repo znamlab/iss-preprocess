@@ -854,7 +854,7 @@ def create_grand_averages(path):
     """Create grand average for illumination correction"""
     from iss_preprocess import pipeline
 
-    pipeline.create_grand_averages(path, prefix_todo=("genes_round", "barcode_round"))
+    pipeline.create_grand_averages(path, prefix_todo=None)
 
 
 @cli.command()
