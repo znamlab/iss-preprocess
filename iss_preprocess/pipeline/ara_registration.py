@@ -123,7 +123,7 @@ def load_coordinate_image(data_path, roi, full_scale=False):
         raise IOError(
             "ARA coordinates folder does not exists." + " Perform registration first"
         )
-    coord_file = list(coord_folder.glob(f"*_r{roi}_*Coords.tif"))
+    coord_file = list(coord_folder.glob(f"*_r{roi}_*registered.tif"))  # *Coords.tif
     if not len(coord_file):
         raise IOError(f"Cannot find coordinates files for roi {roi}")
     elif len(coord_file) > 1:
@@ -135,7 +135,6 @@ def load_coordinate_image(data_path, roi, full_scale=False):
         metadata = load_registration_reference_metadata(data_path, roi)
         scale_factor = metadata["pixel_size"] / metadata["original_pixel_size"]
         coords = rescale(coords, scale_factor)
-
     return coords
 
 
