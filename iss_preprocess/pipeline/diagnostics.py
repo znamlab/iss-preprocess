@@ -259,6 +259,7 @@ def check_affine_channel_registration(
     overlap="ops",
     max_residual="ops",
     ref_ch="ops",
+    correct_illumination="ops",
 ):
     ops = iss.io.load_ops(data_path)
     ops_pref = prefix.split("_")[0].lower()
@@ -270,7 +271,8 @@ def check_affine_channel_registration(
         overlap = ops.get(f"{ops_pref}_reg_overlap", 0.5)
     if max_residual == "ops":
         max_residual = ops.get(f"{ops_pref}_max_residual", 2)
-
+    if correct_illumination == "ops":
+        correct_illumination = ops.get(f"{ops_pref}_reg_correct_illumination", False)
     if ref_ch == "ops":
         ref_ch = ops["ref_ch"]
         ref_ch = ops.get(f"{ops_pref}_ref_ch", ref_ch)
@@ -346,6 +348,11 @@ def check_affine_channel_registration(
                 tile_coors=tile_coors,
                 prefix=prefix,
                 suffix=projection,
+            )
+
+        if correct_illumination:
+            std_stack = iss.image.correction.apply_illumination_correction(
+                data_path, std_stack, prefix
             )
 
         matrices, debug_info = iss.reg.rounds_and_channels.correct_by_block(
