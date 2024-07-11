@@ -625,6 +625,11 @@ def stitch_registered(
                 tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
                 :,
             ][valid] = stack[valid]
+
+    if "mask" in prefix:
+        max_val = np.max(stitched_stack)
+        dtype = np.uint16 if max_val < 2**16 else np.uint32
+        stitched_stack = stitched_stack.astype(dtype)
     return stitched_stack
 
 
