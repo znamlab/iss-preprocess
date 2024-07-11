@@ -115,7 +115,10 @@ def register_fluorescent_tile(
 
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
-    projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
+    ops_prefix = prefix.split("_")[0].lower()
+    projection = ops[f"{ops_prefix}_projection"]
+    projection = ops.get(f"{ops_prefix}_reg_projection", projection)
+    print("Projection used for registration:", projection)
     if reference_prefix is not None:
         tforms_path = processed_path / f"tforms_{reference_prefix}.npz"
         reference_tforms = np.load(tforms_path, allow_pickle=True)
@@ -123,6 +126,14 @@ def register_fluorescent_tile(
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
     )
+    correct_illumination = ops.get(f"{ops_prefix}_reg_correct_illumination", False)
+    if correct_illumination:
+        print("Correcting illumination")
+        stack = iss.image.correction.apply_illumination_correction(
+            data_path, stack, prefix
+        )
+    else:
+        print("Not correcting illumination")
 
     # median filter if needed
     median_filter_size = ops["reg_median_filter"]
@@ -166,7 +177,6 @@ def register_fluorescent_tile(
                 scales=reference_tforms["scales_between_channels"],
             )
         case "affine":
-            ops_prefix = prefix.split("_")[0].lower()
             block_size = ops.get(f"{ops_prefix}_reg_block_size", 256)
             overlap = ops.get(f"{ops_prefix}_reg_block_overlap", 0.5)
             correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
@@ -457,7 +467,6 @@ def correct_hyb_shifts(data_path, prefix=None):
         data_path (str): Relative path to data.
         prefix (str): Directory prefix to use, e.g. "hybridisation_1_1". If None,
             processes all hybridisation acquisitions.
-
     """
     roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
@@ -471,11 +480,20 @@ def correct_hyb_shifts(data_path, prefix=None):
     else:
         prefix = metadata["hybridisation"].keys()
     for hyb_round in prefix:
+        use_median = ops.get(
+            f"{hyb_round.split('_')[0]}_use_median_channel_registration", False
+        )
+        use_median = ops.get(f"{hyb_round}_use_median_channel_registration", use_median)
+        if use_median:
+            print("Using median channel registration for all ROIs")
+            merge_shifts(data_path, prefix=hyb_round, n_chans=4)
+        else:
+            for roi in roi_dims[use_rois, :]:
+                print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
+                correct_shifts_single_round_roi(
+                    data_path, roi, prefix=hyb_round, fit_angle=False, n_chans=4
+                )
         for roi in roi_dims[use_rois, :]:
-            print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
-            correct_shifts_single_round_roi(
-                data_path, roi, prefix=hyb_round, fit_angle=False, n_chans=4
-            )
             filter_ransac_shifts(
                 data_path,
                 prefix=hyb_round,
@@ -523,46 +541,89 @@ def correct_shifts_to_ref(data_path, prefix, max_shift=None, fit_angle=False):
         filter_ransac_shifts(data_path, prefix_to_reg, roi_dim, max_residuals=10)
 
 
-def correct_shifts_single_round_roi(
-    data_path,
-    roi_dims,
-    prefix="hybridisation_1_1",
-    max_shift=500,
-    fit_angle=True,
-    align_method=None,
-    n_chans=None,
-):
-    """Use robust regression across tiles to correct shifts and angles
-    for a single hybridisation round and ROI.
+def merge_shifts(data_path, prefix, n_chans=4):
+    """Merge shifts for all ROI/tiles into a single shift median shift
+
+    Usefull if some of the registration failed and we want to use the same shift for all
+    tiles
 
     Args:
         data_path (str): Relative path to data.
-        roi_dims (tuple): Dimensions of the ROI to be processed, in (ROI_ID, Xtiles,
-            Ytiles) format.
-        prefix (str, optional): Prefix of the round to be processed.
-            Defaults to "hybridisation_1_1".
-        max_shift (int, optional): Maximum shift to include tiles in RANSAC regression.
-            Tiles with larger absolute shifts will not be included in the fit but will
-            still have their corrected shifts estimated. Defaults to 500.
-        fit_angle (bool, optional): Fit the angle with robust regression if True,
-            otherwise takes the median. Defaults to True
-        align_method (str, optional): Method to use for alignment. If None, will be
-            read from ops. Defaults to None.
+        prefix (str): Directory prefix to use, e.g. "hybridisation_1_1".
+        n_chans (int, optional): Number of channels to merge. Defaults to 4.
 
-    Returns:
-        None
     """
-
-    processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
-    if align_method is None:
-        align_method = ops["align_method"]
+    roi_dims = get_roi_dimensions(data_path, prefix)
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    align_method = ops["align_method"]
+
+    shifts = []
+    angles = []
+    for roi, nx, ny in roi_dims[use_rois, ...]:
+        nx += 1
+        ny += 1
+        shift, angle, scales = _load_shift_roi(
+            data_path, prefix, roi, nx, ny, align_method, n_chans
+        )
+        shifts.append(shift)
+        angles.append(angle)
+
+    shifts = np.concatenate(shifts, axis=2)
+    angles = np.concatenate(angles, axis=1)
+    bad = np.sum(np.any(np.isnan(shifts), axis=(0, 1)))
+    if bad > 0:
+        print(f"{bad}/{shifts.shape[2]} tiles have failed fits")
+    shifts_corrected = np.nanmedian(shifts, axis=2)
+    angles_corrected = np.nanmedian(angles, axis=1)
+    print(f"Median shifts: \n{np.round(shifts_corrected,2)}")
+    print(f"Median angles/affine: \n{np.round(angles_corrected, 3)}")
+
+    if align_method == "affine":
+        matrix_corrected = np.zeros((shifts.shape[0], 3, 3))
+        for ich in range(shifts.shape[0]):
+            matrix_corrected[ich, :2, 2] = shifts_corrected[ich]
+            matrix_corrected[ich, :2, :2] = angles_corrected[ich]
+            matrix_corrected[ich, 2, 2] = 1
+
+    else:
+        # i need to check the shape of that if we ever need to use it
+        raise NotImplementedError("Merging shifts for non-affine not implemented yet")
+
+    # save all the corrected to the same median value
+    processed_path = iss.io.get_processed_path(data_path)
+    save_dir = processed_path / "reg"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    for roi, nx, ny in roi_dims[use_rois, ...]:
+        nx += 1
+        ny += 1
+        itile = 0
+        for iy in range(ny):
+            for ix in range(nx):
+                if align_method == "affine":
+                    to_save = dict(matrix_between_channels=matrix_corrected)
+                else:
+                    to_save = dict(
+                        shifts=shifts_corrected[:, :, itile],
+                        angles=angles_corrected[:, itile],
+                        scales=scales,
+                    )
+                np.savez(
+                    save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
+                    allow_pickle=True,
+                    **to_save,
+                )
+                itile += 1
+    print("Merged shifts for all tiles")
 
 
 def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
     processed_path = iss.io.get_processed_path(data_path)
     shifts = []
     angles = []
+    scales = []
     for iy in range(ny):
         for ix in range(nx):
             fname = processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
@@ -585,6 +646,7 @@ def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
                     shifts.append(tforms["matrix_between_channels"][:, :2, 2])
                     angles.append(tforms["matrix_between_channels"][:, :2, :2])
                 else:
+                    scales.append(tforms["scales"])
                     shifts.append(tforms["shifts"])
                     angles.append(tforms["angles"])
             except ValueError:
@@ -599,7 +661,7 @@ def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
 
     shifts = np.stack(shifts, axis=2)
     angles = np.stack(angles, axis=1)
-    return shifts, angles
+    return shifts, angles, scales
 
 
 def correct_shifts_single_round_roi(
@@ -640,9 +702,14 @@ def correct_shifts_single_round_roi(
     roi = roi_dims[0]
     nx = roi_dims[1] + 1
     ny = roi_dims[2] + 1
-    shifts, angles = _load_shift_roi(
+    shifts, angles, scales = _load_shift_roi(
         data_path, prefix, roi, nx, ny, align_method, n_chans
     )
+    if align_method != "affine":
+        assert len(scales), "scales must be exist for non-affine alignment"
+        # they should all be the same
+        assert np.all(scales == scales[0]), "scales must be the same for all tiles"
+        scales = scales[0]
     xs, ys = np.meshgrid(range(nx), range(ny))
     shifts_corrected = np.zeros(shifts.shape)
     angles_corrected = np.zeros(angles.shape)
@@ -680,7 +747,7 @@ def correct_shifts_single_round_roi(
                 to_save = dict(
                     shifts=shifts_corrected[:, :, itile],
                     angles=angles_corrected[:, itile],
-                    scales=tforms["scales"],
+                    scales=scales,
                 )
             np.savez(
                 save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",

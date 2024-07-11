@@ -146,6 +146,10 @@ hybridisation:
   hybridisation_binarise_quantile: 0.9
   hybridisation_reg_block_size: 512
   hybridisation_reg_block_overlap: 0.8
+  # should we apply illumination correction before doing channel registration?
+  hybridisation_reg_correct_illumination: false
+  # should we use the median transformation for channel registration?
+  hybridisation_use_median_channel_registration: false
 
 # Detection of mCherry+ cells
 mcherry:
