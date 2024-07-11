@@ -264,7 +264,9 @@ def hyb_spot_cluster_means(data_path, prefix):
     init_spot_colors = np.array(init_spot_colors)
 
     all_spots = []
-    for ref_tile in ops["barcode_ref_tiles"]:
+    ref_tiles = ops["genes_ref_tiles"]
+    ref_tiles = ops.get("hybridisation_ref_tiles", ref_tiles)
+    for ref_tile in ref_tiles:
         print(f"detecting spots in tile {ref_tile}")
         stack, _ = load_and_register_hyb_tile(
             data_path,
