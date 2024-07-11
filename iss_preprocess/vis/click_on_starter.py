@@ -126,11 +126,21 @@ def load_roi(
         rab_mask = imread(manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_mask.tif")
         if rab_mask.ndim == 3:
             rab_mask = rab_mask[..., 0]
+        # Define the colormap as dict
+        cmap_label = {
+            0: np.array([0.0, 0.0, 0.0, 0.0]),
+            None: np.array([1.0, 0.0, 0.0, 1.0]),
+        }
+        colors = mpl.colormaps["tab20"].colors
+        for i, c in enumerate(colors):
+            cmap_label[i + 1] = np.array([*c, 1])
+        data = (rab_mask % 20).astype(int) + 1
+        data[rab_mask == 0] = 0
         viewer.add_labels(
-            data=rab_mask.astype("int32"),
+            data=data.astype("uint8"),
             name=mask.replace("_", " "),
+            colormap=napari.utils.DirectLabelColormap(color_dict=cmap_label),
         )
-
     # add rabies spots
     if add_rabies:
         print("Adding rabies spots")
@@ -147,7 +157,7 @@ def load_roi(
         mch_points_layer = viewer.add_points(
             coord[:, ::-1],
             properties=dict(
-                barcode_id=barcode_id, mask=mask_id, barcode=barcode, cell_mask=mask
+                barcode_id=barcode_id, mask_id=mask_id, barcode=barcode, cell_mask=mask
             ),
             face_color="mask_id",
             face_colormap="tab20",
@@ -156,6 +166,8 @@ def load_roi(
             edge_width=0.3,
             name="Rabies spots",
         )
+        if isinstance(barcode_to_plot, str):
+            barcode_to_plot = [barcode_to_plot]
         for barcode in barcode_to_plot:
             print(f"Adding rabies barcode {barcode}")
             valid_pts = rab_pts[:, 4] == barcode
@@ -164,13 +176,15 @@ def load_roi(
                 continue
             mch_points_layer = viewer.add_points(
                 coord[valid_pts, ::-1],
-                properties=dict(barcode_id=barcode_id[valid_pts], mask=mask[valid_pts]),
-                face_color="mask",
+                properties=dict(
+                    barcode_id=barcode_id[valid_pts], mask_id=mask_id[valid_pts]
+                ),
+                face_color="mask_id",
                 face_colormap="tab20",
                 edge_color="barcode_id",
                 edge_colormap="tab20",
                 edge_width=0.3,
-                size=50,
+                size=10,
                 name=f"Rabies {barcode}",
             )
 
@@ -216,8 +230,8 @@ def load_roi(
 if __name__ == "__main__":
     project = "becalia_rabies_barseq"
     mouse = "BRAC8498.3e"
-    chamber = "chamber_10"
-    roi = 2
+    chamber = "chamber_07"
+    roi = 1
     data_path = f"{project}/{mouse}/{chamber}"
     ops = iss.io.load_ops(data_path)
     load_roi(
@@ -225,9 +239,10 @@ if __name__ == "__main__":
         mouse,
         chamber,
         roi,
-        add_hyb=True,
-        add_genes=True,
+        add_hyb=False,
+        add_genes=False,
         add_rabies=True,
-        image_to_load=("hyb", "reference", "mCherry"),
+        image_to_load=("reference"),
+        barcode_to_plot=(["TTCAGAGACACAGT"]),
     )
     print("Done")
