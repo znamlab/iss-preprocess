@@ -1,5 +1,5 @@
 from pathlib import Path
-
+from warnings import warn
 import bg_atlasapi as bga
 import cv2
 import numpy as np
@@ -15,6 +15,7 @@ from ..io import (
     load_section_position,
     load_stack,
     save_ome_tiff_pyramid,
+    write_stack,
 )
 from . import stitch
 
@@ -138,7 +139,7 @@ def load_coordinate_image(data_path, roi, full_scale=False):
     return coords
 
 
-def make_area_image(data_path, roi, atlas_size=10, full_scale=False):
+def make_area_image(data_path, roi, atlas_size=10, full_scale=False, reload=True):
     """Generate an image with area ID in each pixel
 
     Args:
@@ -148,11 +149,25 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False):
             Defaults to 10.
         full_scale (bool, optional): If true, returns the full scale image, otherwise
             the downsample version used for registration. Defaults to False.
+        reload (bool, optional): If True, reload the area image, otherwise recompute it.
+            Valid only if full_scale is False. Defaults to True.
 
     Returns:
         area_id (np.array): Image with area id of each pixel
 
     """
+    if full_scale and reload:
+        warn("Cannot reload full scale area image. Setting reload to False")
+        reload = False
+
+    if reload:
+        save_folder = get_processed_path(data_path) / "register_to_ara" / "area_images"
+        save_folder.mkdir(exist_ok=True)
+        fname = save_folder / f"area_image_r{roi}_ara{atlas_size}.tif"
+        if fname.is_file():
+            area_id = load_stack(str(fname))
+            return area_id
+
     coord = np.clip(
         load_coordinate_image(data_path, roi, full_scale=full_scale), 0, None
     )
@@ -163,6 +178,9 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False):
     for channel, max_val in enumerate(bg_atlas.shape):
         coord[:, :, channel] = np.clip(coord[:, :, channel], 0, max_val - 1)
     area_id = bg_atlas.annotation[coord[:, :, 0], coord[:, :, 1], coord[:, :, 2]]
+    if reload:
+        write_stack(area_id, str(fname), bigtiff=True, dtype=area_id.dtype)
+
     return area_id
 
 
