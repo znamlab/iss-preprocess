@@ -468,11 +468,6 @@ def correct_hyb_shifts(data_path, prefix=None):
         prefix (str): Directory prefix to use, e.g. "hybridisation_1_1". If None,
             processes all hybridisation acquisitions.
     """
-    roi_dims = get_roi_dimensions(data_path, prefix)
-    ops = load_ops(data_path)
-    if "use_rois" not in ops.keys():
-        ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     if prefix:
         if isinstance(prefix, str):
@@ -480,6 +475,12 @@ def correct_hyb_shifts(data_path, prefix=None):
     else:
         prefix = metadata["hybridisation"].keys()
     for hyb_round in prefix:
+        roi_dims = get_roi_dimensions(data_path, hyb_round)
+        ops = load_ops(data_path)
+        if "use_rois" not in ops.keys():
+            ops["use_rois"] = roi_dims[:, 0]
+        use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+
         use_median = ops.get(
             f"{hyb_round.split('_')[0]}_use_median_channel_registration", False
         )
