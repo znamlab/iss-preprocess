@@ -135,7 +135,18 @@ def load_coordinate_image(data_path, roi, full_scale=False):
     if full_scale:
         metadata = load_registration_reference_metadata(data_path, roi)
         scale_factor = metadata["pixel_size"] / metadata["original_pixel_size"]
-        coords = rescale(coords, scale_factor)
+        out_shape = (np.array(coords.shape) * scale_factor).astype(int)
+        out_shape[2] = coords.shape[2]  # no need to upscale last dimension
+        out = np.zeros(
+            out_shape,
+            dtype=coords.dtype,
+        )
+        for i in range(coords.shape[2]):
+            # cv2 resize takes (width, height) not (row, col)
+            out[..., i] = cv2.resize(
+                coords[..., i], out_shape[:2][::-1], cv2.INTER_LINEAR
+            )
+        coords = out
     return coords
 
 
