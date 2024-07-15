@@ -21,7 +21,7 @@ def get_raw_path(data_path):
         pathlib.Path: Path to raw data
 
     """
-    project = data_path.split("/")[0]
+    project = Path(data_path).parts[0]
     if project in PARAMETERS["project_paths"].keys():
         raw_path = Path(PARAMETERS["project_paths"][project]["raw"])
     else:
@@ -39,7 +39,7 @@ def get_processed_path(data_path):
         pathlib.Path: Path to processed data
 
     """
-    project = data_path.split("/")[0]
+    project = Path(data_path).parts[0]
     if project in PARAMETERS["project_paths"].keys():
         processed_path = Path(PARAMETERS["project_paths"][project]["processed"])
     else:
