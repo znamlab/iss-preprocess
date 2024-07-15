@@ -1,6 +1,7 @@
 from warnings import warn
 import numpy as np
 import pandas as pd
+from skimage.transform import SimilarityTransform
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from sklearn.linear_model import RANSACRegressor
@@ -122,6 +123,8 @@ def register_fluorescent_tile(
     if reference_prefix is not None:
         tforms_path = processed_path / f"tforms_{reference_prefix}.npz"
         reference_tforms = np.load(tforms_path, allow_pickle=True)
+    else:
+        reference_tforms = None
 
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
@@ -147,6 +150,200 @@ def register_fluorescent_tile(
     binarise_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
     ref_ch = ops["ref_ch"]
     ref_ch = ops.get(f"{prefix.split('_')[0].lower()}_ref_ch", ref_ch)
+
+    channel_grouping = ops.get(f"{ops_prefix}_reg_channel_grouping", None)
+    if channel_grouping is None:
+        out = reg_chans(
+            ops,
+            ops_prefix,
+            stack,
+            reference_prefix,
+            binarise_quantile,
+            reference_tforms,
+            ref_ch,
+            debug,
+        )
+    else:
+        out = iterative_registration(
+            channel_grouping,
+            ops,
+            ops_prefix,
+            stack,
+            reference_prefix,
+            binarise_quantile,
+            reference_tforms,
+            debug,
+        )
+    if debug:
+        to_save, db_info = out
+    else:
+        to_save = out
+
+    save_dir = processed_path / "reg"
+    save_dir.mkdir(parents=True, exist_ok=True)
+    np.savez(
+        save_dir
+        / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
+        allow_pickle=True,
+        **to_save,
+    )
+
+    if debug:
+        return to_save, db_info
+    return to_save
+
+
+def iterative_registration(
+    channel_grouping,
+    ops,
+    ops_prefix,
+    stack,
+    reference_prefix,
+    binarise_quantile,
+    reference_tforms,
+    debug=False,
+):
+    """Register channels for a single tile iteratively by group of channels
+
+    channel_grouping must be a list of list (of list ....). The inner most levels will
+    be registered together, using the first channel of the list as reference. Then the
+    upper level will be registered together.
+    For instance, if channel_grouping = [[0, 1], [2, 3]], channels 0 and 1 will be
+    registered together (ref=0), then channels 2 and 3 will be registered together
+    (ref=2), and finally the two groups will be registered together (ref=0).
+
+    Args:
+        channel_grouping (list): List of list of channels to register together.
+        ops (dict): Experiment metadata.
+        ops_prefix (str): Prefix to use for ops, e.g. "genes".
+        stack (np.array): Image stack to register.
+        reference_prefix (str): Prefix to load scale or initial matrix from.
+        binarise_quantile (float): Quantile to binarise images before registration.
+        reference_tforms (dict): Reference transformation parameters.
+        debug (bool): Return debug information.
+
+    Returns:
+        dict: Transformation parameters.
+        dict: Debug information, only if debug is True
+    """
+    assert stack.ndim == 3, "Stack must be XxYxNch"
+    nch = stack.shape[2]
+    initial_tforms = [[] for i in range(nch)]
+    if debug:
+        db_info = {"first_round": {}}
+    for group in channel_grouping:
+        assert all(isinstance(ch, int) for ch in group), "Only integers are allowed"
+        tform = reg_chans(
+            ops,
+            ops_prefix,
+            stack[..., group],
+            reference_prefix,
+            binarise_quantile,
+            reference_tforms,
+            ref_ch=0,  # always 0 as channels are reordered
+            debug=False,
+        )
+        if debug:
+            db_info["first_round"][tuple(group)] = tform
+        if "matrix_between_channels" in tform.keys():
+            tform_matrix = tform["matrix_between_channels"]
+        else:
+            angles = (tform["angles_between_channels"],)
+            shifts = (tform["shifts_between_channels"],)
+            scales = (tform["scales_between_channels"],)
+            tform_matrix = []
+            for sc, sh, an in zip(scales, shifts, angles):
+                tform_matrix.append(
+                    make_transform(s=sc, angle=an, shift=sh, shape=stack.shape[:2])
+                )
+        for i, ch in enumerate(group):
+            initial_tforms[ch] = tform_matrix[i]
+    # now we need to merge the tforms
+    second_round = [g[0] for g in channel_grouping]
+    tform = reg_chans(
+        ops,
+        ops_prefix,
+        stack[..., second_round],
+        reference_prefix,
+        binarise_quantile,
+        reference_tforms,
+        ref_ch=0,
+        debug=False,
+    )
+    if debug:
+        db_info["second_round"] = tform
+    if "matrix_between_channels" in tform.keys():
+        tform_matrix = tform["matrix_between_channels"]
+    else:
+        angles = (tform["angles_between_channels"],)
+        shifts = (tform["shifts_between_channels"],)
+        scales = (tform["scales_between_channels"],)
+        tform_matrix = []
+        for sc, sh, an in zip(scales, shifts, angles):
+            tform_matrix.append(
+                make_transform(s=sc, angle=an, shift=sh, shape=stack.shape[:2])
+            )
+
+    # multiply the tforms to get the final one
+    output = initial_tforms.copy()
+    for igpg, gpg in enumerate(channel_grouping):
+        if not igpg:
+            # reference group
+            continue
+        for ch in gpg:
+            # the first round must run successfully but the second one can fail,
+            # we should still be mostly fine
+            if np.any(np.isnan(tform_matrix[igpg])):
+                warn(f"Failed to register group {gpg} to reference")
+                tform_matrix[igpg] = np.eye(3)
+            output[ch] = output[ch] @ tform_matrix[igpg]
+    # convert back to expected output format
+    if "matrix_between_channels" in tform.keys():
+        output = dict(matrix_between_channels=output)
+    else:
+        angles, shifts, scales = [], [], []
+        for ch, tf in enumerate(output):
+            sim = SimilarityTransform(matrix=tf)
+            angles.append(sim.rotation)
+            shifts.append(sim.translation)
+            scales.append(sim.scale)
+        output = dict(
+            angles_between_channels=angles,
+            shifts_between_channels=shifts,
+            scales_between_channels=scales,
+        )
+    if debug:
+        return output, db_info
+    return output
+
+
+def reg_chans(
+    ops,
+    ops_prefix,
+    stack,
+    reference_prefix,
+    binarise_quantile,
+    reference_tforms,
+    ref_ch,
+    debug,
+):
+    """Register channels for a single tile
+
+    Args:
+        ops (dict): Experiment metadata.
+        ops_prefix (str): Prefix to use for ops, e.g. "genes".
+        stack (np.array): Image stack to register.
+        reference_prefix (str): Prefix to load scale or initial matrix from.
+        binarise_quantile (float): Quantile to binarise images before registration.
+        reference_tforms (dict): Reference transformation parameters.
+        ref_ch (int): Reference channel.
+        debug (bool): Return debug information.
+
+    Returns:
+        dict: Transformation parameters.
+        dict: Debug information, only if debug is True
+    """
+
     match ops["align_method"]:
         case "similarity":
             if reference_prefix is None:
@@ -209,16 +406,6 @@ def register_fluorescent_tile(
             to_save = dict(matrix_between_channels=matrix)
         case _:
             raise ValueError(f"Align method {ops['align_method']} not recognised")
-
-    save_dir = processed_path / "reg"
-    save_dir.mkdir(parents=True, exist_ok=True)
-    np.savez(
-        save_dir
-        / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
-        allow_pickle=True,
-        **to_save,
-    )
-
     if debug:
         return to_save, db_info
     return to_save

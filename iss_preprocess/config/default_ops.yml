@@ -150,6 +150,11 @@ hybridisation:
   hybridisation_reg_correct_illumination: false
   # should we use the median transformation for channel registration?
   hybridisation_use_median_channel_registration: false
+  # Optionaly the registration can be done by group of channels, registering pairs of
+  # channels together and then one of the pair to the reference. For instance, if you
+  # have 4 channels and you want to register 1-2 and 3-4 together and then 4 to 1, the
+  # final reference, you would set channel_grouping to [[1,2], [4,3]]
+  hybridisation_reg_channel_grouping: [[1,2], [4,3]]
 
 # Detection of mCherry+ cells
 mcherry:
