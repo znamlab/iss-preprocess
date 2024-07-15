@@ -680,9 +680,17 @@ def correct_hyb_shifts(data_path, prefix=None):
         else:
             for roi in roi_dims[use_rois, :]:
                 print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
-                correct_shifts_single_round_roi(
-                    data_path, roi, prefix=hyb_round, fit_angle=False, n_chans=4
-                )
+                try:
+                    correct_shifts_single_round_roi(
+                        data_path, roi, prefix=hyb_round, fit_angle=False, n_chans=4
+                    )
+                except ValueError:
+                    txt = f"!!! Could not correct shifts for ROI {roi}, {hyb_round}"
+                    # We both warn and print to make sure the message is seen in out and err
+                    warn(txt)
+                    print(txt)
+                    continue
+
         for roi in roi_dims[use_rois, :]:
             filter_ransac_shifts(
                 data_path,
