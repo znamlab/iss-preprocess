@@ -1,11 +1,11 @@
 from pathlib import Path
+import gc
 from warnings import warn
 import bg_atlasapi as bga
 import cv2
 import numpy as np
 import yaml
 from scipy.ndimage import gaussian_filter
-from skimage.transform import rescale
 
 from ..io import (
     get_pixel_size,
@@ -195,7 +195,16 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False, reload=True
     return area_id
 
 
-def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplace=True):
+def spots_ara_infos(
+    data_path,
+    spots,
+    roi,
+    atlas_size=10,
+    acronyms=False,
+    inplace=True,
+    full_scale_coordinates=False,
+    verbose=True,
+):
     """Add ARA coordinates and area ID to spots dataframe
 
     Args:
@@ -207,6 +216,10 @@ def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplac
             False.
         inplace (bool, optional): add the column to spots inplace or return a copy.
             Defaults to True
+        full_scale_coordinates (bool, optional): If true, use the full scale image to
+            find coordinates, otherwise the downsample version used for registration.
+            Defaults to False.
+        verbose (bool, optional): Print progress. Defaults to True.
 
     Returns:
         spots (pd.DataFrame): reference or copy of spots dataframe with four more
@@ -215,11 +228,17 @@ def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplac
     """
     if not inplace:
         spots = spots.copy()
+    if verbose:
+        print("Loading coordinates and area id", flush=True)
+    coords = load_coordinate_image(data_path, roi, full_scale=full_scale_coordinates)
     metadata = load_registration_reference_metadata(data_path, roi)
-    coords = load_coordinate_image(data_path, roi)
-    spot_xy = spots.loc[:, ["x", "y"]].values / metadata["downsample_ratio"]
-    spot_xy = np.round(spot_xy).astype(int)
+    spot_xy = spots.loc[:, ["x", "y"]].values
 
+    if not full_scale_coordinates:
+        spot_xy = spots.loc[:, ["x", "y"]].values / metadata["downsample_ratio"]
+    spot_xy = np.round(spot_xy).astype(int)
+    if verbose:
+        print("Attributing coordinates to spots", flush=True)
     # Filter spots that are outside the valid range
     valid_x = spot_xy[:, 0] < coords.shape[1]
     valid_y = spot_xy[:, 1] < coords.shape[0]
@@ -229,13 +248,31 @@ def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplac
 
     # Use filtered coordinates for further processing
     spot_coords = coords[spot_xy_filtered[:, 1], spot_xy_filtered[:, 0], :]
+    del coords
+    gc.collect()
     for i, w in enumerate("xyz"):
         spots_filtered[f"ara_{w}"] = spot_coords[:, i]
-    area_map = make_area_image(data_path, roi, atlas_size=atlas_size)
+
+    if verbose:
+        print("Loading area map", flush=True)
+    # we will always load non full scale area map as it takes huge amount of RAM
+    area_map = make_area_image(data_path, roi, atlas_size=atlas_size, full_scale=False)
+    if verbose:
+        print("Attributing area id to spots", flush=True)
+    # but that means we need to downsample the spots coordinates
+    spot_xy_filtered = np.round(spot_xy_filtered / metadata["downsample_ratio"]).astype(
+        int
+    )
+    # and clip in case of rounding errors
+    spot_xy_filtered[:, 0] = np.clip(spot_xy_filtered[:, 0], 0, area_map.shape[1] - 1)
+    spot_xy_filtered[:, 1] = np.clip(spot_xy_filtered[:, 1], 0, area_map.shape[0] - 1)
     spot_area = area_map[spot_xy_filtered[:, 1], spot_xy_filtered[:, 0]]
     spots_filtered["area_id"] = spot_area
-
+    del area_map
+    gc.collect()
     if acronyms:
+        if verbose:
+            print("Finding area acronyms", flush=True)
         atlas_name = "allen_mouse_%dum" % atlas_size
         bg_atlas = bga.bg_atlas.BrainGlobeAtlas(atlas_name)
         labels = bg_atlas.lookup_df.set_index("id")
@@ -244,7 +281,8 @@ def spots_ara_infos(data_path, spots, roi, atlas_size=10, acronyms=False, inplac
         spots_filtered.loc[valid, "area_acronym"] = labels.loc[
             spots_filtered.area_id[valid], "acronym"
         ].values
-
+    if verbose:
+        print("Done", flush=True)
     return spots_filtered
 
 
