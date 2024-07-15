@@ -153,7 +153,7 @@ def register_fluorescent_tile(
 
     channel_grouping = ops.get(f"{ops_prefix}_reg_channel_grouping", None)
     if channel_grouping is None:
-        out = reg_chans(
+        out = _reg_chans(
             ops,
             ops_prefix,
             stack,
@@ -164,7 +164,7 @@ def register_fluorescent_tile(
             debug,
         )
     else:
-        out = iterative_registration(
+        out = register_channels_by_pairs(
             channel_grouping,
             ops,
             ops_prefix,
@@ -193,7 +193,7 @@ def register_fluorescent_tile(
     return to_save
 
 
-def iterative_registration(
+def register_channels_by_pairs(
     channel_grouping,
     ops,
     ops_prefix,
@@ -233,7 +233,7 @@ def iterative_registration(
         db_info = {"first_round": {}}
     for group in channel_grouping:
         assert all(isinstance(ch, int) for ch in group), "Only integers are allowed"
-        tform = reg_chans(
+        tform = _reg_chans(
             ops,
             ops_prefix,
             stack[..., group],
@@ -260,7 +260,7 @@ def iterative_registration(
             initial_tforms[ch] = tform_matrix[i]
     # now we need to merge the tforms
     second_round = [g[0] for g in channel_grouping]
-    tform = reg_chans(
+    tform = _reg_chans(
         ops,
         ops_prefix,
         stack[..., second_round],
@@ -317,7 +317,7 @@ def iterative_registration(
     return output
 
 
-def reg_chans(
+def _reg_chans(
     ops,
     ops_prefix,
     stack,
@@ -328,6 +328,8 @@ def reg_chans(
     debug,
 ):
     """Register channels for a single tile
+
+    Inner function running the relevant phase correlation on channels of one stack
 
     Args:
         ops (dict): Experiment metadata.
