@@ -200,9 +200,10 @@ def spots_ara_infos(
     spots,
     roi,
     atlas_size=10,
-    acronyms=False,
+    acronyms=True,
     inplace=True,
     full_scale_coordinates=False,
+    reload=True,
     verbose=True,
 ):
     """Add ARA coordinates and area ID to spots dataframe
@@ -219,6 +220,8 @@ def spots_ara_infos(
         full_scale_coordinates (bool, optional): If true, use the full scale image to
             find coordinates, otherwise the downsample version used for registration.
             Defaults to False.
+        reload (bool, optional): If True, reload the area image, otherwise recompute it.
+            Valid only if full_scale is False. Defaults to True.
         verbose (bool, optional): Print progress. Defaults to True.
 
     Returns:
@@ -256,13 +259,18 @@ def spots_ara_infos(
     if verbose:
         print("Loading area map", flush=True)
     # we will always load non full scale area map as it takes huge amount of RAM
-    area_map = make_area_image(data_path, roi, atlas_size=atlas_size, full_scale=False)
+    area_map = make_area_image(
+        data_path, roi, atlas_size=atlas_size, full_scale=False, reload=reload
+    )
     if verbose:
         print("Attributing area id to spots", flush=True)
-    # but that means we need to downsample the spots coordinates
-    spot_xy_filtered = np.round(spot_xy_filtered / metadata["downsample_ratio"]).astype(
-        int
-    )
+
+    if full_scale_coordinates:
+        # but that means we need to downsample the spots coordinates if it hasn't been
+        # done before
+        spot_xy_filtered = np.round(
+            spot_xy_filtered / metadata["downsample_ratio"]
+        ).astype(int)
     # and clip in case of rounding errors
     spot_xy_filtered[:, 0] = np.clip(spot_xy_filtered[:, 0], 0, area_map.shape[1] - 1)
     spot_xy_filtered[:, 1] = np.clip(spot_xy_filtered[:, 1], 0, area_map.shape[0] - 1)
