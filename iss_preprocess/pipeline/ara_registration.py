@@ -170,11 +170,9 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False, reload=True
     if full_scale and reload:
         warn("Cannot reload full scale area image. Setting reload to False")
         reload = False
-
+    save_folder = get_processed_path(data_path) / "register_to_ara" / "area_images"
+    fname = save_folder / f"area_image_r{roi}_ara{atlas_size}.tif"
     if reload:
-        save_folder = get_processed_path(data_path) / "register_to_ara" / "area_images"
-        save_folder.mkdir(exist_ok=True)
-        fname = save_folder / f"area_image_r{roi}_ara{atlas_size}.tif"
         if fname.is_file():
             area_id = load_stack(str(fname))
             return area_id
@@ -189,7 +187,8 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False, reload=True
     for channel, max_val in enumerate(bg_atlas.shape):
         coord[:, :, channel] = np.clip(coord[:, :, channel], 0, max_val - 1)
     area_id = bg_atlas.annotation[coord[:, :, 0], coord[:, :, 1], coord[:, :, 2]]
-    if reload:
+    if not full_scale:
+        save_folder.mkdir(exist_ok=True)
         write_stack(area_id, str(fname), bigtiff=True, dtype=area_id.dtype)
 
     return area_id
