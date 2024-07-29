@@ -144,6 +144,22 @@ def load_roi(
     # add rabies spots
     if add_rabies:
         print("Adding rabies spots")
+        non_ass = np.load(
+            manual_folder / f"{mouse}_{chamber}_{roi}_rabies_spots_unassigned.npy",
+            allow_pickle=True,
+        )
+        coord = non_ass[:, :2].astype(float)
+        barcode_id = non_ass[:, 2].astype(float) % 20
+        barcode = non_ass[:, 4].astype(str)
+        mch_points_layer = viewer.add_points(
+            coord[:, ::-1],
+            properties=dict(barcode_id=barcode_id, barcode=barcode),
+            face_color="k",
+            edge_color="barcode_id",
+            edge_colormap="tab20",
+            edge_width=0.3,
+            name="Unassigned rabies spots",
+        )
         rab_pts = np.load(
             manual_folder / f"{mouse}_{chamber}_{roi}_rabies_spots.npy",
             allow_pickle=True,
@@ -231,7 +247,7 @@ if __name__ == "__main__":
     project = "becalia_rabies_barseq"
     mouse = "BRAC8498.3e"
     chamber = "chamber_07"
-    roi = 1
+    roi = 5
     data_path = f"{project}/{mouse}/{chamber}"
     ops = iss.io.load_ops(data_path)
     load_roi(
@@ -242,7 +258,9 @@ if __name__ == "__main__":
         add_hyb=False,
         add_genes=False,
         add_rabies=True,
-        image_to_load=("reference"),
-        barcode_to_plot=(["TTCAGAGACACAGT"]),
+        image_to_load=("reference", "mCherry"),
+        barcode_to_plot=(
+            ["TTTTGGACCTTTAT", "CACCATGTAATTAA", "GCAAGTAGACTCCA", "TCTTTTTTGACGCC"]
+        ),
     )
     print("Done")
