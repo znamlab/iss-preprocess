@@ -239,6 +239,21 @@ def load_roi(
         size=50,
         opacity=0.8,
     )
+    fname = manual_folder / f"mcherry_cells_{mouse}_{chamber}_roi_{roi}.csv"
+    if fname.exists():
+        starter_cells = pd.read_csv(fname)
+        data = starter_cells[["axis-0", "axis-1"]].values
+    else:
+        data = []
+    mch_points_layer = viewer.add_points(
+        data,
+        face_color="yellow",
+        edge_color="black",
+        edge_width=0.2,
+        name=f"roi_{roi}_{chamber}_{mouse}_mcherry_cells",
+        size=50,
+        opacity=0.8,
+    )
     print("Running napari")
     napari.run()
 
@@ -247,8 +262,9 @@ if __name__ == "__main__":
     project = "becalia_rabies_barseq"
     mouse = "BRAC8498.3e"
     chamber = "chamber_07"
-    roi = 5
+    roi = 8
     data_path = f"{project}/{mouse}/{chamber}"
+    print(data_path)
     ops = iss.io.load_ops(data_path)
     load_roi(
         project,
@@ -257,10 +273,8 @@ if __name__ == "__main__":
         roi,
         add_hyb=False,
         add_genes=False,
-        add_rabies=True,
-        image_to_load=("reference", "mCherry"),
-        barcode_to_plot=(
-            ["TTTTGGACCTTTAT", "CACCATGTAATTAA", "GCAAGTAGACTCCA", "TCTTTTTTGACGCC"]
-        ),
+        add_rabies=False,
+        image_to_load=("mCherry"),
+        barcode_to_plot=(),
     )
     print("Done")
