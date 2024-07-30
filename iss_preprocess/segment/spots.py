@@ -97,7 +97,13 @@ def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None)
         ).astype(int)
     spot_image = np.zeros(output_shape, dtype=dtype)
     spot_image[spots.y.values.astype(int), spots.x.values.astype(int)] = 1
-    return cv2.sepFilter2D(src=spot_image, kernelX=kernel, kernelY=kernel, ddepth=-1)
+    return cv2.sepFilter2D(
+        src=spot_image,
+        kernelX=kernel,
+        kernelY=kernel,
+        ddepth=-1,
+        borderType=cv2.BORDER_ISOLATED,
+    )
 
 
 def convolve_spots(
