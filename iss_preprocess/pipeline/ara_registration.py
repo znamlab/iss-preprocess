@@ -132,6 +132,9 @@ def load_coordinate_image(data_path, roi, full_scale=False):
     coord_file = coord_file[0]
 
     coords = load_stack(str(coord_file))
+    if np.allclose(coords, 0):
+        raise IOError(f"Coordinates image for roi {roi} is empty")
+
     if full_scale:
         metadata = load_registration_reference_metadata(data_path, roi)
         scale_factor = metadata["pixel_size"] / metadata["original_pixel_size"]
