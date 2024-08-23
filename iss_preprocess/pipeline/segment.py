@@ -326,9 +326,7 @@ def get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack=True):
     return img
 
 
-def segment_roi(
-    data_path, iroi, prefix="DAPI_1", reference="genes_round_1_1", use_gpu=False
-):
+def segment_roi(data_path, iroi, prefix="DAPI_1", use_gpu=False):
     """Detect cells in a single ROI using Cellpose.
 
     Much faster with GPU but requires very amount of VRAM for large ROIs.
@@ -337,20 +335,19 @@ def segment_roi(
         data_path (str): Relative path to data.
         iroi (int): ROI ID to segment as specificied in MicroManager (i.e. 1-based).
         prefix (str, optional): Acquisition prefix to use for segmentation. Defaults to "DAPI_1".
-        reference (str, optional): Acquisition prefix to align the stitched image to.
-            Defaults to "genes_round_1_1".
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
 
     """
     print(f"running segmentation on roi {iroi} from {data_path} using {prefix}")
     ops = load_ops(data_path)
-    print(f"stitching {prefix} and aligning to {reference}", flush=True)
+    reference_prefix = ops["reference_prefix"]
+    print(f"stitching {prefix} and aligning to {reference_prefix}", flush=True)
     stitched_stack = stitch_registered(
         data_path,
-        ref_prefix=reference,
+        ref_prefix=reference_prefix,
         prefix=prefix,
         roi=iroi,
-        channels=ops["segmentation_channels"],
+        channels=ops["cellpose_channels"],
     )
     if stitched_stack.ndim == 3:
         stitched_stack = np.nanmean(stitched_stack, axis=-1)
@@ -358,17 +355,17 @@ def segment_roi(
     print("starting segmentation", flush=True)
     masks = cellpose_segmentation(
         stitched_stack[..., 0],
-        channels=ops["segmentation_channels"],
+        channels=ops["cellpose_channels"],
         flow_threshold=ops["cellpose_flow_threshold"],
         min_pix=0,
         dilate_pix=0,
         rescale=ops["cellpose_rescale"],
-        model_type=ops["cellpose_model"],
+        model_type=ops["cellpose_model_type"],
         use_gpu=use_gpu,
     )
     np.save(iss.io.get_processed_path(data_path) / f"masks_{iroi}.npy", masks)
     diagnostics.check_segmentation(
-        data_path, iroi, prefix, reference, stitched_stack, masks
+        data_path, iroi, prefix, reference_prefix, stitched_stack, masks
     )
 
 
