@@ -398,7 +398,7 @@ def overview_single_roi(
     print("   ..... resizing", flush=True)
     stitched_stack = cv2.resize(
         stitched_stack,
-        new_shape[::-1],  # cv2 has (width, height), not (x, y)
+        new_shape[::-1],  # cv2 has (width, height), not (row, col)
         interpolation=cv2.INTER_CUBIC,
     )
 
