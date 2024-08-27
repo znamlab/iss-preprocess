@@ -22,7 +22,7 @@ from ..segment import (
     project_mask,
     get_cell_masks,
 )
-from . import ara_registration as ara_reg
+from . import ara_registration as ara_registration
 from . import diagnostics
 from .stitch import stitch_registered
 
@@ -411,7 +411,7 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=None, atlas_s
     # TODO: add coordinate in tile
 
     if atlas_size is not None:
-        ara_reg.spots_ara_infos(
+        ara_registration.spots_ara_infos(
             data_path,
             spots=cell_df,
             atlas_size=atlas_size,

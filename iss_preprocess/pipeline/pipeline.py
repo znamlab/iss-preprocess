@@ -17,7 +17,7 @@ from ..io import (
     load_ops,
     load_tile_by_coors,
 )
-from . import ara_registration as ara_reg
+from . import ara_registration
 from .hybridisation import load_and_register_hyb_tile
 from .sequencing import load_and_register_sequencing_tile
 
@@ -105,7 +105,8 @@ def project_and_average(data_path, force_redo=False):
     )
     print(f"check_roi_dims job ids: {roi_dim_job_ids}", flush=True)
 
-    # Before proceeding, check all tiles really are projected (slurm randomly fails sometimes)
+    # Before proceeding, check all tiles really are projected (slurm randomly fails
+    # sometimes)
     all_check_proj_job_ids = []
     for prefix in to_process:
         slurm_folder = Path.home() / "slurm_logs" / data_path
@@ -123,8 +124,8 @@ def project_and_average(data_path, force_redo=False):
     all_check_proj_job_ids = all_check_proj_job_ids if all_check_proj_job_ids else None
     print(f"check_projection job ids: {all_check_proj_job_ids}", flush=True)
 
-    # Then run iss.pipeline.reproject_failed() which opens txt files from check projection
-    # and reprojects failed tiles, collecting job_ids for each tile
+    # Then run iss.pipeline.reproject_failed() which opens txt files from check
+    # projection and reprojects failed tiles, collecting job_ids for each tile
     slurm_folder = Path.home() / "slurm_logs" / data_path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     reproj_job_ids = iss.pipeline.reproject_failed(
@@ -704,7 +705,7 @@ def overview_for_ara_registration(
 
     Args:
         data_path (str): Relative path to the data folder
-        prefix (str): Acquisition to use for the overview. `genes_round_1_1` for instance
+        prefix (str): Acquisition to use for the overview e.g. `genes_round_1_1`
         rois_to_do (list, optional): ROIs to process. If None (default), process all
             ROIs
         sigma_blur (float, optional): sigma of the gaussian filter, in downsampled
@@ -723,7 +724,7 @@ def overview_for_ara_registration(
     metadata = load_metadata(data_path)
     if rois_to_do is None:
         rois_to_do = metadata["ROI"].keys()
-    roi_slice_pos_um, min_step = ara_reg.find_roi_position_on_cryostat(
+    roi_slice_pos_um, min_step = ara_registration.find_roi_position_on_cryostat(
         data_path=data_path
     )
     roi2section_order = {
@@ -797,13 +798,14 @@ def setup_channel_correction(data_path, use_slurm=True):
 
 def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
     """Master method to run spot calling. Must be run after `iss estimate-shifts`,
-    `iss estimate-hyb-shifts`, `iss setup-channel-correction`, and `iss create-grand-averages`.
+    `iss estimate-hyb-shifts`, `iss setup-channel-correction`, and `iss
+    create-grand-averages`.
 
     Args:
         data_path (str): Relative path to the data folder
         genes (bool, optional): Run genes spot calling. Defaults to True.
         barcodes (bool, optional): Run barcode calling. Defaults to True.
-        hybridisation (bool, optional): Run hybridisation spot calling. Defaults to True.
+        hybridisation (bool, optional): Run hybridisation spot calling. Defaults to True
 
     """
     if genes:

@@ -11,7 +11,7 @@ from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from natsort import natsorted
 from znamutils import slurm_it
 import iss_preprocess as iss
-from iss_preprocess.pipeline import ara_registration as ara_reg
+from iss_preprocess.pipeline import ara_registration as ara_registration
 from iss_preprocess.pipeline import sequencing
 from iss_preprocess.vis import add_bases_legend, round_to_rgb
 
@@ -264,10 +264,12 @@ def plot_ara_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         from cricksaw_analysis import atlas_utils
     except ImportError:
         raise ImportError("`plot_registration requires `cricksaw_analysis")
-    area_ids = ara_reg.make_area_image(
+    area_ids = ara_registration.make_area_image(
         data_path=data_path, roi=roi, atlas_size=10, full_scale=False
     )
-    reg_metadata = ara_reg.load_registration_reference_metadata(data_path, roi=roi)
+    reg_metadata = ara_registration.load_registration_reference_metadata(
+        data_path, roi=roi
+    )
 
     ops = load_ops(data_path)
     stitched_stack = iss.pipeline.stitch_registered(
