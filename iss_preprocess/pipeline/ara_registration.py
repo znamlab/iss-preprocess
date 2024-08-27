@@ -6,10 +6,16 @@ import cv2
 import numpy as np
 import yaml
 from scipy.ndimage import gaussian_filter
+from skimage.transform import downscale_local_mean
+
+from image_tools.similarity_transforms import transform_image
+from image_tools.registration.phase_correlation import phase_correlation
+from znamutils import slurm_it
 
 from ..io import (
     get_pixel_size,
     get_processed_path,
+    get_roi_dimensions,
     load_metadata,
     load_ops,
     load_section_position,
@@ -99,16 +105,25 @@ def load_registration_reference_metadata(data_path, roi):
     return metadata
 
 
-def load_coordinate_image(data_path, roi, full_scale=False):
+def load_coordinate_image(
+    data_path, roi, full_scale=False, registered=True, return_fname=False
+):
     """Load the 3 channel image of ARA coordinates for `roi`
 
-    TODO: should it go in io?
+    The reference atlas is first registered to a downsampled version of the overview,
+    this is then registered to the normal acquisition. The coordinates of the overview
+    can be loaded with `registered=False`.
 
     Args:
         data_path (str): Relative path to data
         roi (int): Number of the ROI
         full_scale (bool, optional): If true, returns the full scale image, otherwise
             the downsample version used for registration. Defaults to False.
+        registered (bool, optional): If True, load the registered coordinates, otherwise
+            the coordinates of the overview, before shifting/cropping. Defaults to True.
+        return_fname (bool, optional): If True, return the filename of the image.
+            Defaults to False.
+
 
     Returns:
         coords (np.ndarray): 3 channel image of ARA coordinates
@@ -124,7 +139,11 @@ def load_coordinate_image(data_path, roi, full_scale=False):
         raise IOError(
             "ARA coordinates folder does not exists." + " Perform registration first"
         )
-    coord_file = list(coord_folder.glob(f"*_r{roi}_*registered.tif"))  # *Coords.tif
+    if registered:
+        coord_file = list(coord_folder.glob(f"*_r{roi}_*registered.tif"))
+    else:
+        coord_file = list(coord_folder.glob(f"*_r{roi}_*Coords.tif"))
+
     if not len(coord_file):
         raise IOError(f"Cannot find coordinates files for roi {roi}")
     elif len(coord_file) > 1:
@@ -150,6 +169,8 @@ def load_coordinate_image(data_path, roi, full_scale=False):
                 coords[..., i], out_shape[:2][::-1], cv2.INTER_LINEAR
             )
         coords = out
+    if return_fname:
+        return coords, coord_file
     return coords
 
 
@@ -419,3 +440,160 @@ def overview_single_roi(
     )
     with open(logfile, "w") as fhandle:
         yaml.dump(log, fhandle)
+
+
+def crop_overview_registration(data_path, rois=None, overview_prefix="DAPI_1_1"):
+    """Crop the registered overview to the same size as the reference
+
+    Args:
+        data_path (str): Relative path to data
+        rois (list, optional): List of rois to crop. Defaults to None.
+        overview_prefix (str, optional): Prefix of the overview image. Defaults to
+            "DAPI_1_1".
+
+    Returns:
+        imgs (list): List of cropped images
+    """
+
+    if rois is None:
+        rois = get_roi_dimensions(data_path)[:, 0]
+    elif isinstance(rois, int):
+        rois = [rois]
+
+    processed_path = get_processed_path(data_path)
+    imgs = []
+    for roi in rois:
+        shifts = np.load(
+            processed_path / "reg" / f"{overview_prefix}_roi{roi}_tform_to_ref.npz"
+        )
+
+        # account for downsampling
+        metadata = load_registration_reference_metadata(data_path, roi)
+        ara_downsample_rate = metadata["downsample_ratio"]
+        shifts = shifts["shift"] / ara_downsample_rate
+        ara_im, ara_coord_file = load_coordinate_image(
+            data_path, roi, full_scale=False, registered=False, return_fname=True
+        )
+
+        # Do the shift
+        target_shifted = transform_image(ara_im, scale=1, angle=0, shift=shifts)
+
+        # Crop to the same size as the reference
+        ops = load_ops(data_path)
+        corners = stitch.get_tile_corners(
+            data_path, prefix=ops["reference_prefix"], roi=roi
+        )
+        top_right_corner = np.nanmax(corners, axis=(0, 1, 3)) / ara_downsample_rate
+        top_right_corner = np.round(top_right_corner).astype(int) + 1
+        cropped_image = target_shifted[: top_right_corner[0], : top_right_corner[1]]
+
+        # save the cropped image
+        new_name = ara_coord_file.name.replace("Coords", "registered")
+        target = ara_coord_file.with_name(new_name)
+        write_stack(cropped_image, target, dtype="float32", clip=False)
+        print(f"Saved {target}")
+        imgs.append(cropped_image)
+    return imgs
+
+
+@slurm_it(conda_env="iss-preprocess", slurm_options={"mem": "32GB"})
+def register_overview_to_reference(
+    data_path, roi, channel, downsample=3, overview_prefix="DAPI_1_1"
+):
+    """Register the overview to the reference image
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): Number of the ROI
+        channel (int, optional): Channel to use for registration. Defaults to None.
+        downsample (int, optional): Downsample factor. Defaults to 3.
+        overview_prefix (str, optional): Prefix of the overview image. Defaults to
+            "DAPI_1_1".
+
+    Returns:
+        shift (np.ndarray): Shift in x and y
+        final_shape (tuple): Final shape of the stitched images
+        stitched_fixed (np.ndarray): Stitched reference image
+        stitched_moving (np.ndarray): Stitched overview image
+    """
+    print(f"Registering overview to reference for roi {roi} for {data_path}")
+    print("")
+    print(f"Using channel {channel}")
+    print(f"Downsample factor: {downsample}")
+    print(f"Overview prefix: {overview_prefix}")
+    print("")
+
+    downsample = int(downsample)
+    ops = load_ops(data_path)
+    reference_prefix = ops["reference_prefix"]
+    projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
+    if channel is None:
+        channel = ops["ref_ch"]
+
+    # Stitched both the reference and the overview
+    stitched_fixed = stitch.stitch_tiles(
+        data_path,
+        reference_prefix,
+        suffix=projection,
+        roi=roi,
+        ich=channel,
+        shifts_prefix=reference_prefix,
+        correct_illumination=True,
+        allow_quick_estimate=False,
+    ).astype(
+        np.single
+    )  # to save memory
+    stitched_moving = stitch.stitch_tiles(
+        data_path,
+        prefix=overview_prefix,
+        suffix=projection,
+        roi=roi,
+        ich=channel,
+        shifts_prefix=reference_prefix,
+        correct_illumination=True,
+        register_channels=False,
+        allow_quick_estimate=False,
+    ).astype(np.single)
+
+    shapes = np.vstack([stitched_fixed.shape, stitched_moving.shape])
+    final_shape = shapes.max(axis=0)
+    paddings = final_shape - shapes
+    stitched_fixed = np.pad(stitched_fixed, [(0, p) for p in paddings[0]])
+    stitched_moving = np.pad(stitched_moving, [(0, p) for p in paddings[1]])
+    print(f"Shapes: {shapes}")
+    print(f"Final shape: {final_shape}")
+    print(f"Paddings: {paddings}")
+
+    def prep_stack(stack, downsample):
+        if stack.dtype != bool:
+            ma = np.nanpercentile(stack, 99)
+            stack = np.clip(stack, 0, ma)
+            stack = stack / ma
+        # downsample
+        if downsample > 1:
+            stack = downscale_local_mean(stack, downsample)
+        return stack
+
+    shift, _, _, _ = phase_correlation(
+        max_shift=None,
+        min_shift=None,
+        fixed_image=prep_stack(stitched_fixed, downsample),
+        moving_image=prep_stack(stitched_moving, downsample),
+    )
+
+    scale = 1
+    angle = 0
+    if downsample > 0:
+        shift *= downsample
+    print(f"Shift: {shift}")
+    fname = f"{overview_prefix}_roi{roi}_tform_to_ref.npz"
+    print(f"Saving {fname} in the reg folder")
+    np.savez(
+        get_processed_path(data_path) / "reg" / fname,
+        angle=angle,
+        shift=shift,
+        scale=scale,
+        stitched_stack_shape=final_shape,
+    )
+    print(f"DONE")
+    return shift, final_shape, stitched_fixed, stitched_moving
