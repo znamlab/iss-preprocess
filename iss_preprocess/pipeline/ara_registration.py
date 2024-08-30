@@ -105,6 +105,32 @@ def load_registration_reference_metadata(data_path, roi):
     return metadata
 
 
+def load_registration_reference(data_path, roi):
+    """Load the registration reference image of one ROI
+
+    This is the downsampled version of the overview image used for registration.
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): Number of the ROI
+
+    Returns:
+        ref (np.ndarray): Registration reference image
+
+    """
+    processed_path = get_processed_path(data_path)
+    reg_folder = processed_path / "register_to_ara"
+    chamber = reg_folder.parent.name
+    if not reg_folder.is_dir():
+        raise IOError("Registration folder does not exists. Perform registration first")
+    img_file = list(reg_folder.glob(f"{chamber}_r{roi}_sl*.tif"))
+    if not len(img_file):
+        raise IOError(f"No file found for ROI {roi}")
+    elif len(img_file) > 1:
+        raise IOError(f"Found multiple files for ROI {roi}")
+    return load_stack(str(img_file[0]))
+
+
 def load_coordinate_image(
     data_path, roi, full_scale=False, registered=True, return_fname=False
 ):
@@ -174,7 +200,9 @@ def load_coordinate_image(
     return coords
 
 
-def make_area_image(data_path, roi, atlas_size=10, full_scale=False, reload=True):
+def make_area_image(
+    data_path, roi, atlas_size=10, full_scale=False, reload=True, registered=True
+):
     """Generate an image with area ID in each pixel
 
     Args:
@@ -186,6 +214,8 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False, reload=True
             the downsample version used for registration. Defaults to False.
         reload (bool, optional): If True, reload the area image, otherwise recompute it.
             Valid only if full_scale is False. Defaults to True.
+        registered (bool, optional): If True, load the registered coordinates, otherwise
+            the coordinates of the overview, before shifting/cropping. Defaults to True.
 
     Returns:
         area_id (np.array): Image with area id of each pixel
@@ -194,24 +224,31 @@ def make_area_image(data_path, roi, atlas_size=10, full_scale=False, reload=True
     if full_scale and reload:
         warn("Cannot reload full scale area image. Setting reload to False")
         reload = False
+    if not registered and reload:
+        warn("Cannot reload non-registered area image. Setting reload to False")
+        reload = False
     save_folder = get_processed_path(data_path) / "register_to_ara" / "area_images"
     fname = save_folder / f"area_image_r{roi}_ara{atlas_size}.tif"
     if reload:
         if fname.is_file():
-            area_id = load_stack(str(fname))
+            area_id = load_stack(str(fname))[..., 0]
             return area_id
 
     coord = np.clip(
-        load_coordinate_image(data_path, roi, full_scale=full_scale), 0, None
+        load_coordinate_image(
+            data_path, roi, full_scale=full_scale, registered=registered
+        ),
+        0,
+        None,
     )
     coord = np.round(coord * 1000 / atlas_size, 0).astype("uint16")
 
     atlas_name = "allen_mouse_%dum" % atlas_size
     bg_atlas = bga.bg_atlas.BrainGlobeAtlas(atlas_name)
-    for channel, max_val in enumerate(bg_atlas.shape):
-        coord[:, :, channel] = np.clip(coord[:, :, channel], 0, max_val - 1)
+    for axis, max_val in enumerate(bg_atlas.shape):
+        coord[:, :, axis] = np.clip(coord[:, :, axis], 0, max_val - 1)
     area_id = bg_atlas.annotation[coord[:, :, 0], coord[:, :, 1], coord[:, :, 2]]
-    if not full_scale:
+    if (not full_scale) and registered:
         save_folder.mkdir(exist_ok=True)
         write_stack(area_id, str(fname), bigtiff=True, dtype=area_id.dtype)
 
@@ -497,15 +534,13 @@ def crop_overview_registration(data_path, rois=None, overview_prefix="DAPI_1_1")
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"mem": "32GB"})
-def register_overview_to_reference(
-    data_path, roi, channel, downsample=3, overview_prefix="DAPI_1_1"
-):
+def register_overview_to_reference(data_path, roi, channel, overview_prefix="DAPI_1_1"):
     """Register the overview to the reference image
 
     Args:
         data_path (str): Relative path to data
         roi (int): Number of the ROI
-        channel (int, optional): Channel to use for registration. Defaults to None.
+        channel (int): Channel to use for registration.
         downsample (int, optional): Downsample factor. Defaults to 3.
         overview_prefix (str, optional): Prefix of the overview image. Defaults to
             "DAPI_1_1".
@@ -519,18 +554,19 @@ def register_overview_to_reference(
     print(f"Registering overview to reference for roi {roi} for {data_path}")
     print("")
     print(f"Using channel {channel}")
-    print(f"Downsample factor: {downsample}")
     print(f"Overview prefix: {overview_prefix}")
     print("")
 
-    downsample = int(downsample)
     ops = load_ops(data_path)
     reference_prefix = ops["reference_prefix"]
     projection = ops[f"{reference_prefix.split('_')[0].lower()}_projection"]
     if channel is None:
         channel = ops["ref_ch"]
 
-    # Stitched both the reference and the overview
+    # for the overview, use the version that was used for the manual registration
+    stitched_moving = load_registration_reference(data_path, roi)[..., 0]
+
+    # Stitched reference image
     stitched_fixed = stitch.stitch_tiles(
         data_path,
         reference_prefix,
@@ -543,49 +579,48 @@ def register_overview_to_reference(
     ).astype(
         np.single
     )  # to save memory
-    stitched_moving = stitch.stitch_tiles(
-        data_path,
-        prefix=overview_prefix,
-        suffix=projection,
-        roi=roi,
-        ich=channel,
-        shifts_prefix=reference_prefix,
-        correct_illumination=True,
-        register_channels=False,
-        allow_quick_estimate=False,
-    ).astype(np.single)
+    # downsample to match the version used for the manual registration
+    metadata = load_registration_reference_metadata(data_path, roi)
+    ara_downsample_ratio = metadata["downsample_ratio"]
+    print(f"Downsample ratio: {ara_downsample_ratio}")
+    stitched_fixed = downscale_local_mean(stitched_fixed, ara_downsample_ratio)
 
     shapes = np.vstack([stitched_fixed.shape, stitched_moving.shape])
     final_shape = shapes.max(axis=0)
     paddings = final_shape - shapes
-    stitched_fixed = np.pad(stitched_fixed, [(0, p) for p in paddings[0]])
-    stitched_moving = np.pad(stitched_moving, [(0, p) for p in paddings[1]])
+    if paddings[1].sum() > 0:
+        raise NotImplementedError("Paddings in the moving image. Check shift")
+    stitched_fixed = np.pad(
+        stitched_fixed, [(p // 2, p // 2 + p % 2) for p in paddings[0]]
+    )
+    stitched_moving = np.pad(
+        stitched_moving, [(p // 2, p // 2 + p % 2) for p in paddings[1]]
+    )
     print(f"Shapes: {shapes}")
     print(f"Final shape: {final_shape}")
     print(f"Paddings: {paddings}")
 
-    def prep_stack(stack, downsample):
+    def prep_stack(stack):
         if stack.dtype != bool:
-            ma = np.nanpercentile(stack, 99)
-            stack = np.clip(stack, 0, ma)
-            stack = stack / ma
-        # downsample
-        if downsample > 1:
-            stack = downscale_local_mean(stack, downsample)
+            mi, ma = np.nanpercentile(stack[stack > 0], (1, 99))
+            stack = np.clip(stack, mi, ma)
+            stack = (stack - mi) / (ma - mi)
         return stack
 
     shift, _, _, _ = phase_correlation(
         max_shift=None,
         min_shift=None,
-        fixed_image=prep_stack(stitched_fixed, downsample),
-        moving_image=prep_stack(stitched_moving, downsample),
+        fixed_image=prep_stack(stitched_fixed),
+        moving_image=prep_stack(stitched_moving),
     )
-
+    print(f"Downsampled shift: {shift}")
+    # remove whatever padding was added to the fixed image
+    shift -= paddings[0] // 2
+    print(f"Padding corrected shifts: {shift}")
     scale = 1
     angle = 0
-    if downsample > 0:
-        shift *= downsample
-    print(f"Shift: {shift}")
+    shift *= ara_downsample_ratio
+    print(f"Final shift: {shift}")
     fname = f"{overview_prefix}_roi{roi}_tform_to_ref.npz"
     print(f"Saving {fname} in the reg folder")
     np.savez(
@@ -597,3 +632,49 @@ def register_overview_to_reference(
     )
     print(f"DONE")
     return shift, final_shape, stitched_fixed, stitched_moving
+
+
+@slurm_it(conda_env="iss-preprocess", slurm_options={"time": "3:00:00", "mem": "16GB"})
+def check_reg(data_path, save_folder, rois=None):
+    import matplotlib.pyplot as plt
+
+    if rois is None:
+        rois = get_roi_dimensions(data_path)[:, 0]
+    elif isinstance(rois, int):
+        rois = [rois]
+
+    fig = plt.figure(figsize=(10, 7))
+    crop_overview_registration(data_path, rois=None, overview_prefix="DAPI_1_1")
+    ops = load_ops(data_path)
+    nrows = 2 if len(rois) > 5 else 1
+    ncols = len(rois) // 2
+    for roi in rois:
+        metadata = load_registration_reference_metadata(data_path, roi)
+        ara_downsample_rate = metadata["downsample_ratio"]
+
+        print(f"roi {roi}")
+        ax = fig.add_subplot(nrows, ncols, roi)
+        anchor_ref = stitch.stitch_registered(
+            data_path,
+            prefix=ops["reference_prefix"],
+            roi=roi,
+            channels=[3],
+        )
+        anchor_ref = downscale_local_mean(anchor_ref[..., 0], ara_downsample_rate)
+        vm = np.nanpercentile(anchor_ref, 99)
+        ax.imshow(anchor_ref, cmap="gray", vmin=0, vmax=vm)
+        ax.set_title(f"roi {roi}")
+        area_img = make_area_image(
+            data_path, roi, atlas_size=10, full_scale=False, reload=False
+        )
+        area_img = area_img.astype(float)
+        area_img[area_img == 0] = np.nan
+        ax.imshow(area_img % 20, cmap="tab20", alpha=0.5)
+        bin = area_img > 0
+        ax.contour(bin, colors="purple", levels=[0.5], linewidths=1, alpha=0.2)
+        ax.axis("off")
+    fig.tight_layout()
+    save_folder = Path(save_folder)
+    save_folder.mkdir(exist_ok=True)
+    chamber = Path(data_path).name
+    fig.savefig(save_folder / f"{chamber}_overview_registration.png")
