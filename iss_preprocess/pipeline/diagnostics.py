@@ -644,19 +644,28 @@ def check_barcode_calling(data_path):
 
 
 @slurm_it(conda_env="iss-preprocess")
-def check_barcode_basecall(data_path, tile_coords=None):
+def check_barcode_basecall(
+    data_path, tile_coords=None, center=None, window=200, show_scores=True, savefig=True
+):
     """Check that the basecall is correct
+
+    Plots the basecall for a tile, with the raw data, the basecall, and the scores
 
     Args:
         path (str): Path to data folder
         tile_coords (list, optional): Tile coordinates to use. Defaults to None.
+        center (list, optional): Center of the tile to use. Defaults to None.
+        window (int, optional): Half size of the window to show in the figures.
+            Defaults to 200.
+        savefig (bool, optional): Save the figure. Defaults to True.
 
     Returns:
         plt.Figure: Figure(s) with the basecall
     """
     processed_path = iss.io.get_processed_path(data_path)
     figure_folder = processed_path / "figures" / "barcode_round"
-    figure_folder.mkdir(exist_ok=True)
+    if savefig:
+        figure_folder.mkdir(exist_ok=True)
 
     # get one of the reference tiles
     ops = iss.io.load_ops(data_path)
@@ -678,35 +687,40 @@ def check_barcode_basecall(data_path, tile_coords=None):
         data_path, tile_coords, save_spots=False
     )
 
-    # Find the place with the highest density of spots
-    x, y = spots["x"].values, spots["y"].values
-    # Create a grid of potential disk centers
-    window = 200
-    x_grid, y_grid = np.meshgrid(
-        np.arange(window, stack.shape[1] - window, 50),
-        np.arange(window, stack.shape[0] - window, 50),
-    )
-    # Compute the Euclidean distance from each spot to each potential center
-    distances = np.sqrt(
-        (x[:, None, None] - x_grid) ** 2 + (y[:, None, None] - y_grid) ** 2
-    )
-    # Count the number of spots within a 200px radius for each potential center
-    counts = np.sum(distances <= 100, axis=0)
-    center = np.unravel_index(counts.argmax(), counts.shape)
-    center = (x_grid[center], y_grid[center])
+    if center is None:
+        # Find the place with the highest density of spots
+        x, y = spots["x"].values, spots["y"].values
+        # Create a grid of potential disk centers
 
+        x_grid, y_grid = np.meshgrid(
+            np.arange(window, stack.shape[1] - window, 50),
+            np.arange(window, stack.shape[0] - window, 50),
+        )
+        # Compute the Euclidean distance from each spot to each potential center
+        distances = np.sqrt(
+            (x[:, None, None] - x_grid) ** 2 + (y[:, None, None] - y_grid) ** 2
+        )
+        # Count the number of spots within a 200px radius for each potential center
+        counts = np.sum(distances <= 100, axis=0)
+
+        center = np.unravel_index(counts.argmax(), counts.shape)
+        center = (x_grid[center], y_grid[center])
+
+    center = np.array(center)
+
+    lims = np.vstack([center - window, center + window]).astype(int)
+    lims = np.clip(lims, 0, np.array(stack.shape[:2]) - 1)
     nr = ops["barcode_rounds"]
-    stack_part = stack[
-        center[1] - window : center[1] + window, center[0] - window : center[0] + window
-    ]
+    stack_part = stack[lims[0, 0] : lims[1, 0], lims[0, 1] : lims[1, 1], :]
     valid_spots = spots[
-        (spots.x > center[0] - window)
-        & (spots.x < center[0] + window)
-        & (spots.y > center[1] - window)
-        & (spots.y < center[1] + window)
+        (spots.x > lims[0, 0])
+        & (spots.x < lims[1, 0])
+        & (spots.y > lims[0, 1])
+        & (spots.y < lims[1, 1])
     ]
 
     # Do the plot
+    ncol = 3 if show_scores else 2
     fig = plt.figure(figsize=(3 * nr, 10))
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
     axes = []
@@ -715,7 +729,7 @@ def check_barcode_basecall(data_path, tile_coords=None):
             stack_part, iround, extent=None, channel_colors=channel_colors
         )
         # plot raw fluo
-        ax = fig.add_subplot(3, nr, iround + 1)
+        ax = fig.add_subplot(ncol, nr, iround + 1)
         axes.append(ax)
         ax.imshow(rgb_stack)
         ax.set_title(f"Round {iround}")
@@ -723,32 +737,33 @@ def check_barcode_basecall(data_path, tile_coords=None):
             iss.vis.add_bases_legend(channel_colors, ax.transAxes, fontsize=14)
 
         # plot basecall, a letter per spot
-        ax = fig.add_subplot(3, nr, nr + iround + 1)
+        ax = fig.add_subplot(ncol, nr, nr + iround + 1)
         axes.append(ax)
         spots_in_frame = valid_spots.copy()
         spots_in_frame["x"] -= center[0] - window
         spots_in_frame["y"] -= center[1] - window
         vis.plot_spot_called_base(spots_in_frame, ax, iround)
 
-    # plot spot scores
-    scores = ["dot_product_score", "spot_score", "mean_score", "mean_intensity"]
-    empty = np.zeros(stack_part.shape[:2]) + np.nan
-    cmap = plt.cm.viridis
-    cmap.set_bad("black")
+    if show_scores:
+        # plot spot scores
+        scores = ["dot_product_score", "spot_score", "mean_score", "mean_intensity"]
+        empty = np.zeros(stack_part.shape[:2]) + np.nan
+        cmap = plt.cm.viridis
+        cmap.set_bad("black")
 
-    for isc, score in enumerate(scores):
-        ax = fig.add_subplot(3, len(scores), 2 * len(scores) + isc + 1)
-        axes.append(ax)
-        sc = ax.scatter(
-            valid_spots.x - (center[0] - window),
-            valid_spots.y - (center[1] - window),
-            c=valid_spots[score],
-            s=5,
-        )
-        cax, cb = iss.vis.plot_matrix_with_colorbar(empty, ax, cmap=cmap)
-        cax.clear()
-        cb = fig.colorbar(sc, cax=cax)
-        cb.set_label(score.replace("_", " "))
+        for isc, score in enumerate(scores):
+            ax = fig.add_subplot(3, len(scores), 2 * len(scores) + isc + 1)
+            axes.append(ax)
+            sc = ax.scatter(
+                valid_spots.x - (center[0] - window),
+                valid_spots.y - (center[1] - window),
+                c=valid_spots[score],
+                s=5,
+            )
+            cax, cb = iss.vis.plot_matrix_with_colorbar(empty, ax, cmap=cmap)
+            cax.clear()
+            cb = fig.colorbar(sc, cax=cax)
+            cb.set_label(score.replace("_", " "))
 
     for ax in axes:
         ax.set_aspect("equal")
@@ -761,7 +776,8 @@ def check_barcode_basecall(data_path, tile_coords=None):
         left=1e-3, right=0.99, bottom=0.01, top=0.98, wspace=0.05, hspace=0.05
     )
     tc = "_".join([str(x) for x in tile_coords])
-    fig.savefig(figure_folder / f"barcode_basecall_example_tile_{tc}.png")
+    if savefig:
+        fig.savefig(figure_folder / f"barcode_basecall_example_tile_{tc}.png")
     return fig
 
 
