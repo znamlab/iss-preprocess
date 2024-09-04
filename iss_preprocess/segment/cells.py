@@ -6,7 +6,9 @@ from scipy.ndimage import binary_erosion, binary_dilation
 import iss_preprocess as iss
 
 
-def get_cell_masks(data_path, roi, projection="corrected", mask_expansion=None):
+def get_cell_masks(
+    data_path, roi, projection="corrected", mask_expansion=None, reload=True
+):
     """Small wrapper to get cell masks from a given data path.
 
     Wrap to ensure we use the same projection for all calls
@@ -17,6 +19,7 @@ def get_cell_masks(data_path, roi, projection="corrected", mask_expansion=None):
         projection (str, optional): Projection to use. Defaults to "corrected".
         mask_expansion (int, optional): Expansion of the mask. If None, reads from ops.
             Defaults to None.
+        reload (bool, optional): If True, reload the masks. Defaults to True.
 
     Returns:
         np.ndarray: Cell masks
@@ -26,14 +29,21 @@ def get_cell_masks(data_path, roi, projection="corrected", mask_expansion=None):
         mask_expansion = ops["mask_expansion"]
 
     seg_prefix = f"{ops['segmentation_prefix']}_masks"
-    masks = iss.pipeline.stitch_registered(
-        data_path,
-        prefix=seg_prefix,
-        roi=roi,
-        projection=projection,
-    )[..., 0]
-    if mask_expansion > 0:
-        masks = iss.pipeline.segment.get_big_masks(data_path, masks, mask_expansion)
+    target = f"{data_path}/cells/{seg_prefix}_{roi}_{mask_expansion}.tif"
+    target = iss.io.get_processed_path(target)
+
+    if not reload and target.exists():
+        masks = iss.io.load_stack(target)[..., 0]
+    else:
+        masks = iss.pipeline.stitch_registered(
+            data_path,
+            prefix=seg_prefix,
+            roi=roi,
+            projection=projection,
+        )[..., 0]
+        if mask_expansion > 0:
+            masks = iss.pipeline.segment.get_big_masks(data_path, masks, mask_expansion)
+        iss.io.write_stack(masks, target, dtype=masks.dtype)
     return masks
 
 
