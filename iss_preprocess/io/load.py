@@ -178,6 +178,7 @@ def load_metadata(data_path):
     if not process_fname.exists():
         raw_fname = get_raw_path(data_path) / (Path(data_path).name + "_metadata.yml")
         if raw_fname.exists():
+            process_fname.parent.mkdir(parents=True, exist_ok=True)
             print("Metadata not found in processed data, copying from raw data")
             shutil.copy(raw_fname, process_fname)
         else:
