@@ -314,11 +314,18 @@ def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=
     fname = iss.io.get_raw_filename(data_path, prefix, tile_coors)
     tile_path = str(Path(data_path) / prefix / fname)
 
-    stack = iss.io.load.get_tile_ome(
-        iss.io.get_raw_path(tile_path + ".ome.tif"),
-        None,
-        use_indexmap=True,
-    )
+    fmetadata = iss.io.get_raw_path(tile_path + "_metadata.txt")
+    if fmetadata.exists():
+        stack = iss.io.load.get_tile_ome(
+            iss.io.get_raw_path(tile_path + ".ome.tif"),
+            fmetadata,
+        )
+    else:
+        stack = iss.io.load.get_tile_ome(
+            iss.io.get_raw_path(tile_path + ".ome.tif"),
+            None,
+            use_indexmap=True,
+        )
     stack = iss.image.correction.apply_illumination_correction(data_path, stack, prefix)
     c_stack = np.zeros_like(stack)
     for z in np.arange(stack.shape[-1]):
