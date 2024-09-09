@@ -120,29 +120,31 @@ def load_roi(
                 size=10,
             )
 
-    # add rabies mask
-    print("Adding rabies masks")
-    for mask in masks_to_load:
-        rab_mask = imread(manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_mask.tif")
-        if rab_mask.ndim == 3:
-            rab_mask = rab_mask[..., 0]
-        # Define the colormap as dict
-        cmap_label = {
-            0: np.array([0.0, 0.0, 0.0, 0.0]),
-            None: np.array([1.0, 0.0, 0.0, 1.0]),
-        }
-        colors = mpl.colormaps["tab20"].colors
-        for i, c in enumerate(colors):
-            cmap_label[i + 1] = np.array([*c, 1])
-        data = (rab_mask % 20).astype(int) + 1
-        data[rab_mask == 0] = 0
-        viewer.add_labels(
-            data=data.astype("uint8"),
-            name=mask.replace("_", " "),
-            colormap=napari.utils.DirectLabelColormap(color_dict=cmap_label),
-        )
-    # add rabies spots
     if add_rabies:
+        # add rabies mask
+        print("Adding rabies masks")
+        for mask in masks_to_load:
+            rab_mask = imread(
+                manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_mask.tif"
+            )
+            if rab_mask.ndim == 3:
+                rab_mask = rab_mask[..., 0]
+            # Define the colormap as dict
+            cmap_label = {
+                0: np.array([0.0, 0.0, 0.0, 0.0]),
+                None: np.array([1.0, 0.0, 0.0, 1.0]),
+            }
+            colors = mpl.colormaps["tab20"].colors
+            for i, c in enumerate(colors):
+                cmap_label[i + 1] = np.array([*c, 1])
+            data = (rab_mask % 20).astype(int) + 1
+            data[rab_mask == 0] = 0
+            viewer.add_labels(
+                data=data.astype("uint8"),
+                name=mask.replace("_", " "),
+                colormap=napari.utils.DirectLabelColormap(color_dict=cmap_label),
+            )
+        # add rabies spots
         print("Adding rabies spots")
         non_ass = np.load(
             manual_folder / f"{mouse}_{chamber}_{roi}_rabies_spots_unassigned.npy",
@@ -261,8 +263,8 @@ def load_roi(
 if __name__ == "__main__":
     project = "becalia_rabies_barseq"
     mouse = "BRAC8498.3e"
-    chamber = "chamber_07"
-    roi = 8
+    chamber = "chamber_08"
+    roi = 9
     data_path = f"{project}/{mouse}/{chamber}"
     print(data_path)
     ops = iss.io.load_ops(data_path)
