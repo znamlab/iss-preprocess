@@ -201,7 +201,7 @@ def plot_affine_debug_images(debug_info, fig=None):
     return fig
 
 
-def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
+def adjacent_tiles_registration(data_path, prefix, roi, shifts, max_delta_shift=None):
     """Save figure of tile registration for within acquisition stitching
 
     see pipeline.stitch.register_within_acquisition for usage.
@@ -209,24 +209,34 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
     Args:
         data_path (str): Relative path to data
         prefix (str): Prefix of acquisition
-        saved_shifts (np.array): vector of shifts right and shifts down concatenated
-        bytile_shifts (np.array): (tilex x tiley x 4) vector of shifts per tile
+        roi (int): ROI number
+        shifts (np.array): (tilex x tiley x 4) vector of shifts per tile
+        max_shift (int): Maximum shift to plot
+
+    Returns:
+        plt.Figure: Figure instance
     """
     fig, axes = plt.subplots(2, 4)
     fig.set_size_inches(9, 3)
     labels = ["shift right x", "shift right y", "shift down x", "shift down y"]
     for i in range(4):
+        med_shift = np.nanmedian(shifts[..., i])
+        rel_shift = shifts[..., i] - med_shift
         ax = axes.flatten()[i]
         img = ax.imshow(
-            bytile_shifts[..., i].T,
-            vmin=saved_shifts[i] - 10,
-            vmax=saved_shifts[i] + 10,
+            shifts[..., i].T,
+            vmin=med_shift - 10,
+            vmax=med_shift + 10,
         )
+        if max_delta_shift is not None:
+            bad_tiles = rel_shift > max_delta_shift
+            ax.contour(bad_tiles.T, levels=[0.5], colors="red")
         ax.set_title(labels[i])
         plt.colorbar(img, ax=ax)
         ax = axes.flatten()[i + 4]
+
         img = ax.imshow(
-            bytile_shifts[..., i].T - saved_shifts[i], vmin=-5, vmax=5, cmap="RdBu_r"
+            rel_shift.T, vmin=-max_delta_shift, vmax=max_delta_shift, cmap="RdBu_r"
         )
         ax.set_title(rf"$\Delta$ {labels[i]}")
         plt.colorbar(img, ax=ax)
@@ -236,10 +246,10 @@ def adjacent_tiles_registration(data_path, prefix, saved_shifts, bytile_shifts):
         iss.io.get_processed_path(data_path)
         / "figures"
         / "registration"
-        / f"adjacent_tile_reg_{prefix}.png"
+        / prefix
+        / f"adjacent_tile_reg_{prefix}_roi{roi}.png"
     )
-    if not fig_file.parent.exists():
-        fig_file.parent.mkdir()
+    fig_file.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(fig_file, dpi=300)
     print(f"Saving {fig_file}")
     return fig
