@@ -1,27 +1,33 @@
 import warnings
 from pathlib import Path
-from skimage.transform import AffineTransform, warp
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+import yaml
 from image_tools.registration import phase_correlation as mpc
 from image_tools.similarity_transforms import make_transform, transform_image
 from scipy.ndimage import median_filter, binary_erosion
 from skimage.morphology import disk
-from skimage.registration import phase_cross_correlation
+from skimage.transform import AffineTransform, warp
 from skimage import transform
 from znamutils import slurm_it
 
 import iss_preprocess as iss
 
-from .. import vis
-from ..image.correction import apply_illumination_correction
-from ..io import get_roi_dimensions, load_ops, load_stack, load_tile_by_coors
-from ..reg import (
+from iss_preprocess import vis
+from iss_preprocess.image.correction import apply_illumination_correction
+from iss_preprocess.io import (
+    get_roi_dimensions,
+    load_ops,
+    load_stack,
+    load_tile_by_coors,
+)
+from iss_preprocess.reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
 )
-from . import pipeline
-from .register import align_spots
+from iss_preprocess import pipeline
+from iss_preprocess.pipeline.register import align_spots
 
 
 def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection=None):
@@ -388,11 +394,13 @@ def get_tile_corners(data_path, prefix, roi):
         # always use round 1
         prefix = f"{prefix}_1"
     shifts = np.load(
-        iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
+        iss.io.get_processed_path(data_path) / "reg"/ f"{prefix}_shifts.npz"
     )
+
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles
     )
+
     corners = np.stack(
         [
             tile_origins + np.array(c_pos) * shifts["tile_shape"]
@@ -668,6 +676,9 @@ def merge_roi_spots(
         for iy in range(ntiles[1]):
             try:
                 spots = align_spots(data_path, tile_coors=(iroi, ix, iy), prefix=prefix)
+                spots["x_tile"] = spots["x"].copy()
+                spots["y_tile"] = spots["y"].copy()
+                spots["tile"] = f"{iroi}_{ix}_{iy}"
                 spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
                 spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
 
@@ -976,3 +987,76 @@ def merge_and_align_spots_all_rois(
             scripts_name=f"iss_align_spots_{spots_prefix}_{roi}",
             job_dependency=dependency,
         )
+
+
+def find_tile_order(
+    data_path, prefix=None, xy_stage_name="XYStage", z_stage_name="ZDrive", verbose=True
+):
+    """Find the order of tiles in a multi-tile acquisition
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str, optional): Acquisition prefix. If None, will use the one in ops.
+            Defaults to None.
+        xy_stage_name (str, optional): Name of the XY stage. Defaults to "XYStage".
+        z_stage_name (str, optional): Name of the Z stage. If None, will not load Z
+            positions. Defaults to "ZDrive".
+        verbose (bool, optional): Print information about the number of tiles found.
+            Defaults to True.
+
+    Returns:
+        dict: Dictionary of tile order with tuple (roi, col, row) as key and acquisition
+            order (across all ROIs) as value.
+        pandas.DataFrame: DataFrame containing tile position information.
+    """
+    ops = load_ops(data_path)
+    if prefix is None:
+        prefix = ops["reference_prefix"]
+
+    # look for position file
+    pos_files = list(iss.io.get_raw_path(data_path).glob("*.pos"))
+    pos_files = [f for f in pos_files if prefix in f.stem]
+
+    if len(pos_files) == 0:
+        raise FileNotFoundError(f"No position file found for {prefix}")
+    elif len(pos_files) > 1:
+        warnings.warn(f"Found multiple position files for {prefix}.")
+        warnings.warn(f"Using the first one: {pos_files[0]}.")
+
+    pos_file = pos_files[0]
+    pos_infos = yaml.safe_load(pos_file.read_text())
+    positions = pos_infos["map"]["StagePositions"]["array"]
+    tile_name = [pos["Label"]["scalar"] for pos in positions]
+    roi = [int(p.split("-")[0]) for p in tile_name]
+    if verbose:
+        print(f"Found {len(positions)} positions for {len(np.unique(roi))} rois")
+
+    rows = [pos["GridRow"]["scalar"] for pos in positions]
+    cols = [pos["GridCol"]["scalar"] for pos in positions]
+    x_pos = np.zeros(len(positions)) + np.nan
+    y_pos = np.zeros(len(positions)) + np.nan
+    z_pos = np.zeros(len(positions)) + np.nan
+    for ipos, pos in enumerate(positions):
+        device_pos = pos["DevicePositions"]["array"]
+        for p in device_pos:
+            if p["Device"]["scalar"] == xy_stage_name:
+                stage_pos = p["Position_um"]
+                x_pos[ipos], y_pos[ipos] = stage_pos["array"]
+            if (z_stage_name is not None) and (p["Device"]["scalar"] == z_stage_name):
+                z = p["Position_um"]["array"]
+                assert len(z) == 1, "Z stage position should be a single value"
+                z_pos[ipos] = z[0]
+
+    out_df = pd.DataFrame(
+        dict(row=rows, col=cols, x=x_pos, y=y_pos, roi=roi, tile_name=tile_name)
+    )
+    if z_stage_name is not None:
+        out_df["z"] = z_pos
+
+    tile_order = {}
+    for irow, row in out_df.iterrows():
+        tile = (row["roi"], row["col"], row["row"])
+        assert tile not in tile_order, f"Tile {tile} already found"
+        tile_order[tile] = irow
+
+    return tile_order, out_df
