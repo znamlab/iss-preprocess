@@ -6,7 +6,7 @@ from tqdm import tqdm
 import yaml
 from image_tools.registration import phase_correlation as mpc
 from image_tools.similarity_transforms import make_transform, transform_image
-from scipy.ndimage import median_filter, binary_erosion
+from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from skimage.transform import AffineTransform, warp
 from skimage import transform
@@ -285,6 +285,8 @@ def register_adjacent_tiles(
     suffix="max",
     prefix="genes_round_1_1",
     correct_illumination=False,
+    verbose=True,
+    debug=False,
 ):
     """Estimate shift between adjacent imaging tiles using phase correlation.
 
@@ -301,6 +303,10 @@ def register_adjacent_tiles(
         prefix (str, optional): Full name of the acquisition folder
         correct_illumination (bool, optional): Remove black levels and correct illumination
             before registration if True, return raw data otherwise. Default to False
+        verbose (bool, optional): If True, print warnings when shifts are large.
+            Defaults to True.
+        debug (bool, optional): Return additional information for debugging. Defaults to
+            False.
 
 
     Returns:
@@ -309,66 +315,113 @@ def register_adjacent_tiles(
         numpy.array: shape of the tile
 
     """
+
     ops = load_ops(data_path)
     if ref_coors is None:
         ref_coors = ops["ref_tile"]
+
+    # small helper to prepare the stack
+    def prep_stack(stack):
+        if correct_illumination:
+            stack = apply_illumination_correction(data_path, stack, prefix)
+        if ops["reg_median_filter"]:
+            msize = ops["reg_median_filter"]
+            assert isinstance(msize, int), "reg_median_filter must be an integer"
+            stack = median_filter(stack, footprint=disk(msize), axes=(0, 1))
+        return stack
+
     tile_ref = load_tile_by_coors(
         data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
     )
-    down_offset = 1 if ops["y_tile_direction"] == "bottom_to_top" else -1
-    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + down_offset)
-    tile_down = load_tile_by_coors(
-        data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
-    )
-    right_offset = 1 if ops["x_tile_direction"] == "left_to_right" else -1
-    right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
-    tile_right = load_tile_by_coors(
-        data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
-    )
-    if correct_illumination:
-        tile_ref = apply_illumination_correction(data_path, tile_ref, prefix)
-        tile_down = apply_illumination_correction(data_path, tile_down, prefix)
-        tile_right = apply_illumination_correction(data_path, tile_right, prefix)
-
-    if ops["reg_median_filter"]:
-        msize = ops["reg_median_filter"]
-        assert isinstance(msize, int), "reg_median_filter must be an integer"
-        tile_ref = median_filter(tile_ref, footprint=disk(msize), axes=(0, 1))
-        tile_down = median_filter(tile_down, footprint=disk(msize), axes=(0, 1))
-        tile_right = median_filter(tile_right, footprint=disk(msize), axes=(0, 1))
+    tile_ref = prep_stack(tile_ref)
 
     ypix = tile_ref.shape[0]
     xpix = tile_ref.shape[1]
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
 
-    shift_right, _, _ = phase_cross_correlation(
-        tile_ref[:, -reg_pix_x:, ref_ch],
-        tile_right[:, :reg_pix_x, ref_ch],
-        upsample_factor=5,
-    )
-    if any(np.abs(shift_right) >= reg_pix_x * 0.1):
-        warnings.warn(
-            f"Shift to right tile ({right_coors}) is large: {shift_right}"
-            f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is fine."
-        )
-    shift_right += [0, xpix - reg_pix_x]
-    if ops["x_tile_direction"] != "left_to_right":
-        shift_right = -shift_right
-    shift_down, _, _ = phase_cross_correlation(
-        tile_ref[:reg_pix_y, :, ref_ch],
-        tile_down[-reg_pix_y:, :, ref_ch],
-        upsample_factor=5,
-    )
-    if any(np.abs(shift_down) >= reg_pix_y * 0.1):
-        warnings.warn(
-            f"Shift to down tile ({down_coors}) is large: {shift_down}"
-            f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is fine."
-        )
-    shift_down -= [ypix - reg_pix_y, 0]
-    if ops["y_tile_direction"] != "bottom_to_top":
-        shift_down = -shift_down
+    roi_dims = get_roi_dimensions(data_path)
+    ntiles = roi_dims[roi_dims[:, 0] == ref_coors[0], 1:][0] + 1
 
+    # Register the right tile
+    right_offset = 1 if ops["x_tile_direction"] == "left_to_right" else -1
+    right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
+    if right_coors[1] < 0 or right_coors[1] >= ntiles[0]:
+        shift_right = [np.nan, np.nan]
+    else:
+        tile_right = load_tile_by_coors(
+            data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
+        )
+        tile_right = prep_stack(tile_right)
+        fixed_part = tile_ref[:reg_pix_y, -reg_pix_x * 2 :, ref_ch]
+        moving_part = tile_right[:reg_pix_y, : reg_pix_x * 2, ref_ch]
+        fixed_mask = np.zeros_like(fixed_part, dtype=bool)
+        fixed_mask[:, -reg_pix_x:] = True
+        moving_mask = np.zeros_like(moving_part, dtype=bool)
+        moving_mask[:, :reg_pix_x] = True
+        shift_right, _, _, _ = mpc.phase_correlation(
+            fixed_part, moving_part, fixed_mask=fixed_mask, moving_mask=moving_mask
+        )
+        if debug:
+            db_dict = dict(raw_right=np.array(shift_right))
+        # roll back the shift, since we have reg_pix_x padding
+        shift_right[1] = np.mod(shift_right[1], 2 * reg_pix_x) - reg_pix_x
+        if verbose and (np.abs(shift_right[1]) >= reg_pix_x * 0.3):
+            warnings.warn(
+                f"Shift to right tile ({right_coors}) is large: {shift_right}"
+                f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is fine."
+            )
+        shift_right += [0, xpix - reg_pix_x]
+        if ops["x_tile_direction"] != "left_to_right":
+            shift_right = -shift_right
+
+    # Register the down tile
+    down_offset = 1 if ops["y_tile_direction"] == "bottom_to_top" else -1
+    down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + down_offset)
+    if down_coors[2] < 0 or down_coors[2] >= ntiles[1]:
+        shift_down = [np.nan, np.nan]
+    else:
+        tile_down = load_tile_by_coors(
+            data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
+        )
+        tile_down = prep_stack(tile_down)
+        fixed_part = tile_ref[: reg_pix_y * 2 :, :, ref_ch]
+        moving_part = tile_down[-reg_pix_y * 2 :, :, ref_ch]
+        fixed_mask = np.zeros_like(fixed_part, dtype=bool)
+        fixed_mask[:reg_pix_y, :] = True
+        moving_mask = np.zeros_like(moving_part, dtype=bool)
+        moving_mask[-reg_pix_y:, :] = True
+
+        shift_down, _, _, _ = mpc.phase_correlation(
+            fixed_part, moving_part, fixed_mask=fixed_mask, moving_mask=moving_mask
+        )
+        if debug:
+            db_dict["raw_down"] = np.array(shift_down)
+
+        # roll back the shift, since we have reg_pix_x padding
+        shift_down[0] = np.mod(shift_down[0], 2 * reg_pix_y) - reg_pix_y
+        if verbose and (np.abs(shift_down[0]) >= reg_pix_y * 0.3):
+            warnings.warn(
+                f"Shift to down tile ({down_coors}) is large: {shift_down}"
+                f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is fine."
+            )
+        shift_down -= [ypix - reg_pix_y, 0]
+        if ops["y_tile_direction"] != "bottom_to_top":
+            shift_down = -shift_down
+    if debug:
+        db_dict.update(
+            dict(
+                reg_pix_x=reg_pix_x,
+                reg_pix_y=reg_pix_y,
+                tile_ref=tile_ref,
+                tile_right=tile_right,
+                tile_down=tile_down,
+                ref_coors=ref_coors,
+                right_coors=right_coors,
+                down_coors=down_coors,
+            )
+        )
+        return shift_right, shift_down, (ypix, xpix), db_dict
     return shift_right, shift_down, (ypix, xpix)
 
 
@@ -394,7 +447,7 @@ def get_tile_corners(data_path, prefix, roi):
         # always use round 1
         prefix = f"{prefix}_1"
     shifts = np.load(
-        iss.io.get_processed_path(data_path) / "reg"/ f"{prefix}_shifts.npz"
+        iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
     )
 
     tile_origins, _ = calculate_tile_positions(
