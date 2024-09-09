@@ -100,7 +100,7 @@ def load_and_register_hyb_tile(
 
 
 def get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts):
-    """Load the channelshifts for a given tile and sequencing acquisition.
+    """Load the channel shifts for a given tile and sequencing acquisition.
 
     Args:
         data_path (str): Relative path to data.
