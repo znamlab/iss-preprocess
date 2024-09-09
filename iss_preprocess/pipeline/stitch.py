@@ -279,9 +279,7 @@ def register_within_acquisition(
         verbose (int, optional): Verbosity level. Defaults to 2.
 
     Returns:
-        numpy.array: `shift_right`, X and Y shifts between different columns
-        numpy.array: `shift_down`, X and Y shifts between different rows
-        numpy.array: shape of the tile
+        dict: dictionary containing the shifts, tile shape and number of tiles
 
     """
     ops = load_ops(data_path)
@@ -307,6 +305,7 @@ def register_within_acquisition(
     ntiles = ndim[ndim[:, 0] == roi][0][1:] + 1
 
     shifts = np.zeros((ntiles[0], ntiles[1], 4)) + np.nan
+    xcorr_max = np.zeros((ntiles[0], ntiles[1], 2))
     with tqdm(
         total=np.prod(ntiles), desc="Registering tiles", disable=verbose < 1
     ) as pbar:
@@ -316,7 +315,7 @@ def register_within_acquisition(
             for tiley in range(ntiles[1]):
                 pbar.set_postfix_str(f"ROI {roi}, tile {tilex}, {tiley}")
                 pbar.update(1)
-                shift_right, shift_down, tile_shape = register_adjacent_tiles(
+                reg_out = register_adjacent_tiles(
                     data_path,
                     ref_coors=(roi, tilex, tiley),
                     ref_ch=ref_ch,
@@ -325,13 +324,19 @@ def register_within_acquisition(
                     correct_illumination=correct_illumination,
                     verbose=verbose > 1,
                 )
-                shifts[tilex, tiley] = np.hstack([shift_right, shift_down])
+
+                shifts[tilex, tiley] = np.hstack(
+                    [reg_out["shift_right"], reg_out["shift_down"]]
+                )
+                xcorr_max[tilex, tiley] = [reg_out["corr_right"], reg_out["corr_down"]]
         pbar.set_description(f"Saving shifts")
         save_fname.parent.mkdir(exist_ok=True)
         output = dict(
             shift_right=shifts[..., :2],
             shift_down=shifts[..., 2:],
-            tile_shape=tile_shape,
+            xcorr_right=xcorr_max[..., 0],
+            xcorr_down=xcorr_max[..., 1],
+            tile_shape=reg_out["tile_shape"],
             ntiles=ntiles,
         )
         np.savez(
@@ -417,11 +422,15 @@ def register_adjacent_tiles(
     roi_dims = get_roi_dimensions(data_path)
     ntiles = roi_dims[roi_dims[:, 0] == ref_coors[0], 1:][0] + 1
 
+    if debug:
+        db_dict = dict(reg_pix_x=reg_pix_x, reg_pix_y=reg_pix_y)
+
     # Register the right tile
     right_offset = 1 if ops["x_tile_direction"] == "left_to_right" else -1
     right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
     if right_coors[1] < 0 or right_coors[1] >= ntiles[0]:
         shift_right = [np.nan, np.nan]
+        corr_right = np.nan
     else:
         tile_right = load_tile_by_coors(
             data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
@@ -433,11 +442,16 @@ def register_adjacent_tiles(
         fixed_mask[:, -reg_pix_x:] = True
         moving_mask = np.zeros_like(moving_part, dtype=bool)
         moving_mask[:, :reg_pix_x] = True
-        shift_right, _, _, _ = mpc.phase_correlation(
-            fixed_part, moving_part, fixed_mask=fixed_mask, moving_mask=moving_mask
+        shift_right, corr_right, _, _ = mpc.phase_correlation(
+            fixed_part,
+            moving_part,
+            fixed_mask=fixed_mask,
+            moving_mask=moving_mask,
+            overlap_ratio=0,
         )
         if debug:
-            db_dict = dict(raw_right=np.array(shift_right))
+            db_dict["raw_right"] = np.array(shift_right)
+            db_dict["tile_right"] = tile_right[..., ref_ch]
         # roll back the shift, since we have reg_pix_x padding
         shift_right[1] = np.mod(shift_right[1], 2 * reg_pix_x) - reg_pix_x
         if verbose and (np.abs(shift_right[1]) >= reg_pix_x * 0.3):
@@ -454,6 +468,7 @@ def register_adjacent_tiles(
     down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + down_offset)
     if down_coors[2] < 0 or down_coors[2] >= ntiles[1]:
         shift_down = [np.nan, np.nan]
+        corr_down = np.nan
     else:
         tile_down = load_tile_by_coors(
             data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
@@ -466,11 +481,12 @@ def register_adjacent_tiles(
         moving_mask = np.zeros_like(moving_part, dtype=bool)
         moving_mask[-reg_pix_y:, :] = True
 
-        shift_down, _, _, _ = mpc.phase_correlation(
+        shift_down, corr_down, _, _ = mpc.phase_correlation(
             fixed_part, moving_part, fixed_mask=fixed_mask, moving_mask=moving_mask
         )
         if debug:
             db_dict["raw_down"] = np.array(shift_down)
+            db_dict["tile_down"] = tile_down[..., ref_ch]
 
         # roll back the shift, since we have reg_pix_x padding
         shift_down[0] = np.mod(shift_down[0], 2 * reg_pix_y) - reg_pix_y
@@ -482,21 +498,25 @@ def register_adjacent_tiles(
         shift_down -= [ypix - reg_pix_y, 0]
         if ops["y_tile_direction"] != "bottom_to_top":
             shift_down = -shift_down
+
+    output = dict(
+        shift_right=shift_right,
+        shift_down=shift_down,
+        tile_shape=(ypix, xpix),
+        corr_right=corr_right,
+        corr_down=corr_down,
+    )
     if debug:
         db_dict.update(
             dict(
-                reg_pix_x=reg_pix_x,
-                reg_pix_y=reg_pix_y,
-                tile_ref=tile_ref,
-                tile_right=tile_right,
-                tile_down=tile_down,
+                tile_ref=tile_ref[..., ref_ch],
                 ref_coors=ref_coors,
                 right_coors=right_coors,
                 down_coors=down_coors,
             )
         )
-        return shift_right, shift_down, (ypix, xpix), db_dict
-    return shift_right, shift_down, (ypix, xpix)
+        output.update(db_dict)
+    return output
 
 
 def get_tile_corners(data_path, prefix, roi):
