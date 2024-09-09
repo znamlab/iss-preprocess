@@ -674,7 +674,9 @@ def stitch_registered(
                 filter_r=filter_r,
                 projection=projection,
             )
-            stack = stack[:, :, channels, 0]  # unique round
+            if stack.ndim == 4:
+                stack = stack[:, :, :, 0]  # unique round
+            stack = stack[:, :, channels]
             # do not copy 0s over data from previous tile
             if "mask" in prefix:
                 bad_pixels = (stack[..., 0] == 0) | bad_pixels

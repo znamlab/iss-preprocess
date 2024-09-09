@@ -775,14 +775,11 @@ def find_edge_touching_masks(masks, border_width=4):
     return masks, edge_touching_labels
 
 
-def get_overlap_regions(
-    tile_shape, shifts, tile_ref, tile_right, tile_down, tile_down_right
-):
+def get_overlap_regions(shifts, tile_ref, tile_right, tile_down, tile_down_right):
     """
     Determine the coordinates of the overlap region between two adjacent tiles using explicit tile direction.
 
     Args:
-        tile_shape (tuple): The shape (height, width) of the tile.
         shifts (dict): The dictionary containing the shift values for the down and right tiles.
         tile_ref (np.ndarray): The reference tile.
         tile_right (np.ndarray): The right tile.
@@ -799,30 +796,26 @@ def get_overlap_regions(
 
     """
 
-    width, height = tile_shape
+    width, height = shifts["tile_shape"]
     shift_down = shifts["shift_down"]
     shift_right = shifts["shift_right"]
-
     # Get the overlap regions between the reference tile and the down tile
     overlap_ref_vert = tile_ref[
-        : (width - int(shift_down[0])), : (height - int(shift_down[1]))
+        : width - int(shift_down[0]), : height - int(shift_down[1])
     ]
     overlap_down = tile_down[int(shift_down[0]) :, int(shift_down[1]) :]
-
     # Get the overlap regions between the reference tile and the right tile
     overlap_ref_side = tile_ref[
-        : (-int(shift_right[0])), -(height + int(shift_right[1])) :
+        : -int(shift_right[0]), -(height + int(shift_right[1])) :
     ]
     overlap_right = tile_right[int(shift_right[0]) :, : (height + int(shift_right[1]))]
-
     # Get the overlap regions between the reference tile and the down right tile
     overlap_ref_with_down_right = tile_ref[
-        : (width - int(shift_down[0])), -(height + int(shift_right[1])) :
+        : width - int(shift_down[0]), -(height + int(shift_right[1])) :
     ]
     overlap_down_right_with_ref = tile_down_right[
-        int(shift_down[0]) :, : (height + int(shift_right[1]))
+        int(shift_down[0]) :, : height + int(shift_right[1])
     ]
-
     return (
         overlap_ref_vert,
         overlap_down,
@@ -856,7 +849,6 @@ def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh
         labels_changed = False  # Reset flag for this iteration
         unique_labels_1 = np.unique(overlap_ref[overlap_ref != 0])
         # unique_labels_2 = np.unique(overlap_shifted[overlap_shifted != 0])
-
         for label1 in unique_labels_1:
             mask1 = overlap_ref == label1
             overlapping_masks = np.unique(overlap_shifted[mask1])
@@ -910,13 +902,13 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
 
     Returns:
         all_overlapping_pairs (list): A list of tuples containing the labels that overlapped and their respective percentages.
+
     """
     processed_path = iss.io.get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
     ops = iss.io.load_ops(data_path)
 
     # ensure that we have within acq registration
-    ref_ch = ops["ref_ch"]
     iss.pipeline.stitch.register_within_acquisition(
         data_path,
         prefix=prefix,
@@ -934,19 +926,17 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
         Path(f).unlink()
 
     # First remove masks at the edges of all the tiles
-    for roi in roi_dims[:, 0]:
+    for roi in roi_dims:
         for tilex in tqdm(
-            range(roi_dims[roi - 1, 1] + 1),
-            desc=f"ROI {roi} X-axis",
-            total=roi_dims[roi - 1, 1],
+            range(roi[1] + 1),
+            desc=f"ROI {roi[0]} X-axis",
         ):
             for tiley in tqdm(
-                range(roi_dims[roi - 1, 2] + 1),
+                range(roi[2] + 1),
                 desc=f"Tile {tilex} Y-axis",
                 leave=False,
-                total=roi_dims[roi - 1, 2],
             ):
-                coors = (roi, tilex, tiley)
+                coors = (roi[0], tilex, tiley)
                 tile = iss.io.load.load_mask_by_coors(
                     data_path,
                     tile_coors=coors,
@@ -955,7 +945,7 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 )
                 corrected_masks, _ = find_edge_touching_masks(tile, border_width=4)
                 # Save the edge corrected masks
-                fname = f"{prefix}_masks_corrected_{roi}_{tilex}_{tiley}.npy"
+                fname = f"{prefix}_masks_corrected_{roi[0]}_{tilex}_{tiley}.npy"
                 np.save(
                     processed_path / "cells" / fname, corrected_masks, allow_pickle=True
                 )
@@ -968,21 +958,18 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
         warnings.warn(
             "This function is only tested for right_to_left and top_to_bottom tile direction"
         )
-    for roi in roi_dims[:, 0]:
+    for roi in roi_dims:
         # TODO: this might fail with other microscope
-
         for tilex in tqdm(
-            reversed(range(roi_dims[roi - 1, 1] + 1)),
-            desc=f"ROI {roi} X-axis (overlap check)",
-            total=roi_dims[roi - 1, 1],
+            reversed(range(roi[1] + 1)),
+            desc=f"ROI {roi[0]} X-axis (overlap check)",
         ):
             for tiley in tqdm(
-                reversed(range(roi_dims[roi - 1, 2] + 1)),
+                reversed(range(roi[2] + 1)),
                 desc=f"Tile {tilex} Y-axis (overlap check)",
                 leave=False,
-                total=roi_dims[roi - 1, 2],
             ):
-                ref_coors = (roi, tilex, tiley)
+                ref_coors = (roi[0], tilex, tiley)
                 # Load reference tile
                 tile_ref = iss.io.load.load_mask_by_coors(
                     data_path,
@@ -994,7 +981,7 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 # Check if adjacent down tile exists and load it
                 down_offset = 1 if ops["y_tile_direction"] == "bottom_to_top" else -1
                 down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + down_offset)
-                if down_coors[2] < 0:
+                if down_coors[2] < 0 or down_coors[2] > roi[2]:
                     tile_down = np.zeros_like(tile_ref)
                 else:
                     tile_down = iss.io.load.load_mask_by_coors(
@@ -1007,7 +994,7 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 # Check if adjacent right tile exists and load it
                 right_offset = 1 if ops["x_tile_direction"] == "left_to_right" else -1
                 right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
-                if right_coors[1] < 0:
+                if right_coors[1] < 0 or right_coors[1] > roi[1]:
                     tile_right = np.zeros_like(tile_ref)
                 else:
                     tile_right = iss.io.load.load_mask_by_coors(
@@ -1023,7 +1010,12 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                     ref_coors[1] + right_offset,
                     ref_coors[2] + down_offset,
                 )
-                if down_right_coors[1] < 0 or down_right_coors[2] < 0:
+                if (
+                    down_right_coors[1] < 0
+                    or down_right_coors[2] < 0
+                    or down_right_coors[1] > roi[1]
+                    or down_right_coors[2] > roi[2]
+                ):
                     tile_down_right = np.zeros_like(tile_ref)
                 else:
                     tile_down_right = iss.io.load.load_mask_by_coors(
@@ -1053,7 +1045,6 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                     overlap_ref_with_down_right,
                     overlap_down_right_with_ref,
                 ) = get_overlap_regions(
-                    shifts["tile_shape"],
                     shifts,
                     tile_ref,
                     tile_right,
