@@ -1277,7 +1277,7 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
     spots = pd.read_pickle(
         processed_path / "spots" / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
     )
-    spots["tile"] = f"{roi}_{tilex}_{tiley}"
+
     if ref_prefix.startswith(prefix):
         # it is the ref, no need to register
         return spots
@@ -1300,6 +1300,8 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
     transformed_coors = spots_tform @ np.stack(
         [spots["x"], spots["y"], np.ones(len(spots))]
     )
+    spots["x_raw"] = spots["x"].copy()
+    spots["y_raw"] = spots["y"].copy()
     spots["x"] = [x for x in transformed_coors[0, :]]
     spots["y"] = [y for y in transformed_coors[1, :]]
     return spots
