@@ -190,27 +190,80 @@ def get_tform_to_ref(data_path, prefix, tile_coors, corrected_shifts=None):
     return reg2ref
 
 
-@slurm_it(conda_env="iss-preprocess")
+def register_all_rois_within(
+    data_path,
+    prefix=None,
+    ref_ch=None,
+    suffix="max-median",
+    correct_illumination=True,
+    reload=True,
+    save_plot=True,
+    dimension_prefix="genes_round_1_1",
+    max_delta_shift=50,
+    verbose=1,
+    use_slurm=True,
+):
+    ops = load_ops(data_path)
+    if prefix is None:
+        prefix = ops["reference_prefix"]
+
+    roi_dims = get_roi_dimensions(data_path)
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
+    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    if use_slurm:
+        slurm_folder = Path.home() / "slurm_logs" / data_path / "register_within"
+        slurm_folder.mkdir(exist_ok=True, parents=True)
+    else:
+        slurm_folder = None
+
+    outs = []
+    for roi in roi_dims[use_rois, 0]:
+        outs.append(
+            register_within_acquisition(
+                data_path,
+                prefix=prefix,
+                roi=roi,
+                ref_ch=ref_ch,
+                suffix=suffix,
+                correct_illumination=correct_illumination,
+                reload=reload,
+                save_plot=save_plot,
+                dimension_prefix=dimension_prefix,
+                max_delta_shift=max_delta_shift,
+                verbose=verbose,
+                use_slurm=use_slurm,
+                slurm_folder=slurm_folder,
+                scripts_name=f"register_within_{prefix}_{roi}",
+            )
+        )
+    return outs
+
+
+@slurm_it(
+    conda_env="iss-preprocess", print_job_id=True, slurm_options={"time": "2:00:00"}
+)
 def register_within_acquisition(
     data_path,
-    prefix,
-    ref_roi=None,
-    ref_ch=0,
+    roi,
+    prefix=None,
+    ref_ch=None,
     suffix="max",
     correct_illumination=False,
     reload=True,
     save_plot=False,
     dimension_prefix="genes_round_1_1",
+    max_delta_shift=30,
+    verbose=2,
 ):
     """Estimate shifts between all adjacent tiles of an roi
 
-    Saves the median shifts in `"reg" / f"{prefix}_shifts.npz"`.
+    Saves shifts as `reg/f"{prefix}_within"/f"{prefix}_{roi}_shifts.npz"`
 
     Args:
         data_path (str): path to image stacks.
+        roi (int): id of ROI to load.
         prefix (str, optional): Full name of the acquisition folder.
-        ref_roi (int, optional): ROI to use for registration. If `None` use
-            `ops['ref_tile'][0]`. Defaults to None.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         suffix (str, optional): File name suffix. Defaults to 'proj'.
         correct_illumination (bool, optional): Remove black levels and correct illumination
@@ -220,6 +273,10 @@ def register_within_acquisition(
         save_plot (bool, optional): If True save diagnostic plot. Defaults to False
         dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
             only if the acquisition is an overview. Defaults to 'genes_round_1_1'
+        max_shift (int, optional): Maximum difference to the median shift allowed. Tiles
+            with absolute shifts above median(shift) + max_delta_shift will be replaced
+            by the median shift. Defaults to 30.
+        verbose (int, optional): Verbosity level. Defaults to 2.
 
     Returns:
         numpy.array: `shift_right`, X and Y shifts between different columns
@@ -227,55 +284,72 @@ def register_within_acquisition(
         numpy.array: shape of the tile
 
     """
-    save_fname = iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
+    ops = load_ops(data_path)
+    if prefix is None:
+        prefix = ops["reference_prefix"]
+    if ref_ch is None:
+        ref_ch = ops["ref_ch"]
+
+    verbose = int(verbose)
+    save_fname = (
+        iss.io.get_processed_path(data_path)
+        / "reg"
+        / f"{prefix}_within"
+        / f"{prefix}_{roi}_shifts.npz"
+    )
 
     if reload and save_fname.exists():
         print("Reloading saved shifts")
         return np.load(save_fname)
-    ops = load_ops(data_path)
-    if ref_roi is None:
-        ref_roi = ops["ref_tile"][0]
+
     ndim = get_roi_dimensions(data_path, dimension_prefix)
-
     # roi_dims is read from file name (0-based), the actual number of tile needs +1
-    ntiles = ndim[ndim[:, 0] == ref_roi][0][1:] + 1
-    output = np.zeros((ntiles[0], ntiles[1], 4)) + np.nan
+    ntiles = ndim[ndim[:, 0] == roi][0][1:] + 1
 
-    # skip the first x position in case tile direction is right to left
-    if ops["x_tile_direction"] == "right_to_left":
-        rangex = range(1, ntiles[0])
-    else:
-        rangex = range(ntiles[0] - 1)
-    # skip the first y position in case tile direction is top to bottom
-    if ops["y_tile_direction"] == "top_to_bottom":
-        rangey = range(1, ntiles[1])
-    else:
-        rangey = range(ntiles[1] - 1)
-
-    for tilex in rangex:
-        for tiley in rangey:
-            shift_right, shift_down, tile_shape = register_adjacent_tiles(
-                data_path,
-                ref_coors=(ref_roi, tilex, tiley),
-                ref_ch=ref_ch,
-                suffix=suffix,
-                prefix=prefix,
-                correct_illumination=correct_illumination,
-            )
-            output[tilex, tiley] = np.hstack([shift_right, shift_down])
-    shifts = np.nanmedian(output, axis=(0, 1))
-
-    if save_plot:
-        vis.diagnostics.adjacent_tiles_registration(
-            data_path, prefix, saved_shifts=shifts, bytile_shifts=output
+    shifts = np.zeros((ntiles[0], ntiles[1], 4)) + np.nan
+    with tqdm(
+        total=np.prod(ntiles), desc="Registering tiles", disable=verbose < 1
+    ) as pbar:
+        pbar.set_postfix_str(f"ROI {roi}")
+        for tilex in range(ntiles[0]):
+            pbar.set_postfix_str(f"ROI {roi}, tile {tilex}")
+            for tiley in range(ntiles[1]):
+                pbar.set_postfix_str(f"ROI {roi}, tile {tilex}, {tiley}")
+                pbar.update(1)
+                shift_right, shift_down, tile_shape = register_adjacent_tiles(
+                    data_path,
+                    ref_coors=(roi, tilex, tiley),
+                    ref_ch=ref_ch,
+                    suffix=suffix,
+                    prefix=prefix,
+                    correct_illumination=correct_illumination,
+                    verbose=verbose > 1,
+                )
+                shifts[tilex, tiley] = np.hstack([shift_right, shift_down])
+        pbar.set_description(f"Saving shifts")
+        save_fname.parent.mkdir(exist_ok=True)
+        output = dict(
+            shift_right=shifts[..., :2],
+            shift_down=shifts[..., 2:],
+            tile_shape=tile_shape,
+            ntiles=ntiles,
         )
-
-    save_fname.parent.mkdir(exist_ok=True)
-    np.savez(
-        save_fname, shift_right=shifts[:2], shift_down=shifts[2:], tile_shape=tile_shape
-    )
-    print(f"Saved shifts to {save_fname}")
-    return shifts[:2], shifts[2:], tile_shape
+        np.savez(
+            save_fname,
+            **output,
+        )
+        if save_plot:
+            pbar.set_description(f"Saving plot")
+            vis.diagnostics.adjacent_tiles_registration(
+                data_path,
+                prefix,
+                roi=roi,
+                shifts=shifts,
+                max_delta_shift=max_delta_shift,
+            )
+    if verbose > 1:
+        print(f"Saved shifts to {save_fname}")
+    return output
 
 
 def register_adjacent_tiles(
@@ -468,8 +542,10 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
     """Calculate position of each tile based on the provided shifts.
 
     Args:
-        shift_right (numpy.array): X and Y shifts between different columns
-        shift_down (numpy.array): X and Y shifts between different rows
+        shift_right (numpy.array): X and Y shifts between different columns. Either
+            a 2-element array or a ntiles[0] x ntiles[1] x 2 matrix of shifts
+        shift_down (numpy.array): X and Y shifts between different rows. Either
+            a 2-element array or a ntiles[0] x ntiles[1] x 2 matrix of shifts
         tile_shape (numpy.array): shape of each tile
         ntiles (numpy.array): number of tile rows and columns
 
@@ -480,11 +556,29 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
             coordinates
 
     """
+    # Either we have a single x/y shift for all tiles or one for each tile
+    if shift_right.ndim == 1:
+        assert shift_right.shape[0] == 2, "shift_right must have 2 elements"
+        shift_right = np.tile(shift_right, (ntiles[0], ntiles[1], 1))
+    else:
+        assert shift_right.shape == (
+            ntiles[0],
+            ntiles[1],
+            2,
+        ), "shift_right has wrong shape"
+    if shift_down.ndim == 1:
+        assert shift_down.shape[0] == 2, "shift_down must have 2 elements"
+        shift_down = np.tile(shift_down, (ntiles[0], ntiles[1], 1))
+    else:
+        assert shift_down.shape == (
+            ntiles[0],
+            ntiles[1],
+            2,
+        ), "shift_down has wrong shape"
+
     yy, xx = np.meshgrid(np.arange(ntiles[1]), np.arange(ntiles[0]))
 
-    tile_origins = (
-        xx[:, :, np.newaxis] * shift_right + yy[:, :, np.newaxis] * shift_down
-    )
+    tile_origins = shift_right.cumsum(axis=0) + shift_down.cumsum(axis=1)
     tile_origins -= np.min(tile_origins, axis=(0, 1))[np.newaxis, np.newaxis, :]
 
     center_offset = np.array([tile_shape[0] / 2, tile_shape[1] / 2])
@@ -532,7 +626,12 @@ def stitch_tiles(
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     if not shifts_prefix:
         shifts_prefix = prefix
-    shift_file = processed_path / "reg" / f"{shifts_prefix}_shifts.npz"
+    shift_file = (
+        processed_path
+        / "reg"
+        / f"{prefix}_within"
+        / f"{shifts_prefix}_{roi}_shifts.npz"
+    )
     if shift_file.exists():
         shifts = np.load(shift_file)
     elif allow_quick_estimate:
@@ -653,13 +752,18 @@ def stitch_registered(
         ref_prefix = f"{ref_prefix}_{ops['ref_round']}_1"
 
     roi_dims = get_roi_dimensions(data_path)
-    shifts = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")
+    shifts = np.load(
+        processed_path
+        / "reg"
+        / f"{ref_prefix}_within"
+        / f"{ref_prefix}_{roi}_shifts.npz"
+    )
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
         shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
     )
-    tile_origins = tile_origins.astype(int)
+    tile_origins = np.round(tile_origins).astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros((*(max_origin + tile_shape), len(channels)))
     if "mask" in prefix:

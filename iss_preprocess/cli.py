@@ -762,7 +762,7 @@ def align_spots(
 
     from iss_preprocess.pipeline import (
         merge_and_align_spots_all_rois,
-        register_within_acquisition,
+        register_all_rois_within,
     )
     from iss_preprocess.io import load_ops
 
@@ -772,14 +772,12 @@ def align_spots(
     ops = load_ops(path)
     ref_prefix = ops["reference_prefix"]
 
-    ref_job_id = register_within_acquisition(
+    ref_job_id = register_all_rois_within(
         path,
         prefix=ref_prefix,
         reload=reload,
         save_plot=True,
         use_slurm=True,
-        slurm_folder=slurm_folder,
-        scripts_name=f"register_within_acquisition_{ref_prefix}",
     )
 
     merge_and_align_spots_all_rois(
