@@ -427,8 +427,8 @@ def register_adjacent_tiles(
             data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
         )
         tile_right = prep_stack(tile_right)
-        fixed_part = tile_ref[:reg_pix_y, -reg_pix_x * 2 :, ref_ch]
-        moving_part = tile_right[:reg_pix_y, : reg_pix_x * 2, ref_ch]
+        fixed_part = tile_ref[:, -reg_pix_x * 2 :, ref_ch]
+        moving_part = tile_right[:, : reg_pix_x * 2, ref_ch]
         fixed_mask = np.zeros_like(fixed_part, dtype=bool)
         fixed_mask[:, -reg_pix_x:] = True
         moving_mask = np.zeros_like(moving_part, dtype=bool)
