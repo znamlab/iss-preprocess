@@ -482,7 +482,11 @@ def register_adjacent_tiles(
         moving_mask[-reg_pix_y:, :] = True
 
         shift_down, corr_down, _, _ = mpc.phase_correlation(
-            fixed_part, moving_part, fixed_mask=fixed_mask, moving_mask=moving_mask
+            fixed_part,
+            moving_part,
+            fixed_mask=fixed_mask,
+            moving_mask=moving_mask,
+            overlap_ratio=0,
         )
         if debug:
             db_dict["raw_down"] = np.array(shift_down)
