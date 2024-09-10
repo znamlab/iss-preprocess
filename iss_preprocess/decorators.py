@@ -50,7 +50,6 @@ def updates_flexilims(func, name_source=None, *args, **kwargs):
             dataset_type="iss_preprocessing",
             created=datetime.now().strftime("%Y-%m-%d " "%H:%M:%S"),
             path=str(data_path),
-            genealogy=list(parent["genealogy"]) + [func_name],
             is_raw="no",
             dataset_name=dataset_name,
             attributes=flm_attr,

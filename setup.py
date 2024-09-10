@@ -30,6 +30,7 @@ setup(
     ],
     entry_points="""
         [console_scripts]
-        iss=iss_preprocess.cli:cli
+        iss=iss_preprocess.cli.iss:cli
+        iss-register=iss_preprocess.cli.register_cli:register_cli
         """,
 )
