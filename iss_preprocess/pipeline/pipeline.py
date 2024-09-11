@@ -440,7 +440,7 @@ def handle_failed_jobs(job_info_path):
         job_info = subprocess.check_output(
             f"sacct -j {job_id} --format=State,NodeList", shell=True
         ).decode("utf-8")
-        if "TIMEOUT" in job_info or "FAILED" in job_info:
+        if "TIMEOUT" in job_info or "FAILED" in job_info or "CANCELLED" in job_info:
             failed_params.append(
                 df_job_info[df_job_info["job_ids"] == job_id]["arg_list"].values[0]
             )
