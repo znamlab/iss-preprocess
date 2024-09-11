@@ -708,7 +708,6 @@ def register_to_reference(
     help="File name prefix for spot files.",
 )
 @click.option(
-    "-l",
     "--reload/--no-reload",
     default=True,
     help="Whether to reload register_adjacent_tiles shifts.",
