@@ -334,23 +334,23 @@ def register_within_acquisition(
         pbar.set_description(f"Correcting shifts")
         clean_down = shifts[..., 2:].copy()
         # Ignore shifts with low correlation
-        bad_down = xcorr_max[..., 1] < 0.6
+        bad_down = xcorr_max[..., 1] < min_corrcoef
         clean_down[bad_down, :] = np.nan
         # Find the median of remain shift along each row
         med_by_row = np.zeros((ntiles[1], 2)) + np.nan
-        med_by_row[1:, :] = np.nanmedian(clean_down[:, 1], axis=0)
-        delta_shift = np.linalg.norm(shifts[..., 2:] - med_by_row[None, :], axis=2)
+        med_by_row[1:, :] = np.nanmedian(clean_down[:, 1:], axis=0)
+        delta_shift = np.linalg.norm(shifts[..., 2:] - med_by_row[None, :, :], axis=2)
         # replace shifts that are either low corr or too far from median
         bad_down = bad_down | (delta_shift > max_delta_shift)
         clean_down[bad_down, :] = med_by_row[np.where(bad_down)[1]]
 
         # Same for right shifts
         clean_right = shifts[..., :2].copy()
-        bad_right = xcorr_max[..., 0] < 0.6
+        bad_right = xcorr_max[..., 0] < min_corrcoef
         clean_right[bad_right, :] = np.nan
         med_by_col = np.zeros((ntiles[0], 2)) + np.nan
-        med_by_col[1:] = np.nanmedian(clean_right[1:], axis=1)
-        delta_shift = np.linalg.norm(clean_right - med_by_col[:, None], axis=2)
+        med_by_col[1:, :] = np.nanmedian(clean_right[1:], axis=1)
+        delta_shift = np.linalg.norm(clean_right - med_by_col[:, None, :], axis=2)
         bad_right = bad_right | (delta_shift > max_delta_shift)
         clean_right[bad_right, :] = med_by_col[np.where(bad_right)[0]]
 
@@ -695,7 +695,7 @@ def stitch_tiles(
     shift_file = (
         processed_path
         / "reg"
-        / f"{prefix}_within"
+        / f"{shifts_prefix}_within"
         / f"{shifts_prefix}_{roi}_shifts.npz"
     )
     if shift_file.exists():
