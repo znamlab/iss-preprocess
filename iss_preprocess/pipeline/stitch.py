@@ -199,7 +199,6 @@ def register_all_rois_within(
     reload=True,
     save_plot=True,
     dimension_prefix="genes_round_1_1",
-    max_delta_shift=50,
     verbose=1,
     use_slurm=True,
 ):
@@ -230,7 +229,6 @@ def register_all_rois_within(
                 reload=reload,
                 save_plot=save_plot,
                 dimension_prefix=dimension_prefix,
-                max_delta_shift=max_delta_shift,
                 verbose=verbose,
                 use_slurm=use_slurm,
                 slurm_folder=slurm_folder,
@@ -253,7 +251,8 @@ def register_within_acquisition(
     reload=True,
     save_plot=False,
     dimension_prefix="genes_round_1_1",
-    max_delta_shift=30,
+    min_corrcoef=0.6,
+    max_delta_shift=20,
     verbose=2,
 ):
     """Estimate shifts between all adjacent tiles of an roi
@@ -273,9 +272,10 @@ def register_within_acquisition(
         save_plot (bool, optional): If True save diagnostic plot. Defaults to False
         dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
             only if the acquisition is an overview. Defaults to 'genes_round_1_1'
-        max_shift (int, optional): Maximum difference to the median shift allowed. Tiles
-            with absolute shifts above median(shift) + max_delta_shift will be replaced
-            by the median shift. Defaults to 30.
+        min_corrcoef (float, optional): Minimum correlation coefficient to consider a
+            shift as valid. Defaults to 0.6.
+        max_delta_shift (int, optional): Maximum shift, relative to median of the row or
+            column, to consider a shift as valid. Defaults to 20.
         verbose (int, optional): Verbosity level. Defaults to 2.
 
     Returns:
@@ -323,17 +323,44 @@ def register_within_acquisition(
                     prefix=prefix,
                     correct_illumination=correct_illumination,
                     verbose=verbose > 1,
+                    overlap_ratio=0.01,
                 )
 
                 shifts[tilex, tiley] = np.hstack(
                     [reg_out["shift_right"], reg_out["shift_down"]]
                 )
                 xcorr_max[tilex, tiley] = [reg_out["corr_right"], reg_out["corr_down"]]
+
+        pbar.set_description(f"Correcting shifts")
+        clean_down = shifts[..., 2:].copy()
+        # Ignore shifts with low correlation
+        bad_down = xcorr_max[..., 1] < 0.6
+        clean_down[bad_down, :] = np.nan
+        # Find the median of remain shift along each row
+        med_by_row = np.zeros((ntiles[1], 2)) + np.nan
+        med_by_row[1:, :] = np.nanmedian(clean_down[:, 1], axis=0)
+        delta_shift = np.linalg.norm(shifts[..., 2:] - med_by_row[None, :], axis=2)
+        # replace shifts that are either low corr or too far from median
+        bad_down = bad_down | (delta_shift > max_delta_shift)
+        clean_down[bad_down, :] = med_by_row[np.where(bad_down)[1]]
+
+        # Same for right shifts
+        clean_right = shifts[..., :2].copy()
+        bad_right = xcorr_max[..., 0] < 0.6
+        clean_right[bad_right, :] = np.nan
+        med_by_col = np.zeros((ntiles[0], 2)) + np.nan
+        med_by_col[1:] = np.nanmedian(clean_right[1:], axis=1)
+        delta_shift = np.linalg.norm(clean_right - med_by_col[:, None], axis=2)
+        bad_right = bad_right | (delta_shift > max_delta_shift)
+        clean_right[bad_right, :] = med_by_col[np.where(bad_right)[0]]
+
         pbar.set_description(f"Saving shifts")
         save_fname.parent.mkdir(exist_ok=True)
         output = dict(
-            shift_right=shifts[..., :2],
-            shift_down=shifts[..., 2:],
+            raw_shift_right=shifts[..., :2],
+            raw_shift_down=shifts[..., 2:],
+            shift_right=clean_right,
+            shift_down=clean_down,
             xcorr_right=xcorr_max[..., 0],
             xcorr_down=xcorr_max[..., 1],
             tile_shape=reg_out["tile_shape"],
@@ -349,7 +376,10 @@ def register_within_acquisition(
                 data_path,
                 prefix,
                 roi=roi,
-                shifts=shifts,
+                shifts=np.dstack([clean_right, clean_down]),
+                raw_shifts=shifts,
+                xcorr_max=xcorr_max,
+                min_corrcoef=min_corrcoef,
                 max_delta_shift=max_delta_shift,
             )
     if verbose > 1:
@@ -364,6 +394,7 @@ def register_adjacent_tiles(
     suffix="max",
     prefix="genes_round_1_1",
     correct_illumination=False,
+    overlap_ratio=0.01,
     verbose=True,
     debug=False,
 ):
@@ -382,6 +413,8 @@ def register_adjacent_tiles(
         prefix (str, optional): Full name of the acquisition folder
         correct_illumination (bool, optional): Remove black levels and correct illumination
             before registration if True, return raw data otherwise. Default to False
+        overlap_ratio (float, optional): Minimum overlap between masks to consider the
+            correlation results. Defaults to 0.01.
         verbose (bool, optional): If True, print warnings when shifts are large.
             Defaults to True.
         debug (bool, optional): Return additional information for debugging. Defaults to
@@ -447,7 +480,7 @@ def register_adjacent_tiles(
             moving_part,
             fixed_mask=fixed_mask,
             moving_mask=moving_mask,
-            overlap_ratio=0,
+            overlap_ratio=overlap_ratio,
         )
         if debug:
             db_dict["raw_right"] = np.array(shift_right)
@@ -486,7 +519,7 @@ def register_adjacent_tiles(
             moving_part,
             fixed_mask=fixed_mask,
             moving_mask=moving_mask,
-            overlap_ratio=0,
+            overlap_ratio=overlap_ratio,
         )
         if debug:
             db_dict["raw_down"] = np.array(shift_down)
@@ -545,7 +578,10 @@ def get_tile_corners(data_path, prefix, roi):
         # always use round 1
         prefix = f"{prefix}_1"
     shifts = np.load(
-        iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
+        iss.io.get_processed_path(data_path)
+        / "reg"
+        / f"{prefix}_within"
+        / f"{prefix}_{roi}_shifts.npz"
     )
 
     tile_origins, _ = calculate_tile_positions(
@@ -600,7 +636,13 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
             2,
         ), "shift_down has wrong shape"
 
-    yy, xx = np.meshgrid(np.arange(ntiles[1]), np.arange(ntiles[0]))
+    # replace the first row/col that are NaNs with 0
+    # Add an assert to make sure that the first row/col are NaNs. It might not be
+    # the case if we didn't handle the microscope direction correctly
+    assert np.all(np.isnan(shift_right[0])), "First row of shift_right must be NaN"
+    assert np.all(np.isnan(shift_down[:, 0])), "First col of shift_down must be NaN"
+    shift_right[0] = 0
+    shift_down[:, 0] = 0
 
     tile_origins = shift_right.cumsum(axis=0) + shift_down.cumsum(axis=1)
     tile_origins -= np.min(tile_origins, axis=(0, 1))[np.newaxis, np.newaxis, :]
