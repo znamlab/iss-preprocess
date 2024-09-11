@@ -196,7 +196,7 @@ def register_all_rois_within(
     ref_ch=None,
     suffix="max-median",
     correct_illumination=True,
-    reload=True,
+    reload=False,
     save_plot=True,
     dimension_prefix="genes_round_1_1",
     verbose=1,
