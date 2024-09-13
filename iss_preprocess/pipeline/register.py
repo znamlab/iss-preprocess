@@ -1267,44 +1267,93 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
         pd.DataFrame: The spot dataframe with x and y registered to reference tile.
 
     """
-
-    if ref_prefix is None:
-        ops = load_ops(data_path)
-        ref_prefix = ops["reference_prefix"]
-
     roi, tilex, tiley = tile_coors
     processed_path = iss.io.get_processed_path(data_path)
     spots = pd.read_pickle(
         processed_path / "spots" / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
     )
+    spots = _align_dataframe(spots, tile_coors, prefix, ref_prefix)
+    return spots
+
+
+def align_cell_dataframe(data_path, prefix, ref_prefix=None):
+    """Align a cell dataframe to reference coordinates
+
+    Designed for mCherry cells. Reads the f"{prefix}_df_corrected.pkl" file generated
+    by remove_all_overlapping_masks and aligns the x and y coordinates to the reference
+    tile by tile.
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of cells to load
+        ref_prefix (str, optional): Prefix of the reference cells. If None, reads from
+            ops. Defaults to None.
+
+    Returns:
+        pd.DataFrame: The cell dataframe with x and y registered to reference tile.
+    """
+    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
+    assert (
+        cells_df.exists()
+    ), f"Cells dataframe {cells_df} does not exist. Run remove_all_overlapping_masks first"
+    cells_df = pd.read_pickle(cells_df)
+    if "x" not in cells_df.columns:
+        cells_df.rename(columns={"centroid-1": "x", "centroid-0": "y"}, inplace=True)
+
+    aligned_df = []
+    for (roi, tilex, tiley), df in cells_df.groupby(["roi", "tilex", "tiley"]):
+        aligned_df.append(
+            _align_dataframe(df, data_path, (roi, tilex, tiley), prefix, ref_prefix)
+        )
+    aligned_df = pd.concat(aligned_df)
+
+    return aligned_df
+
+
+def _align_dataframe(df, data_path, tile_coors, prefix, ref_prefix=None):
+    """Align a dataframe of spots to reference coordinates
+
+    Split in internal function to re-use for cells and spots
+
+    Args:
+        df (pd.DataFrame): The dataframe with x and y to align
+        data_path (str): Relative path to data
+        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates
+        prefix (str): Prefix of spots to load
+        ref_prefix (str, optional): Prefix of the reference spots. If None, reads from
+            ops. Defaults to None.
+
+    Returns:
+        pd.DataFrame: The dataframe with x and y registered to reference tile.
+
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    if ref_prefix is None:
+        ops = load_ops(data_path)
+        ref_prefix = ops["reference_prefix"]
 
     if ref_prefix.startswith(prefix):
         # it is the ref, no need to register
-        return spots
+        return df
 
-    tform2ref = get_shifts_to_ref(data_path, prefix, roi, tilex, tiley)
-
+    tform = get_shifts_to_ref(data_path, prefix, *tile_coors)
     if ops["align_method"] == "similarity":
-        # always get tile shape for ref_prefix
         tile_shape = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")[
             "tile_shape"
         ]
-        spots_tform = make_transform(
-            tform2ref["scales"][0][0],
-            tform2ref["angles"][0][0],
-            tform2ref["shifts"][0],
-            tile_shape,
+        df_tform = make_transform(
+            tform["scales"][0][0], tform["angles"][0][0], tform["shifts"][0], tile_shape
         )
     else:
-        spots_tform = tform2ref["matrix_between_channels"][0]
-    transformed_coors = spots_tform @ np.stack(
-        [spots["x"], spots["y"], np.ones(len(spots))]
-    )
-    spots["x_raw"] = spots["x"].copy()
-    spots["y_raw"] = spots["y"].copy()
-    spots["x"] = [x for x in transformed_coors[0, :]]
-    spots["y"] = [y for y in transformed_coors[1, :]]
-    return spots
+        df_tform = tform["matrix_between_channels"][0]
+
+    transformed_coors = df_tform @ np.stack([df["x"], df["y"], np.ones(len(df))])
+    df["x_raw"] = df["x"].copy()
+    df["y_raw"] = df["y"].copy()
+    df["x"] = [x for x in transformed_coors[0, :]]
+    df["y"] = [y for y in transformed_coors[1, :]]
+    return df
 
 
 def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
