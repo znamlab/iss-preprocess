@@ -193,6 +193,9 @@ mcherry:
   mcherry_r2: 70
   # Mask can be further filtered using a gmm
   mcherry_gmm_filter_masks: false
+  # Parameters to register mCherry tiles within acquisition
+  mcherry_min_corrcoef: 0.5
+  mcherry_max_delta_shift: 30
 
 
 # projection for other acquisitions
