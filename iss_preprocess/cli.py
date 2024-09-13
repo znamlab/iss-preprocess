@@ -572,7 +572,7 @@ def basecall(path):
     """Start batch jobs to run basecalling for barcodes on all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
-    job_ids = batch_process_tiles(path, "basecall_tile")
+    job_ids, failed_job = batch_process_tiles(path, "basecall_tile")
     click.echo(f"Basecalling started for {len(job_ids)} tiles.")
     click.echo(f"Last job id: {job_ids[-1]}")
 

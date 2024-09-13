@@ -2,6 +2,8 @@ import shlex
 import subprocess
 import warnings
 from pathlib import Path
+import re
+import pandas as pd
 
 import flexiznam as flz
 import numpy as np
@@ -336,7 +338,15 @@ def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=
     return c_stack
 
 
-def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
+def batch_process_tiles(
+    data_path,
+    script,
+    roi_dims=None,
+    additional_args="",
+    dependency_type="afterok",
+    job_dependency=None,
+    verbose=True,
+):
     """Start sbatch scripts for all tiles across all rois.
 
     Args:
@@ -347,11 +357,20 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
         additional_args (str, optional): Additional environment variable to export
             to pass to the sbatch job. Should start with a leading comma.
             Defaults to ""
+        dependency_type (str, optional): Type of dependency. Defaults to "afterok".
+        job_dependency (list, optional): List of job IDs to wait for before starting the
+            batch jobs. Defaults to None.
+        verbose (bool, optional): Print the sbatch command. Defaults to False.
 
     Returns:
         list: List of job IDs for the slurm jobs created.
 
     """
+    if job_dependency is not None:
+        dep = f"--dependency={dependency_type}:{job_dependency} "
+    else:
+        dep = ""
+
     if roi_dims is None:
         roi_dims = get_roi_dimensions(data_path)
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
@@ -371,7 +390,6 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                     f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
                 )
                 args = args + additional_args
-                import re
 
                 # Regular expression to find prefix
                 pattern = r",PREFIX=([^,]+)"
@@ -384,9 +402,10 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 log_dir = Path.home() / "slurm_logs" / data_path / script
                 log_dir.mkdir(parents=True, exist_ok=True)
                 args = args + f" --output={log_dir}/{log_fname}.out"
-                command = f"sbatch --parsable {args} {script_path}"
+                command = f"sbatch --parsable {dep}{args} {script_path}"
                 arg_list.append(command)
-                print(command)
+                if verbose:
+                    print(command)
                 process = subprocess.Popen(
                     shlex.split(command),
                     stdout=subprocess.PIPE,
@@ -397,7 +416,6 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 job_ids.append(job_id)
     # save job ids and args to a csv file
     job_info_path = str(log_dir / f"{script}_jobs_info.csv")
-    import pandas as pd
 
     pd.DataFrame({"job_ids": job_ids, "arg_list": arg_list}).to_csv(
         job_info_path, index=False
@@ -418,7 +436,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     if process.returncode != 0:
         print(f"Error submitting handle_failed job: {stderr.decode().strip()}")
     failed_job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
-    return job_ids
+    return job_ids, failed_job_id
 
 
 def handle_failed_jobs(job_info_path):
