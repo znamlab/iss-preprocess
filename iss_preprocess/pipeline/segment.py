@@ -783,7 +783,7 @@ def find_edge_touching_masks(masks, border_width=4):
     return masks, edge_touching_labels
 
 
-def get_overlap_regions(shifts, tile_ref, tile_right, tile_down, tile_down_right):
+def get_overlap_regions(data_path, prefix, ref_coors):
     """
     Determine the coordinates of the overlap region between two adjacent tiles using explicit tile direction.
 
@@ -803,134 +803,81 @@ def get_overlap_regions(shifts, tile_ref, tile_right, tile_down, tile_down_right
         overlap_down_right_with_ref (np.ndarray): The overlap region between the down right tile and the reference tile.
 
     """
+    roi_dim = get_roi_dimensions(data_path)
+    roi_dim = roi_dim[roi_dim[:, 0] == ref_coors[0]][0]
+    roi_dim[1:] += 1  # this is because the dimensions are 0-indexed
 
-    width, height = shifts["tile_shape"]
-    shift_down = shifts["shift_down"]
-    shift_right = shifts["shift_right"]
-    # Get the overlap regions between the reference tile and the down tile
-    overlap_ref_vert = tile_ref[
-        : width - int(shift_down[0]), : height - int(shift_down[1])
-    ]
-    overlap_down = tile_down[int(shift_down[0]) :, int(shift_down[1]) :]
-    # Get the overlap regions between the reference tile and the right tile
-    overlap_ref_side = tile_ref[
-        : -int(shift_right[0]), -(height + int(shift_right[1])) :
-    ]
-    overlap_right = tile_right[int(shift_right[0]) :, : (height + int(shift_right[1]))]
-    # Get the overlap regions between the reference tile and the down right tile
-    overlap_ref_with_down_right = tile_ref[
-        : width - int(shift_down[0]), -(height + int(shift_right[1])) :
-    ]
-    overlap_down_right_with_ref = tile_down_right[
-        int(shift_down[0]) :, : height + int(shift_right[1])
-    ]
-    return (
-        overlap_ref_vert,
-        overlap_down,
-        overlap_ref_side,
-        overlap_right,
-        overlap_ref_with_down_right,
-        overlap_down_right_with_ref,
+    # Get the 3 surrounding tiles, on the side, vertical and diagonal. It does not
+    # matter if it's above or below, left or right, get_tile_overlap will take care of
+    # it
+    to_compare = np.array(ref_coors) + np.array([(0, 0, 1), (0, 1, 0), (0, 1, 1)])
+    valid = np.all(to_compare >= 0, axis=1) & np.all(
+        to_compare[:, 1:] < roi_dim[1:], axis=1
     )
 
+    overlaps = {}
+    full_images = {}
+    tile_ref = None  # to load it only once
+    for comp_coors in to_compare[valid]:
+        ovl, ovl_ref, ovl_comp = iss.pipeline.stitch.find_tile_overlap(
+            data_path, prefix, ref_coors, comp_coors
+        )
+        if ovl is None:
+            continue
+        if tile_ref is None:
+            tile_ref = iss.io.load.load_mask_by_coors(
+                data_path,
+                tile_coors=ref_coors,
+                prefix=prefix,
+                suffix="corrected",
+            )
+            full_images[tuple(ref_coors)] = tile_ref
+        tile_comp = iss.io.load.load_mask_by_coors(
+            data_path,
+            tile_coors=comp_coors,
+            prefix=prefix,
+            suffix="corrected",
+        )
+        full_images[tuple(comp_coors)] = tile_comp
 
-def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh):
-    """
-    Dynamically identifies and removes overlapping labels in place, in two adjacent tile overlaps
-    based on upper and lower overlap percentage thresholds. If the overlap is above the upper
-    threshold, the label in the shifted tile is removed. If the overlap is below
-    the lower threshold, the shared region is removed from both masks.
-
-    Args:
-        overlap_ref (np.array): The overlap area of the reference tile.
-        overlap_shifted (np.array): The overlap area of the shifted tile.
-        upper_overlap_thresh (float): The upper threshold percentage for considering mask overlap significant.
-
-    Returns:
-        overlapping_pairs (list): A list of tuples containing the labels that overlapped and their respective percentages.
-    """
-
-    # Continuously process until no more labels meet the criteria for adjustments
-    labels_changed = True
-    overlapping_pairs = []
-    while labels_changed:
-        labels_changed = False  # Reset flag for this iteration
-        unique_labels_1 = np.unique(overlap_ref[overlap_ref != 0])
-        # unique_labels_2 = np.unique(overlap_shifted[overlap_shifted != 0])
-        for label1 in unique_labels_1:
-            mask1 = overlap_ref == label1
-            overlapping_masks = np.unique(overlap_shifted[mask1])
-            overlapping_masks = overlapping_masks[overlapping_masks != 0]
-            for label2 in overlapping_masks:
-                mask2 = overlap_shifted == label2
-                if np.any(mask1 & mask2):  # Check if there's any overlap
-                    overlap_area = np.sum(mask1 & mask2)
-                    percent_overlap_tile1 = (overlap_area / np.sum(mask1)) * 100
-                    percent_overlap_tile2 = (overlap_area / np.sum(mask2)) * 100
-                    overlapping_pairs.append(
-                        (label1, label2, percent_overlap_tile1, percent_overlap_tile2)
-                    )
-                    # If overlap is above the upper threshold, remove the label from the shifted tile
-                    if (
-                        percent_overlap_tile1 > upper_overlap_thresh
-                        or percent_overlap_tile2 > upper_overlap_thresh
-                    ):
-                        print(f"Removing label {label2} from shifted_tile")
-                        overlap_shifted[mask2] = 0
-                        labels_changed = True
-                    # If overlap is below the lower threshold, remove the shared region from both masks
-                    elif (
-                        percent_overlap_tile1 > upper_overlap_thresh
-                        and percent_overlap_tile2 > upper_overlap_thresh
-                    ):
-                        print(
-                            f"Removing shared region from labels {label1} and {label2}"
-                        )
-                        shared_mask = mask1 & mask2
-                        overlap_ref[shared_mask] = 0
-                        overlap_shifted[shared_mask] = 0
-                        labels_changed = True
-
-                    if labels_changed:
-                        break  # Exit the inner loop to reevaluate conditions due to the changes
-            if labels_changed:
-                break  # Exit the outer loop to restart the evaluation with updated overlaps
-    return overlapping_pairs
+        ovl_ref = np.round(ovl_ref).astype(int)
+        ovl_comp = np.round(ovl_comp).astype(int)
+        img_ovl_ref = tile_ref[ovl_ref[1] : ovl_ref[3], ovl_ref[0] : ovl_ref[2]]
+        img_ovl_comp = tile_comp[ovl_comp[1] : ovl_comp[3], ovl_comp[0] : ovl_comp[2]]
+        overlaps[tuple(comp_coors)] = (img_ovl_ref, img_ovl_comp)
+    return overlaps, full_images
 
 
 @slurm_it(conda_env="iss-preprocess", print_job_id=True)
-def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
+def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
     """
     Remove masks that overlap in adjacent tiles.
+
+    The `within_acquisition` registration must be run for `prefix` beforehand.
 
     Args:
         data_path (str): Relative path to the data.
         prefix (str): Prefix of the image stack.
-        upper_overlap_thresh (float): The upper threshold percentage for considering mask overlap significant.
+        upper_overlap_thresh (float, optional): The upper threshold percentage for
+            considering mask overlap significant. If None, will use ops if defined,
+            0.3 otherwise. Defaults to None.
 
     Returns:
-        all_overlapping_pairs (list): A list of tuples containing the labels that overlapped and their respective percentages.
+        all_overlapping_pairs (list): A list of tuples containing the labels that
+            overlapped and their respective percentages.
 
     """
     processed_path = iss.io.get_processed_path(data_path)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
     ops = iss.io.load_ops(data_path)
+    if upper_overlap_thresh is None:
+        upper_overlap_thresh = ops.get(f"{prefix}_upper_overlap_thresh", 0.3)
 
-    # ensure that we have within acq registration
-    iss.pipeline.stitch.register_within_acquisition(
-        data_path,
-        prefix=prefix,
-        ref_roi=None,
-        ref_ch=ops["ref_ch"],
-        suffix=ops[f"{prefix.split('_')[0].lower()}_projection"],
-        correct_illumination=False,
-        reload=True,
-        save_plot=True,
-        dimension_prefix=ops["reference_prefix"],
-        use_slurm=False,
-    )
     # Remove all old files with "masks_corrected" in the name
-    for f in glob.glob(str(processed_path / "cells" / f"{prefix}_masks_corrected*")):
+    mask_folder = processed_path / "cells" / f"{prefix}_cells"
+    assert mask_folder.exists(), f"Folder {mask_folder} does not exist"
+
+    for f in mask_folder.glob(f"{prefix}_masks_corrected*"):
         Path(f).unlink()
 
     # First remove masks at the edges of all the tiles
@@ -954,159 +901,110 @@ def remove_all_overlapping_masks(data_path, prefix, upper_overlap_thresh):
                 corrected_masks, _ = find_edge_touching_masks(tile, border_width=4)
                 # Save the edge corrected masks
                 fname = f"{prefix}_masks_corrected_{roi[0]}_{tilex}_{tiley}.npy"
-                np.save(
-                    processed_path / "cells" / fname, corrected_masks, allow_pickle=True
-                )
+                np.save(mask_folder / fname, corrected_masks, allow_pickle=True)
 
     # Now remove overlapping masks
-    all_overlapping_pairs = []
-    if (ops["x_tile_direction"] != "right_to_left") or (
-        ops["y_tile_direction"] != "top_to_bottom"
-    ):
-        warnings.warn(
-            "This function is only tested for right_to_left and top_to_bottom tile direction"
-        )
+    overlapping_pairs = []
     for roi in roi_dims:
-        # TODO: this might fail with other microscope
         for tilex in tqdm(
-            reversed(range(roi[1] + 1)),
+            range(roi[1] + 1),
             desc=f"ROI {roi[0]} X-axis (overlap check)",
         ):
             for tiley in tqdm(
-                reversed(range(roi[2] + 1)),
+                range(roi[2] + 1),
                 desc=f"Tile {tilex} Y-axis (overlap check)",
                 leave=False,
             ):
                 ref_coors = (roi[0], tilex, tiley)
-                # Load reference tile
-                tile_ref = iss.io.load.load_mask_by_coors(
-                    data_path,
-                    tile_coors=ref_coors,
-                    prefix=prefix,
-                    suffix="corrected",
+                # Get overlap regions
+                overlap_regions, full_images = get_overlap_regions(
+                    data_path, prefix, ref_coors
                 )
-
-                # Check if adjacent down tile exists and load it
-                down_offset = 1 if ops["y_tile_direction"] == "bottom_to_top" else -1
-                down_coors = (ref_coors[0], ref_coors[1], ref_coors[2] + down_offset)
-                if down_coors[2] < 0 or down_coors[2] > roi[2]:
-                    tile_down = np.zeros_like(tile_ref)
-                else:
-                    tile_down = iss.io.load.load_mask_by_coors(
-                        data_path,
-                        tile_coors=down_coors,
-                        prefix=prefix,
-                        suffix="corrected",
+                for comp_coors, (overlap_ref, overlap_comp) in overlap_regions.items():
+                    overlapping = iss.segment.cells.remove_overlapping_labels(
+                        overlap_ref, overlap_comp, upper_overlap_thresh
                     )
-
-                # Check if adjacent right tile exists and load it
-                right_offset = 1 if ops["x_tile_direction"] == "left_to_right" else -1
-                right_coors = (ref_coors[0], ref_coors[1] + right_offset, ref_coors[2])
-                if right_coors[1] < 0 or right_coors[1] > roi[1]:
-                    tile_right = np.zeros_like(tile_ref)
-                else:
-                    tile_right = iss.io.load.load_mask_by_coors(
-                        data_path,
-                        tile_coors=right_coors,
-                        prefix=prefix,
-                        suffix="corrected",
-                    )
-
-                # Check if adjacent down right tile exists and load it
-                down_right_coors = (
-                    ref_coors[0],
-                    ref_coors[1] + right_offset,
-                    ref_coors[2] + down_offset,
-                )
-                if (
-                    down_right_coors[1] < 0
-                    or down_right_coors[2] < 0
-                    or down_right_coors[1] > roi[1]
-                    or down_right_coors[2] > roi[2]
-                ):
-                    tile_down_right = np.zeros_like(tile_ref)
-                else:
-                    tile_down_right = iss.io.load.load_mask_by_coors(
-                        data_path,
-                        tile_coors=down_right_coors,
-                        prefix=prefix,
-                        suffix="corrected",
-                    )
-
-                # Create code that loads adjacent tiles and checks for masks that overlap
-                # we use the prefix shift, not the reference as we want to be sure to
-                # find duplicates and we will not stitch
-                shifts_fname = (
-                    iss.io.get_processed_path(data_path)
-                    / "reg"
-                    / f"{prefix}_shifts.npz"  # f"{ops['reference_prefix']}_shifts.npz"
-                )
-                shifts = np.load(shifts_fname)
-
-                # As I have referenced overlap regions directly from the original tiles
-                # deleting the overlapping labels also deletes them from the original tiles
-                (
-                    overlap_ref_vert,
-                    overlap_down,
-                    overlap_ref_side,
-                    overlap_right,
-                    overlap_ref_with_down_right,
-                    overlap_down_right_with_ref,
-                ) = get_overlap_regions(
-                    shifts,
-                    tile_ref,
-                    tile_right,
-                    tile_down,
-                    tile_down_right,
-                )
-                overlapping_pairs = remove_overlapping_labels(
-                    overlap_ref_side, overlap_right, upper_overlap_thresh
-                )
-                # print(f"Pairs of masks and overlaps {overlapping_pairs}")
-                overlapping_pairs_down = remove_overlapping_labels(
-                    overlap_ref_vert, overlap_down, upper_overlap_thresh
-                )
-                # print(f"Pairs of masks and overlaps {overlapping_pairs_down}")
-                overlapping_pairs_down_right = remove_overlapping_labels(
-                    overlap_ref_with_down_right,
-                    overlap_down_right_with_ref,
-                    upper_overlap_thresh,
-                )
-                # print(f"Pairs of masks and overlaps {overlapping_pairs_ref_down_right}")
-                for pairs_list in [
-                    overlapping_pairs,
-                    overlapping_pairs_down,
-                    overlapping_pairs_down_right,
-                ]:
-                    # Checks if the list is not empty
-                    all_overlapping_pairs.extend(pairs_list)
+                    for o in overlapping:
+                        o["roi"] = roi[0]
+                        o["ref_tilex"] = tilex
+                        o["ref_tiley"] = tiley
+                        o["match_tilex"] = comp_coors[1]
+                        o["match_tiley"] = comp_coors[2]
+                    overlapping_pairs.extend(overlapping)
 
                 # Save the corrected masks
-                for tile in [
-                    (ref_coors, tile_ref),
-                    (down_coors, tile_down),
-                    (right_coors, tile_right),
-                    (down_right_coors, tile_down_right),
-                ]:
-                    tile_coors, mask = tile
+                for tile_coors, mask in full_images.items():
                     tile_roi, tile_x, tile_y = tile_coors
-                    if tile_x >= 0 and tile_y >= 0:
-                        fname = (
-                            f"{prefix}_masks_corrected_{tile_roi}_{tile_x}_{tile_y}.npy"
-                        )
-                        np.save(
-                            processed_path / "cells" / fname, mask, allow_pickle=True
-                        )
+                    fname = f"{prefix}_masks_corrected_{tile_roi}_{tile_x}_{tile_y}.npy"
+                    np.save(mask_folder / fname, mask, allow_pickle=True)
+    overlapping_pairs = pd.DataFrame(overlapping_pairs)
+    pd.to_pickle(overlapping_pairs, mask_folder / f"{prefix}_overlapping_pairs.pkl")
 
-    np.save(
-        processed_path / "cells" / f"{prefix}_overlapping_pairs.npy",
-        np.vstack(all_overlapping_pairs),
-        allow_pickle=True,
+    save_mcherry_mask_df(data_path, prefix)
+    return overlapping_pairs
+
+
+def save_mcherry_mask_df(data_path, prefix):
+    """Collate individual tile dataframes and remove overlapping masks.
+
+    This does not "stitch" the mask and keeps only the within tile x/y
+    coordinates, but it does precompute the stitched label.
+
+    Args:
+        data_path (str): Relative path to the data.
+        prefix (str): Prefix of the image stack.
+
+    Returns:
+        pd.DataFrame: Dataframe with the cell information.
+    """
+    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    overlap_df = mask_folder / f"{prefix}_overlapping_pairs.pkl"
+    assert (
+        overlap_df.exists()
+    ), f"File {overlap_df} does not exist. Run remove_all_overlapping_masks first."
+    overlap_df = pd.read_pickle(overlap_df)
+    deleted = overlap_df.query("delete_match")[
+        ["roi", "match_tilex", "match_tiley", "match_label"]
+    ]
+    deleted["tile"] = (
+        deleted.roi.astype(str)
+        + "_"
+        + deleted.match_tilex.astype(str)
+        + "_"
+        + deleted.match_tiley.astype(str)
     )
-    return all_overlapping_pairs
+
+    roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
+    dfs = []
+    for roi_dim in roi_dims:
+        # also add the final "stitched" label
+        stitched_label = 0
+        for tilex in range(roi_dim[1] + 1):
+            for tiley in range(roi_dim[2] + 1):
+                tile_name = f"{roi_dim[0]}_{tilex}_{tiley}"
+                fname = mask_folder / f"{prefix}_df_{tile_name}.pkl"
+                assert (
+                    fname.exists()
+                ), f"No segmentations found for tile {tile_name}. Run segment_mcherry_tile first."
+                df = pd.read_pickle(fname)
+                to_del = deleted.query("tile == @tile_name")
+                if not to_del.empty:
+                    assert np.all(
+                        to_del.match_label.isin(df.label)
+                    ), f"Labels to delete not found in tile {tile_name}"
+                    df = df[~df.label.isin(to_del.match_label)].copy()
+                if not len(df):
+                    continue
+                df["stitched_label"] = df.label + stitched_label
+                stitched_label = max(stitched_label, df.stitched_label.max())
+                dfs.append(df.copy())
+    target = mask_folder / f"{prefix}_df_corrected.pkl"
+    dfs = pd.concat(dfs, ignore_index=True)
+    dfs.to_pickle(target)
+    return dfs
 
 
-def remove_non_cell_masks(data_path, roi, tilex, tiley):
+def remove_non_cell_masks(data_path, prefix, roi, tilex, tiley):
     """
     Remove masks that are not cells based on the clustering results.
 
@@ -1117,10 +1015,10 @@ def remove_non_cell_masks(data_path, roi, tilex, tiley):
         tiley (int): Y coordinate of the tile.
     """
     processed_path = iss.io.get_processed_path(data_path)
-    mask_dir = processed_path / "cells"
-    df_thresh = pd.read_pickle(mask_dir / "df_thresh.pkl")
+    mask_dir = processed_path / "cells" / f"{prefix}_cells"
+    df_thresh = pd.read_pickle(mask_dir / f"{prefix}_df_thresh.pkl")
     tile = np.load(
-        mask_dir / f"mCherry_1_masks_{roi}_{tilex}_{tiley}.npy", allow_pickle=True
+        mask_dir / f"{prefix}_masks_{roi}_{tilex}_{tiley}.npy", allow_pickle=True
     )
     image_df = df_thresh[
         (df_thresh["roi"] == roi)
@@ -1139,11 +1037,11 @@ def remove_non_cell_masks(data_path, roi, tilex, tiley):
             tile[tile == label] = 0
 
     # Save the edge corrected masks
-    fname = f"mCherry_1_cell_masks_{roi}_{tilex}_{tiley}.npy"
-    np.save(processed_path / "cells" / fname, tile, allow_pickle=True)
+    fname = f"{prefix}_cell_masks_{roi}_{tilex}_{tiley}.npy"
+    np.save(mask_dir / fname, tile, allow_pickle=True)
 
 
-def find_mcherry_cells(data_path):
+def filter_mcherry_masks(data_path, prefix):
     """
     Find cell clusters in the mCherry channel using a GMM to cluster
     cells based on their morphological features. Then remove non-cell
@@ -1153,9 +1051,9 @@ def find_mcherry_cells(data_path):
         data_path (str): Relative path to the data.
     """
     processed_path = iss.io.get_processed_path(data_path)
-    df_dir = processed_path / "cells"
+    df_dir = processed_path / "cells" / f"{prefix}_cells"
     df_files = glob.glob(str(df_dir / "*.pkl"))
-    dfs = [pd.read_pickle(f) for f in df_files if "mcherry" in f.lower()]
+    dfs = [pd.read_pickle(f) for f in df_files if prefix in f]
     df = pd.concat(dfs)
     if df.empty:
         raise ValueError("No masks found in any tile.")
@@ -1166,8 +1064,8 @@ def find_mcherry_cells(data_path):
         "area",
         "circularity",
         "solidity",
-        "intensity_mean-3",
-        "intensity_mean-2",
+        "intensity_mean-1",
+        "intensity_mean-0",
     ]
 
     df_norm = (df[features] - df[features].min()) / (
@@ -1196,6 +1094,11 @@ def find_mcherry_cells(data_path):
     gmm.fit(df_scaled_features[features])
     labels = gmm.predict(df_scaled_features[features])
     df["cluster_label"] = labels + 1
+    df.to_pickle(df_dir / f"{prefix}_df_thresh.pkl")
+
+    iss.pipeline.batch_process_tiles(
+        data_path, script="remove_non_cell_masks", additional_args=f",PREFIX={prefix}"
+    )
 
 
 @slurm_it(
