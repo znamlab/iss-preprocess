@@ -1285,3 +1285,54 @@ def find_tile_order(
         tile_order[tile] = irow
 
     return tile_order, out_df
+
+
+def find_tile_overlap(data_path, ref_prefix, tile_coor1, tile_coor2):
+    """Find the overlap between two tiles
+
+    If tile1 is the stack, the overlap can be accessed by:
+    tile1[overlap_tile_1[1]:overlap_tile_1[3], overlap_tile_1[0]:overlap_tile_1[2]]
+
+    Args:
+        rect1 (tuple): Rectangle coordinates (x0, y0, x1, y1)
+        rect2 (tuple): Rectangle coordinates (x0, y0, x1, y1)
+
+    Returns:
+        tuple: Overlap in global coordinates (x0, y0, x1, y1)
+        tuple: Overlap in tile 1 (x0, y0, x1, y1)
+        tuple: Overlap in tile 2 (x0, y0, x1, y1)
+    """
+    if tile_coor1[0] != tile_coor2[0]:
+        # not the same ROI
+        return None, None, None
+    corners = get_tile_corners(data_path, prefix=ref_prefix, roi=tile_coor1[0])
+    rect1 = corners[tile_coor1[1], tile_coor1[2]]
+    rect2 = corners[tile_coor2[1], tile_coor2[2]]
+
+    # rect has the 4 corner, we just want the x0, y0, x1, y1
+    # but tile corners are row/col, not x/y, so swap
+    rect1 = (rect1[1, 0], rect1[0, 0], rect1[1, 2], rect1[0, 2])
+    rect2 = (rect2[1, 0], rect2[0, 0], rect2[1, 2], rect2[0, 2])
+
+    x0 = max(rect1[0], rect2[0])
+    y0 = max(rect1[1], rect2[1])
+    x1 = min(rect1[2], rect2[2])
+    y1 = min(rect1[3], rect2[3])
+    if x0 > x1 or y0 > y1:
+        return None, None, None
+
+    overlap = (x0, y0, x1, y1)
+    overlap_tile_1 = (
+        overlap[0] - rect1[0],
+        overlap[1] - rect1[1],
+        overlap[2] - rect1[0],
+        overlap[3] - rect1[1],
+    )
+    overlap_tile_2 = (
+        overlap[0] - rect2[0],
+        overlap[1] - rect2[1],
+        overlap[2] - rect2[0],
+        overlap[3] - rect2[1],
+    )
+
+    return overlap, overlap_tile_1, overlap_tile_2
