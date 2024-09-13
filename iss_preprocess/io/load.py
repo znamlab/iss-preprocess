@@ -500,8 +500,12 @@ def load_mask_by_coors(
 
     fname = f"{prefix}{mask_name}_{tile_roi}_{tile_x}_{tile_y}.npy"
 
-    if (processed_path / "cells" / fname).exists():
-        masks = np.load(processed_path / "cells" / fname, allow_pickle=True)
+    folder = processed_path / "cells"
+    if (folder / f"{prefix}_cells").exists():
+        # if prefix specific subfolder exists, use that
+        folder = folder / f"{prefix}_cells"
+    if (folder / fname).exists():
+        masks = np.load(folder / fname, allow_pickle=True)
         return masks
     else:
         raise FileNotFoundError(f"Could not find mask file {fname}")
