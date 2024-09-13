@@ -14,7 +14,14 @@ from skimage.segmentation import expand_labels
 
 import iss_preprocess as iss
 
-from ..io import get_pixel_size, get_roi_dimensions, load_metadata, load_ops
+from iss_preprocess.image.correction import calculate_unmixing_coefficient
+from ..io import (
+    get_pixel_size,
+    get_roi_dimensions,
+    load_metadata,
+    load_ops,
+    get_processed_path,
+)
 from ..segment import (
     cellpose_segmentation,
     count_spots,
@@ -626,7 +633,6 @@ def segment_mcherry_tile(
     roi,
     tilex,
     tiley,
-    suffix="unmixed",
 ):
     """
     Segment the mCherry channel of an image stack.
@@ -637,7 +643,6 @@ def segment_mcherry_tile(
         roi (int): Region of interest.
         tilex (int): X coordinate of the tile.
         tiley (int): Y coordinate of the tile.
-        suffix (str): Suffix of the image stack.
 
     Returns:
         filtered_masks (np.ndarray): Binary image of the filtered masks.
@@ -648,31 +653,28 @@ def segment_mcherry_tile(
     # Load the unmixed and original mCherry image stacks
     processed_path = iss.io.get_processed_path(data_path)
     ops = load_ops(data_path)
-    unmixed_fname = (
-        f"{prefix}_MMStack_{roi}-"
-        + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_unmixed.tif"
-    )
-    unmixed_path = processed_path / prefix / unmixed_fname
-    unmixed_stack = iss.io.load_stack(unmixed_path)
+    short_prefix = prefix.split("_")[0].lower()
 
-    original_fname = (
-        f"{prefix}_MMStack_{roi}-"
-        + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_{suffix}.tif"
-    )
-    stack = iss.io.load_stack(processed_path / prefix / original_fname)
+    print("Loading stack")
+    unmixed_image, mixed_stack = unmix_tile(data_path, prefix, (roi, tilex, tiley))
 
+    print("Filtering")
     # Apply a hann window filter to the unmixed image to remove halos around cells
     filt = iss.image.filter_stack(
-        unmixed_stack, r1=ops["mcherry_r1"], r2=ops["mcherry_r2"], dtype=float
+        unmixed_image,
+        r1=ops[f"{short_prefix}_r1"],
+        r2=ops[f"{short_prefix}_r2"],
+        dtype=float,
     )
-    binary = (filt > threshold_triangle(filt))[:, :, 0]
+    binary = filt > threshold_triangle(filt)
 
+    print("Label")
     # Label the connected components in the binary image
     # creating a df with the properties of each cell
     labeled_image = measure.label(binary)
     props = measure.regionprops_table(
         labeled_image,
-        intensity_image=stack,
+        intensity_image=mixed_stack,
         properties=(
             "label",
             "area",
@@ -692,36 +694,42 @@ def segment_mcherry_tile(
     props_df["circularity"] = (
         4 * np.pi * props_df["area"] / (props_df["perimeter"] ** 2)
     )
+    # unmixed_image has two channels, signal and background
     props_df["intensity_ratio"] = (
-        props_df["intensity_mean-2"] / props_df["intensity_mean-3"]
+        props_df["intensity_mean-0"] / props_df["intensity_mean-1"]
     )
     props_df["roi"] = roi
     props_df["tilex"] = tilex
     props_df["tiley"] = tiley
 
+    print("Filtering masks")
     # TODO: these are a lot of threshold and we don't have an easy way to set them
     # adapt to detect more mask here and filter later.
-    filtered_df = props_df[
-        (props_df["area"] > ops["min_area_threshold"])
-        & (props_df["area"] < ops["max_area_threshold"])
-        & (props_df["circularity"] >= ops["min_circularity_threshold"])
-        & (props_df["circularity"] <= ops["max_circularity_threshold"])
-        & (props_df["eccentricity"] <= ops["max_elongation_threshold"])
-        & (props_df["solidity"] >= ops["min_solidity_threshold"])
-        & (props_df["solidity"] < ops["max_solidity_threshold"])
-        & (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])
+    valid_masks = np.ones(len(props_df), dtype=bool)
+    thresholds = [
+        "min_area_threshold",
+        "max_area_threshold",
+        "min_circularity_threshold",
+        "max_circularity_threshold",
+        "max_elongation_threshold",
+        "min_solidity_threshold",
+        "max_solidity_threshold",
+        "max_bg_intensity_threshold",
     ]
+    for prop in thresholds:
+        threshold = ops.get(prop, None)
+        if threshold is None:
+            continue
+        col_name = "_".join(prop.split("_")[1:-1])
+        if col_name == "bg_intensity":
+            col_name = "intensity_mean-1"
+        if prop.startswith("min"):
+            valid_masks &= props_df[col_name] >= threshold
+        elif prop.startswith("max"):
+            valid_masks &= props_df[col_name] <= threshold
 
-    rejected_masks_df = props_df[
-        ~(props_df["area"] > ops["min_area_threshold"])
-        & (props_df["area"] < ops["max_area_threshold"])
-        & (props_df["circularity"] >= ops["min_circularity_threshold"])
-        & (props_df["circularity"] >= ops["max_circularity_threshold"])
-        & (props_df["eccentricity"] <= ops["max_elongation_threshold"])
-        & (props_df["solidity"] >= ops["min_solidity_threshold"])
-        & (props_df["solidity"] < ops["max_solidity_threshold"])
-        & (props_df["intensity_mean-3"] < ops["max_bg_intensity_threshold"])
-    ]
+    filtered_df = props_df[valid_masks]
+    rejected_masks_df = props_df[~valid_masks]
 
     # Identify all pixels belonging to the filtered labels
     filtered_masks = np.zeros_like(labeled_image, dtype=np.uint16)
@@ -735,15 +743,15 @@ def segment_mcherry_tile(
     rejected_mask = np.isin(labeled_image, rejected_labels)
     rejected_masks[rejected_mask] = 255
 
-    mask_dir = processed_path / "cells"
-    mask_dir.mkdir(exist_ok=True)
+    mask_dir = processed_path / "cells" / f"{prefix}_cells"
+    mask_dir.mkdir(exist_ok=True, parents=True)
     np.save(
         mask_dir / f"{prefix}_masks_{roi}_{tilex}_{tiley}.npy",
         filtered_masks,
         allow_pickle=True,
     )
     pd.to_pickle(filtered_df, mask_dir / f"{prefix}_df_{roi}_{tilex}_{tiley}.pkl")
-
+    print(f"Saved masks to {mask_dir}")
     return filtered_masks, filtered_df, rejected_masks
 
 

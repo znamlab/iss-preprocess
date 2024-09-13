@@ -160,6 +160,9 @@ hybridisation:
 mcherry:
   # Projection to use for mCherry detection
   mcherry_projection: max
+  # Signal and background channel for mCherry detection
+  mcherry_signal_channel: 2
+  mcherry_background_channel: 3
   # Binarisation quantile for registration of mCherry to reference channel
   mcherry_binarise_quantile: null
   # Tile coors for finding coef and intercept for unmixing mCherry
@@ -168,26 +171,29 @@ mcherry:
   background_coef: 1.1
   # Intensity background threshold for linear fit of mCherry signal
   threshold_background: 200
-  # Minimum area for mCherry cell masks
-  min_area_threshold: 600
-  # Maximum area for mCherry cell masks
+  # Minimum area for mCherry cell masks, in px^2
+  min_area_threshold: 200
+  # Maximum area for mCherry cell masks, in px^2
   max_area_threshold: 5000
   # Minimum circularity for mCherry cell masks, closer to 1 is more circular
-  min_circularity_threshold: 0.7
+  min_circularity_threshold: null
   # Maximum circularity for mCherry cell masks, closer to 1 is more circular
-  max_circularity_threshold: 1
+  max_circularity_threshold: null
   # Minimum solidity for mCherry cell masks, closer to 1 is less convex
-  min_solidity_threshold: 0.9
+  min_solidity_threshold: null
   # Maximum solidity for mCherry cell masks
-  max_solidity_threshold: 1
+  max_solidity_threshold: null
   # Maximum eccentricity for mCherry cell masks
-  max_elongation_threshold: 0.99
+  max_elongation_threshold: null
   # Maximum background channel intensity for mCherry cell masks
-  max_bg_intensity_threshold: 200
+  max_bg_intensity_threshold: 50
   # Inner radius of the han window annulus for mcherry prefiltering
   mcherry_r1: 4
   # Outer radius of the han window annulus for mcherry prefiltering
   mcherry_r2: 70
+  # Mask can be further filtered using a gmm
+  mcherry_gmm_filter_masks: false
+
 
 # projection for other acquisitions
 dapi_projection: max-median
