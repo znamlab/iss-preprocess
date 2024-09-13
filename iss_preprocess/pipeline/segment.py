@@ -1196,6 +1196,117 @@ def find_mcherry_cells(data_path):
     gmm.fit(df_scaled_features[features])
     labels = gmm.predict(df_scaled_features[features])
     df["cluster_label"] = labels + 1
-    df.to_pickle(processed_path / "cells" / "df_thresh.pkl")
 
-    iss.pipeline.batch_process_tiles(data_path, script="remove_non_cell_masks")
+
+@slurm_it(
+    conda_env="iss-preprocess",
+    print_job_id=True,
+    slurm_options={"mem": "16GB", "time": "1:00:00"},
+)
+def save_unmixing_coefficients(
+    data_path,
+    prefix,
+    tile_coors=None,
+    background_channel=None,
+    signal_channel=None,
+    projection=None,
+):
+    """Find the unmixing coefficients for one tile."""
+
+    short_prefix = prefix.split("_")[0].lower()
+    target_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    target_folder.mkdir(exist_ok=True, parents=True)
+
+    ops = load_ops(data_path)
+    if tile_coors is None:
+        tile_coors = ops[f"{short_prefix}_ref_tile"]
+    if background_channel is None:
+        background_channel = ops[f"{short_prefix}_background_channel"]
+    if signal_channel is None:
+        signal_channel = ops[f"{short_prefix}_signal_channel"]
+    if projection is None:
+        projection = ops[f"{short_prefix}_projection"]
+
+    print(f"Finding unmixing coefficients for tile {tile_coors}")
+    stack, _ = iss.pipeline.load_and_register_tile(
+        data_path,
+        tile_coors=tile_coors,
+        prefix=prefix,
+        filter_r=False,
+        projection=projection,
+        correct_illumination=True,
+    )
+    # we have a 4d image with "nrounds" as last dim, we only need the first
+    stack = stack[..., 0]
+
+    pure_signal, coef, intercept = calculate_unmixing_coefficient(
+        signal_image=stack[..., signal_channel],
+        background_image=stack[..., background_channel],
+        background_coef=ops["background_coef"],
+        threshold_background=ops["threshold_background"],
+    )
+
+    print(f"Unmixing coefficients: signal = mixed - {coef} bg + {intercept}")
+    np.savez(
+        target_folder / f"unmixing_coef_{short_prefix}.npz",
+        coef=coef,
+        intercept=intercept,
+    )
+    return pure_signal, coef, intercept
+
+
+def unmix_tile(
+    data_path,
+    prefix,
+    tile_coors,
+    background_channel=None,
+    signal_channel=None,
+    projection=None,
+):
+    """Unmix one tile using the previously found coefficients.
+
+    Args:
+        data_path (str): Path to the data directory.
+        prefix (str): Prefix of the image stack.
+        tile_coors (tuple): Coordinates of the tile.
+        background_channel (int, optional): Channel index of the background image.
+        signal_channel (int, optional): Channel index of the signal image.
+        projection (str, optional): Projection method.
+
+    Returns:
+        unmixed (np.ndarray): Unmixed image."""
+
+    short_prefix = prefix.split("_")[0].lower()
+    seg_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    assert seg_folder.exists(), "Unmixing coefficients not found."
+
+    ops = load_ops(data_path)
+    if background_channel is None:
+        background_channel = ops[f"{short_prefix}_background_channel"]
+    if signal_channel is None:
+        signal_channel = ops[f"{short_prefix}_signal_channel"]
+    if projection is None:
+        projection = ops[f"{short_prefix}_projection"]
+
+    print(f"Unmixing tile {tile_coors}")
+    stack, _ = iss.pipeline.load_and_register_tile(
+        data_path,
+        tile_coors=tile_coors,
+        prefix=prefix,
+        filter_r=False,
+        projection=projection,
+        correct_illumination=True,
+    )
+    # we have a 4d image with "nrounds" as last dim, we only need the first
+    stack = stack[..., 0]
+
+    unmix_param = np.load(seg_folder / f"unmixing_coef_{short_prefix}.npz")
+    unmixed = iss.image.correction.unmix_images(
+        background_image=stack[..., background_channel],
+        mixed_signal_image=stack[..., signal_channel],
+        coef=unmix_param["coef"],
+        intercept=unmix_param["intercept"],
+        background_coef=ops["background_coef"],
+    )
+    original_stack = stack[..., [signal_channel, background_channel]]
+    return unmixed, original_stack
