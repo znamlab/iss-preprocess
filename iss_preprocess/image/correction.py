@@ -2,6 +2,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from functools import partial
 from scipy.ndimage import median_filter, gaussian_filter
 from skimage.morphology import disk
 from sklearn.linear_model import LinearRegression
@@ -65,27 +66,27 @@ def filter_stack(stack, r1=2, r2=4, dtype=float):
         np.array: Filtered stack.
 
     """
-    nchannels = stack.shape[2]
+
     h = hanning_diff(r1, r2).astype(dtype)
     stack_filt = np.zeros(stack.shape, dtype=dtype)
+    filt_func = partial(
+        cv2.filter2D, ddepth=-1, kernel=np.flip(h), borderType=cv2.BORDER_REPLICATE
+    )
     # TODO: check if we can get rid of the np.flip
+    if stack.ndim == 2:
+        stack_filt = filt_func(stack.astype(dtype))
+        return stack_filt
+
+    nchannels = stack.shape[2]
     for ich in range(nchannels):
         if stack.ndim == 4:
             nrounds = stack.shape[3]
             for iround in range(nrounds):
-                stack_filt[:, :, ich, iround] = cv2.filter2D(
-                    stack[:, :, ich, iround].astype(dtype),
-                    -1,
-                    np.flip(h),
-                    borderType=cv2.BORDER_REPLICATE,
+                stack_filt[:, :, ich, iround] = filt_func(
+                    stack[:, :, ich, iround].astype(dtype)
                 )
         else:
-            stack_filt[:, :, ich] = cv2.filter2D(
-                stack[:, :, ich].astype(dtype),
-                -1,
-                np.flip(h),
-                borderType=cv2.BORDER_REPLICATE,
-            )
+            stack_filt[:, :, ich] = filt_func(stack[:, :, ich].astype(dtype))
     return stack_filt
 
 
