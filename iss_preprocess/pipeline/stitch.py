@@ -201,20 +201,55 @@ def register_all_rois_within(
     dimension_prefix="genes_round_1_1",
     verbose=1,
     use_slurm=True,
+    job_dependency=None,
+    scripts_name=None,
+    slurm_folder=None,
 ):
+    """Register all tiles within each ROI
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str, optional): Prefix of acquisition to register. If None, will use the
+            one in `ops`. Defaults to None.
+        ref_ch (int, optional): Reference channel to use for registration. If None, will
+            use the one in `ops`. Defaults to None.
+        suffix (str, optional): Suffix to use to load the images. Defaults to
+            'max-median'.
+        correct_illumination (bool, optional): Correct illumination before registration.
+            Defaults to True.
+        reload (bool, optional): Reload saved shifts if True. Defaults to False.
+        save_plot (bool, optional): Save diagnostic plot. Defaults to True.
+        dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
+            only if the acquisition is an overview. Defaults to 'genes_round_1_1'.
+        verbose (int, optional): Verbosity level. Defaults to 1.
+        use_slurm (bool, optional): Use SLURM to parallelize the registration. Defaults
+            to True.
+        job_dependencies (list, optional): List of job dependencies. Defaults to None.
+        script_names (str, optional):Script names for slurm jobs. Defaults to None.
+        slurm_folder (str, optional): Folder to save SLURM logs. Defaults to None.
+
+    Returns:
+        list: List of outputs from `register_within_acquisition`
+    """
     ops = load_ops(data_path)
     if prefix is None:
         prefix = ops["reference_prefix"]
+
+    min_corrcoef = ops.get(f"{prefix}_min_corrcoef", 0.3)
+    max_delta_shift = ops.get(f"{prefix}_max_delta_shift", 20)
 
     roi_dims = get_roi_dimensions(data_path)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     if use_slurm:
-        slurm_folder = Path.home() / "slurm_logs" / data_path / "register_within"
+        if slurm_folder is None:
+            slurm_folder = Path.home() / "slurm_logs" / data_path / "register_within"
         slurm_folder.mkdir(exist_ok=True, parents=True)
     else:
         slurm_folder = None
+    if scripts_name is None:
+        scripts_name = f"register_within_{prefix}_{roi}"
 
     outs = []
     for roi in roi_dims[use_rois, 0]:
@@ -229,10 +264,13 @@ def register_all_rois_within(
                 reload=reload,
                 save_plot=save_plot,
                 dimension_prefix=dimension_prefix,
+                min_corrcoef=min_corrcoef,
+                max_delta_shift=max_delta_shift,
                 verbose=verbose,
                 use_slurm=use_slurm,
                 slurm_folder=slurm_folder,
-                scripts_name=f"register_within_{prefix}_{roi}",
+                scripts_name=scripts_name,
+                job_dependency=job_dependency,
             )
         )
     return outs
