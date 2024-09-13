@@ -345,7 +345,7 @@ def batch_process_tiles(
     additional_args="",
     dependency_type="afterok",
     job_dependency=None,
-    verbose=True,
+    verbose=False,
 ):
     """Start sbatch scripts for all tiles across all rois.
 
