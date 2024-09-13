@@ -248,6 +248,10 @@ def register_all_rois_within(
         slurm_folder.mkdir(exist_ok=True, parents=True)
     else:
         slurm_folder = None
+    if scripts_name is None:
+        root_name = f"register_within_{prefix}"
+    else:
+        root_name = scripts_name
 
     outs = []
     for roi in roi_dims[use_rois, 0]:
@@ -269,7 +273,7 @@ def register_all_rois_within(
                 verbose=verbose,
                 use_slurm=use_slurm,
                 slurm_folder=slurm_folder,
-                scripts_name=scripts_name,
+                scripts_name=f"{root_name}_{roi}",
                 job_dependency=job_dependency,
             )
         )
