@@ -935,15 +935,15 @@ def merge_roi_spots(
     all_spots = []
     ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
 
-    for ix in range(ntiles[0]):
-        for iy in range(ntiles[1]):
+    for tx in range(ntiles[0]):
+        for ty in range(ntiles[1]):
             try:
-                spots = align_spots(data_path, tile_coors=(iroi, ix, iy), prefix=prefix)
-                spots["x_tile"] = spots["x"].copy()
-                spots["y_tile"] = spots["y"].copy()
-                spots["tile"] = f"{iroi}_{ix}_{iy}"
-                spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
-                spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
+                spots = align_spots(data_path, tile_coors=(iroi, tx, ty), prefix=prefix)
+                spots["x_in_tile"] = spots["x"].copy()
+                spots["y_in_tile"] = spots["y"].copy()
+                spots["tile"] = f"{iroi}_{tx}_{ty}"
+                spots["x"] = spots["x"] + tile_origins[tx, ty, 1]
+                spots["y"] = spots["y"] + tile_origins[tx, ty, 0]
 
                 if not keep_all_spots:
                     # calculate distance to tile centers
@@ -954,15 +954,15 @@ def merge_roi_spots(
                         spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
                         - tile_centers[np.newaxis, :, :, 0]
                     ) ** 2
-                    home_tile_dist = (spot_dist[:, ix, iy]).copy()
-                    spot_dist[:, ix, iy] = np.inf
+                    home_tile_dist = (spot_dist[:, tx, ty]).copy()
+                    spot_dist[:, tx, ty] = np.inf
                     min_spot_dist = np.min(spot_dist, axis=(1, 2))
                     keep_spots = home_tile_dist < min_spot_dist
                 else:
                     keep_spots = np.ones(spots.shape[0], dtype=bool)
                 all_spots.append(spots[keep_spots])
             except FileNotFoundError:
-                print(f"could not load roi {iroi}, tile {ix}, {iy}")
+                print(f"could not load roi {iroi}, tile {tx}, {ty}")
 
     spots = pd.concat(all_spots, ignore_index=True)
     return spots
