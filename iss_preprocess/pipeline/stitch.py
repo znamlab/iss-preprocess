@@ -27,7 +27,7 @@ from iss_preprocess.reg import (
     estimate_scale_rotation_translation,
 )
 from iss_preprocess import pipeline
-from iss_preprocess.pipeline.register import align_spots
+from iss_preprocess.pipeline.register import align_spots, align_cell_dataframe
 
 
 def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection=None):
@@ -966,6 +966,42 @@ def merge_roi_spots(
 
     spots = pd.concat(all_spots, ignore_index=True)
     return spots
+
+
+@slurm_it(conda_env="iss-preprocessing", slurm_options={"time": "1:00:00", "mem": "8G"})
+def stitch_cell_dataframes(data_path, prefix, ref_prefix=None):
+    """Stitch cell dataframes across all tiles and ROI.
+
+    Args:
+        data_path (str): path to data
+        prefix (str): prefix of the cell dataframe to load
+        ref_prefix (str, optional): prefix of the reference tiles to use for stitching.
+            Defaults to None.
+
+    Returns:
+        pandas.DataFrame: stitched cell dataframe
+    """
+
+    ops = load_ops(data_path)
+    if ref_prefix is None:
+        ref_prefix = ops["reference_prefix"]
+
+    stitched_df = align_cell_dataframe(data_path, prefix, ref_prefix=None).copy()
+    stitched_df["x_in_tile"] = stitched_df["x"].copy()
+    stitched_df["y_in_tile"] = stitched_df["y"].copy()
+    stitched_df["tile"] = "Not Processed"
+    stitched_df["x"] = np.nan
+    stitched_df["y"] = np.nan
+
+    for roi, df in stitched_df.groupby("roi"):
+        # find tile origin, final shape, and shifts in reference coordinates
+        ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
+        ref_origins = ref_corners[..., 0]
+        for (tx, ty), tdf in df.groupby(["tilex", "tiley"]):
+            stitched_df.loc[tdf.index, "tile"] = f"{roi}_{tx}_{ty}"
+            stitched_df.loc[tdf.index, "x"] = tdf["x_in_tile"] + ref_origins[tx, ty, 1]
+            stitched_df.loc[tdf.index, "y"] = tdf["y_in_tile"] + ref_origins[tx, ty, 0]
+    return stitched_df
 
 
 def stitch_and_register(
