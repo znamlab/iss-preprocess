@@ -880,3 +880,76 @@ def setup_flexilims(path):
             flexilims_session=flm_session,
         )
         parent_id = sample["id"]
+
+
+def segment_and_stitch_mcherry_cells(data_path, prefix):
+    """Master function for mCherry cell segmentation and stitching
+
+    Will call in turn the following functions:
+    - `segment_mcherry_cells`
+    - `filter_mcherry_cells` if ops['filter_mask'] is True
+    - `register_within` to find overlapping region (with reload=True)
+    - `remove_duplicate`
+    - `stitch_mcherry_cells`
+    """
+    ops = iss.io.load_ops(data_path)
+    slurm_folder = Path.home() / "slurm_logs" / data_path / f"segment_{prefix}"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+
+    job_coef = iss.pipeline.segment.save_unmixing_coefficients(
+        data_path,
+        prefix,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        scripts_name=f"unmix_{prefix}",
+    )
+
+    additional_args = f",PREFIX={prefix}"
+    job_ids, failed_job = batch_process_tiles(
+        data_path,
+        script="segment_mcherry_tile",
+        additional_args=additional_args,
+        job_dependency=job_coef,
+    )
+    print(f"Started {len(job_ids)} jobs for segmenting mCherry cells")
+
+    spref = prefix.split("_")[0].lower()
+    do_filt_gmm = ops.get(f"{spref}_gmm_filter_mask")
+    if do_filt_gmm:
+        raise NotImplementedError("Just need call teh filter function")
+
+    # ensure the "within" registration ran
+    reg_jobs = iss.pipeline.stitch.register_all_rois_within(
+        data_path,
+        prefix=prefix,
+        ref_ch=None,
+        suffix=ops[f"{prefix.split('_')[0].lower()}_projection"],
+        correct_illumination=True,
+        reload=True,
+        save_plot=True,
+        dimension_prefix="genes_round_1_1",
+        verbose=True,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        scripts_name=f"register_within_{prefix}",
+        job_dependency=failed_job,
+    )
+    # remove duplicate masks
+    dupl_job = iss.pipeline.segment.remove_all_duplicate_masks(
+        data_path,
+        prefix,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        job_dependency=reg_jobs,
+        scripts_name=f"remove_duplicate_masks_{prefix}",
+    )
+
+    # stitch the masks
+    iss.pipeline.stitch.stitch_cell_dataframes(
+        data_path,
+        prefix,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        job_dependency=dupl_job,
+        scripts_name=f"stitch_{prefix}",
+    )
