@@ -159,7 +159,7 @@ def segment_all_tiles(
             job_ids = []
     else:
         job_ids = []
-
+    job_ids = [item for sublist in job_ids for item in sublist]
     if use_raw_stack:
         # project masks to a single plane
         if use_slurm:
