@@ -346,68 +346,67 @@ def _reg_chans(
         dict: Debug information, only if debug is True
     """
 
-    match ops["align_method"]:
-        case "similarity":
-            if reference_prefix is None:
-                raise ValueError(
-                    "Reference prefix must be provided for similarity transform"
-                )
-            # binarise if needed
-            nch = stack.shape[2]
-            if binarise_quantile is not None:
-                for ich in range(nch):
-                    ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
-                    stack[:, :, ich] = stack[:, :, ich] > ref_thresh
+    if ops["align_method"] == "similarity":
+        if reference_prefix is None:
+            raise ValueError(
+                "Reference prefix must be provided for similarity transform"
+            )
+        # binarise if needed
+        nch = stack.shape[2]
+        if binarise_quantile is not None:
+            for ich in range(nch):
+                ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
+                stack[:, :, ich] = stack[:, :, ich] > ref_thresh
 
-            out = estimate_shifts_and_angles_for_tile(
-                stack,
-                scales=reference_tforms["scales_between_channels"],
-                ref_ch=ref_ch,
-                max_shift=ops["rounds_max_shift"],
-                debug=debug,
-            )
-            if debug:
-                angles, shifts, db_info = out
-            else:
-                angles, shifts = out
-            to_save = dict(
-                angles=angles,
-                shifts=shifts,
-                scales=reference_tforms["scales_between_channels"],
-            )
-        case "affine":
-            block_size = ops.get(f"{ops_prefix}_reg_block_size", 256)
-            overlap = ops.get(f"{ops_prefix}_reg_block_overlap", 0.5)
-            correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
-            max_residual = ops.get(f"{ops_prefix}_max_residual", 2)
-            print("Registration parameters:")
-            print(f"    block size {block_size}\n    overlap {overlap}")
-            print(f"    correlation threshold {correlation_threshold}")
-            print(f"    binarise quantile {binarise_quantile}")
-            print(f"    max residual {max_residual}")
-            print(f"    ref channel {ref_ch}")
-            print(f"    max shift {ops['rounds_max_shift']}")
-            if reference_prefix is None:
-                tform_matrix = None
-            else:
-                tform_matrix = reference_tforms["matrix_between_channels"]
-            matrix = estimate_affine_for_tile(
-                stack,
-                tform_matrix=tform_matrix,
-                ref_ch=ref_ch,
-                max_shift=ops["rounds_max_shift"],
-                max_residual=max_residual,
-                debug=debug,
-                block_size=block_size,
-                overlap=overlap,
-                correlation_threshold=correlation_threshold,
-                binarise_quantile=binarise_quantile,
-            )
-            if debug:
-                matrix, db_info = matrix
-            to_save = dict(matrix_between_channels=matrix)
-        case _:
-            raise ValueError(f"Align method {ops['align_method']} not recognised")
+        out = estimate_shifts_and_angles_for_tile(
+            stack,
+            scales=reference_tforms["scales_between_channels"],
+            ref_ch=ref_ch,
+            max_shift=ops["rounds_max_shift"],
+            debug=debug,
+        )
+        if debug:
+            angles, shifts, db_info = out
+        else:
+            angles, shifts = out
+        to_save = dict(
+            angles=angles,
+            shifts=shifts,
+            scales=reference_tforms["scales_between_channels"],
+        )
+    elif ops["align_method"] == "affine":
+        block_size = ops.get(f"{ops_prefix}_reg_block_size", 256)
+        overlap = ops.get(f"{ops_prefix}_reg_block_overlap", 0.5)
+        correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
+        max_residual = ops.get(f"{ops_prefix}_max_residual", 2)
+        print("Registration parameters:")
+        print(f"    block size {block_size}\n    overlap {overlap}")
+        print(f"    correlation threshold {correlation_threshold}")
+        print(f"    binarise quantile {binarise_quantile}")
+        print(f"    max residual {max_residual}")
+        print(f"    ref channel {ref_ch}")
+        print(f"    max shift {ops['rounds_max_shift']}")
+        if reference_prefix is None:
+            tform_matrix = None
+        else:
+            tform_matrix = reference_tforms["matrix_between_channels"]
+        matrix = estimate_affine_for_tile(
+            stack,
+            tform_matrix=tform_matrix,
+            ref_ch=ref_ch,
+            max_shift=ops["rounds_max_shift"],
+            max_residual=max_residual,
+            debug=debug,
+            block_size=block_size,
+            overlap=overlap,
+            correlation_threshold=correlation_threshold,
+            binarise_quantile=binarise_quantile,
+        )
+        if debug:
+            matrix, db_info = matrix
+        to_save = dict(matrix_between_channels=matrix)
+    else:
+        raise ValueError(f"Align method {ops['align_method']} not recognised")
     if debug:
         return to_save, db_info
     return to_save
@@ -1370,19 +1369,17 @@ def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
         np.NpzFile: The transformation parameter to reference coordinates
 
     """
-
     ops = load_ops(data_path)
-    match ops["corrected_shifts"]:
-        case "single_tile":
-            corrected_shifts = ""
-        case "ransac":
-            corrected_shifts = "_corrected"
-        case "best":
-            corrected_shifts = "_best"
-        case _:
-            raise ValueError(
-                f"Corrected shifts {ops['corrected_shifts']} not recognised"
-            )
+    if ops["corrected_shifts"] == "single_tile":
+        corrected_shifts = ""
+    elif ops["corrected_shifts"] == "ransac":
+        corrected_shifts = "_corrected"
+    elif ops["corrected_shifts"] == "best":
+        corrected_shifts = "_best"
+    else:
+        raise ValueError(
+            f"Corrected shifts {ops['corrected_shifts']} not recognised"
+        )
     processed_path = iss.io.get_processed_path(data_path)
     tform2ref = np.load(
         processed_path
