@@ -22,7 +22,7 @@ setup(
         "numba",
         "cellpose",
         "Click",
-        "bg_atlasapi",
+        "brainglobe_atlasapi",
         "natsort",
         "seaborn",
         "decorator",

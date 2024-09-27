@@ -6,12 +6,6 @@ import cv2
 import numpy as np
 import yaml
 from scipy.ndimage import gaussian_filter
-from skimage.transform import downscale_local_mean
-
-from image_tools.similarity_transforms import transform_image
-from image_tools.registration.phase_correlation import phase_correlation
-from znamutils import slurm_it
-
 from ..io import (
     get_pixel_size,
     get_processed_path,
