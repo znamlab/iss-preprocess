@@ -3,7 +3,7 @@ import numpy as np
 import yaml
 from skimage.transform import rescale
 from scipy.ndimage import gaussian_filter
-import bg_atlasapi as bga
+import brainglobe_atlasapi as bga
 from . import stitch
 import cv2
 from ..io import (
