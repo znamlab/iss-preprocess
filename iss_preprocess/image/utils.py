@@ -1,6 +1,8 @@
+from pathlib import Path
+
 import cv2
 import numpy as np
-from pathlib import Path
+
 import iss_preprocess as iss
 
 
@@ -62,7 +64,7 @@ def flip_all_tiffs(
         target_folder (str, optional): Path to folder where to save tiffs. If None,
             saves in folder Defaults to None.
         overwrite (bool, optional): Overwrite existing tifs? Defaults to False.
-        
+
     """
     folder = Path(folder)
     if target_folder is None:
@@ -84,4 +86,3 @@ def flip_all_tiffs(
             flip_vertical=flip_vertical,
         )
         iss.io.write_stack(flipped, target)
-

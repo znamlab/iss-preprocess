@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+
 from decorator import decorator
 
 from .io import load_ops
@@ -33,14 +34,15 @@ def updates_flexilims(func, name_source=None, *args, **kwargs):
 
     # update flexilims if needed
     if parent is not None:
-        if name_source is None:
-            func_name = func.__name__
-        else:
+        func_name = func.__name__
+        if name_source is not None:
             # find the index of the args whose name is `name_source`
             arg_index = func.__code__.co_varnames.index(name_source)
-            func_name = args[arg_index]
+            func_name += f"_{args[arg_index]}"
         dataset_name = f"{parent_name}_{func_name}"
         flm_attr = dict(ops)
+        flm_attr.update(kwargs)
+        flm_attr["args"] = args
         flz.utils.clean_recursively(flm_attr)
         print("Adding dataset to flexilims")
         rep = flz.add_dataset(

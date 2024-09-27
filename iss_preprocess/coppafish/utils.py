@@ -1,7 +1,8 @@
+import warnings
 from math import floor
+
 import numpy as np
 import scipy
-import warnings
 
 
 def ftrans2(b, t=None) -> np.ndarray:
@@ -36,7 +37,7 @@ def ftrans2(b, t=None) -> np.ndarray:
     h = a[1] * p1
     rows = inset[0]
     cols = inset[1]
-    h[rows, cols] += a[0] * p0
+    h[rows, cols] += a[0, 0] * p0
     for i in range(2, n + 1):
         p2 = 2 * scipy.signal.convolve2d(t, p1)
         rows = rows + inset[0]
@@ -153,6 +154,9 @@ def scaled_k_means(
     if len(np.array([score_thresh]).flatten()) == 1:
         # if single threshold, set the same for each cluster
         score_thresh = np.ones(n_clusters) * score_thresh
+    elif isinstance(score_thresh, list):
+        score_thresh = np.array(score_thresh)
+        assert len(score_thresh) == n_clusters, "score_thresh must be length n_clusters"
 
     for i in range(n_iter):
         cluster_ind_old = cluster_ind.copy()

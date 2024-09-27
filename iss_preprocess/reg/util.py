@@ -1,7 +1,12 @@
+from math import cos, radians, sin
+
 import numpy as np
 import scipy.fft
-from math import cos, sin, radians
 from skimage.transform import SimilarityTransform, warp
+
+raise NotImplementedError(
+    "This code is not used in the current version of the pipeline."
+)
 
 
 def transform_image(im, scale=1, angle=0, shift=(0, 0), cval=0.0):
@@ -35,7 +40,7 @@ def make_transform(s, angle, shift, shape):
 
     Returns:
         numpy.ndarray: transformation matrix
-        
+
     """
     angle = -radians(angle)
     center_x = float(shape[1]) / 2 - 0.5

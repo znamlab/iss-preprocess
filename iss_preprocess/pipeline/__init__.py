@@ -6,3 +6,4 @@ from .segment import *
 from .hybridisation import *
 from .sequencing import *
 from .diagnostics import *
+from .ara_registration import *

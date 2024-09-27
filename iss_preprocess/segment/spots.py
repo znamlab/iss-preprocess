@@ -1,11 +1,12 @@
-import pandas as pd
-import numpy as np
-from skimage.feature import blob_log
-from scipy.signal import medfilt2d
-from scipy.ndimage import grey_dilation
 import cv2
+import numpy as np
+import pandas as pd
 import scipy
+from scipy.ndimage import grey_dilation
+
 from ..coppafish import annulus
+
+import iss_preprocess as iss
 
 
 def detect_isolated_spots(
@@ -70,8 +71,8 @@ def detect_spots(im, threshold=100, spot_size=2):
 def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None):
     """Make an image by convolving spots with a gaussian
 
-    A single isolated rolony results in a gaussian with sd about `kernel_size / 3` and
-    an amplitude of 1
+    A single isolated rolony results in a gaussian with sigma `gaussian_width`
+    and an amplitude of 1
 
     Args:
         spots (pandas.DataFrame): Spots DataFrame. Must have `x` and `y` columns
@@ -84,7 +85,7 @@ def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None)
         numpy.ndarray: Convolution results
 
     """
-    kernel_size = gaussian_width * 8
+    kernel_size = gaussian_width * 20
     kernel_size += 1 - kernel_size % 2  # kernel shape must be odd
     kernel = cv2.getGaussianKernel(kernel_size, sigma=int(gaussian_width))
     # set the initial value so that single pixels after convolution have a peak of 1
@@ -96,4 +97,59 @@ def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None)
         ).astype(int)
     spot_image = np.zeros(output_shape, dtype=dtype)
     spot_image[spots.y.values.astype(int), spots.x.values.astype(int)] = 1
-    return cv2.sepFilter2D(src=spot_image, kernelX=kernel, kernelY=kernel, ddepth=-1)
+    return cv2.sepFilter2D(
+        src=spot_image,
+        kernelX=kernel,
+        kernelY=kernel,
+        ddepth=-1,
+        borderType=cv2.BORDER_ISOLATED,
+    )
+
+
+def convolve_spots(
+    data_path,
+    roi,
+    kernel_um,
+    prefix="barcode_round",
+    dot_threshold=None,
+    tile=None,
+    output_shape=None,
+):
+    """Generate an image of spot density by convolution
+
+    Args:
+        data_path (str): Relative path to data
+        roi (int): Roi ID
+        kernel_um (float): Width of the kernel for convolution in microns
+        prefix (str, optional): Prefix of the spots to load. Defaults to 'barcode_round'
+        dot_threshold (float, optional): Threshold on the barcode dot_product_score to
+            select spots to use. Defaults to None.
+        tile (tuple, optional): Tile to use. Defaults to None.
+        output_shape (tuple, optional): Shape of the output image. If not provided will
+            return the smallest shape that includes (0,0) and all spots. Defaults to
+            None.
+
+    Returns:
+        numpy.ndarray: 2D image of roi density
+
+    """
+    if tile is None:
+        spots = pd.read_pickle(
+            iss.io.get_processed_path(data_path) / f"{prefix}_spots_{roi}.pkl"
+        )
+    else:
+        spots = pd.read_pickle(
+            iss.io.get_processed_path(data_path)
+            / "spots"
+            / f"{prefix}_spots_{roi}_{tile[0]}_{tile[1]}.pkl"
+        )
+    if dot_threshold is not None:
+        spots = spots[spots.dot_product_score > dot_threshold]
+
+    # load barcode_round_1_1 but anything should work
+    pixel_size = iss.io.get_pixel_size(data_path)
+    gaussian_width = int(kernel_um / pixel_size)
+
+    return make_spot_image(
+        spots, gaussian_width=gaussian_width, dtype="single", output_shape=output_shape
+    )

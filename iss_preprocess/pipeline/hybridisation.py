@@ -1,32 +1,35 @@
-import subprocess, shlex
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import iss_preprocess as iss
-from pathlib import Path
 from skimage.morphology import binary_dilation
-from ..image import filter_stack, apply_illumination_correction, compute_distribution
-from ..reg import apply_corrections
-from ..io import (
-    load_tile_by_coors,
-    load_metadata,
-    load_hyb_probes_metadata,
-    load_ops,
-    get_roi_dimensions,
-)
-from ..segment import detect_spots
+from znamutils import slurm_it
+
+import iss_preprocess as iss
 from ..call import extract_spots
 from ..coppafish import scaled_k_means
+from ..image import apply_illumination_correction, compute_distribution, filter_stack
+from ..io import (
+    get_roi_dimensions,
+    load_hyb_probes_metadata,
+    load_metadata,
+    load_ops,
+    load_tile_by_coors,
+)
+from ..reg import apply_corrections
+from ..segment import detect_spots
 
 
 def load_and_register_hyb_tile(
     data_path,
     tile_coors=(1, 0, 0),
     prefix="hybridisation_1_1",
-    suffix="fstack",
+    suffix="max",
     filter_r=(2, 4),
     correct_illumination=False,
     correct_channels=False,
+    corrected_shifts="best",
 ):
     """Load hybridisation tile and align channels. Optionally, filter, correct
     illumination and channel brightness.
@@ -45,6 +48,8 @@ def load_and_register_hyb_tile(
             Defaults to False.
         correct_channels (bool, optional): Whether to normalize channel brightness.
             Defaults to False.
+        correct_shifts (str, optional): Which shift to use. One of `reference`,
+            `single_tile`, `ransac`, or `best`. Defaults to 'best'.
 
     Returns:
         numpy.ndarray: X x Y x Nch image stack.
@@ -54,20 +59,35 @@ def load_and_register_hyb_tile(
 
     """
     processed_path = iss.io.get_processed_path(data_path)
-    tforms_fname = (
-        f"tforms_corrected_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+    valid_shifts = ["reference", "single_tile", "ransac", "best"]
+    assert corrected_shifts in valid_shifts, (
+        f"unknown shift correction method, must be one of {valid_shifts}",
     )
-    tforms = np.load(processed_path / "reg" / tforms_fname, allow_pickle=True)
+    tforms = get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts)
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
     )
     if correct_illumination:
         stack = apply_illumination_correction(data_path, stack, prefix)
-    stack = apply_corrections(
-        stack, tforms["scales"], tforms["angles"], tforms["shifts"], cval=np.nan
-    )
+    if "matrix_between_channels" not in tforms.keys():
+        stack = apply_corrections(
+            stack,
+            matrix=None,
+            scales=tforms["scales"],
+            angles=tforms["angles"],
+            shifts=tforms["shifts"],
+            cval=np.nan,
+        )
+    else:
+        stack = apply_corrections(
+            stack,
+            matrix=tforms["matrix_between_channels"],
+            cval=np.nan,
+        )
+
     bad_pixels = np.any(np.isnan(stack), axis=(2))
-    stack[np.isnan(stack)] = 0
+    stack = np.nan_to_num(stack)
+
     if filter_r:
         stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
         mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
@@ -79,6 +99,42 @@ def load_and_register_hyb_tile(
     return stack, bad_pixels
 
 
+def get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts):
+    """Load the channel shifts for a given tile and sequencing acquisition.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Prefix of the sequencing round.
+        tile_coors (tuple): Coordinates of the tile to process.
+        corrected_shifts (str): Which shift to use. One of `reference`, `single_tile`,
+            `ransac`, or `best`.
+
+    Returns:
+        np.ndarray: Array of channel and round shifts.
+
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
+    match corrected_shifts:
+        case "reference":
+            tforms_fname = f"tforms_{prefix}.npz"
+            tforms_path = processed_path
+        case "single_tile":
+            tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
+            tforms_path = processed_path / "reg"
+        case "ransac":
+            tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
+            tforms_path = processed_path / "reg"
+        case "best":
+            tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
+            tforms_path = processed_path / "reg"
+        case _:
+            raise ValueError(f"unknown shift correction method: {corrected_shifts}")
+    tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
+    return tforms
+
+
+@slurm_it(conda_env="iss-preprocess")
 def estimate_channel_correction_hybridisation(data_path):
     """Compute grayscale value distribution and normalisation factors for
     all hybridisation rounds.
@@ -135,17 +191,28 @@ def estimate_channel_correction_hybridisation(data_path):
         np.savez(save_path, pixel_dist=pixel_dist, norm_factors=norm_factors)
 
 
-def setup_hyb_spot_calling(data_path, vis=True):
+@slurm_it(conda_env="iss-preprocess")
+def setup_hyb_spot_calling(data_path, prefix=None, vis=True):
     """Prepare and save bleedthrough matrices for hybridisation rounds.
 
     Args:
         data_path (str): Relative path to data
+        prefix (list, optional): List of prefix of hybridisation rounds to process.
+            If None, all hybridisation rounds are processed. Defaults to None.
         vis (bool, optional): Whether to generate diagnostic plots. Defaults to True.
 
     """
     processed_path = iss.io.get_processed_path(data_path)
     metadata = load_metadata(data_path)
-    for hyb_round in metadata["hybridisation"].keys():
+    if prefix is None:
+        prefix = list(metadata["hybridisation"].keys())
+    elif isinstance(prefix, str):
+        prefix = [prefix]
+
+    print("setting up hybridisation spot calling. Will process the following rounds:")
+    print(prefix)
+    for hyb_round in prefix:
+        print(f"processing {hyb_round}")
         cluster_means, spot_colors, cluster_inds, genes = hyb_spot_cluster_means(
             data_path, hyb_round
         )
@@ -162,7 +229,7 @@ def setup_hyb_spot_calling(data_path, vis=True):
             spot_colors=spot_colors,
             cluster_inds=cluster_inds,
         )
-    iss.pipeline.check_hybridisation_setup(data_path)
+    iss.pipeline.check_hybridisation_setup(data_path, prefixes=prefix)
 
 
 def hyb_spot_cluster_means(data_path, prefix):
@@ -197,7 +264,9 @@ def hyb_spot_cluster_means(data_path, prefix):
     init_spot_colors = np.array(init_spot_colors)
 
     all_spots = []
-    for ref_tile in ops["barcode_ref_tiles"]:
+    ref_tiles = ops["genes_ref_tiles"]
+    ref_tiles = ops.get("hybridisation_ref_tiles", ref_tiles)
+    for ref_tile in ref_tiles:
         print(f"detecting spots in tile {ref_tile}")
         stack, _ = load_and_register_hyb_tile(
             data_path,
@@ -236,23 +305,16 @@ def extract_hyb_spots_all(data_path):
     """
     roi_dims = get_roi_dimensions(data_path)
     ops = load_ops(data_path)
-    if "use_rois" not in ops.keys(): ops["use_rois"] = roi_dims[:, 0]
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
-    script_path = str(
-        Path(__file__).parent.parent.parent / "scripts" / "extract_hyb_spots.sh"
-    )
-
     for hyb_round in metadata["hybridisation"].keys():
         for roi in roi_dims[use_rois, :]:
-            args = f"--export=DATAPATH={data_path},ROI={roi[0]},PREFIX={hyb_round}"
-            args = args + f" --output={Path.home()}/slurm_logs/iss_hyb_spots_%j.out"
-            command = f"sbatch {args} {script_path}"
-            print(command)
-            subprocess.Popen(
-                shlex.split(command),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
+            extract_hyb_spots_roi(
+                data_path=data_path,
+                prefix=hyb_round,
+                roi=roi[0],
             )
 
 
@@ -267,12 +329,18 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
 
     """
     roi_dims = get_roi_dimensions(data_path)
-    ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
-    for ix in range(ntiles[0]):
-        for iy in range(ntiles[1]):
-            extract_hyb_spots_tile(data_path, (roi, ix, iy), prefix)
+    if roi is not None:
+        roi_dims = roi_dims[roi_dims[:, 0] == int(roi), :]
+        assert len(roi_dims), f"no ROI {roi} found in roi_dims for {data_path}"
+    iss.pipeline.batch_process_tiles(
+        data_path,
+        "extract_hyb_spots",
+        roi_dims=roi_dims,
+        additional_args=f",PREFIX={prefix}",
+    )
 
 
+@slurm_it(conda_env="iss-preprocess", slurm_options={"mem": "16G", "time": "1:00:00"})
 def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     """Detect hybridisation spots for a given tile.
 
@@ -287,7 +355,7 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     clusters = np.load(
         processed_path / f"{prefix}_cluster_means.npz", allow_pickle=True
     )
-    print(f"detecting spots in tile {tile_coors}")
+    print("loading and registering tile")
     stack, _ = load_and_register_hyb_tile(
         data_path,
         tile_coors=tile_coors,
@@ -296,10 +364,12 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
         correct_illumination=True,
         correct_channels=ops["hybridisation_correct_channels"],
     )
+    print(f"detecting spots in tile {tile_coors}")
     spots = detect_spots(
         np.max(stack, axis=2), threshold=ops["hybridisation_detection_threshold"]
     )
     if spots.shape[0]:
+        print(f"Found {spots.shape[0]} spots. Extracting")
         stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
         spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
         iss.pipeline.extract_spots(spots, stack, ops["spot_extraction_radius"])
@@ -330,3 +400,4 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
     spots.to_pickle(
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
+    print(f"saved spots for {prefix} tile {tile_coors} to {save_dir}")

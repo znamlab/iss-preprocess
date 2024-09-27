@@ -1,7 +1,9 @@
+from math import floor
+
 import cv2
 import numpy as np
+
 from ..segment import detect_spots
-from math import floor
 
 
 def get_spot_shape(g, spot_xy=7, neighbor_filter_size=9, neighbor_threshold=15):
@@ -67,7 +69,7 @@ def apply_symmetry(spot_sign_image):
     )
     X = X - floor(spot_sign_image.shape[0] / 2)
     Y = Y - floor(spot_sign_image.shape[1] / 2)
-    D = X ** 2 + Y ** 2
+    D = X**2 + Y**2
     unique_ds = np.unique(D)
     symmetric_spot_sign_image = np.empty(spot_sign_image.shape)
     for unique_d in unique_ds:
@@ -115,7 +117,7 @@ def find_gene_spots(g, spot_sign_image, rho=2, spot_score_threshold=0.05):
 def detect_spots_by_shape(im, spot_sign_image, threshold=0, rho=2):
     """
     Detect spots in an image based on similarity to a spot sign image.
-    
+
     Args:
         im (numpy.ndarray): input image
         spot_sign_image (numpy.ndarray): average spot sign image to use as a template in filtering spots
@@ -127,16 +129,17 @@ def detect_spots_by_shape(im, spot_sign_image, threshold=0, rho=2):
         pandas.DataFrame: spot coordinates and scores
 
     """
+    spots = detect_spots(im, threshold=threshold)
+
     neg_max = np.sum(np.sign(spot_sign_image) == -1)
     pos_max = np.sum(np.sign(spot_sign_image) == 1)
-    spots = detect_spots(im, threshold=threshold)
     pos_filter = (np.sign(spot_sign_image) == 1).astype(float)
     neg_filter = (np.sign(spot_sign_image) == -1).astype(float)
     filt_pos = cv2.filter2D(
-        (im > 0).astype(float), -1, pos_filter, borderType=cv2.BORDER_REPLICATE,
+        (im > 0).astype(float), -1, pos_filter, borderType=cv2.BORDER_REPLICATE
     )
     filt_neg = cv2.filter2D(
-        (im < 0).astype(float), -1, neg_filter, borderType=cv2.BORDER_REPLICATE,
+        (im < 0).astype(float), -1, neg_filter, borderType=cv2.BORDER_REPLICATE
     )
     pos_pixels = filt_pos[spots["y"], spots["x"]]
     neg_pixels = filt_neg[spots["y"], spots["x"]]

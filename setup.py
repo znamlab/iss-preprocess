@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name="iss_preprocess",
@@ -16,6 +16,8 @@ setup(
         "scikit-image",
         "scikit-learn",
         "flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git",
+        "znamutils @ git+ssh://git@github.com/znamlab/znamutils.git",
+        "image-tools @ git+ssh://git@github.com/znamlab/image-tools.git",
         "opencv-python",
         "numba",
         "cellpose",
@@ -24,6 +26,7 @@ setup(
         "natsort",
         "seaborn",
         "decorator",
+        "scipy>=1.11.0",
     ],
     entry_points="""
         [console_scripts]

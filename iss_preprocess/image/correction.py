@@ -1,11 +1,14 @@
-import numpy as np
 from pathlib import Path
+
 import cv2
+import numpy as np
+from functools import partial
+from scipy.ndimage import median_filter, gaussian_filter
 from skimage.morphology import disk
-from skimage.filters import median
-from ..io.load import load_stack, load_ops, get_processed_path
+from sklearn.linear_model import LinearRegression
+
 from ..coppafish import hanning_diff
-from pathlib import Path
+from ..io import get_processed_path, load_ops, load_stack, write_stack
 
 
 def apply_illumination_correction(data_path, stack, prefix, dtype=float):
@@ -28,16 +31,21 @@ def apply_illumination_correction(data_path, stack, prefix, dtype=float):
     """
     processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
-    average_image_fname = processed_path / "averages" / f"{prefix}_average.tif"
-    average_image = load_stack(average_image_fname).astype(float)
-
+    fname = ops.get(f"{prefix}_average_for_correction", f"{prefix}_average.tif")
+    average_image_fname = processed_path / "averages" / fname
+    avg_image = load_stack(average_image_fname).astype(float)
+    # find rounds that do not have data
+    no_data = np.logical_not(np.any(stack, axis=(0, 1, 2)))
     if stack.ndim == 4:
-        stack = (
+        corrected = (
             stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
-        ) / average_image[:, :, :, np.newaxis]
+        ) / avg_image[:, :, :, np.newaxis]
+        corrected[..., no_data] *= 0
+    elif no_data:
+        corrected = stack
     else:
-        stack = (stack - ops["black_level"][np.newaxis, np.newaxis, :]) / average_image
-    return stack.astype(dtype)
+        corrected = (stack - ops["black_level"][np.newaxis, np.newaxis, :]) / avg_image
+    return corrected.astype(dtype)
 
 
 def filter_stack(stack, r1=2, r2=4, dtype=float):
@@ -58,28 +66,114 @@ def filter_stack(stack, r1=2, r2=4, dtype=float):
         np.array: Filtered stack.
 
     """
-    nchannels = stack.shape[2]
+
     h = hanning_diff(r1, r2).astype(dtype)
     stack_filt = np.zeros(stack.shape, dtype=dtype)
+    filt_func = partial(
+        cv2.filter2D, ddepth=-1, kernel=np.flip(h), borderType=cv2.BORDER_REPLICATE
+    )
     # TODO: check if we can get rid of the np.flip
+    if stack.ndim == 2:
+        stack_filt = filt_func(stack.astype(dtype))
+        return stack_filt
+
+    nchannels = stack.shape[2]
     for ich in range(nchannels):
         if stack.ndim == 4:
             nrounds = stack.shape[3]
             for iround in range(nrounds):
-                stack_filt[:, :, ich, iround] = cv2.filter2D(
-                    stack[:, :, ich, iround].astype(dtype),
-                    -1,
-                    np.flip(h),
-                    borderType=cv2.BORDER_REPLICATE,
+                stack_filt[:, :, ich, iround] = filt_func(
+                    stack[:, :, ich, iround].astype(dtype)
                 )
         else:
-            stack_filt[:, :, ich] = cv2.filter2D(
-                stack[:, :, ich].astype(dtype),
-                -1,
-                np.flip(h),
-                borderType=cv2.BORDER_REPLICATE,
-            )
+            stack_filt[:, :, ich] = filt_func(stack[:, :, ich].astype(dtype))
     return stack_filt
+
+
+def calculate_unmixing_coefficient(
+    signal_image, background_image, background_coef, threshold_background
+):
+    """
+    Unmixes two images: one with only background autofluorescence and another with both
+    background and useful signal. Uses Linear regression for the unmixing process.
+
+    Args:
+        background_image: numpy array of the background image.
+        signal_image: numpy array of the image with both signal and background.
+        background_coef: Coefficient to multiply the background image by before
+            subtraction.
+        threshold_background: Minimum value for a pixel to be considered background.
+
+    Returns:
+        pure_signal_image: The isolated signal image after background subtraction.
+        model_coef: Coefficient used to multiply the background image for unmixing.
+        intercept: Intercept of the linear model used for unmixing.
+
+    """
+    # Flatten to 1D arrays for the regression model
+    background_flat = background_image.ravel()
+    mixed_signal_flat = signal_image.ravel()
+
+    # Remove pixels that are too dark or too bright
+    # The max pixel value is 4096, remove only very close to saturation
+    bright_pixels = (
+        (background_flat > threshold_background) & (background_flat < 4090)
+    ) & ((mixed_signal_flat > threshold_background) & (mixed_signal_flat < 4090))
+    background_flat = background_flat[bright_pixels].reshape(-1, 1)
+    mixed_signal_flat = mixed_signal_flat[bright_pixels]
+
+    # Initialize and fit Linear model
+    model = LinearRegression(positive=True)
+    try:
+        model.fit(background_flat, mixed_signal_flat)
+        # Predict the background component in the mixed signal image
+        predicted_background_flat = model.predict(
+            background_image.ravel().reshape(-1, 1)
+        )
+
+        predicted_background = predicted_background_flat.reshape(background_image.shape)
+
+        # Subtract the predicted background from the mixed signal to get the signal image
+        pure_signal_image = signal_image - (
+            predicted_background * background_coef
+        )  # TODO: Remove fudge factor
+        pure_signal_image = np.clip(pure_signal_image, 0, None)
+        print(
+            f"Image unmixed with coefficient: {model.coef_[0]}, intercept: {model.intercept_}"
+        )
+    except ValueError:
+        raise ValueError("Not enough data passing background threshold to fit model")
+
+    return pure_signal_image, model.coef_[0], model.intercept_
+
+
+def unmix_images(
+    background_image: np.ndarray,
+    mixed_signal_image: np.ndarray,
+    coef: float,
+    intercept: float,
+    background_coef: float = 1.0,
+):
+    """
+    Unmixes two images
+
+    One must contain only background autofluorescence and another with both
+    background and useful signal.
+
+    Args:
+        background_image: numpy array of the background image.
+        mixed_signal_image: numpy array of the image with both signal and background.
+        coef: Coefficient to multiply the background image by before subtraction.
+        intercept: Intercept of the linear model used for unmixing.
+        background_coef: Fudge factor to increase the amount of background subtracted.
+
+    Returns:
+        signal_image: The isolated signal image after background subtraction.
+    """
+    predicted_background = (background_image * float(coef)) + float(intercept)
+    signal_image = mixed_signal_image - (predicted_background * background_coef)
+    signal_image = np.clip(signal_image, 0, None)
+    return signal_image
 
 
 def tilestats_and_mean_image(
@@ -90,10 +184,12 @@ def tilestats_and_mean_image(
     black_level=0,
     max_value=10000,
     verbose=False,
-    median_filter=None,
+    median_filter_size=None,
+    gaussian_filter_size=None,
     normalise=False,
     combine_tilestats=False,
     exclude_tiffs=None,
+    row_filter=None,
 ):
     """
     Compute tile statistics and mean image to use for illumination correction.
@@ -105,8 +201,8 @@ def tilestats_and_mean_image(
         suffix (str, optional): suffix to filter images to average. Defaults to "", no
             filter
         n_batch (int, optional): If 1 average everything, otherwise makes `n_batch`
-            averages and take the median of those. All averages must fit in RAM.
-            Defaults to None
+            averages and take the median of those. All averages must fit in RAM. If
+            `None`, create as many batches as tiffs. Defaults to 1.
         black_level (float, optional): image black level to subtract before calculating
             each mean image. Defaults to 0
         max_value (float, optional): image values are clipped to this value *after*
@@ -115,11 +211,14 @@ def tilestats_and_mean_image(
         verbose (bool, optional): whether to report on progress. Defaults to False
         median_filter (int, optional): size of median filter to apply to the correction
             image. If None, no median filtering is applied. Defaults to None.
+        mean_filter (int, optional): size of mean filter to apply to the correction
+            image. If None, no mean filtering is applied. Defaults to None.
         normalise (bool, optional): Divide each channel by its maximum value. Default to
             False
         combine_tilestats (bool, optional): If False, compute tilestats, if True, load
             already created tilestats for each tif and sum them.
         exclude_tiffs (list, optional): List of str filter to exclude tiffs from average
+        row_filter (str, optional): If "even"/"odd", only average tiffs on even/odd rows
 
     Returns:
         numpy.ndarray: correction image
@@ -138,10 +237,18 @@ def tilestats_and_mean_image(
         tiffs = [t for t in tiffs if not any([f in t.name for f in exclude_tiffs])]
     if not len(tiffs):
         raise IOError(f"NO valid tifs in folder {data_folder}")
+    # Filter tiffs to only even or odd numbered tiffs
+    if row_filter == "even":
+        # Search tif for even number in
+        tiffs = [t for t in tiffs if int(t.stem.split("_")[-1]) % 2 == 0]
+    elif row_filter == "odd":
+        tiffs = [t for t in tiffs if int(t.stem.split("_")[-1]) % 2 == 1]
 
     black_level = np.asarray(black_level)  # in case we have just a float
     if verbose:
         print(f"Averaging {len(tiffs)} tifs in {im_name}.", flush=True)
+    if n_batch is None:
+        n_batch = len(tiffs)
 
     if n_batch == 1:
         mean_image, tilestats = _mean_tiffs(
@@ -149,7 +256,8 @@ def tilestats_and_mean_image(
             black_level,
             max_value,
             verbose,
-            median_filter,
+            median_filter_size,
+            gaussian_filter_size,
             normalise,
             combine_tilestats,
         )
@@ -170,7 +278,8 @@ def tilestats_and_mean_image(
                 black_level,
                 max_value,
                 verbose,
-                median_filter,
+                median_filter_size,
+                gaussian_filter_size,
                 normalise,
                 combine_tilestats,
             )
@@ -189,7 +298,8 @@ def _mean_tiffs(
     black_level,
     max_value,
     verbose,
-    median_filter,
+    median_filter_size,
+    gaussian_filter_size,
     normalise,
     combine_tilestats,
 ):
@@ -207,7 +317,7 @@ def _mean_tiffs(
             )
         tilestats = np.load(stats)
     else:
-        tilestats = compute_distribution(data, max_value=2 ** 16)
+        tilestats = compute_distribution(data, max_value=2**16)
 
     # initialise folder mean with first frame
     mean_image = np.array(data, dtype=float)
@@ -223,14 +333,19 @@ def _mean_tiffs(
             stats = tile.with_name(tile.name.replace("_average.tif", "_tilestats.npy"))
             tilestats += np.load(stats)
         else:
-            tilestats += compute_distribution(data, max_value=2 ** 16)
+            tilestats += compute_distribution(data, max_value=2**16)
 
         data = np.clip(data.astype(float) - black_level.reshape(1, 1, -1), 0, max_value)
         mean_image += data / len(tiff_list)
 
-    if median_filter is not None:
-        for ic in range(mean_image.shape[2]):
-            mean_image[:, :, ic] = median(mean_image[:, :, ic], disk(median_filter))
+    if median_filter_size is not None:
+        mean_image = median_filter(
+            mean_image, footprint=disk(median_filter_size), axes=(0, 1)
+        )
+    if gaussian_filter_size is not None:
+        mean_image = gaussian_filter(
+            mean_image, sigma=gaussian_filter_size, mode="nearest", axes=(0, 1)
+        )
 
     if normalise:
         max_by_chan = np.nanmax(mean_image.reshape((-1, mean_image.shape[-1])), axis=0)
@@ -238,7 +353,7 @@ def _mean_tiffs(
     return mean_image, tilestats
 
 
-def compute_distribution(stack, max_value=int(2 ** 12 + 1)):
+def compute_distribution(stack, max_value=int(2**12 + 1)):
     """Compute simple tile statistics for one multichannel image
 
     Args:
@@ -252,6 +367,6 @@ def compute_distribution(stack, max_value=int(2 ** 12 + 1)):
     distribution = np.zeros((max_value + 1, stack.shape[2]))
     for ich in range(stack.shape[2]):
         distribution[:, ich] = np.bincount(
-            stack[:, :, ich].flatten().astype(np.uint16), minlength=max_value + 1,
+            stack[:, :, ich].flatten().astype(np.uint16), minlength=max_value + 1
         )
     return distribution

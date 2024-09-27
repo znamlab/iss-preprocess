@@ -1,10 +1,20 @@
+projection:
+  make_fstack: false
+  make_max: true
+  make_median: true
+
 # Parameters for illumination correction, channel brightness correction and filtering
 image_correction:
-  # To compute the average for illumination correction, individual images are clipped to this 
-  # value before averaging to avoid bright outliers
+  # Image projection to use for illumination correction
+  averaging_projection: median
+  # To compute the average for illumination correction, individual images are clipped to
+  # this value before averaging to avoid bright outliers
   average_clip_value: 2000
-  # Size of the median filter apply to images for illumination correction before averaging
-  average_median_filter: 5
+  # Size of the median/mean filter apply to images for illumination correction before
+  # averaging. Median filter is applied before gaussian if both are provided
+  average_median_filter: null
+  average_gaussian_filter: 100
+
   # Path to calibration images for black level estimation, relative to processed data path
   dark_frame_path: becalia_iss_microscope/calibration/20221209_dark_frame/20221209_dark_frame_MMStack_Pos0.ome.tif
   # Data quantile to use for channel brightness correction - should correspond to bright rolonies
@@ -13,18 +23,26 @@ image_correction:
   correction_tiles: [ [ 1, 0, 0 ] ]
   # Inner and outer radius of the hanning window convolution kernels for filtering
   filter_r: [ 2, 4 ]
-  # Whether to use an exponential fit to estimate channel brightness correction across rounds
+  # Whether to use an exponential fit to estimate channel brightness correction across
+  # rounds
   fit_channel_correction: true
+  # Specific channel correction for individual acquisitions
+  # The default is to load f"{prefix}_average.tif" but that can be changed here
+  mCherry_1_average_for_correction: averages_average.tif
 
 # Parameters for registration across rounds and channels
 registration:
   # Whether to use channel-specific registration parameters
   align_channels: true
-  # Coordinates of the reference tile to use for initial estimation of scale and rotation between channels
+  # Method for aligning channels, can be "similarity" or "affine"
+  align_method: affine
+  # Coordinates of the reference tile to use for initial estimation of scale and
+  # rotation between channels. [ ROI, X/col, Y/row]
   ref_tile: [ 1, 0, 0 ]
-  # Index of the reference channel to use for registration (camera index, NOT wavelength index)
+  # Index of the reference channel to use for registration (camera index, NOT wavelength
+  # index)
   ref_ch: 0
-  # Index of the reference round to use for registration
+  # Index of the reference round to use for registration (0-based index, not name)
   ref_round: 0
   # Fraction of the tile to use for registration
   reg_fraction: 0.1
@@ -32,25 +50,62 @@ registration:
   corrected_shifts: best
   # Mininum tile shift above which RANSAC fit is used to estimate the shift
   ransac_residual_threshold: 10
+  # Minimum shift for registration of one channel across rounds
+  rounds_min_shift: 2
+  # Maximum shift for registration across rounds and across channels
+  rounds_max_shift: 500
   # Maximum shift for tiles to be included in the RANSAC fit
   ransac_max_shift: 500
   # Minumum number of tile for RANSAC fit, otherwise median is used
   ransac_min_tiles: 10
-  # Wheter tile position increments from left to right or right to left
-  tile_direction: left_to_right
+  # Whether tile position increments from left to right or right to left
+  x_tile_direction: right_to_left
+  # Whether tile position increments from bottom to top or top to bottom
+  y_tile_direction: top_to_bottom
+  # Radius of disk for median filtering images before registration.
+  # if `null` no filter is applied.
+  reg_median_filter: 1
+  # Use masked phase correlation? Slower but might solve issue for large rotation
+  use_masked_correlation: false
+
+# Parameters for registration to reference channel (usually DAPI)
+registration_to_reference:
+  corrected_shifts2ref: best
+  # Maximum tile shift above which RANSAC fit is used to estimate the shift
+  max_shift2ref: 500
+  # acquisition to use as main reference for registration
+  reference_prefix: "hybridisation_round_2_1"
+  # Which channel of the reference to use for registration, can be a list of channels,
+  # in which case they will be averaged
+  reg2ref_reference_channels: 2
+  # by default the same channel is used for the target channel, but this can be changed
+  # here for individual acquisition by specifying `f"reg2ref_{prefix}_channels"`. For
+  # single round images, prefix can be the "short" acquisition name or the full prefix.
+  # If both are present the  latter takes precedence (so
+  # "reg2ref_hybridisation_channels" is ignored if
+  # "reg2ref_hybridisation_round_1_1_channels" exists).
+  reg2ref_genes_channels: [0,1,2,3]
+  reg2ref_barcode_channels: [0,1,2,3]
+  # similarly, the reference channel can be changed for a specific acquisition (for
+  # instance if you want to alternate between dapi and anchor)
+  reg2ref_reference_channels_for_mCherry: [2,3]
+
 
 # Radius of the mask used for extracting spot fluorescence. The resulting values are used for estimating
 # bleedthrough matrices, calling hybridisation spots and basecalling barcodes
 spot_extraction_radius: 2
 
+# Initial estimate for bleedthrough matrix for genes and barcodes
+initial_cluster_means: [[0.7, 0.3, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.6, 0.4], [0.0, 0.0, 0.0, 1.0],]
+
 # Parameters for detecting and calling gene spots
 genes:
   # Filename of the codebook with GIIs
-  codebook: codebook_83gene_pool.csv
+  codebook: codebook_88_20230216.csv
   # Projection to use for gene spots, "fstack" or "max"
-  genes_projection: fstack 
+  genes_projection: max-median
   # How to apply brightness correction for gene sequencing. Can be True, False, or "round1_only". In the
-  # latter case all channels are normalized to 1 on round 1 and decrease in brightness across rounds is 
+  # latter case all channels are normalized to 1 on round 1 and decrease in brightness across rounds is
   # not corrected for.
   genes_correct_channels: round1_only
   # tiles used to train the bleedthrough matrix for genes
@@ -58,11 +113,11 @@ genes:
   # Cluster score threshold used to identify spots to estimate the bleedthrough matrix for genes
   genes_cluster_score_thresh: 0.9
   # Detection threshold used to identify spots to estimate the bleedthrough matrix for genes
-  genes_detection_threshold: 0.15 
+  genes_detection_threshold: 0.15
   # Isolation threshold to select well-isolated spots. Lower values = more stringent
   genes_isolation_threshold: 0.05
   # Coefficient used to weight positive pixels when computing spot scores
-  genes_spot_rho: 2 
+  genes_spot_rho: 2
   # Spot score threshold determines which spots get saved to pkl
   genes_spot_score_threshold: 0.1
   # Alpha and beta parameter for the weighted OMP algorithm
@@ -70,7 +125,7 @@ genes:
   omp_beta_squared: 1.0
   # Maximum number of genes per pixel, including background components
   omp_max_genes: 12
-  # OMP does not run on pixels below this mean absolute pixel value 
+  # OMP does not run on pixels below this mean absolute pixel value
   omp_min_intensity: 0.005
   # Stopping criterion for OMP. Additional genes get added if they exceed this threshold
   omp_threshold: 0.2
@@ -80,27 +135,76 @@ spot_shape:
   spot_shape_neighbor_filter_size: 9
   spot_shape_neighbor_threshold: 15
   spot_shape_radius: 7
-  spot_shape_threshold: 0.15 
+  spot_shape_threshold: 0.15
 
-# Parameters for detecting hybridisation spots
+# Parameters for detecting hybridisation spots and registering hyb channels
 hybridisation:
-  hybridisation_detection_threshold: 0.5 
+  hybridisation_detection_threshold: 0.5
   hybridisation_correct_channels: true
-  hybridisation_projection: max
+  hybridisation_projection: max-median
   hybridisation_cluster_score_thresh: 0.0
-
+  hybridisation_binarise_quantile: 0.9
+  hybridisation_reg_block_size: 512
+  hybridisation_reg_block_overlap: 0.8
+  # should we apply illumination correction before doing channel registration?
+  hybridisation_reg_correct_illumination: false
+  # should we use the median transformation for channel registration?
+  hybridisation_use_median_channel_registration: false
+  # Optionaly the registration can be done by group of channels, registering pairs of
+  # channels together and then one of the pair to the reference. For instance, if you
+  # have 4 channels and you want to register 1-2 and 3-4 together and then 4 to 1, the
+  # final reference, you would set channel_grouping to [[1,2], [4,3]]
+  hybridisation_reg_channel_grouping: [[1,2], [4,3]]
 
 # Detection of mCherry+ cells
 mcherry:
+  # Projection to use for mCherry detection
   mcherry_projection: max
+  # Signal and background channel for mCherry detection
+  mcherry_signal_channel: 2
+  mcherry_background_channel: 3
+  # Binarisation quantile for registration of mCherry to reference channel
+  mcherry_binarise_quantile: null
+  # Tile coors for finding coef and intercept for unmixing mCherry
+  mcherry_ref_tile: [ 3, 1, 5 ]
+  # Multiplier for the background subtraction used for mCherry detection
+  background_coef: 1.1
+  # Intensity background threshold for linear fit of mCherry signal
+  threshold_background: 200
+  # Minimum area for mCherry cell masks, in px^2
+  min_area_threshold: 200
+  # Maximum area for mCherry cell masks, in px^2
+  max_area_threshold: 5000
+  # Minimum circularity for mCherry cell masks, closer to 1 is more circular
+  min_circularity_threshold: null
+  # Maximum circularity for mCherry cell masks, closer to 1 is more circular
+  max_circularity_threshold: null
+  # Minimum solidity for mCherry cell masks, closer to 1 is less convex
+  min_solidity_threshold: null
+  # Maximum solidity for mCherry cell masks
+  max_solidity_threshold: null
+  # Maximum eccentricity for mCherry cell masks
+  max_elongation_threshold: null
+  # Maximum background channel intensity for mCherry cell masks
+  max_bg_intensity_threshold: 50
+  # Inner radius of the han window annulus for mcherry prefiltering
+  mcherry_r1: 4
+  # Outer radius of the han window annulus for mcherry prefiltering
+  mcherry_r2: 70
+  # Mask can be further filtered using a gmm
+  mcherry_gmm_filter_masks: false
+  # Parameters to register mCherry tiles within acquisition
+  mcherry_min_corrcoef: 0.5
+  mcherry_max_delta_shift: 30
+
 
 # projection for other acquisitions
-dapi_projection: max
-anchor_projection: fstack
+dapi_projection: max-median
+anchor_projection: max-median
 
 # Barcode basecalling
 barcode:
-  barcode_projection: fstack
+  barcode_projection: max-median
   barcode_correct_channels: round1_only
   barcode_cluster_score_thresh: 0.9
   barcode_detection_threshold: 0.3
@@ -112,9 +216,33 @@ barcode:
 # Cellpose segmentation
 cellpose:
   cellpose_flow_threshold: 0.4
-  cellpose_model: cyto
-  cellpose_rescale: 0.55
+  cellpose_min_pix: 10
+  cellpose_dilate_pix: 5
+  cellpose_model_type: cyto
+  # path to custom pretrained model, will replace cellpose_model_type
+  cellpose_pretrained_model: null
+  cellpose_rescale: null
+  cellpose_diameter: 40
+  # Channels to use for segmentation
+  cellpose_channels: [0, 0]
+  # the two channels might not have the same z focus, if so, specify the z shift here
+  # Positives values means that the second channel focus is in planes with higher z
+  cellpose_channel_z_shift: 0
+  # how many planes around the estimated focus to use for cellpose (only for 3D data)
+  cellpose_zplanes_around_focus: 5
 
-# Database integration. 
+# generic segmentation parameters
+segmentation:
+  # which acquisition to use for cell segmentation
+  segmentation_prefix: hybridisation_round_3_1
+  # mask expansion in microns
+  mask_expansion: 5
+
+# Atlas registration
+atlas:
+  # Round to use for registration to atlas
+  overview_round: DAPI_1_1
+
+# Database integration.
 # If true will upload ops to flexilims when performing a batch operation
-use_flexilims: true
+use_flexilims: False

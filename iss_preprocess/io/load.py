@@ -1,12 +1,14 @@
+import json
+import re
+import warnings
+from pathlib import Path
+import shutil
+
 import numpy as np
 import pandas as pd
-import warnings
-from tifffile import TiffFile
-import json
-from flexiznam.config import PARAMETERS
-from pathlib import Path
 import yaml
-import re
+from flexiznam.config import PARAMETERS
+from tifffile import TiffFile
 
 
 def get_raw_path(data_path):
@@ -19,7 +21,7 @@ def get_raw_path(data_path):
         pathlib.Path: Path to raw data
 
     """
-    project = data_path.split("/")[0]
+    project = Path(data_path).parts[0]
     if project in PARAMETERS["project_paths"].keys():
         raw_path = Path(PARAMETERS["project_paths"][project]["raw"])
     else:
@@ -37,7 +39,7 @@ def get_processed_path(data_path):
         pathlib.Path: Path to processed data
 
     """
-    project = data_path.split("/")[0]
+    project = Path(data_path).parts[0]
     if project in PARAMETERS["project_paths"].keys():
         processed_path = Path(PARAMETERS["project_paths"][project]["processed"])
     else:
@@ -45,12 +47,42 @@ def get_processed_path(data_path):
     return processed_path / data_path
 
 
+def get_raw_filename(data_path, prefix, tile_coors):
+    """Return the root name of raw data for a tile.
+
+    Raw file names may take on different patterns depending on micromanager version.
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of acquisition to load
+        tile_coors (tuple): Tile coordinates (roi, xpos, ypos)
+
+    Returns:
+        str: Root name of the raw data file
+
+    """
+    data_dir = get_raw_path(data_path) / prefix
+
+    # Define the patterns
+    pattern1 = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
+    pattern2 = f"{prefix}_MMStack_Pos-{tile_coors[0]}-{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
+    # Search for files matching either pattern
+    for p in data_dir.glob("*.tif"):
+        if p.name.startswith(pattern1 + ".ome.tif"):
+            return pattern1
+        elif p.name.startswith(pattern2 + ".ome.tif"):
+            return pattern2
+    raise ValueError(
+        f"Could not find any files matching the patterns {pattern1} or {pattern2} in {data_dir}"
+    )
+
+
 def load_hyb_probes_metadata():
     """Load the hybridisation probes metadata.
-    
+
     Returns:
         dict: Contents of `hybridisation_probes.yml`
-        
+
     """
     fname = Path(__file__).parent.parent / "call" / "hybridisation_probes.yml"
     with open(fname, "r") as f:
@@ -107,7 +139,15 @@ def load_ops(data_path):
         ops["black_level"] = dark_frames.mean(axis=(0, 1))
         np.save(black_level_fname, ops["black_level"])
 
-    metadata = load_metadata(data_path)
+    try:
+        metadata = load_metadata(data_path)
+    except FileNotFoundError:
+        metadata = {
+            "camera_order": [1, 3, 4, 2],
+            "genes_rounds": 7,
+            "barcode_rounds": 10,
+        }
+        warnings.warn(f"Metadata file not found, using {metadata}.")
     ops.update(
         {
             "camera_order": metadata["camera_order"],
@@ -119,7 +159,6 @@ def load_ops(data_path):
     return ops
 
 
-# AB: LGTM 10/01/23
 def load_metadata(data_path):
     """Load the metadata.yml file
 
@@ -132,16 +171,21 @@ def load_metadata(data_path):
         dict: Content of `{chamber}_metadata.yml`
 
     """
-    metadata_fname = get_raw_path(data_path) / (Path(data_path).name + "_metadata.yml")
-    if not metadata_fname.exists():
-        metadata_fname = get_processed_path(data_path) / (
-            Path(data_path).name + "_metadata.yml"
-        )
-        if metadata_fname.exists():
-            print("Metadata not found in raw data, loading from processed data")
+    process_fname = get_processed_path(data_path) / (
+        Path(data_path).name + "_metadata.yml"
+    )
+
+    if not process_fname.exists():
+        raw_fname = get_raw_path(data_path) / (Path(data_path).name + "_metadata.yml")
+        if raw_fname.exists():
+            process_fname.parent.mkdir(parents=True, exist_ok=True)
+            print("Metadata not found in processed data, copying from raw data")
+            shutil.copy(raw_fname, process_fname)
         else:
-            raise IOError(f"Metadata not found.\n{metadata_fname} does not exist")
-    with open(metadata_fname, "r") as f:
+            raise FileNotFoundError(
+                f"Metadata not found.\n{process_fname} does not exist"
+            )
+    with open(process_fname, "r") as f:
         metadata = yaml.safe_load(f)
     return metadata
 
@@ -151,12 +195,31 @@ def get_pixel_size(data_path, prefix="genes_round_1_1"):
 
     Args:
         data_path (str): Relative path to data.
-        prefix (str, optional): Which acquisition prefix to use. Defaults to "genes_round_1_1".
+        prefix (str, optional): Which acquisition prefix to use. Defaults to
+            "genes_round_1_1".
 
+    Returns:
+        float: Pixel size in microns
     """
     acq_data = load_micromanager_metadata(data_path, prefix=prefix)
     pixel_size = acq_data["FrameKey-0-0-0"]["PixelSizeUm"]
     return pixel_size
+
+
+def get_z_step(data_path, prefix="genes_round_1_1"):
+    """Get z step size from MicroManager metadata.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): Which acquisition prefix to use. Defaults to
+            "genes_round_1_1".
+
+    Returns:
+        float: Z step size in microns
+    """
+    acq_data = load_micromanager_metadata(data_path, prefix=prefix)
+    z_step = acq_data["Summary"]["z-step_um"]
+    return z_step
 
 
 def load_micromanager_metadata(data_path, prefix):
@@ -176,7 +239,9 @@ def load_micromanager_metadata(data_path, prefix):
     # the metadata for the first ROI is always copied. Just in case the first ROI is not
     # ROI 1, we find whichever is available
     fmetadata = list(acq_folder.glob("*_metadata.txt"))
-    assert len(fmetadata) == 1
+    assert (
+        len(fmetadata) > 0
+    ), f"No image metadata files found for {data_path} / {prefix}"
     fmetadata = fmetadata[0]
     with open(fmetadata) as json_file:
         metadata = json.load(json_file)
@@ -203,7 +268,7 @@ def load_section_position(data_path):
 
 
 def load_tile_by_coors(
-    data_path, tile_coors=(1, 0, 0), suffix="fstack", prefix="genes_round_1_1"
+    data_path, tile_coors=(1, 0, 0), suffix="max", prefix="genes_round_1_1"
 ):
     """Load processed tile images
 
@@ -220,11 +285,28 @@ def load_tile_by_coors(
 
     """
     tile_roi, tile_x, tile_y = tile_coors
-    fname = (
-        f"{prefix}_MMStack_{tile_roi}-"
-        + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
-    )
-    return load_stack(get_processed_path(data_path) / prefix / fname)
+    if suffix != "max-median":
+        fname = (
+            f"{prefix}_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
+        )
+        stack = load_stack(get_processed_path(data_path) / prefix / fname)
+    else:
+        fname = (
+            f"{prefix}_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_max.tif"
+        )
+        stack = load_stack(get_processed_path(data_path) / prefix / fname)
+        fname = (
+            f"{prefix}_MMStack_{tile_roi}-"
+            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_median.tif"
+        )
+        stack -= load_stack(get_processed_path(data_path) / prefix / fname)
+        # add back black level
+        ops = load_ops(data_path)
+        if np.any(stack):  # don't change corrupted stacks
+            stack += ops["black_level"][None, None, :].astype(stack.dtype)
+    return stack
 
 
 # TODO: add shape check? What if pages are not 2D (rgb, weird tiffs)
@@ -234,57 +316,92 @@ def load_stack(fname):
 
     Args:
         fname (str): path to TIFF
-    
+
     Returns:
-        numpy.ndarray: X x Y x Z stack.
+        numpy.ndarray: X x Y x Z stack
     """
     with TiffFile(fname) as stack:
         ims = []
         for page in stack.pages:
             ims.append(page.asarray())
-    return np.stack(ims, axis=2)
+        return np.stack(ims, axis=2)
 
 
-def get_tile_ome(fname, fmetadata):
+def get_zprofile(data_path, prefix, tile_coords):
+    """Load the zprofile for a tile
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of acquisition to load
+        tile_coords (tuple): Tile coordinates (roi, xpos, ypos)
+
+    Returns:
+        dict: Z profile for the tile, with 'std' and 'top_1permille' keys
+    """
+    folder = get_processed_path(data_path) / prefix
+    r, x, y = tile_coords
+    fname = f"{prefix}_MMStack_{r}-Pos{x:03}_{y:03}_zprofile.npz"
+    zprofile = np.load(folder / fname)
+    return dict(zprofile)
+
+
+def get_tile_ome(fname, fmetadata=None, use_indexmap=None):
     """
     Load OME TIFF tile.
 
     Args:
         fname (str): path to OME TIFF
-        fmetadata (str): path to OME metadata file
+        fmetadata (str, optional): path to OME metadata file. Required if use_indexmap
+            is False or None. Defaults to None.
+        use_indexmap (bool, optional): Whether to use the indexmap from micromanager
+            metadata. If True, the metadata file is not required. Defaults to None.
 
     Returns:
         numpy.ndarray: X x Y x C x Z z-stack.
 
     """
-    stack = TiffFile(fname)
+    with TiffFile(fname) as stack:
+        if not use_indexmap:
+            with open(fmetadata) as json_file:
+                metadata = json.load(json_file)
+            frame_keys = list(metadata.keys())[1:]
 
-    with open(fmetadata) as json_file:
-        metadata = json.load(json_file)
-    frame_keys = list(metadata.keys())[1:]
+        if use_indexmap or (metadata[frame_keys[0]]["Core-Focus"] == "Piezo"):
+            # THIS IS CRAP.
+            # There is an issue with micromanager and the ome metadata are not always
+            # correct use indexmap instead (which is from micromanager but is correct)
+            umeta = stack.micromanager_metadata
+            indexmap = umeta["IndexMap"]
+            zs = indexmap[:, 1]
+            channels = indexmap[:, 0]
+            unique_channels = sorted(list(set(channels)))
+            unique_zs = sorted(list(set(zs)))
 
-    zs = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
-    zs = sorted(list(set(zs)))
-    channels = [int(metadata[frame_key]["Camera"][-1]) for frame_key in frame_keys]
-    channels = sorted(list(set(channels)))
-    nch = len(channels)
-    nz = len(zs)
-    xpix = stack.pages[0].tags["ImageWidth"].value
-    ypix = stack.pages[0].tags["ImageLength"].value
-    im = np.zeros((ypix, xpix, nch, nz))
+        else:
+            # metadata is now required since we have an upstairs style tiff
+            z_ids = [metadata[frame_key]["ZPositionUm"] for frame_key in frame_keys]
+            unique_zs = sorted(list(set(z_ids)))
+            zs = [unique_zs.index(z) for z in z_ids]
+            # Create channel and Z position arrays based on metadata
+            channel_ids = [int(metadata[f_key]["Camera"][-1]) for f_key in frame_keys]
+            unique_channels = sorted(list(set(channel_ids)))
+            channels = [unique_channels.index(ch) for ch in channel_ids]
 
-    for page, frame_key in zip(stack.pages, frame_keys):
-        z = zs.index(metadata[frame_key]["ZPositionUm"])
-        ch = int(
-            metadata[frame_key]["Camera"][-1]
-        )  # channel id is the last digit of camera name
-        im[:, :, ch, z] = page.asarray()
-
+        nz = len(unique_zs)
+        nch = len(unique_channels)
+        xpix = stack.pages[0].tags["ImageWidth"].value
+        ypix = stack.pages[0].tags["ImageLength"].value
+        im = np.zeros((ypix, xpix, nch, nz), dtype=stack.pages[0].dtype)
+        for ip, page in enumerate(stack.pages):
+            im[:, :, channels[ip], zs[ip]] = page.asarray()
     return im
 
 
 def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
     """Find imaging ROIs and determine their dimensions.
+
+    The output is the maximum index of the file names, which are 0 based. It is therefore
+    the number of tiles in each dimension minus 1.
 
     Create and/or load f"{prefix}_roi_dims.npy". The default ("genes_round_1_1") should
     be used for all acquisitions that have the same ROI dimensions (everything except
@@ -316,11 +433,19 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
         ops = load_ops(data_path)
         data_dir = processed_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
-        pattern = (
-            rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{ops['projection']}.tif"
-        )
+        proj = ops["genes_projection"]
+        if proj == "max-median":
+            proj = "max"
+        pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{proj}.tif"
     else:
         pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
+    matcher = re.compile(pattern=pattern)
+    matches = [matcher.match(fname) for fname in fnames]  # non match will be None
+    if not any(matches):
+        if not fnames:
+            pattern = rf"{prefix}_MMStack_Pos-(\d*)-(\d\d\d)_(\d\d\d)_{proj}.tif"
+        else:
+            pattern = rf"{prefix}_MMStack_Pos-(\d*)-(\d\d\d)_(\d\d\d).ome.tif"
     matcher = re.compile(pattern=pattern)
     matches = [matcher.match(fname) for fname in fnames]  # non match will be None
     try:
@@ -341,3 +466,47 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
     if save:
         np.save(roi_dims_file, roi_list)
     return roi_list
+
+
+def load_mask_by_coors(
+    data_path,
+    prefix,
+    tile_coors,
+    suffix="corrected",
+):
+    """Load masks for a single tile.
+
+    If the corrected mask is not found, the raw mask is loaded instead.
+
+    Args:
+        data_path (str): relative path to dataset.
+        prefix (str): Full folder name prefix, including round number.
+        tile_coors (tuple): Coordinates of tile to load: ROI, Xpos, Ypos.
+        suffix (str, optional): Suffix to add to the file name. Defaults to "corrected".
+
+    Returns:
+        numpy.ndarray: X x Y x channels stack.
+
+    """
+    processed_path = get_processed_path(data_path)
+    tile_roi, tile_x, tile_y = tile_coors
+    if suffix:
+        suffix = f"_{suffix}"
+    else:
+        suffix = ""
+    if "masks" in prefix:
+        mask_name = suffix
+    else:
+        mask_name = f"_masks{suffix}"
+
+    fname = f"{prefix}{mask_name}_{tile_roi}_{tile_x}_{tile_y}.npy"
+
+    folder = processed_path / "cells"
+    if (folder / f"{prefix}_cells").exists():
+        # if prefix specific subfolder exists, use that
+        folder = folder / f"{prefix}_cells"
+    if (folder / fname).exists():
+        masks = np.load(folder / fname, allow_pickle=True)
+        return masks
+    else:
+        raise FileNotFoundError(f"Could not find mask file {fname}")

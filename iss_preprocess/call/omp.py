@@ -1,6 +1,8 @@
 import numba
 import numpy as np
-from . import rois_to_array, BASES
+
+from ..vis import plot_gene_templates
+from . import BASES, rois_to_array
 
 
 def make_gene_templates(cluster_means, codebook):
@@ -103,9 +105,9 @@ def barcode_spots_dot_product(
 ):
     """
     Compute dot product between synthetic trace and observed trace for each spot.
-    
+
     The synthetic trace is estimated using the provided bleeedthrough matrix.
-    The observed trace is first background subtracted using the same approach as 
+    The observed trace is first background subtracted using the same approach as
     used in the OMP algorithm.
 
     Args:
@@ -117,25 +119,31 @@ def barcode_spots_dot_product(
             penalizes the dot product score for spots with very low signal.
         sequence_column (str): name of column in spots table containing the sequence.
             Default is 'sequence', but could also be 'corrected_sequence'.
-    
+
     Returns:
         List of dot product scores for each spot.
-    
+
     """
-    nrounds = cluster_means.shape[0]
     nchannels = cluster_means.shape[1]
-    background_vectors = make_background_vectors(nrounds=nrounds, nchannels=nchannels)
+
     dot_product_scores = []
     for i, spot in spots.iterrows():
         if np.all(np.isfinite(spot["trace"])):
+            valid = spot[sequence_column] != 4
+            background_vectors = make_background_vectors(
+                nrounds=np.sum(valid), nchannels=nchannels
+            )
+
             synthetic_trace = cluster_means[
-                np.arange(nrounds), :, spot[sequence_column]
+                np.arange(np.sum(valid)), :, spot[sequence_column][valid]
             ].flatten()
             synthetic_trace /= np.linalg.norm(synthetic_trace)
-            y = spot["trace"].flatten()
+            y = spot["trace"][valid].flatten()
             norm_y = np.linalg.norm(y)
             y /= norm_y + norm_shift
-            coefs_background, _, _, _ = np.linalg.lstsq(background_vectors, y)
+            coefs_background, _, _, _ = np.linalg.lstsq(
+                background_vectors, y, rcond=None
+            )
             r = y - np.dot(background_vectors, coefs_background)
             dot_product_scores.append(np.dot(r, synthetic_trace))
         else:
@@ -251,11 +259,16 @@ def omp_weighted(
         max_comp (int): maximum number of components to include.
         tol (float): tolerance threshold that determines the minimum fraction of
             the residual norm to retain a component.
-        alpha (float): parameter for weighted OMP.
-        beta_squared (float): parameter for weighted OMP.
+        alpha (float): Controls the influence of the previously selected components
+        on the current weights. Higher alpha increases the effect of the selected
+        components' contributions, making the algorithm more sensitive to the
+        already chosen components.
+        beta_squared (float): This parameter sets a baseline for the variance
+        in the weights calculation. It ensures that the weights are not solely
+        dependent on the residuals but also have a minimum variance that can stabilize the process.
         weighted (bool): whether to use weighted OMP. Default is True.
         refit_background (bool): whether to refit background coefficients on every iteration.
-            Default is True.        
+            Default is True.
         norm_shift (float): additional shift to add to the norm of the pixel trace. Larger values
             reduce false positive gene calls in dim pixels. Default is 0.
 
@@ -299,7 +312,7 @@ def omp_weighted(
         not_chosen = np.nonzero(np.logical_not(ichosen))[0]
         if weighted:
             sigma_squared = beta_squared + alpha * np.sum(
-                Xfull[:, ichosen] ** 2 * coefs ** 2, axis=1
+                Xfull[:, ichosen] ** 2 * coefs**2, axis=1
             )
             weights_sq = (1 / sigma_squared) / np.mean(1 / sigma_squared)
             dot_product = np.abs(

@@ -1,40 +1,5 @@
-import numpy as np
-import pandas as pd
 import cv2
-import iss_preprocess as iss
-from .spots import make_spot_image
-from ..io import get_pixel_size
-
-
-def convolve_spots(data_path, roi, kernel_um, dot_threshold, output_shape=None):
-    """Generate an image of spot density by convolution
-
-    Args:
-        data_path (str): Relative path to data
-        roi (int): Roi ID
-        kernel_um (float): Width of the kernel for convolution in microns
-        dot_threshold (float): Threshold on the barcode dot_product_score to select
-            spots to use.
-        output_shape (tuple, optional): Shape of the output image. If not provided will
-            return the smallest shape that includes (0,0) and all spots. Defaults to
-            None.
-
-    Returns:
-        numpy.ndarray: 2D image of roi density
-
-    """
-    all_spots = pd.read_pickle(
-        iss.io.get_processed_path(data_path) / f"barcode_round_spots_{roi}.pkl"
-    )
-    spots = all_spots[all_spots.dot_product_score > dot_threshold]
-
-    # load barcode_round_1_1 but anything should work
-    pixel_size = get_pixel_size(data_path, prefix="barcode_round_1_1")
-    kernel_size = int(kernel_um / pixel_size)
-
-    return make_spot_image(
-        spots, kernel_size=kernel_size, dtype="single", output_shape=output_shape
-    )
+import numpy as np
 
 
 def segment_spot_image(

@@ -1,6 +1,6 @@
+#defined from 1-4 in wavelength order
 PAB0004:
   target: OAB0001
-  #defined from 1-4 in wavelength order
   channel: 4
   fluorophore: 5TYE665
 PAB0005:
@@ -15,15 +15,15 @@ PAB0007:
   target: Slc30a3
   channel: 3
   fluorophore: 5TEX615
-PAB0008: 
+PAB0008:
   target: All genes
   channel: 1
   fluorophore: 56-FAM
-PAB0016: 
+PAB0016:
   target: OAB0024
   channel: 1
   fluorophore: 5ATTO488N
-PAB0017: 
+PAB0017:
   target: Sst
   channel: 4
   fluorophore: 5TYE665
@@ -34,7 +34,7 @@ PAB0023:
 PAB0024:
   target: All genes
   channel: 3
-  fluorophore: 5ATTO633N 
+  fluorophore: 5ATTO633N
 PAB0025:
   target: Slc17a7
   channel: 2
@@ -43,11 +43,19 @@ PAB0026:
   target: Sst
   channel: 1
   fluorophore: 5ATTO532N
-PAB0027: 
+PAB0027:
   target: Vip
   channel: 3
   fluorophore: 5ATTO633N
-PAB0028: 
+PAB0028:
   target: Gad1
   channel: 4
   fluorophore: 5ATTO700N
+PAB0029:
+  target: N2C BC2
+  channel: 2
+  fluorophore: 5ATTO565N
+PAB0030:
+  target: All genes
+  channel: 2
+  fluorophore: 5ATTO565N

@@ -1,6 +1,6 @@
-from tifffile import TiffWriter
 import cv2
 import numpy as np
+from tifffile import TiffWriter
 
 
 def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True):
@@ -30,6 +30,7 @@ def save_ome_tiff_pyramid(
     pixel_size,
     subresolutions=3,
     dtype="uint16",
+    rescale=True,
     verbose=True,
     save_thumbnail=False,
 ):
@@ -47,13 +48,17 @@ def save_ome_tiff_pyramid(
 
     Returns:
         np.array: Last level of the pyramid, most downsampled image
-        
+
     """
 
     if dtype not in ["uint8", "uint16"]:
         raise NotImplementedError("`dtype` must be uint8 or uint16")
     nbits = int(dtype[4:])
-    max_val = 2 ** nbits - 1
+    max_val = 2**nbits - 1
+    if rescale:
+        if verbose:
+            print("... Rescaling image")
+        image = (image - image.min()) * (max_val / (image.max() - image.min()))
     if verbose:
         print("... Clipping array")
     image = np.clip(image, 0, max_val).astype(dtype)  # clip to avoid overflow
@@ -78,7 +83,7 @@ def save_ome_tiff_pyramid(
             subifds=subresolutions,
             resolution=(1e4 / pixel_size, 1e4 / pixel_size),
             metadata=metadata,
-            **options
+            **options,
         )
         for level in range(subresolutions):
             if verbose:
@@ -93,7 +98,7 @@ def save_ome_tiff_pyramid(
             tif.write(
                 image,
                 resolution=(1e4 / mag / pixel_size, 1e4 / mag / pixel_size),
-                **options
+                **options,
             )
         if max(image.shape) < 200:
             skip = 1
