@@ -248,11 +248,11 @@ def register_all_rois_within(
         slurm_folder.mkdir(exist_ok=True, parents=True)
     else:
         slurm_folder = None
-    if scripts_name is None:
-        scripts_name = f"register_within_{prefix}_{roi}"
 
     outs = []
     for roi in roi_dims[use_rois, 0]:
+        print(f"Registering ROI {roi}")
+        scripts_name = f"register_within_{prefix}_{roi}"
         outs.append(
             register_within_acquisition(
                 data_path,
@@ -333,9 +333,9 @@ def register_within_acquisition(
         / f"{prefix}_within"
         / f"{prefix}_{roi}_shifts.npz"
     )
-
     if reload and save_fname.exists():
         print("Reloading saved shifts")
+        print(f"Shifts at {save_fname}")
         return np.load(save_fname)
 
     ndim = get_roi_dimensions(data_path, dimension_prefix)
