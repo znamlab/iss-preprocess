@@ -91,7 +91,11 @@ def filter_stack(stack, r1=2, r2=4, dtype=float):
 
 
 def calculate_unmixing_coefficient(
-    signal_image, background_image, background_coef, threshold_background
+    signal_image,
+    background_image,
+    background_coef,
+    threshold_background=None,
+    threshold_signal=None,
 ):
     """
     Unmixes two images: one with only background autofluorescence and another with both
@@ -102,7 +106,11 @@ def calculate_unmixing_coefficient(
         signal_image: numpy array of the image with both signal and background.
         background_coef: Coefficient to multiply the background image by before
             subtraction.
-        threshold_background: Minimum value for a pixel to be considered background.
+        threshold_background (optional): Minimum value for a pixel to be considered
+            background. If None will use the median. Default None.
+        threshold_signal (optional): Minimum value on signal channel for a pixel to be
+            considered background. If None will use the median. Default None.
+
 
     Returns:
         pure_signal_image: The isolated signal image after background subtraction.
@@ -116,11 +124,25 @@ def calculate_unmixing_coefficient(
 
     # Remove pixels that are too dark or too bright
     # The max pixel value is 4096, remove only very close to saturation
-    bright_pixels = (
-        (background_flat > threshold_background) & (background_flat < 4090)
-    ) & ((mixed_signal_flat > threshold_background) & (mixed_signal_flat < 4090))
-    background_flat = background_flat[bright_pixels].reshape(-1, 1)
-    mixed_signal_flat = mixed_signal_flat[bright_pixels]
+    valid_pixel = (background_flat < 4090) & (mixed_signal_flat < 4090)
+    valid_pixel &= background_flat > 0  # do that before for the median
+    valid_pixel &= mixed_signal_flat > 0  # do that before for the median
+    if threshold_signal is None:
+        threshold_signal = np.nanmedian(mixed_signal_flat[valid_pixel])
+    valid_pixel &= mixed_signal_flat > threshold_signal
+    if threshold_background is None:
+        threshold_background = np.nanmedian(background_flat[valid_pixel])
+    valid_pixel &= background_flat > threshold_background
+
+    # also remove pixels that are pure signal
+    valid_pixel &= mixed_signal_flat < 20 * background_flat
+    background_flat = background_flat[valid_pixel].reshape(-1, 1)
+    mixed_signal_flat = mixed_signal_flat[valid_pixel]
+
+    print("Parameters for unmixing:")
+    print(f"Threshold background: {threshold_background}")
+    print(f"Threshold signal: {threshold_signal}")
+    print(f"Number of valid pixels: {valid_pixel.sum()}/{valid_pixel.size}")
 
     # Initialize and fit Linear model
     model = LinearRegression(positive=True)
@@ -139,12 +161,13 @@ def calculate_unmixing_coefficient(
         )  # TODO: Remove fudge factor
         pure_signal_image = np.clip(pure_signal_image, 0, None)
         print(
-            f"Image unmixed with coefficient: {model.coef_[0]}, intercept: {model.intercept_}"
+            f"Image unmixed with coefficient: {model.coef_[0]:.2f},"
+            + f" intercept: {model.intercept_:.2f}"
         )
     except ValueError:
         raise ValueError("Not enough data passing background threshold to fit model")
 
-    return pure_signal_image, model.coef_[0], model.intercept_
+    return pure_signal_image, model.coef_[0], model.intercept_, valid_pixel
 
 
 def unmix_images(
@@ -172,6 +195,9 @@ def unmix_images(
     """
     predicted_background = (background_image * float(coef)) + float(intercept)
     signal_image = mixed_signal_image - (predicted_background * background_coef)
+    # Clipping removes negative values, which can be an issue if the coefficient is
+    # a bit off, add a small value to avoid this
+    signal_image += abs(intercept)
     signal_image = np.clip(signal_image, 0, None)
     return signal_image
 
