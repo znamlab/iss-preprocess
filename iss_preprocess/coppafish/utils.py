@@ -7,7 +7,8 @@ import scipy
 
 def ftrans2(b, t=None) -> np.ndarray:
     """
-    Produces a 2D convolve kernel that corresponds to the 1D convolve kernel, `b`, using the transform, `t`.
+    Produces a 2D convolve kernel that corresponds to the 1D convolve kernel, `b`,
+    using the transform, `t`.
     Copied from [MATLAB `ftrans2`](https://www.mathworks.com/help/images/ref/ftrans2.html).
     Args:
         b: `float [Q]`.
