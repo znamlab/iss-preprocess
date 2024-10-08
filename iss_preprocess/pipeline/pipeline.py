@@ -882,7 +882,9 @@ def setup_flexilims(path):
         parent_id = sample["id"]
 
 
-def segment_and_stitch_mcherry_cells(data_path, prefix):
+def segment_and_stitch_mcherry_cells(
+    data_path, prefix, use_slurm=True, slurm_folder=None, job_dependency=None
+):
     """Master function for mCherry cell segmentation and stitching
 
     Will call in turn the following functions:
@@ -891,17 +893,28 @@ def segment_and_stitch_mcherry_cells(data_path, prefix):
     - `register_within` to find overlapping region (with reload=True)
     - `remove_duplicate`
     - `stitch_mcherry_cells`
+
+    Args:
+        data_path (str): Relative path to the data folder
+        prefix (str): Prefix of the mCherry acquisition
+        use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
+            True.
+        slurm_folder (str, optional): Folder to save SLURM logs. Defaults to None.
+        job_dependency (list, optional): List of job IDs to wait for before starting the
     """
+
     ops = iss.io.load_ops(data_path)
-    slurm_folder = Path.home() / "slurm_logs" / data_path / f"segment_{prefix}"
+    if slurm_folder is None:
+        slurm_folder = Path.home() / "slurm_logs" / data_path / f"segment_{prefix}"
     slurm_folder.mkdir(parents=True, exist_ok=True)
 
     job_coef = iss.pipeline.segment.save_unmixing_coefficients(
         data_path,
         prefix,
-        use_slurm=True,
+        use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         scripts_name=f"unmix_{prefix}",
+        job_dependency=job_dependency,
     )
 
     additional_args = f",PREFIX={prefix}"
@@ -913,23 +926,18 @@ def segment_and_stitch_mcherry_cells(data_path, prefix):
     )
     print(f"Started {len(job_ids)} jobs for segmenting mCherry cells")
 
-    spref = prefix.split("_")[0].lower()
-    do_filt_gmm = ops.get(f"{spref}_gmm_filter_mask")
-    if do_filt_gmm:
-        raise NotImplementedError("Just need call teh filter function")
-
     # ensure the "within" registration ran
     reg_jobs = iss.pipeline.stitch.register_all_rois_within(
         data_path,
         prefix=prefix,
         ref_ch=None,
-        suffix=ops[f"{prefix.split('_')[0].lower()}_projection"],
+        suffix=ops[f"{spref}_projection"],
         correct_illumination=True,
         reload=True,
         save_plot=True,
         dimension_prefix="genes_round_1_1",
         verbose=True,
-        use_slurm=True,
+        use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         scripts_name=f"register_within_{prefix}",
         job_dependency=failed_job,
@@ -944,8 +952,8 @@ def segment_and_stitch_mcherry_cells(data_path, prefix):
         scripts_name=f"remove_duplicate_masks_{prefix}",
     )
 
-    # stitch the masks
-    iss.pipeline.stitch.stitch_cell_dataframes(
+    # stitch the masks dataframes
+    stitch_job = iss.pipeline.stitch.stitch_cell_dataframes(
         data_path,
         prefix,
         use_slurm=True,
@@ -953,3 +961,12 @@ def segment_and_stitch_mcherry_cells(data_path, prefix):
         job_dependency=dupl_job,
         scripts_name=f"stitch_{prefix}",
     )
+
+    if ops.get(f"{spref}_gmm_filter_masks", False):
+        filt_job = iss.pipeline.segment.filter_mcherry_cells(
+            data_path,
+            prefix,
+            use_slurm=True,
+            slurm_folder=slurm_folder,
+            job_dependency=stitch_job,
+        )

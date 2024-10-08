@@ -1082,10 +1082,10 @@ def segment_mcherry_tile(path, prefix, roi, tilex, tiley):
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 def remove_non_cell_masks(path, prefix, roi, tilex, tiley):
     """Remove masks from mCherry tiles that don't correspond to cells."""
-    from iss_preprocess.pipeline import remove_non_cell_masks
+    from iss_preprocess.pipeline.segment import _remove_non_cell_masks
 
     # TODO: move out of main CLI
-    remove_non_cell_masks(
+    _remove_non_cell_masks(
         path,
         prefix,
         roi,
@@ -1103,10 +1103,10 @@ def filter_mcherry_masks(path, prefix):
     """Find mCherry cells using a GMM to cluster masks based on their
     morphological features. Then remove non-cell masks from each tile.
     """
-    from iss_preprocess.pipeline import filter_mcherry_masks
+    from iss_preprocess.pipeline import _gmm_cluster_mcherry_cells
 
     # TODO: move out of main CLI
-    filter_mcherry_masks(path, prefix)
+    _gmm_cluster_mcherry_cells(path, prefix)
 
 
 @cli.command()

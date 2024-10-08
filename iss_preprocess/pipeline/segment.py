@@ -1049,24 +1049,109 @@ def save_mcherry_mask_df(data_path, prefix):
     dfs = pd.concat(dfs, ignore_index=True)
     dfs.to_pickle(target)
     return dfs
-            
 
-def remove_non_cell_masks(data_path, prefix, roi, tilex, tiley):
-    """
-    Remove masks that are not cells based on the clustering results.
+
+def filter_mcherry_cells(
+    data_path,
+    prefix,
+    tile_list=None,
+    use_rois=None,
+    use_slurm=True,
+    slurm_folder=None,
+    job_dependency=None,
+):
+    """Use GMM to cluster cells and remove non-cell masks.
+
+    This function will:
+    - Use all saved dataframe to fit a GMM model, calling _gmm_cluster_mcherry_cells
+    - Apply this model to all masks, calling _remove_non_cell_masks
 
     Args:
         data_path (str): Relative path to the data.
+        prefix (str): Prefix of the image stack.
+        tile_list (list, optional): List of tiles to process. If None, will process all
+            tiles. Defaults to None.
+        use_rois (list, optional): List of ROIs to process. If None, will process all
+            ROIs. Used only if tile_list is None. Defaults to None.
+        use_slurm (bool, optional): Whether to use slurm to parallelize the process.
+            Defaults to True.
+        slurm_folder (str, optional): Folder to save slurm logs. Defaults to None.
+        job_dependency (list, optional): List of job ids to wait for before starting
+            the job. Defaults to None.
+
+    """
+    if use_slurm and slurm_folder is None:
+        slurm_folder = Path.home() / "slurm_logs" / data_path / "segmentation"
+        slurm_folder.mkdir(exist_ok=True, parents=True)
+
+    job_id = _gmm_cluster_mcherry_cells(
+        data_path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_dependency,
+        scripts_name=f"{prefix}_gmm_cluster",
+    )
+
+    if tile_list is None:
+        roi_dims = get_roi_dimensions(data_path)
+        ops = iss.io.load_ops(data_path)
+        use_rois = ops.get("use_rois", roi_dims[:, 0])
+        tile_list = []
+        for r in use_rois:
+            _, nx, ny = roi_dims[roi_dims[:, 0] == r][0]
+            tile_list.extend(
+                [(r, ix, iy) for ix in range(nx + 1) for iy in range(ny + 1)]
+            )
+    if isinstance(tile_list[0], int):
+        tile_list = [tile_list]
+
+    if use_slurm:
+        remove_ids = _remove_non_cell_masks(
+            data_path=data_path,
+            prefix=prefix,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            batch_param_names=["roi", "tx", "ty"],
+            batch_param_list=tile_list,
+            job_dependency=job_id,
+            scripts_name=f"{prefix}_remove_non_cells",
+        )
+    else:
+        remove_ids = []
+        for tile in tile_list:
+            remove_ids.append(_remove_non_cell_masks(data_path, prefix, *tile))
+
+    return remove_ids
+
+
+@slurm_it(conda_env="iss-preprocess")
+def _remove_non_cell_masks(data_path, prefix, roi=None, tilex=None, tiley=None):
+    """
+    Remove masks that are not in the corrected dataframe
+
+    The GMM clustering results will be used to filter {prefix}_df_corrected.pkl. We
+    can then load it and, in each label image, remove all masks that are not in the
+    dataframe
+
+    This will load `f"{prefix}_masks_{roi}_{tilex}_{tiley}.npy"` and generate a new
+    mask file with the same name but with the suffix `_cell_masks`.
+
+    Args:
+        data_path (str): Relative path to the data.
+        prefix (str): Prefix of the image stack.
+        cluster_to_keep (int or list): Cluster to keep.
         roi (int): Region of interest.
         tilex (int): X coordinate of the tile.
         tiley (int): Y coordinate of the tile.
     """
+
+    print(f"Removing non-cell masks for tile {roi}_{tilex}_{tiley}")
     processed_path = iss.io.get_processed_path(data_path)
     mask_dir = processed_path / "cells" / f"{prefix}_cells"
-    df_thresh = pd.read_pickle(mask_dir / f"{prefix}_df_thresh.pkl")
-    tile = np.load(
-        mask_dir / f"{prefix}_masks_{roi}_{tilex}_{tiley}.npy", allow_pickle=True
-    )
+    df_thresh = pd.read_pickle(mask_dir / f"{prefix}_df_corrected.pkl")
+    fname = f"{prefix}_masks_corrected_{roi}_{tilex}_{tiley}.npy"
+    tile = np.load(mask_dir / fname)
     image_df = df_thresh[
         (df_thresh["roi"] == roi)
         & (df_thresh["tilex"] == tilex)
@@ -1077,18 +1162,22 @@ def remove_non_cell_masks(data_path, prefix, roi, tilex, tiley):
         if label == 0:
             continue
         elif label in image_df["label"].astype(np.uint16).values:
-            # Check if the mask is in the bad cluster (0)
-            if image_df[image_df["label"] == label]["cluster_label"].values[0] != 0:
-                continue
+            is_cell = image_df[image_df["label"] == label]["is_cell"].values[0]
+            if not is_cell:
+                print(f"Removing mask {label}")
+                tile[tile == label] = 0
+            else:
+                print(f"Keeping mask {label}")
         else:
-            tile[tile == label] = 0
+            raise ValueError(f"Mask {label} not found in the dataframe")
 
-    # Save the edge corrected masks
-    fname = f"{prefix}_cell_masks_{roi}_{tilex}_{tiley}.npy"
+    # Save the GMM filtered corrected masks
     np.save(mask_dir / fname, tile, allow_pickle=True)
+    print(f"Saved cell masks to {mask_dir / fname}")
 
 
-def filter_mcherry_masks(data_path, prefix):
+@slurm_it(conda_env="iss-preprocess")
+def _gmm_cluster_mcherry_cells(data_path, prefix):
     """
     Find cell clusters in the mCherry channel using a GMM to cluster
     cells based on their morphological features. Then remove non-cell
@@ -1097,51 +1186,62 @@ def filter_mcherry_masks(data_path, prefix):
     Args:
         data_path (str): Relative path to the data.
     """
-    processed_path = iss.io.get_processed_path(data_path)
-    df_dir = processed_path / "cells" / f"{prefix}_cells"
-    df_files = glob.glob(str(df_dir / "*.pkl"))
-    dfs = [pd.read_pickle(f) for f in df_files if prefix in f]
-    df = pd.concat(dfs)
-    if df.empty:
-        raise ValueError("No masks found in any tile.")
+    print("Loading dataframes")
+    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    fused_df_fname = mask_folder / f"{prefix}_df_corrected.pkl"
+    assert (
+        fused_df_fname.exists()
+    ), f"File {fused_df_fname} does not exist. Run remove_all_duplicate_masks first."
+    fused_df = pd.read_pickle(fused_df_fname)
+    print(f"Total cells: {len(fused_df)}")
 
-    scaler = StandardScaler()
-
+    # define features on a subset df
+    fused_df["clamped_ratio"] = np.log10(fused_df["intensity_ratio"].clip(0, 100))
+    df = fused_df.copy()
     features = [
         "area",
         "circularity",
         "solidity",
         "intensity_mean-1",
-        "intensity_mean-0",
+        "clamped_ratio",
     ]
+    # Not used: 'solidity' 'major_axis_length', 'minor_axis_length' #  'solidity',
+    # 'intensity_mean-0' ,'eccentricity',
+    df.dropna(subset=features, inplace=True)
 
-    df_norm = (df[features] - df[features].min()) / (
-        df[features].max() - df[features].min()
+    # Define some initial cluster centers TODO: make it availlabe in the ops
+    px_size = iss.io.get_pixel_size(data_path)
+    intentity_th = np.nanpercentile(df["intensity_mean-1"], [10, 50, 70])
+    # Cells are around 10um, circucal, solid, not to bright in background and about 10
+    # times brighter in signal
+    cell_initial_guess = [(10 / px_size) ** 2, 0.9, 1, intentity_th[0], 1]
+    # Debris cluster for things that are background
+    # Two clusters: one for round like cells, one for less round and less bright which
+    # are usually 2 debris fused in one mask
+    debris_initial_guess = [(4 / px_size) ** 2, 0.9, 0.9, intentity_th[1], 0.3]
+    debris2_initial_guess = [(4 / px_size) ** 2, 0.95, 1, intentity_th[2], 0.3]
+    initial_unscaled = np.vstack(
+        [cell_initial_guess, debris_initial_guess, debris2_initial_guess]
     )
-    scaled_features = scaler.fit_transform(df_norm[features])
-    df_scaled_features = pd.DataFrame(scaled_features, columns=features)
 
-    # TODO: Remove hardcoded cluster centers (use percentiles?)
-    cluster_centers_scaled = np.array(
-        [
-            [-0.81560289, -1.16570977, -1.16885992, 0.68591332, -0.47768646],
-            [-0.08201876, 0.48188625, 0.38447341, -0.41695244, -0.42873761],
-            [0.97601349, 0.61105821, 0.74187513, -0.18499336, 1.06977134],
-        ]
-    )
-
-    # Fit GMM
-    n_components = 3
+    n_components = initial_unscaled.shape[0]
+    print(f"GMM with {n_components} clusters")
     gmm = GaussianMixture(
         n_components=n_components,
-        means_init=cluster_centers_scaled,
+        means_init=initial_unscaled,
         random_state=42,
         verbose=2,
     )
-    gmm.fit(df_scaled_features[features])
-    labels = gmm.predict(df_scaled_features[features])
-    df["cluster_label"] = labels + 1
-    df.to_pickle(df_dir / f"{prefix}_df_thresh.pkl")
+    print("Fitting the model")
+    gmm.fit(df[features])
+
+    print("Predicting the clusters")
+    # use the full df to predict the clusters
+    labels = gmm.predict(fused_df[features])
+    fused_df["cluster_label"] = labels
+    fused_df["is_cell"] = fused_df["cluster_label"] == 0
+    fused_df.to_pickle(fused_df_fname)
+    print(f"Saved GMM clustering results to {fused_df_fname}")
 
     iss.pipeline.batch_process_tiles(
         data_path, script="remove_non_cell_masks", additional_args=f",PREFIX={prefix}"
@@ -1169,7 +1269,19 @@ def save_unmixing_coefficients(
 
     ops = load_ops(data_path)
     if tile_coors is None:
-        tile_coors = ops[f"{short_prefix}_ref_tile"]
+        tile_coors = ops[f"{short_prefix}_ref_tiles"]
+    if tile_coors == "random":
+        roi_dim = get_roi_dimensions(data_path)
+        rng = np.random.default_rng(seed=42)
+        tile_coors = []
+        for i in range(15):
+            roi_index = rng.integers(roi_dim.shape[0])
+            x = rng.integers(roi_dim[roi_index, 1] + 1)
+            y = rng.integers(roi_dim[roi_index, 2] + 1)
+            roi = roi_dim[roi_index, 0]
+            tile_coors.append((roi, x, y))
+    if isinstance(tile_coors[0], int):
+        tile_coors = [tile_coors]
     if background_channel is None:
         background_channel = ops[f"{short_prefix}_background_channel"]
     if signal_channel is None:
@@ -1177,23 +1289,29 @@ def save_unmixing_coefficients(
     if projection is None:
         projection = ops[f"{short_prefix}_projection"]
 
-    print(f"Finding unmixing coefficients for tile {tile_coors}")
-    stack, _ = iss.pipeline.load_and_register_tile(
-        data_path,
-        tile_coors=tile_coors,
-        prefix=prefix,
-        filter_r=False,
-        projection=projection,
-        correct_illumination=True,
-    )
-    # we have a 4d image with "nrounds" as last dim, we only need the first
-    stack = stack[..., 0]
+    signal = []
+    background = []
+    for tile in tile_coors:
+        print(f"Loading tile {tile}")
+        stack, _ = iss.pipeline.load_and_register_tile(
+            data_path,
+            tile_coors=tile,
+            prefix=prefix,
+            filter_r=False,
+            projection=projection,
+            correct_illumination=True,
+        )
+        # we have a 4d image with "nrounds" as last dim, we only need the first
+        stack = stack[..., 0]
+        signal.append(stack[..., signal_channel])
+        background.append(stack[..., background_channel])
 
-    pure_signal, coef, intercept = calculate_unmixing_coefficient(
-        signal_image=stack[..., signal_channel],
-        background_image=stack[..., background_channel],
-        background_coef=ops["background_coef"],
-        threshold_background=ops["threshold_background"],
+    pure_signal, coef, intercept, valid_px = calculate_unmixing_coefficient(
+        signal_image=np.vstack(signal),
+        background_image=np.vstack(background),
+        background_coef=ops["unmixing_background_coef"],
+        threshold_background=ops["unmixing_threshold_background"],
+        threshold_signal=ops["unmixing_threshold_signal"],
     )
 
     print(f"Unmixing coefficients: signal = mixed - {coef} bg + {intercept}")
