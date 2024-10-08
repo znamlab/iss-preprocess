@@ -166,13 +166,16 @@ mcherry:
   # Binarisation quantile for registration of mCherry to reference channel
   mcherry_binarise_quantile: null
   # Tile coors for finding coef and intercept for unmixing mCherry
-  mcherry_ref_tile: [ 3, 1, 5 ]
+  mcherry_ref_tiles: [[ 3, 1, 5 ]]
   # Multiplier for the background subtraction used for mCherry detection
-  background_coef: 1.1
-  # Intensity background threshold for linear fit of mCherry signal
-  threshold_background: 200
+  unmixing_background_coef: 1.1
+  # Intensity thresholds for linear fit of mCherry signal
+  unmixing_threshold_background: null
+  unmixing_threshold_signal: 4096
+  # Threshold for detecting cells on unmixed image
+  mcherry_detection_threshold: 2
   # Minimum area for mCherry cell masks, in px^2
-  min_area_threshold: 200
+  min_area_threshold: 500
   # Maximum area for mCherry cell masks, in px^2
   max_area_threshold: 5000
   # Minimum circularity for mCherry cell masks, closer to 1 is more circular
@@ -187,12 +190,15 @@ mcherry:
   max_elongation_threshold: null
   # Maximum background channel intensity for mCherry cell masks
   max_bg_intensity_threshold: 50
-  # Inner radius of the han window annulus for mcherry prefiltering
-  mcherry_r1: 4
-  # Outer radius of the han window annulus for mcherry prefiltering
-  mcherry_r2: 70
+  # Minimum background channel intensity for mCherry cell masks
+  # to remove cells with 0 background (border of image after channel registration)
+  min_bg_intensity_threshold: 0.1
+  # Inner radius of the difference of gaussian filter for mcherry prefiltering
+  mcherry_r1: 7
+  # Outer radius of the difference of gaussian filter for mcherry prefiltering
+  mcherry_r2: 21
   # Mask can be further filtered using a gmm
-  mcherry_gmm_filter_masks: false
+  mcherry_gmm_filter_masks: true
   # Parameters to register mCherry tiles within acquisition
   mcherry_min_corrcoef: 0.5
   mcherry_max_delta_shift: 30
