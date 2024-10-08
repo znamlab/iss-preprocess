@@ -1029,9 +1029,10 @@ def save_mcherry_mask_df(data_path, prefix):
             for tiley in range(roi_dim[2] + 1):
                 tile_name = f"{roi_dim[0]}_{tilex}_{tiley}"
                 fname = mask_folder / f"{prefix}_df_{tile_name}.pkl"
-                assert (
-                    fname.exists()
-                ), f"No segmentations found for tile {tile_name}. Run segment_mcherry_tile first."
+                assert fname.exists(), (
+                    f"No segmentations found for tile {tile_name}. Run "
+                    + "segment_mcherry_tile first."
+                )
                 df = pd.read_pickle(fname)
                 to_del = deleted.query("tile == @tile_name")
                 if not to_del.empty:
@@ -1048,7 +1049,7 @@ def save_mcherry_mask_df(data_path, prefix):
     dfs = pd.concat(dfs, ignore_index=True)
     dfs.to_pickle(target)
     return dfs
-
+            
 
 def remove_non_cell_masks(data_path, prefix, roi, tilex, tiley):
     """
