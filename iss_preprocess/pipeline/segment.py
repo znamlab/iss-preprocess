@@ -6,10 +6,11 @@ from pathlib import Path
 from znamutils import slurm_it
 import numpy as np
 import pandas as pd
+import cv2
 from skimage import measure
 from sklearn.preprocessing import StandardScaler
 from sklearn.mixture import GaussianMixture
-from skimage.filters import threshold_triangle
+from skimage.morphology import binary_closing
 from skimage.segmentation import expand_labels
 
 import iss_preprocess as iss
@@ -660,52 +661,36 @@ def segment_mcherry_tile(
     unmixed_image, mixed_stack = unmix_tile(data_path, prefix, (roi, tilex, tiley))
 
     print("Filtering")
-    # Apply a hann window filter to the unmixed image to remove halos around cells
-    filt = iss.image.filter_stack(
-        unmixed_image,
-        r1=ops[f"{short_prefix}_r1"],
-        r2=ops[f"{short_prefix}_r2"],
-        dtype=float,
-    )
-    binary = filt > threshold_triangle(filt)
+    # Apply a DoG filter to the unmixed image to remove halos around cells
+    r1 = int(ops["mcherry_r1"])
+    r2 = int(ops["mcherry_r2"])
+
+    # ensure r1 and r2 and odd
+    r1 = r1 + 1 - r1 % 2
+    r2 = r2 + 1 - r2 % 2
+
+    threshold = ops[f"{short_prefix}_detection_threshold"]
+
+    print(f"Using radii {r1} and {r2}")
+    print(f"And {short_prefix}_detection_threshold: {threshold}")
+
+    binary = _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold)
 
     print("Label")
-    # Label the connected components in the binary image
-    # creating a df with the properties of each cell
-    labeled_image = measure.label(binary)
-    props = measure.regionprops_table(
-        labeled_image,
-        intensity_image=mixed_stack,
-        properties=(
-            "label",
-            "area",
-            "centroid",
-            "eccentricity",
-            "major_axis_length",
-            "minor_axis_length",
-            "intensity_max",
-            "intensity_mean",
-            "intensity_min",
-            "perimeter",
-            "solidity",
-        ),
-    )
 
-    props_df = pd.DataFrame(props)
-    props_df["circularity"] = (
-        4 * np.pi * props_df["area"] / (props_df["perimeter"] ** 2)
-    )
-    # unmixed_image has two channels, signal and background
-    props_df["intensity_ratio"] = (
-        props_df["intensity_mean-0"] / props_df["intensity_mean-1"]
-    )
-    props_df["roi"] = roi
-    props_df["tilex"] = tilex
-    props_df["tiley"] = tiley
+def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
+    """Inner function to filter mCherry images"""
+    kernel_size = int(np.ceil(3 * r2) * 2 + 1)
+    center = cv2.GaussianBlur(unmixed_image, (kernel_size, kernel_size), r1)
+    surround = cv2.GaussianBlur(unmixed_image, (kernel_size, kernel_size), r2)
+    filt = center - 1.5 * surround
 
-    print("Filtering masks")
-    # TODO: these are a lot of threshold and we don't have an easy way to set them
-    # adapt to detect more mask here and filter later.
+    binary = filt > threshold
+    # Expand and dilate the binary image to ensure that all cells are captured
+    footprint = int(2.5 / get_pixel_size(data_path))
+    binary = binary_closing(binary, footprint=np.ones((footprint, footprint)))
+    return binary
+
     valid_masks = np.ones(len(props_df), dtype=bool)
     thresholds = [
         "min_area_threshold",
