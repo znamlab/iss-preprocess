@@ -1290,6 +1290,13 @@ def _gmm_cluster_mcherry_cells(data_path, prefix):
     fused_df["is_cell"] = fused_df["cluster_label"] == 0
     fused_df.to_pickle(fused_df_fname)
     print(f"Saved GMM clustering results to {fused_df_fname}")
+    # Plot diagnostics plot
+    fig = diagnostics.plot_mcherry_gmm(
+        fused_df, features, cluster_centers=gmm.means_, initial_centers=initial_unscaled
+    )
+    fig_folder = iss.io.get_processed_path(data_path) / "figures" / "segmentation"
+    fig_folder.mkdir(exist_ok=True, parents=True)
+    fig.savefig(fig_folder / f"{prefix}_gmm_diagnostics.png")
 
     iss.pipeline.batch_process_tiles(
         data_path, script="remove_non_cell_masks", additional_args=f",PREFIX={prefix}"
