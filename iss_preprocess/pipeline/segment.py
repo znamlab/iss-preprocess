@@ -677,6 +677,9 @@ def segment_mcherry_tile(
     binary = _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold)
 
     print("Label")
+    # Label the binary image creating a df with the properties of each cell
+    labeled_image, props_df = _label_bin_image(binary, mixed_stack, roi, tilex, tiley)
+
 
 def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
     """Inner function to filter mCherry images"""
@@ -729,16 +732,39 @@ def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
     rejected_mask = np.isin(labeled_image, rejected_labels)
     rejected_masks[rejected_mask] = 255
 
-    mask_dir = processed_path / "cells" / f"{prefix}_cells"
-    mask_dir.mkdir(exist_ok=True, parents=True)
-    np.save(
-        mask_dir / f"{prefix}_masks_{roi}_{tilex}_{tiley}.npy",
-        filtered_masks,
-        allow_pickle=True,
+
+def _label_bin_image(binary, mixed_stack, roi, tilex, tiley):
+    labeled_image = measure.label(binary)
+    props = measure.regionprops_table(
+        labeled_image,
+        intensity_image=mixed_stack,
+        properties=(
+            "label",
+            "area",
+            "centroid",
+            "eccentricity",
+            "major_axis_length",
+            "minor_axis_length",
+            "intensity_max",
+            "intensity_mean",
+            "intensity_min",
+            "perimeter",
+            "solidity",
+        ),
     )
-    pd.to_pickle(filtered_df, mask_dir / f"{prefix}_df_{roi}_{tilex}_{tiley}.pkl")
-    print(f"Saved masks to {mask_dir}")
-    return filtered_masks, filtered_df, rejected_masks
+
+    props_df = pd.DataFrame(props)
+    props_df["circularity"] = (
+        4 * np.pi * props_df["area"] / (props_df["perimeter"] ** 2)
+    )
+    # unmixed_image has two channels, signal and background
+    props_df["intensity_ratio"] = (
+        props_df["intensity_mean-0"] / props_df["intensity_mean-1"]
+    )
+    props_df["roi"] = roi
+    props_df["tilex"] = tilex
+    props_df["tiley"] = tiley
+    return labeled_image, props_df
 
 
 def find_edge_touching_masks(masks, border_width=4):
