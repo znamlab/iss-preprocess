@@ -680,6 +680,22 @@ def segment_mcherry_tile(
     # Label the binary image creating a df with the properties of each cell
     labeled_image, props_df = _label_bin_image(binary, mixed_stack, roi, tilex, tiley)
 
+    print("Filtering masks")
+    filtered_masks, filtered_df, rejected_masks = _filter_masks(
+        ops, props_df, labeled_image
+    )
+
+    mask_dir = processed_path / "cells" / f"{prefix}_cells"
+    mask_dir.mkdir(exist_ok=True, parents=True)
+    np.save(
+        mask_dir / f"{prefix}_masks_{roi}_{tilex}_{tiley}.npy",
+        filtered_masks,
+        allow_pickle=True,
+    )
+    pd.to_pickle(filtered_df, mask_dir / f"{prefix}_df_{roi}_{tilex}_{tiley}.pkl")
+    print(f"Saved masks to {mask_dir}")
+    return filtered_masks, filtered_df, rejected_masks
+
 
 def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
     """Inner function to filter mCherry images"""
@@ -694,6 +710,20 @@ def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
     binary = binary_closing(binary, footprint=np.ones((footprint, footprint)))
     return binary
 
+
+def _filter_masks(ops, props_df, labeled_image):
+    """Inner function to filter masks based on properties.
+
+    Args:
+        ops (dict): Dictionary of options.
+        props_df (pd.DataFrame): DataFrame of properties.
+        labeled_image (np.ndarray): Labeled image.
+
+    Returns:
+        filtered_masks (np.ndarray): Binary image of the filtered masks.
+        filtered_df (pd.DataFrame): DataFrame of the filtered masks.
+        rejected_masks (np.ndarray): Binary image of the rejected masks.
+    """
     valid_masks = np.ones(len(props_df), dtype=bool)
     thresholds = [
         "min_area_threshold",
@@ -704,6 +734,7 @@ def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
         "min_solidity_threshold",
         "max_solidity_threshold",
         "max_bg_intensity_threshold",
+        "min_bg_intensity_threshold",
     ]
     for prop in thresholds:
         threshold = ops.get(prop, None)
@@ -720,6 +751,8 @@ def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
     filtered_df = props_df[valid_masks]
     rejected_masks_df = props_df[~valid_masks]
 
+    if labeled_image is None:
+        return filtered_df
     # Identify all pixels belonging to the filtered labels
     filtered_masks = np.zeros_like(labeled_image, dtype=np.uint16)
     filtered_labels = filtered_df["label"].to_list()
@@ -731,6 +764,7 @@ def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
     rejected_labels = rejected_masks_df["label"].to_list()
     rejected_mask = np.isin(labeled_image, rejected_labels)
     rejected_masks[rejected_mask] = 255
+    return filtered_masks, filtered_df, rejected_masks
 
 
 def _label_bin_image(binary, mixed_stack, roi, tilex, tiley):
@@ -973,7 +1007,7 @@ def save_mcherry_mask_df(data_path, prefix):
     overlap_df = mask_folder / f"{prefix}_overlapping_pairs.pkl"
     assert (
         overlap_df.exists()
-    ), f"File {overlap_df} does not exist. Run remove_all_overlapping_masks first."
+    ), f"File {overlap_df} does not exist. Run remove_all_duplicate_masks first."
     overlap_df = pd.read_pickle(overlap_df)
     deleted = overlap_df.query("delete_match")[
         ["roi", "match_tilex", "match_tiley", "match_label"]
@@ -1221,7 +1255,7 @@ def unmix_tile(
         mixed_signal_image=stack[..., signal_channel],
         coef=unmix_param["coef"],
         intercept=unmix_param["intercept"],
-        background_coef=ops["background_coef"],
+        background_coef=ops["unmixing_background_coef"],
     )
     original_stack = stack[..., [signal_channel, background_channel]]
     return unmixed, original_stack
