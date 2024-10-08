@@ -926,6 +926,7 @@ def segment_and_stitch_mcherry_cells(
     )
     print(f"Started {len(job_ids)} jobs for segmenting mCherry cells")
 
+    spref = prefix.split("_")[0].lower()
     # ensure the "within" registration ran
     reg_jobs = iss.pipeline.stitch.register_all_rois_within(
         data_path,
