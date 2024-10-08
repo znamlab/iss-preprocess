@@ -1279,7 +1279,7 @@ def align_cell_dataframe(data_path, prefix, ref_prefix=None):
     """Align a cell dataframe to reference coordinates
 
     Designed for mCherry cells. Reads the f"{prefix}_df_corrected.pkl" file generated
-    by remove_all_overlapping_masks and aligns the x and y coordinates to the reference
+    by remove_all_duplicate_masks and aligns the x and y coordinates to the reference
     tile by tile.
 
     Args:
@@ -1295,7 +1295,7 @@ def align_cell_dataframe(data_path, prefix, ref_prefix=None):
     cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
     assert (
         cells_df.exists()
-    ), f"Cells dataframe {cells_df} does not exist. Run remove_all_overlapping_masks first"
+    ), f"Cells dataframe {cells_df} does not exist. Run remove_all_duplicate_masks first"
     cells_df = pd.read_pickle(cells_df)
     if "x" not in cells_df.columns:
         cells_df.rename(columns={"centroid-1": "x", "centroid-0": "y"}, inplace=True)
