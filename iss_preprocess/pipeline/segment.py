@@ -28,7 +28,6 @@ from ..segment import (
     count_spots,
     spot_mask_value,
     project_mask,
-    get_cell_masks,
 )
 from . import ara_registration as ara_registration
 from . import diagnostics
@@ -376,6 +375,55 @@ def segment_roi(data_path, iroi, prefix="DAPI_1", use_gpu=False):
     diagnostics.check_segmentation(
         data_path, iroi, prefix, reference_prefix, stitched_stack, masks
     )
+
+
+def get_cell_masks(
+    data_path,
+    roi,
+    projection="corrected",
+    mask_expansion=None,
+    reload=True,
+    prefix=None,
+):
+    """Small wrapper to get cell masks from a given data path.
+
+    Wrap to ensure we use the same projection for all calls
+
+    Args:
+        data_path (str): Path to acquisition data (chamber folder)
+        roi (int): Region of interest
+        projection (str, optional): Projection to use. Defaults to "corrected".
+        mask_expansion (int, optional): Expansion of the mask. If None, reads from ops.
+            Defaults to None.
+        reload (bool, optional): If True, reload the masks. Defaults to True.
+        prefix (str, optional): Prefix to use for the masks. If None, reads from ops.
+            Defaults to None.
+
+    Returns:
+        np.ndarray: Cell masks
+    """
+    ops = iss.io.load_ops(data_path)
+    if mask_expansion is None:
+        mask_expansion = ops["mask_expansion"]
+    if prefix is None:
+        prefix = ops["segmentation_prefix"]
+    seg_prefix = f"{prefix}_masks"
+    target = f"{data_path}/cells/{seg_prefix}_{roi}_{mask_expansion}.tif"
+    target = iss.io.get_processed_path(target)
+
+    if not reload and target.exists():
+        masks = iss.io.load_stack(target)[..., 0]
+    else:
+        masks = iss.pipeline.stitch_registered(
+            data_path,
+            prefix=seg_prefix,
+            roi=roi,
+            projection=projection,
+        )[..., 0]
+        if mask_expansion > 0:
+            masks = iss.pipeline.segment.get_big_masks(data_path, masks, mask_expansion)
+        iss.io.write_stack(masks, target, dtype=masks.dtype)
+    return masks
 
 
 def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=None, atlas_size=10):
