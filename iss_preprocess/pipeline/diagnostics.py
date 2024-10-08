@@ -7,6 +7,7 @@ import numbers
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from image_tools.similarity_transforms import transform_image
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy.ndimage import median_filter
@@ -1603,3 +1604,33 @@ def check_reg2ref_using_stitched(
     print(f"Saving plot to {save_path}")
     del rgb
     return fig
+
+
+def plot_mcherry_gmm(df, features, cluster_centers, initial_centers):
+    # plot scatter of clusters
+
+    n_components = len(cluster_centers)
+    pairplot_fig = sns.pairplot(
+        df[["cluster_label"] + features],
+        diag_kind="hist",
+        hue="cluster_label",
+        palette={i: f"C{i}" for i in range(n_components)},
+        plot_kws={"s": 5, "alpha": 0.3},
+    )
+
+    # overlay the cluster centers on the pairplot
+    axes = pairplot_fig.axes
+    feature_names = features
+    for i, feature_i in enumerate(feature_names):
+        for j, feature_j in enumerate(feature_names):
+            # if i != j:
+            # Only plot on the off-diagonal plots
+            for ic, center in enumerate(cluster_centers):
+                axes[i, j].scatter(
+                    center[j], center[i], c=f"C{ic}", s=50, edgecolors="black"
+                )
+            for ic, center in enumerate(initial_centers):
+                axes[i, j].scatter(
+                    center[j], center[i], s=50, facecolors="none", edgecolors=f"C{ic}"
+                )
+    return pairplot_fig
