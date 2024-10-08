@@ -224,7 +224,7 @@ def register_all_rois_within(
         verbose (int, optional): Verbosity level. Defaults to 1.
         use_slurm (bool, optional): Use SLURM to parallelize the registration. Defaults
             to True.
-        job_dependencies (list, optional): List of job dependencies. Defaults to None.
+        job_dependency (list, optional): List of job dependencies. Defaults to None.
         script_names (str, optional):Script names for slurm jobs. Defaults to None.
         slurm_folder (str, optional): Folder to save SLURM logs. Defaults to None.
 
@@ -972,7 +972,7 @@ def merge_roi_spots(
     return spots
 
 
-@slurm_it(conda_env="iss-preprocessing", slurm_options={"time": "1:00:00", "mem": "8G"})
+@slurm_it(conda_env="iss-preprocess", slurm_options={"time": "1:00:00", "mem": "8G"})
 def stitch_cell_dataframes(data_path, prefix, ref_prefix=None):
     """Stitch cell dataframes across all tiles and ROI.
 
@@ -1005,6 +1005,12 @@ def stitch_cell_dataframes(data_path, prefix, ref_prefix=None):
             stitched_df.loc[tdf.index, "tile"] = f"{roi}_{tx}_{ty}"
             stitched_df.loc[tdf.index, "x"] = tdf["x_in_tile"] + ref_origins[tx, ty, 1]
             stitched_df.loc[tdf.index, "y"] = tdf["y_in_tile"] + ref_origins[tx, ty, 0]
+
+    # save stitched dataframe
+    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
+    stitched_df.to_pickle(cells_df)
+
     return stitched_df
 
 
