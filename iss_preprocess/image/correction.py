@@ -96,6 +96,7 @@ def calculate_unmixing_coefficient(
     background_coef,
     threshold_background=None,
     threshold_signal=None,
+    fit_intercept=True,
 ):
     """
     Unmixes two images: one with only background autofluorescence and another with both
@@ -110,6 +111,8 @@ def calculate_unmixing_coefficient(
             background. If None will use the median. Default None.
         threshold_signal (optional): Minimum value on signal channel for a pixel to be
             considered background. If None will use the median. Default None.
+        fit_intercept (optional): Whether to fit an intercept in the linear model.
+            Default True.
 
 
     Returns:
@@ -145,7 +148,7 @@ def calculate_unmixing_coefficient(
     print(f"Number of valid pixels: {valid_pixel.sum()}/{valid_pixel.size}")
 
     # Initialize and fit Linear model
-    model = LinearRegression(positive=True)
+    model = LinearRegression(positive=True, fit_intercept=fit_intercept)
     try:
         model.fit(background_flat, mixed_signal_flat)
         # Predict the background component in the mixed signal image
