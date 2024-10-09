@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import cv2
 from image_tools.similarity_transforms import transform_image
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy.ndimage import median_filter
@@ -1634,3 +1635,71 @@ def plot_mcherry_gmm(df, features, cluster_centers, initial_centers):
                     center[j], center[i], s=50, facecolors="none", edgecolors=f"C{ic}"
                 )
     return pairplot_fig
+
+
+def plot_unmixing_diagnostics(
+    signal_image, background_image, pure_signal, valid_pixel, coef, intercept, vmax=200
+):
+    """Plot the unmixing diagnostics
+
+    Args:
+        signal_image (np.ndarray): Signal image
+        background_image (np.ndarray): Background image
+        pure_signal (np.ndarray): Pure signal
+        valid_pixel (np.ndarray): Valid pixels
+        coef (np.ndarray): Coefficients
+        intercept (np.ndarray): Intercept
+        vmax (int, optional): Maximum cmap value for the images. Defaults to 200.
+
+    Returns:
+        list: List of figures
+    """
+    shp = np.array(signal_image.shape)
+    aspect_ratio = shp[0] / shp[1]
+    fig1, axes = plt.subplots(1, 3, figsize=(15, 5 * aspect_ratio * 0.9))
+    # downscale for plotting
+    axes[0].imshow(cv2.resize(signal_image, (0, 0), fx=0.1, fy=0.1), vmax=vmax)
+    axes[0].set_title("Signal")
+
+    axes[1].imshow(cv2.resize(background_image, (0, 0), fx=0.1, fy=0.1), vmax=vmax)
+    axes[1].set_title("Background")
+
+    axes[2].imshow(cv2.resize(pure_signal, (0, 0), fx=0.1, fy=0.1), vmax=vmax)
+    axes[2].set_title("Pure signal")
+    for ax in axes.ravel():
+        ax.set_axis_off()
+
+    # plot linear regression
+    fig2, ax = plt.subplots(1, 1, figsize=(5, 5))
+    background_flat = background_image.ravel()
+    mixed_signal_flat = signal_image.ravel()
+    ax.scatter(
+        background_flat[::100],
+        mixed_signal_flat[::100],
+        s=1,
+        c="C0",
+    )
+    ax.scatter(
+        background_flat[valid_pixel][::100],
+        mixed_signal_flat[valid_pixel][::100],
+        s=1,
+        color="k",
+        alpha=0.5,
+    )
+    x = np.arange(background_flat.max())
+    ax.plot(x, x * coef + intercept, color="red")
+    ax.set_xlabel("Background")
+    ax.set_ylabel("Signal")
+    ax.set_title("Linear Regression")
+    ax.text(
+        0.5,
+        0.9,
+        f"y = {coef:.2f}x + {intercept:.2f}",
+        horizontalalignment="center",
+        verticalalignment="center",
+        transform=plt.gca().transAxes,
+    )
+    ax.set_xlim(0, vmax * 2)
+    ax.set_ylim(0, vmax * 2)
+
+    return [fig1, fig2]

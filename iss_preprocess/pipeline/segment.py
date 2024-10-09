@@ -1405,6 +1405,21 @@ def save_unmixing_coefficients(
         coef=coef,
         intercept=intercept,
     )
+
+    # save diagnostics plot
+    figs = diagnostics.plot_unmixing_diagnostics(
+        signal_image=np.vstack(signal),
+        background_image=np.vstack(background),
+        pure_signal=pure_signal,
+        valid_pixel=valid_px,
+        coef=coef,
+        intercept=intercept,
+    )
+    fig_dir = get_processed_path(data_path) / "figures" / "segmentation"
+    fig_dir.mkdir(exist_ok=True, parents=True)
+    for i_fig, fig in enumerate(figs):
+        fig.savefig(fig_dir / f"{prefix}_unmixing_diagnostics_{i_fig}.png")
+
     return pure_signal, coef, intercept
 
 
