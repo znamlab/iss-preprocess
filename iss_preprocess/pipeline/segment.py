@@ -968,7 +968,7 @@ def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
         upper_overlap_thresh = ops.get(f"{prefix}_upper_overlap_thresh", 0.3)
 
     # Remove all old files with "masks_corrected" in the name
-    mask_folder = processed_path / "cells"  # / f"{prefix}_cells"
+    mask_folder = processed_path / "cells" / f"{prefix}_cells"
     assert mask_folder.exists(), f"Folder {mask_folder} does not exist"
 
     for f in mask_folder.glob(f"{prefix}_masks_corrected*"):
