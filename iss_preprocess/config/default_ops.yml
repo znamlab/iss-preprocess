@@ -165,13 +165,19 @@ mcherry:
   mcherry_background_channel: 3
   # Binarisation quantile for registration of mCherry to reference channel
   mcherry_binarise_quantile: null
-  # Tile coors for finding coef and intercept for unmixing mCherry
-  mcherry_ref_tiles: [[ 3, 1, 5 ]]
+  # Tile coors for finding coef and intercept for unmixing mCherry, can be "random" or
+  # a list of tile coordinates
+  mcherry_ref_tiles: "random"
+  # Random seed to select mCherry reference tiles for unmixing
+  mcherry_ref_tiles_seed: 42
+  # Number of random tiles to use for mCherry unmixing
+  mcherry_ref_tiles_n_random: 15
   # Multiplier for the background subtraction used for mCherry detection
   unmixing_background_coef: 1.1
   # Intensity thresholds for linear fit of mCherry signal
   unmixing_threshold_background: null
   unmixing_threshold_signal: 4096
+  unmixing_fit_intercept: true
   # Threshold for detecting cells on unmixed image
   mcherry_detection_threshold: 2
   # Minimum area for mCherry cell masks, in px^2
