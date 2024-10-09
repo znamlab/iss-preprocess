@@ -1315,8 +1315,33 @@ def save_unmixing_coefficients(
     background_channel=None,
     signal_channel=None,
     projection=None,
+    seed=None,
+    n_random=None,
 ):
-    """Find the unmixing coefficients for one tile."""
+    """Find the unmixing coefficients.
+
+    Args:
+        data_path (str): Path to the data directory.
+        prefix (str): Prefix of the image stack.
+        tile_coors (list, optional): List of tile coordinates. If None, will use random
+            tiles. Defaults to None.
+        background_channel (int, optional): Channel index of the background image. If
+            None, will use the value from the ops. Defaults to None.
+        signal_channel (int, optional): Channel index of the signal image. If None, will
+            use the value from the ops. Defaults to None.
+        projection (str, optional): Projection method. If None, will use the value from
+            the ops. Defaults to None.
+        seed (int, optional): Random seed for the random tiles. If None, will use the
+            the value from the ops. Defaults to None.
+        n_random (int, optional): Number of random tiles to use. If None, will use the
+            the value from the ops. Defaults to None.
+
+    Returns:
+        pure_signal (np.ndarray): Pure signal image.
+        coef (float): Unmixing coefficient.
+        intercept (float): Unmixing intercept
+
+    """
 
     short_prefix = prefix.split("_")[0].lower()
     target_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
@@ -1326,10 +1351,14 @@ def save_unmixing_coefficients(
     if tile_coors is None:
         tile_coors = ops[f"{short_prefix}_ref_tiles"]
     if tile_coors == "random":
+        if seed is None:
+            seed = ops[f"{short_prefix}_ref_tiles_seed"]
+        if n_random is None:
+            n_random = ops[f"{short_prefix}_ref_tiles_n_random"]
         roi_dim = get_roi_dimensions(data_path)
-        rng = np.random.default_rng(seed=42)
+        rng = np.random.default_rng(seed=seed)
         tile_coors = []
-        for i in range(15):
+        for i in range(n_random):
             roi_index = rng.integers(roi_dim.shape[0])
             x = rng.integers(roi_dim[roi_index, 1] + 1)
             y = rng.integers(roi_dim[roi_index, 2] + 1)
@@ -1367,6 +1396,7 @@ def save_unmixing_coefficients(
         background_coef=ops["unmixing_background_coef"],
         threshold_background=ops["unmixing_threshold_background"],
         threshold_signal=ops["unmixing_threshold_signal"],
+        fit_intercept=ops["unmixing_fit_intercept"],
     )
 
     print(f"Unmixing coefficients: signal = mixed - {coef} bg + {intercept}")
