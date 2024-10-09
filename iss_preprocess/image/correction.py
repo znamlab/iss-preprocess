@@ -176,6 +176,7 @@ def unmix_images(
     coef: float,
     intercept: float,
     background_coef: float = 1.0,
+    offset: float = 10.0,
 ):
     """
     Unmixes two images
@@ -189,6 +190,9 @@ def unmix_images(
         coef: Coefficient to multiply the background image by before subtraction.
         intercept: Intercept of the linear model used for unmixing.
         background_coef: Fudge factor to increase the amount of background subtracted.
+            Default 1.0.
+        offset: Small value to add to the signal image to avoid negative values after
+            subtraction. Default 10.0.
 
     Returns:
         signal_image: The isolated signal image after background subtraction.
@@ -197,7 +201,7 @@ def unmix_images(
     signal_image = mixed_signal_image - (predicted_background * background_coef)
     # Clipping removes negative values, which can be an issue if the coefficient is
     # a bit off, add a small value to avoid this
-    signal_image += abs(intercept)
+    signal_image += offset
     signal_image = np.clip(signal_image, 0, None)
     return signal_image
 
