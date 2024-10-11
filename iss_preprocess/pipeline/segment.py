@@ -403,10 +403,14 @@ def get_cell_masks(
         np.ndarray: Cell masks
     """
     ops = iss.io.load_ops(data_path)
-    if mask_expansion is None:
-        mask_expansion = ops["mask_expansion"]
+
     if prefix is None:
         prefix = ops["segmentation_prefix"]
+    if mask_expansion is None:
+        if prefix == ops["segmentation_prefix"]:
+            mask_expansion = ops["mask_expansion"]
+        else:
+            mask_expansion = ops.get(f"{prefix}_mask_expansion", 0)
     seg_prefix = f"{prefix}_masks"
     target = f"{data_path}/cells/{seg_prefix}_{roi}_{mask_expansion}.tif"
     target = iss.io.get_processed_path(target)
