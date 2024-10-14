@@ -385,6 +385,7 @@ def get_cell_masks(
     mask_expansion=None,
     reload=True,
     prefix=None,
+    curated=False,
 ):
     """Small wrapper to get cell masks from a given data path.
 
@@ -396,9 +397,12 @@ def get_cell_masks(
         projection (str, optional): Projection to use. Defaults to "corrected".
         mask_expansion (int, optional): Expansion of the mask. If None, reads from ops.
             Defaults to None.
-        reload (bool, optional): If True, reload the masks. Defaults to True.
+        reload (bool, optional): If True, reload the saved masks, otherwise regenerate
+            from individual tiles. Defaults to True.
         prefix (str, optional): Prefix to use for the masks. If None, reads from ops.
             Defaults to None.
+        curated (bool, optional): Whether to use curated masks. These are manually
+            curated and have the same filename with "_curated.tif". Defaults to False.
 
     Returns:
         np.ndarray: Cell masks
@@ -415,19 +419,30 @@ def get_cell_masks(
     seg_prefix = f"{prefix}_masks"
     target = f"{data_path}/cells/{seg_prefix}_{roi}_{mask_expansion}.tif"
     target = iss.io.get_processed_path(target)
+    if curated:
+        target = target.with_name(target.stem + "_curated" + target.suffix)
+        if not reload:
+            raise IOError("Curated can only be reloaded")
 
-    if not reload and target.exists():
+    if reload and target.exists():
         masks = iss.io.load_stack(target)[..., 0]
-    else:
-        masks = iss.pipeline.stitch_registered(
-            data_path,
-            prefix=seg_prefix,
-            roi=roi,
-            projection=projection,
-        )[..., 0]
-        if mask_expansion > 0:
-            masks = iss.pipeline.segment.get_big_masks(data_path, masks, mask_expansion)
-        iss.io.write_stack(masks, target, dtype=masks.dtype)
+        return masks
+    elif curated:
+        raise FileNotFoundError(
+            f"{target} does not exist. " + "Curated masks should be created manually."
+        )
+    print(f"Stitching masks for {data_path} {roi} {prefix}")
+    masks = iss.pipeline.stitch_registered(
+        data_path,
+        prefix=seg_prefix,
+        roi=roi,
+        projection=projection,
+    )[..., 0]
+    if mask_expansion > 0:
+        print(f"Expanding masks by {mask_expansion} pixels")
+        masks = iss.pipeline.segment.get_big_masks(data_path, masks, mask_expansion)
+    iss.io.write_stack(masks, target, dtype=masks.dtype)
+    print(f"Saved masks to {target}")
     return masks
 
 
