@@ -128,11 +128,11 @@ def load_roi(
         masks_to_load = [masks_to_load]
 
     for mask in masks_to_load:
-        rab_mask = imread(
+        mask_img_data = imread(
             manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_masks.tif"
         )
-        if rab_mask.ndim == 3:
-            rab_mask = rab_mask[..., 0]
+        if mask_img_data.ndim == 3:
+            mask_img_data = mask_img_data[..., 0]
         if label_tab20:
             # Define the colormap as dict
             cmap_label = {
@@ -142,10 +142,11 @@ def load_roi(
             colors = mpl.colormaps["tab20"].colors
             for i, c in enumerate(colors):
                 cmap_label[i + 1] = np.array([*c, 1])
-            data = (rab_mask % 20).astype(int) + 1
-            data[rab_mask == 0] = 0
+            data = (mask_img_data % 20).astype(int) + 1
+            data[mask_img_data == 0] = 0
             colormap=napari.utils.DirectLabelColormap(color_dict=cmap_label)
         else:
+            data = mask_img_data
             colormap=None
         viewer.add_labels(
             data=data.astype("uint8"),
