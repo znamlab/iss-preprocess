@@ -16,10 +16,14 @@ def load_roi(
     add_genes=True,
     add_rabies=True,
     image_to_load=("genes", "hyb", "rab", "reference", "mCherry"),
-    masks_to_load=("rabies_cells",),
+    masks_to_load=("rabies_cells", "mcherry"),
     barcode_to_plot=(),
+    label_tab20=False,
 ):
-    """Load one tile in the interactive viewer"""
+    """Load one tile in the interactive viewer
+    
+    Args:
+        label_tab20 (bool, optional): Replace label by the tab20 version to make them the same color as rabies spots"""
     viewer = napari.Viewer()
     data_path = f"{project}/{mouse}/{chamber}"
     manual_folder = iss.io.get_processed_path(data_path) / "manual_starter_click"
@@ -49,7 +53,7 @@ def load_roi(
         for ic, col in enumerate(colors):
             print(f"Adding {name}, ch {ic}")
             viewer.add_image(
-                data=[img[..., ic], img[::2, ::2, ic], img[::4, ::4, ic]],
+                data=[img[ic], img[ic, ::2, ::2], img[ic, ::4, ::4]],
                 name=f"{name} - ch {ic}",
                 colormap=col,
                 blending="additive",
@@ -120,15 +124,16 @@ def load_roi(
                 size=10,
             )
 
-    if add_rabies:
-        # add rabies mask
-        print("Adding rabies masks")
-        for mask in masks_to_load:
-            rab_mask = imread(
-                manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_mask.tif"
-            )
-            if rab_mask.ndim == 3:
-                rab_mask = rab_mask[..., 0]
+    if isinstance(masks_to_load, str):
+        masks_to_load = [masks_to_load]
+
+    for mask in masks_to_load:
+        rab_mask = imread(
+            manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_masks.tif"
+        )
+        if rab_mask.ndim == 3:
+            rab_mask = rab_mask[..., 0]
+        if label_tab20:
             # Define the colormap as dict
             cmap_label = {
                 0: np.array([0.0, 0.0, 0.0, 0.0]),
@@ -139,11 +144,24 @@ def load_roi(
                 cmap_label[i + 1] = np.array([*c, 1])
             data = (rab_mask % 20).astype(int) + 1
             data[rab_mask == 0] = 0
-            viewer.add_labels(
-                data=data.astype("uint8"),
-                name=mask.replace("_", " "),
-                colormap=napari.utils.DirectLabelColormap(color_dict=cmap_label),
-            )
+            colormap=napari.utils.DirectLabelColormap(color_dict=cmap_label)
+        else:
+            colormap=None
+        viewer.add_labels(
+            data=data.astype("uint8"),
+            name=mask.replace("_", " "),
+            colormap=colormap,
+        )
+        center_npy = manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_centers.npy"
+        if center_npy.exists():
+            # we need to put y first
+            coords = np.load(center_npy)[:,[1,0]]
+            viewer.add_points(coords, name=f"{prefix} masks center", size=50)
+
+    if add_rabies:
+        # add rabies mask
+        print("Adding rabies masks")
+
         # add rabies spots
         print("Adding rabies spots")
         non_ass = np.load(
