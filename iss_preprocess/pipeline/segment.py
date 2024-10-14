@@ -16,6 +16,7 @@ from skimage.segmentation import expand_labels
 import iss_preprocess as iss
 
 from iss_preprocess.image.correction import calculate_unmixing_coefficient
+from iss_preprocess.segment.cells import label_image
 from ..io import (
     get_pixel_size,
     get_roi_dimensions,
@@ -730,7 +731,9 @@ def segment_mcherry_tile(
 
     print("Label")
     # Label the binary image creating a df with the properties of each cell
-    labeled_image, props_df = _label_bin_image(binary, mixed_stack, roi, tilex, tiley)
+    labeled_image, props_df = label_image(
+        binary, mixed_stack, roi=roi, tilex=tilex, tiley=tiley
+    )
 
     print("Filtering masks")
     filtered_masks, filtered_df, rejected_masks = _filter_masks(
@@ -817,40 +820,6 @@ def _filter_masks(ops, props_df, labeled_image):
     rejected_mask = np.isin(labeled_image, rejected_labels)
     rejected_masks[rejected_mask] = 255
     return filtered_masks, filtered_df, rejected_masks
-
-
-def _label_bin_image(binary, mixed_stack, roi, tilex, tiley):
-    labeled_image = measure.label(binary)
-    props = measure.regionprops_table(
-        labeled_image,
-        intensity_image=mixed_stack,
-        properties=(
-            "label",
-            "area",
-            "centroid",
-            "eccentricity",
-            "major_axis_length",
-            "minor_axis_length",
-            "intensity_max",
-            "intensity_mean",
-            "intensity_min",
-            "perimeter",
-            "solidity",
-        ),
-    )
-
-    props_df = pd.DataFrame(props)
-    props_df["circularity"] = (
-        4 * np.pi * props_df["area"] / (props_df["perimeter"] ** 2)
-    )
-    # unmixed_image has two channels, signal and background
-    props_df["intensity_ratio"] = (
-        props_df["intensity_mean-0"] / props_df["intensity_mean-1"]
-    )
-    props_df["roi"] = roi
-    props_df["tilex"] = tilex
-    props_df["tiley"] = tiley
-    return labeled_image, props_df
 
 
 def find_edge_touching_masks(masks, border_width=4):
@@ -1248,7 +1217,6 @@ def _gmm_cluster_mcherry_cells(data_path, prefix):
     print(f"Total cells: {len(fused_df)}")
 
     # define features on a subset df
-    fused_df["clamped_ratio"] = np.log10(fused_df["intensity_ratio"].clip(0, 100))
     df = fused_df.copy()
     features = [
         "area",

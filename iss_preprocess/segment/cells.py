@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from skimage import measure
 from tqdm import tqdm
 from skimage.morphology import dilation
 from scipy.ndimage import binary_erosion, binary_dilation
@@ -351,3 +352,53 @@ def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh
                 # Exit the outer loop to restart the evaluation with updated overlaps
                 break
     return overlapping_pairs
+
+
+def label_image(binary, mixed_stack, **kwargs):
+    """Label an image and extract properties.
+
+    This is intended for mCherry images and expects a mixed stack with two channels.
+
+    Args:
+        binary (np.ndarray): Binary image.
+        mixed_stack (np.ndarray): Mixed stack.
+        **kwargs: Additional keyword arguments, usually roi, tilex, and tiley. They
+            are used to add metadata to the dataframe.
+
+    Returns:
+        labeled_image (np.ndarray): Labeled image.
+        props_df (pd.DataFrame): DataFrame of properties.
+    """
+    labeled_image = measure.label(binary)
+    props = measure.regionprops_table(
+        labeled_image,
+        intensity_image=mixed_stack,
+        properties=(
+            "label",
+            "area",
+            "centroid",
+            "eccentricity",
+            "major_axis_length",
+            "minor_axis_length",
+            "intensity_max",
+            "intensity_mean",
+            "intensity_min",
+            "perimeter",
+            "solidity",
+        ),
+    )
+
+    props_df = pd.DataFrame(props)
+    props_df["circularity"] = (
+        4 * np.pi * props_df["area"] / (props_df["perimeter"] ** 2)
+    )
+    # unmixed_image has two channels, signal and background
+    props_df["intensity_ratio"] = (
+        props_df["intensity_mean-0"] / props_df["intensity_mean-1"]
+    )
+    props_df["clamped_ratio"] = np.log10(props_df["intensity_ratio"].clip(0, 100))
+
+    # Add extra kwargs as metadata to the dataframe
+    for key, value in kwargs.items():
+        props_df[key] = value
+    return labeled_image, props_df
