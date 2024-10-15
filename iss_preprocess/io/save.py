@@ -1,9 +1,10 @@
 import cv2
 import numpy as np
-from tifffile import TiffWriter
+import struct
+from tifffile import TiffWriter, imwrite
 
 
-def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True):
+def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress=False):
     """
     Write a stack to file as a multipage TIFF
 
@@ -11,14 +12,26 @@ def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True):
         stack (numpy.ndarray): X x Y x ... array (can have multiple channels /
             zplanes, etc.)
         fname (str): save path for the TIFF
-        dtype (str): datatype of the output image. Default to 'uint16'
-        clip (bool): clip negative values before convertion
+        bigtiff (bool, optional): use bigtiff format. Default to False
+        dtype (str, optional): datatype of the output image. Default to 'uint16'
+        clip (bool, optional): clip negative values before convertion. Default to True
+        compress (bool, optional): compress the image using zlib, default to False
 
     """
     stack = stack.reshape((stack.shape[0], stack.shape[1], -1))
     if clip:
         stack = np.clip(stack, 0, None)
-
+    if compress:
+        try:
+            imwrite(fname, stack, compression=("zlib", 1))
+        except struct.error:  # compressed data >4GB
+            imwrite(
+                fname,
+                stack.astype(dtype),
+                compression=("zlib", 1),
+                bigtiff=True,
+            )
+        return
     with TiffWriter(fname, bigtiff=bigtiff) as tif:
         for frame in range(stack.shape[2]):
             tif.write(stack[:, :, frame].astype(dtype), contiguous=True)
