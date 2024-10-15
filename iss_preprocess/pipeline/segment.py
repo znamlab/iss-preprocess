@@ -17,12 +17,13 @@ import iss_preprocess as iss
 
 from iss_preprocess.image.correction import calculate_unmixing_coefficient
 from iss_preprocess.segment.cells import label_image
-from ..io import (
+from iss_preprocess.io import (
     get_pixel_size,
     get_roi_dimensions,
     load_metadata,
     load_ops,
     get_processed_path,
+    write_stack,
 )
 from ..segment import (
     cellpose_segmentation,
@@ -1465,3 +1466,88 @@ def unmix_tile(
     )
     original_stack = stack[..., [signal_channel, background_channel]]
     return unmixed, original_stack
+
+
+@slurm_it(
+    conda_env="iss-preprocess",
+    print_job_id=True,
+    slurm_options={"mem": "16GB", "time": "12:00:00"},
+)
+def save_curated_dataframes(
+    data_path, prefix, intensity_channels=None, rois=None, mask_expansion=None
+):
+    """Save the curated dataframes to the cells folder.
+
+    Args:
+        data_path (str): Relative path to the data.
+        prefix (str): Prefix of the image stack.
+        roi (list, optional): List of ROIs to process. If None, will process all
+            ROIs. Defaults to None.
+        mask_expansion (int, optional): Mask expansion to use. If None, will use the
+            value from the ops. Defaults to None.
+
+    Returns:
+        pd.DataFrame: Dataframe with the cell information.
+    """
+    if isinstance(rois, int):
+        rois = [rois]
+    if rois is None:
+        roi_dims = iss.io.get_roi_dimensions(data_path)
+        rois = list(roi_dims[:, 0])
+    mask_folder = iss.io.get_processed_path(data_path) / "cells"
+    dfs = []
+    for roi in rois:
+        print(f"Processing ROI {roi}")
+        # get curated masks
+        print("     Loading masks")
+        mcherry_mask = get_cell_masks(data_path, roi=roi, prefix=prefix, curated=True)
+        ops = load_ops(data_path)
+        if intensity_channels is None:
+            intensity_channels = [
+                ops["mcherry_signal_channel"],
+                ops["mcherry_background_channel"],
+            ]
+            if "mcherry" not in prefix.lower():
+                raise ValueError(
+                    "Intensity channels must be provided for non-mCherry stacks."
+                )
+        # Get the mCherry stack to save intensity values
+        print("     Loading full stack")
+        mcherry_full_stack = stitch_registered(
+            data_path=data_path,
+            roi=roi,
+            prefix=prefix,
+            channels=intensity_channels,
+        )
+
+        # Label the mCherry masks and create a dataframe, roi is added as metadata
+        print("     Labeling masks")
+        mcherry_mask, curated_df = label_image(
+            mcherry_mask, mcherry_full_stack, roi=roi
+        )
+
+        # Re-save the mask in case some labels were duplicates (ex int8 issues)
+        if mask_expansion is None:
+            if prefix == ops["segmentation_prefix"]:
+                mask_expansion = ops["mask_expansion"]
+            else:
+                mask_expansion = ops.get(f"{prefix}_mask_expansion", 0)
+        seg_prefix = f"{prefix}_masks"
+        get_processed_path(data_path)
+        target = mask_folder / f"{seg_prefix}_{roi}_{mask_expansion}_curated.tif"
+        dtype = np.min_scalar_type(curated_df["label"].max())
+        write_stack(stack=mcherry_mask, fname=target, compress=True, dtype=dtype)
+        print(f"    Saved curated masks to {target}")
+        dfs.append(curated_df)
+        del mcherry_full_stack, mcherry_mask
+    print("Concatenating dataframes")
+    curated_df = pd.concat(dfs, ignore_index=True)
+    curated_df["label_uid"] = (
+        curated_df["roi"].astype(str) + "_" + curated_df["label"].astype(str)
+    )
+    curated_df.set_index("label_uid", inplace=True)
+
+    fname = mask_folder / f"{prefix}_cells" / f"{prefix}_df_corrected_curated.pkl"
+    curated_df.to_pickle(fname)
+    print(f"Saved curated dataframes to {fname}")
+    return curated_df
