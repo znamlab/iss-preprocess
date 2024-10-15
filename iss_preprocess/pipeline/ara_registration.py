@@ -343,6 +343,13 @@ def spots_ara_infos(
         spots_filtered.loc[valid, "area_acronym"] = labels.loc[
             spots_filtered.area_id[valid], "acronym"
         ].values
+    if inplace:
+        spots["area_id"] = "NaN"
+        for w in "xyz":
+            spots[f"ara_{w}"] = np.nan
+        if acronyms:
+            spots["area_acronym"] = "NaN"
+        spots.update(spots_filtered)
     if verbose:
         print("Done", flush=True)
     return spots_filtered
