@@ -68,7 +68,9 @@ def detect_spots(im, threshold=100, spot_size=2):
     return spots
 
 
-def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None):
+def make_spot_image(
+    spots, gaussian_width=30, dtype="single", output_shape=None, x_col="x", y_col="y"
+):
     """Make an image by convolving spots with a gaussian
 
     A single isolated rolony results in a gaussian with sigma `gaussian_width`
@@ -80,6 +82,8 @@ def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None)
         dtype (str, optional): Datatype for computation. Defaults to "single".
         output_shape (tuple, optional): Shape of the output image. If None, the smallest
             shape fitting all spots + kernel will be used. Defaults to None.
+        x_col (str, optional): Column name for x coordinates. Defaults to "x".
+        y_col (str, optional): Column name for y coordinates. Defaults to "y".
 
     Returns:
         numpy.ndarray: Convolution results
@@ -93,10 +97,10 @@ def make_spot_image(spots, gaussian_width=30, dtype="single", output_shape=None)
     kernel = kernel.astype(dtype)
     if output_shape is None:
         output_shape = np.array(
-            (spots.y.max() + kernel_size + 1, spots.x.max() + kernel_size + 1)
+            (spots[y_col].max() + kernel_size + 1, spots[x_col].max() + kernel_size + 1)
         ).astype(int)
     spot_image = np.zeros(output_shape, dtype=dtype)
-    spot_image[spots.y.values.astype(int), spots.x.values.astype(int)] = 1
+    spot_image[spots[y_col].values.astype(int), spots[x_col].values.astype(int)] = 1
     return cv2.sepFilter2D(
         src=spot_image,
         kernelX=kernel,
