@@ -19,6 +19,7 @@ from znamutils import slurm_it
 
 import iss_preprocess as iss
 from iss_preprocess import vis
+from iss_preprocess.vis.utils import get_stack_part, get_spot_part
 from iss_preprocess.pipeline import sequencing
 from iss_preprocess.pipeline.stitch import stitch_registered
 
@@ -681,7 +682,16 @@ def check_barcode_basecall(
         # it's a list of tile coordinates
         figs = []
         for tile in tile_coords:
-            figs.append(check_barcode_basecall(data_path, tile))
+            figs.append(
+                check_barcode_basecall(
+                    data_path,
+                    tile,
+                    center=center,
+                    window=window,
+                    show_scores=show_scores,
+                    savefig=savefig,
+                )
+            )
         return figs
 
     # we have been called with a single tile coordinate
@@ -711,15 +721,10 @@ def check_barcode_basecall(
     center = np.array(center)
 
     lims = np.vstack([center - window, center + window]).astype(int)
-    lims = np.clip(lims, 0, np.array(stack.shape[:2]) - 1)
+    lims = np.clip(lims, 0, np.array([stack.shape[1], stack.shape[0]]) - 1)
     nr = ops["barcode_rounds"]
-    stack_part = stack[lims[0, 0] : lims[1, 0], lims[0, 1] : lims[1, 1], :]
-    valid_spots = spots[
-        (spots.x > lims[0, 0])
-        & (spots.x < lims[1, 0])
-        & (spots.y > lims[0, 1])
-        & (spots.y < lims[1, 1])
-    ]
+    stack_part = get_stack_part(stack, lims[:, 0], lims[:, 1])
+    valid_spots = get_spot_part(spots, lims[:, 0], lims[:, 1])
 
     # Do the plot
     ncol = 3 if show_scores else 2
