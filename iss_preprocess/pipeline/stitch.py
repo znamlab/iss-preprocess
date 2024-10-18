@@ -30,7 +30,14 @@ from iss_preprocess import pipeline
 from iss_preprocess.pipeline.register import align_spots, align_cell_dataframe
 
 
-def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection=None):
+def load_tile_ref_coors(
+    data_path,
+    tile_coors,
+    prefix,
+    filter_r=True,
+    projection=None,
+    correct_illumination=True,
+):
     """Load one single tile in the reference coordinates
 
     This load a tile of `prefix` with channels/rounds registered
@@ -44,6 +51,8 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection
             from `ops`. Default to True
         projection (str, optional): Projection to load. If None, will use the one in
             `ops`. Default to None
+        correct_illumination (bool, optional): Apply illumination correction. Default
+            to True
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
@@ -61,7 +70,12 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection
         interpolation = 0
     else:
         stack, bad_pixels = pipeline.load_and_register_tile(
-            data_path, tile_coors, prefix, filter_r=filter_r, projection=projection
+            data_path,
+            tile_coors,
+            prefix,
+            filter_r=filter_r,
+            projection=projection,
+            correct_illumination=correct_illumination,
         )
         interpolation = 1
     ops = load_ops(data_path)
@@ -824,7 +838,14 @@ def stitch_tiles(
 
 
 def stitch_registered(
-    data_path, prefix, roi, channels=0, ref_prefix=None, filter_r=False, projection=None
+    data_path,
+    prefix,
+    roi,
+    channels=0,
+    ref_prefix=None,
+    filter_r=False,
+    projection=None,
+    correct_illumination=True,
 ):
     """Load registered stack and stitch them
 
@@ -840,6 +861,8 @@ def stitch_registered(
         filter_r (bool, optional): Filter image before stitching? Defaults to False.
         projection (str, optional): Projection to load. If None, will use the one in
             `ops`. Default to None
+        correct_illumination (bool, optional): Correct illumination before stitching.
+            Defaults to True.
 
     Returns:
         np.array: stitched stack
@@ -885,6 +908,7 @@ def stitch_registered(
                 prefix=prefix,
                 filter_r=filter_r,
                 projection=projection,
+                correct_illumination=correct_illumination,
             )
             if stack.ndim == 4:
                 stack = stack[:, :, :, 0]  # unique round
