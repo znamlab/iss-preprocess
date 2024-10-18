@@ -22,19 +22,19 @@ def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress
     if clip:
         stack = np.clip(stack, 0, None)
     if compress:
-        try:
-            imwrite(fname, stack, compression=("zlib", 1))
-        except struct.error:  # compressed data >4GB
-            imwrite(
-                fname,
-                stack.astype(dtype),
-                compression=("zlib", 1),
-                bigtiff=True,
-            )
-        return
+        compression = ("zlib", 1)
+        contiguous = False
+    else:
+        compression = None
+        contiguous = True
+
     with TiffWriter(fname, bigtiff=bigtiff) as tif:
         for frame in range(stack.shape[2]):
-            tif.write(stack[:, :, frame].astype(dtype), contiguous=True)
+            tif.write(
+                stack[:, :, frame].astype(dtype),
+                contiguous=contiguous,
+                compression=compression,
+            )
 
 
 def save_ome_tiff_pyramid(
