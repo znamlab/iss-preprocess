@@ -324,7 +324,7 @@ def load_stack(fname):
         ims = []
         for page in stack.pages:
             ims.append(page.asarray())
-        return np.stack(ims, axis=2)
+    return np.stack(ims, axis=2)
 
 
 def get_zprofile(data_path, prefix, tile_coords):
