@@ -1,9 +1,9 @@
 import napari
-from tifffile import imread
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
 import iss_preprocess as iss
+from iss_preprocess.io.load import load_stack
 from iss_preprocess.pipeline.stitch import load_tile_ref_coors
 
 
@@ -16,7 +16,7 @@ def load_roi(
     add_genes=True,
     add_rabies=True,
     image_to_load=("genes", "hyb", "rab", "reference", "mCherry"),
-    masks_to_load=("rabies_cells", "mcherry"),
+    masks_to_load=("rabies_cells", "mcherry", "all_cells"),
     barcode_to_plot=(),
     label_tab20=False,
 ):
@@ -48,12 +48,12 @@ def load_roi(
         if not fname.exists():
             print(f"Skipping {name}. Missing file")
             continue
-        img = imread(fname)
+        img = load_stack(fname)
         colors = chan_color[name]
         for ic, col in enumerate(colors):
             print(f"Adding {name}, ch {ic}")
             viewer.add_image(
-                data=[img[ic], img[ic, ::2, ::2], img[ic, ::4, ::4]],
+                data=[img[...,ic], img[::2, ::2, ic], img[::4, ::4, ic]],
                 name=f"{name} - ch {ic}",
                 colormap=col,
                 blending="additive",
@@ -70,7 +70,7 @@ def load_roi(
             hyb_points_layer = viewer.add_points(
                 coord,
                 face_color=col[gene],
-                edge_color=[0] * 4,
+                border_color=[0] * 4,
                 name=f"{gene} spots",
                 size=10,
                 opacity=0.9,
@@ -118,7 +118,7 @@ def load_roi(
             viewer.add_points(
                 coord,
                 face_color=face_colors,
-                edge_color=[0] * 4,
+                border_color=[0] * 4,
                 symbol=symbol,
                 name="Gene spots",
                 size=10,
@@ -128,7 +128,7 @@ def load_roi(
         masks_to_load = [masks_to_load]
 
     for mask in masks_to_load:
-        mask_img_data = imread(
+        mask_img_data = load_stack(
             manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_masks.tif"
         )
         if mask_img_data.ndim == 3:
@@ -176,9 +176,9 @@ def load_roi(
             coord[:, ::-1],
             properties=dict(barcode_id=barcode_id, barcode=barcode),
             face_color="k",
-            edge_color="barcode_id",
-            edge_colormap="tab20",
-            edge_width=0.3,
+            border_color="barcode_id",
+            border_colormap="tab20",
+            border_width=0.3,
             name="Unassigned rabies spots",
         )
         rab_pts = np.load(
@@ -198,9 +198,9 @@ def load_roi(
             ),
             face_color="mask_id",
             face_colormap="tab20",
-            edge_color="barcode_id",
-            edge_colormap="tab20",
-            edge_width=0.3,
+            border_color="barcode_id",
+            border_colormap="tab20",
+            border_width=0.3,
             name="Rabies spots",
         )
         if isinstance(barcode_to_plot, str):
@@ -218,9 +218,9 @@ def load_roi(
                 ),
                 face_color="mask_id",
                 face_colormap="tab20",
-                edge_color="barcode_id",
-                edge_colormap="tab20",
-                edge_width=0.3,
+                border_color="barcode_id",
+                border_colormap="tab20",
+                border_width=0.3,
                 size=10,
                 name=f"Rabies {barcode}",
             )
@@ -254,8 +254,8 @@ def load_roi(
     mch_points_layer = viewer.add_points(
         data,
         face_color="white",
-        edge_color="black",
-        edge_width=0.2,
+        border_color="black",
+        border_width=0.2,
         name=f"roi_{roi}_{chamber}_{mouse}_starter_cells",
         size=50,
         opacity=0.8,
@@ -269,8 +269,8 @@ def load_roi(
     mch_points_layer = viewer.add_points(
         data,
         face_color="yellow",
-        edge_color="black",
-        edge_width=0.2,
+        border_color="black",
+        border_width=0.2,
         name=f"roi_{roi}_{chamber}_{mouse}_mcherry_cells",
         size=50,
         opacity=0.8,
@@ -282,8 +282,8 @@ def load_roi(
 if __name__ == "__main__":
     project = "becalia_rabies_barseq"
     mouse = "BRAC8498.3e"
-    chamber = "chamber_08"
-    roi = 9
+    chamber = "chamber_10"
+    roi = 10
     data_path = f"{project}/{mouse}/{chamber}"
     print(data_path)
     ops = iss.io.load_ops(data_path)
@@ -296,6 +296,8 @@ if __name__ == "__main__":
         add_genes=False,
         add_rabies=False,
         image_to_load=("mCherry"),
+        masks_to_load=("mCherry"),#, "all_cells"),
         barcode_to_plot=(),
+        label_tab20=False
     )
     print("Done")
