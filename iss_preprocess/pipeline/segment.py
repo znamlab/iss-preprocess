@@ -743,7 +743,8 @@ def segment_mcherry_tile(
     print(f"Using radii {r1} and {r2}")
     print(f"And {short_prefix}_detection_threshold: {threshold}")
 
-    binary = _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold)
+    footprint = int(2.5 / get_pixel_size(data_path))
+    binary = _filter_mcherry_masks(unmixed_image, r1, r2, threshold, footprint)
 
     print("Label")
     # Label the binary image creating a df with the properties of each cell
@@ -768,8 +769,19 @@ def segment_mcherry_tile(
     return filtered_masks, filtered_df, rejected_masks
 
 
-def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
-    """Inner function to filter mCherry images"""
+def _filter_mcherry_masks(unmixed_image, r1, r2, threshold, footprint):
+    """Inner function to filter mCherry images
+
+    Args:
+        unmixed_image (np.ndarray): Unmixed image.
+        r1 (int): Radius of the center Gaussian filter.
+        r2 (int): Radius of the surround Gaussian filter.
+        threshold (float): Threshold for the binary image.
+        footprint (int): Footprint for binary closing.
+
+    Returns:
+        binary (np.ndarray): Binary image of the filtered masks.
+    """
     kernel_size = int(np.ceil(3 * r2) * 2 + 1)
     center = cv2.GaussianBlur(unmixed_image, (kernel_size, kernel_size), r1)
     surround = cv2.GaussianBlur(unmixed_image, (kernel_size, kernel_size), r2)
@@ -777,7 +789,6 @@ def _filter_mcherry_masks(data_path, unmixed_image, r1, r2, threshold):
 
     binary = filt > threshold
     # Expand and dilate the binary image to ensure that all cells are captured
-    footprint = int(2.5 / get_pixel_size(data_path))
     binary = binary_closing(binary, footprint=np.ones((footprint, footprint)))
     return binary
 
@@ -1489,6 +1500,7 @@ def save_curated_dataframes(
     Returns:
         pd.DataFrame: Dataframe with the cell information.
     """
+    print(f"Processing curated dataframes for {prefix} of {data_path}")
     if isinstance(rois, int):
         rois = [rois]
     if rois is None:
