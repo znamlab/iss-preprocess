@@ -422,6 +422,10 @@ def get_cell_masks(
     target = iss.io.get_processed_path(target)
     if curated:
         target = target.with_name(target.stem + "_curated" + target.suffix)
+        manual_masks = target.with_name(
+            target.stem.replace(f"_{mask_expansion}_curated", "_0_curated")
+            + target.suffix
+        )
         if not reload:
             raise IOError("Curated can only be reloaded")
 
@@ -429,16 +433,22 @@ def get_cell_masks(
         masks = iss.io.load_stack(target)[..., 0]
         return masks
     elif curated:
-        raise FileNotFoundError(
-            f"{target} does not exist. " + "Curated masks should be created manually."
-        )
-    print(f"Stitching masks for {data_path} {roi} {prefix}")
-    masks = iss.pipeline.stitch_registered(
-        data_path,
-        prefix=seg_prefix,
-        roi=roi,
-        projection=projection,
-    )[..., 0]
+        # we can expand if we have the manual mask with 0 expansion
+        if manual_masks.exists():
+            masks = iss.io.load_stack(manual_masks)[..., 0]
+        else:
+            raise FileNotFoundError(
+                f"{manual_masks} does not exist. "
+                + "Curated masks should be created manually."
+            )
+    else:
+        print(f"Stitching masks for {data_path} {roi} {prefix}")
+        masks = iss.pipeline.stitch_registered(
+            data_path,
+            prefix=seg_prefix,
+            roi=roi,
+            projection=projection,
+        )[..., 0]
     if mask_expansion > 0:
         print(f"Expanding masks by {mask_expansion} pixels")
         masks = iss.pipeline.segment.get_big_masks(data_path, masks, mask_expansion)
