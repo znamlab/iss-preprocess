@@ -94,6 +94,7 @@ def register_fluorescent_tile(
     prefix,
     reference_prefix=None,
     debug=False,
+    save_output=True,
 ):
     """Estimate channel registration parameters for a single round acquisition
 
@@ -109,8 +110,10 @@ def register_fluorescent_tile(
         reference_prefix (str, optional): Prefix to load scale or initial matrix from.
             Defaults to None.
         debug (bool, optional): Return debug information. Defaults to False.
+        save_output (bool, optional): Save output to disk. Defaults to True.
 
     Returns:
+
         dict: Debug information if debug is True, None otherwise.
     """
 
@@ -153,6 +156,7 @@ def register_fluorescent_tile(
 
     channel_grouping = ops.get(f"{ops_prefix}_reg_channel_grouping", None)
     if channel_grouping is None:
+        print("Registering all channels together")
         out = _reg_chans(
             ops,
             ops_prefix,
@@ -164,6 +168,7 @@ def register_fluorescent_tile(
             debug,
         )
     else:
+        print(f"Registering channels by pairs: {channel_grouping}")
         out = register_channels_by_pairs(
             channel_grouping,
             ops,
@@ -178,15 +183,15 @@ def register_fluorescent_tile(
         to_save, db_info = out
     else:
         to_save = out
-
-    save_dir = processed_path / "reg"
-    save_dir.mkdir(parents=True, exist_ok=True)
-    np.savez(
-        save_dir
-        / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
-        allow_pickle=True,
-        **to_save,
-    )
+    if save_output:
+        save_dir = processed_path / "reg"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        np.savez(
+            save_dir
+            / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
+            allow_pickle=True,
+            **to_save,
+        )
 
     if debug:
         return to_save, db_info
@@ -1179,7 +1184,12 @@ def register_to_ref_using_stitched_registration(
 
     # first register within if needed
     iss.pipeline.register_within_acquisition(
-        data_path, prefix=ref_prefix, reload=True, save_plot=True, use_slurm=False
+        data_path,
+        prefix=ref_prefix,
+        roi=roi,
+        reload=True,
+        save_plot=True,
+        use_slurm=False,
     )
 
     (
@@ -1377,9 +1387,7 @@ def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
     elif ops["corrected_shifts"] == "best":
         corrected_shifts = "_best"
     else:
-        raise ValueError(
-            f"Corrected shifts {ops['corrected_shifts']} not recognised"
-        )
+        raise ValueError(f"Corrected shifts {ops['corrected_shifts']} not recognised")
     processed_path = iss.io.get_processed_path(data_path)
     tform2ref = np.load(
         processed_path
