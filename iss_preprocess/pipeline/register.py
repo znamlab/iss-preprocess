@@ -1281,7 +1281,7 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
     spots = pd.read_pickle(
         processed_path / "spots" / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
     )
-    spots = _align_dataframe(spots, tile_coors, prefix, ref_prefix)
+    spots = _align_dataframe(spots, data_path, tile_coors, prefix, ref_prefix)
     return spots
 
 
