@@ -149,7 +149,7 @@ def load_roi(
             data = mask_img_data
             colormap=None
         viewer.add_labels(
-            data=data.astype("uint8"),
+            data=data.astype(int),
             name=mask.replace("_", " "),
             colormap=colormap,
         )
