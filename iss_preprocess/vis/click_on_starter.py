@@ -131,6 +131,16 @@ def load_roi(
         mask_img_data = load_stack(
             manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_masks.tif"
         )
+        if mask == 'mCherry':
+            # look for curated dataset
+            curated = iss.io.get_processed_path(data_path) / "cells" 
+            curated = curated / f"mCherry_1_masks_{roi}_0_curated.tif"
+            if curated.exists():
+                curated_mask = load_stack(curated)[..., 0]
+                viewer.add_labels(
+                    data=curated_mask.astype(int),
+                    name=f"mCherry_1_masks_{roi}_curated",
+                )
         if mask_img_data.ndim == 3:
             mask_img_data = mask_img_data[..., 0]
         if label_tab20:
@@ -282,22 +292,23 @@ def load_roi(
 if __name__ == "__main__":
     project = "becalia_rabies_barseq"
     mouse = "BRAC8498.3e"
-    chamber = "chamber_10"
-    roi = 10
+    chamber = "chamber_07"
+    roi = 5
     data_path = f"{project}/{mouse}/{chamber}"
     print(data_path)
+    print(f'Loading {project}/{mouse}/{chamber} roi {roi}')
     ops = iss.io.load_ops(data_path)
     load_roi(
         project,
         mouse,
         chamber,
         roi,
-        add_hyb=False,
-        add_genes=False,
-        add_rabies=False,
-        image_to_load=("mCherry"),
-        masks_to_load=("mCherry"),#, "all_cells"),
+        add_hyb=True,
+        add_genes=True,
+        add_rabies=True,
+        image_to_load=("mCherry", 'reference', 'rab', 'hyb', 'genes'),
+        masks_to_load=("mCherry"),
         barcode_to_plot=(),
-        label_tab20=False
+        label_tab20=True
     )
     print("Done")
