@@ -411,7 +411,7 @@ def register_within_acquisition(
         clean_right[bad_right, :] = med_by_col[np.where(bad_right)[0]]
 
         pbar.set_description(f"Saving shifts")
-        save_fname.parent.mkdir(exist_ok=True)
+        save_fname.parent.mkdir(exist_ok=True, parents=True)
         output = dict(
             raw_shift_right=shifts[..., :2],
             raw_shift_down=shifts[..., 2:],
@@ -676,6 +676,7 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
     if shift_right.ndim == 1:
         assert shift_right.shape[0] == 2, "shift_right must have 2 elements"
         shift_right = np.tile(shift_right, (ntiles[0], ntiles[1], 1))
+        shift_right[0] = np.nan  # the first row is always NaN
     else:
         assert shift_right.shape == (
             ntiles[0],
@@ -685,6 +686,7 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
     if shift_down.ndim == 1:
         assert shift_down.shape[0] == 2, "shift_down must have 2 elements"
         shift_down = np.tile(shift_down, (ntiles[0], ntiles[1], 1))
+        shift_down[:, 0] = np.nan  # the first col is always NaN
     else:
         assert shift_down.shape == (
             ntiles[0],
@@ -778,12 +780,7 @@ def stitch_tiles(
                     "ref_ch": 0,
                 }
             )
-        shifts = {}
-        (
-            shifts["shift_right"],
-            shifts["shift_down"],
-            shifts["tile_shape"],
-        ) = register_adjacent_tiles(
+        shifts = register_adjacent_tiles(
             data_path,
             ref_coors=ops["ref_tile"],
             ref_ch=ops["ref_ch"],
@@ -1114,7 +1111,7 @@ def stitch_and_register(
             suffix=target_projection,
             roi=roi,
             ich=ch,
-            shifts_prefix=reference_prefix,
+            shifts_prefix=target_prefix,
             correct_illumination=True,
         ).astype(
             np.single
