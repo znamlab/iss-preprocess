@@ -1191,6 +1191,14 @@ def register_to_ref_using_stitched_registration(
         save_plot=True,
         use_slurm=False,
     )
+    iss.pipeline.register_within_acquisition(
+        data_path,
+        prefix=reg_prefix,
+        roi=roi,
+        reload=True,
+        save_plot=True,
+        use_slurm=False,
+    )
 
     (
         stitched_stack_target,
@@ -1220,9 +1228,9 @@ def register_to_ref_using_stitched_registration(
         shift,
         stitched_stack_target.shape[:2],
     )
-    ref_corners = iss.pipeline.stitch.get_tile_corners(data_path, ref_prefix, roi)
-    tile_shape = ref_corners[0, 0, :, 2] - ref_corners[0, 0, :, 0]
-    ref_centers = np.mean(ref_corners, axis=3)
+    reg_corners = iss.pipeline.stitch.get_tile_corners(data_path, reg_prefix, roi)
+    tile_shape = reg_corners[0, 0, :, 2] - reg_corners[0, 0, :, 0]
+    ref_centers = np.mean(reg_corners, axis=3)
     trans_centers = np.pad(ref_centers, ((0, 0), (0, 0), (0, 1)), constant_values=1)
     trans_centers = (
         tform2ref[np.newaxis, np.newaxis, ...] @ trans_centers[..., np.newaxis]
