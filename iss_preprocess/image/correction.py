@@ -119,6 +119,7 @@ def calculate_unmixing_coefficient(
         pure_signal_image: The isolated signal image after background subtraction.
         model_coef: Coefficient used to multiply the background image for unmixing.
         intercept: Intercept of the linear model used for unmixing.
+        valid_pixel: Boolean array of pixels that passed the thresholding.
 
     """
     # Flatten to 1D arrays for the regression model
