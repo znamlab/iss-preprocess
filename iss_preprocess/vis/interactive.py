@@ -86,7 +86,7 @@ def _load_seq_img(data_path, tile_coors, prefix, mode="max"):
         cl = np.percentile(stk, [0.01, 99.9])
         data = np.moveaxis(stk, [0, 1, 2], [1, 2, 0])
         rgb = False
-    elif mode ==  "rgb":
+    elif mode == "rgb":
         data = []
         vmax = np.nanpercentile(stk, 99.99, axis=(0, 1, 3))
         vmin = np.nanpercentile(stk, 0.01, axis=(0, 1, 3))
