@@ -396,7 +396,7 @@ def check_shift_correction(
             "genes_round_1_1".
         within (bool, optional): Plot within channel shifts. Defaults to True.
         between (bool, optional): Plot between channel shifts. Defaults to True.
-        
+
     """
     print(f"Checking shift correction for {prefix}")
     processed_path = iss.io.get_processed_path(data_path)
