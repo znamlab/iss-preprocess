@@ -509,7 +509,7 @@ def get_channel_round_shifts(data_path, prefix, tile_coors, corrected_shifts):
     elif corrected_shifts == "ransac":
         tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
         tforms_path = processed_path / "reg"
-    elif corrected_shifts ==  "best":
+    elif corrected_shifts == "best":
         tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
         tforms_path = processed_path / "reg"
     else:
