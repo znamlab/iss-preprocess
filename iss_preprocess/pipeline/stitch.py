@@ -397,12 +397,14 @@ def register_within_acquisition(
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             med_by_row = np.nanmedian(clean_down, axis=0)
-        assert np.isnan(med_by_row).sum() <=2, "Some rows have no valid shifts"
+        assert np.isnan(med_by_row).sum() <= 2, "Some rows have no valid shifts"
         delta_shift = np.linalg.norm(shifts[..., 2:] - med_by_row[None, :, :], axis=2)
         # replace shifts that are either low corr or too far from median
         bad_down = bad_down | (delta_shift > max_delta_shift)
         clean_down[bad_down, :] = med_by_row[np.where(bad_down)[1]]
-        assert np.isnan(clean_down).any(axis=0).sum() <=2, "Some columns have no valid shifts"
+        assert (
+            np.isnan(clean_down).any(axis=0).sum() <= 2
+        ), "Some columns have no valid shifts"
 
         # Same for right shifts
         clean_right = shifts[..., :2].copy()
@@ -412,11 +414,13 @@ def register_within_acquisition(
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             med_by_col = np.nanmedian(clean_right, axis=1)
-        assert np.isnan(med_by_row).sum() <=2, "Some rows have no valid shifts"
+        assert np.isnan(med_by_row).sum() <= 2, "Some rows have no valid shifts"
         delta_shift = np.linalg.norm(clean_right - med_by_col[:, None, :], axis=2)
         bad_right = bad_right | (delta_shift > max_delta_shift)
         clean_right[bad_right, :] = med_by_col[np.where(bad_right)[0]]
-        assert np.isnan(clean_right).any(axis=1).sum() <=2, "Some rows have no valid shifts"
+        assert (
+            np.isnan(clean_right).any(axis=1).sum() <= 2
+        ), "Some rows have no valid shifts"
 
         pbar.set_description(f"Saving shifts")
         save_fname.parent.mkdir(exist_ok=True, parents=True)
@@ -649,8 +653,12 @@ def get_tile_corners(data_path, prefix, roi):
     )
     ops = load_ops(data_path)
     tile_origins, _ = calculate_tile_positions(
-        shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles,
-        x_direction=ops["x_tile_direction"], y_direction=ops["y_tile_direction"]
+        shifts["shift_right"],
+        shifts["shift_down"],
+        shifts["tile_shape"],
+        ntiles,
+        x_direction=ops["x_tile_direction"],
+        y_direction=ops["y_tile_direction"],
     )
 
     corners = np.stack(
@@ -663,7 +671,9 @@ def get_tile_corners(data_path, prefix, roi):
     return corners
 
 
-def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles, x_direction, y_direction):
+def calculate_tile_positions(
+    shift_right, shift_down, tile_shape, ntiles, x_direction, y_direction
+):
     """Calculate position of each tile based on the provided shifts.
 
     Args:
@@ -699,9 +709,9 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles, x_dire
         assert shift_down.shape[0] == 2, "shift_down must have 2 elements"
         shift_down = np.tile(shift_down, (ntiles[0], ntiles[1], 1))
         if y_direction == "top_to_bottom":
-            shift_down[:,0] = np.nan
+            shift_down[:, 0] = np.nan
         else:
-            shift_down[:,-1] = np.nan
+            shift_down[:, -1] = np.nan
     else:
         assert shift_down.shape == (
             ntiles[0],
@@ -788,7 +798,7 @@ def stitch_tiles(
         shifts = np.load(shift_file)
     elif allow_quick_estimate:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
-        
+
         try:
             metadata = iss.io.load_metadata(data_path)
             ref_roi = list(metadata["ROI"].keys())[0]
@@ -820,8 +830,12 @@ def stitch_tiles(
 
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
-        shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles,
-        x_direction=ops["x_tile_direction"], y_direction=ops["y_tile_direction"]
+        shifts["shift_right"],
+        shifts["shift_down"],
+        shifts["tile_shape"],
+        ntiles=ntiles,
+        x_direction=ops["x_tile_direction"],
+        y_direction=ops["y_tile_direction"],
     )
     tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
@@ -918,8 +932,12 @@ def stitch_registered(
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
-        shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles,
-        x_direction=ops["x_tile_direction"], y_direction=ops["y_tile_direction"]
+        shifts["shift_right"],
+        shifts["shift_down"],
+        shifts["tile_shape"],
+        ntiles=ntiles,
+        x_direction=ops["x_tile_direction"],
+        y_direction=ops["y_tile_direction"],
     )
     tile_origins = np.round(tile_origins).astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
