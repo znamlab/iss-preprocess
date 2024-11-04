@@ -392,6 +392,11 @@ def check_shift_correction(
     Args:
         data_path (str): Relative path to data folder
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
+        roi_dimension_prefix (str, optional): Prefix of the roi dimensions. Defaults to
+            "genes_round_1_1".
+        within (bool, optional): Plot within channel shifts. Defaults to True.
+        between (bool, optional): Plot between channel shifts. Defaults to True.
+        
     """
     print(f"Checking shift correction for {prefix}")
     processed_path = iss.io.get_processed_path(data_path)
