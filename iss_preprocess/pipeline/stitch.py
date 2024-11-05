@@ -520,7 +520,7 @@ def register_adjacent_tiles(
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
 
-    roi_dims = get_roi_dimensions(data_path)
+    roi_dims = get_roi_dimensions(data_path, prefix)
     ntiles = roi_dims[roi_dims[:, 0] == ref_coors[0], 1:][0] + 1
 
     if debug:
@@ -696,9 +696,9 @@ def calculate_tile_positions(
         assert shift_right.shape[0] == 2, "shift_right must have 2 elements"
         shift_right = np.tile(shift_right, (ntiles[0], ntiles[1], 1))
         if x_direction == "left_to_right":
-            shift_right[0] = np.nan
-        else:
             shift_right[-1] = np.nan
+        else:
+            shift_right[0] = np.nan
     else:
         assert shift_right.shape == (
             ntiles[0],
