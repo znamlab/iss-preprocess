@@ -952,7 +952,11 @@ def get_overlap_regions(data_path, prefix, ref_coors):
     return overlaps, full_images
 
 
-@slurm_it(conda_env="iss-preprocess", print_job_id=True)
+@slurm_it(
+    conda_env="iss-preprocess",
+    slurm_options={"mem": "32GB", "time": "1-00:00:00"},
+    print_job_id=True,
+)
 def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
     """
     Remove masks that overlap in adjacent tiles.
