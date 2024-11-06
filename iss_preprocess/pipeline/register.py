@@ -94,6 +94,7 @@ def register_fluorescent_tile(
     prefix,
     reference_prefix=None,
     debug=False,
+    save_output=True,
 ):
     """Estimate channel registration parameters for a single round acquisition
 
@@ -109,8 +110,10 @@ def register_fluorescent_tile(
         reference_prefix (str, optional): Prefix to load scale or initial matrix from.
             Defaults to None.
         debug (bool, optional): Return debug information. Defaults to False.
+        save_output (bool, optional): Save output to disk. Defaults to True.
 
     Returns:
+
         dict: Debug information if debug is True, None otherwise.
     """
 
@@ -153,6 +156,7 @@ def register_fluorescent_tile(
 
     channel_grouping = ops.get(f"{ops_prefix}_reg_channel_grouping", None)
     if channel_grouping is None:
+        print("Registering all channels together")
         out = _reg_chans(
             ops,
             ops_prefix,
@@ -164,6 +168,7 @@ def register_fluorescent_tile(
             debug,
         )
     else:
+        print(f"Registering channels by pairs: {channel_grouping}")
         out = register_channels_by_pairs(
             channel_grouping,
             ops,
@@ -178,15 +183,15 @@ def register_fluorescent_tile(
         to_save, db_info = out
     else:
         to_save = out
-
-    save_dir = processed_path / "reg"
-    save_dir.mkdir(parents=True, exist_ok=True)
-    np.savez(
-        save_dir
-        / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
-        allow_pickle=True,
-        **to_save,
-    )
+    if save_output:
+        save_dir = processed_path / "reg"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        np.savez(
+            save_dir
+            / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
+            allow_pickle=True,
+            **to_save,
+        )
 
     if debug:
         return to_save, db_info
@@ -346,68 +351,67 @@ def _reg_chans(
         dict: Debug information, only if debug is True
     """
 
-    match ops["align_method"]:
-        case "similarity":
-            if reference_prefix is None:
-                raise ValueError(
-                    "Reference prefix must be provided for similarity transform"
-                )
-            # binarise if needed
-            nch = stack.shape[2]
-            if binarise_quantile is not None:
-                for ich in range(nch):
-                    ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
-                    stack[:, :, ich] = stack[:, :, ich] > ref_thresh
+    if ops["align_method"] == "similarity":
+        if reference_prefix is None:
+            raise ValueError(
+                "Reference prefix must be provided for similarity transform"
+            )
+        # binarise if needed
+        nch = stack.shape[2]
+        if binarise_quantile is not None:
+            for ich in range(nch):
+                ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
+                stack[:, :, ich] = stack[:, :, ich] > ref_thresh
 
-            out = estimate_shifts_and_angles_for_tile(
-                stack,
-                scales=reference_tforms["scales_between_channels"],
-                ref_ch=ref_ch,
-                max_shift=ops["rounds_max_shift"],
-                debug=debug,
-            )
-            if debug:
-                angles, shifts, db_info = out
-            else:
-                angles, shifts = out
-            to_save = dict(
-                angles=angles,
-                shifts=shifts,
-                scales=reference_tforms["scales_between_channels"],
-            )
-        case "affine":
-            block_size = ops.get(f"{ops_prefix}_reg_block_size", 256)
-            overlap = ops.get(f"{ops_prefix}_reg_block_overlap", 0.5)
-            correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
-            max_residual = ops.get(f"{ops_prefix}_max_residual", 2)
-            print("Registration parameters:")
-            print(f"    block size {block_size}\n    overlap {overlap}")
-            print(f"    correlation threshold {correlation_threshold}")
-            print(f"    binarise quantile {binarise_quantile}")
-            print(f"    max residual {max_residual}")
-            print(f"    ref channel {ref_ch}")
-            print(f"    max shift {ops['rounds_max_shift']}")
-            if reference_prefix is None:
-                tform_matrix = None
-            else:
-                tform_matrix = reference_tforms["matrix_between_channels"]
-            matrix = estimate_affine_for_tile(
-                stack,
-                tform_matrix=tform_matrix,
-                ref_ch=ref_ch,
-                max_shift=ops["rounds_max_shift"],
-                max_residual=max_residual,
-                debug=debug,
-                block_size=block_size,
-                overlap=overlap,
-                correlation_threshold=correlation_threshold,
-                binarise_quantile=binarise_quantile,
-            )
-            if debug:
-                matrix, db_info = matrix
-            to_save = dict(matrix_between_channels=matrix)
-        case _:
-            raise ValueError(f"Align method {ops['align_method']} not recognised")
+        out = estimate_shifts_and_angles_for_tile(
+            stack,
+            scales=reference_tforms["scales_between_channels"],
+            ref_ch=ref_ch,
+            max_shift=ops["rounds_max_shift"],
+            debug=debug,
+        )
+        if debug:
+            angles, shifts, db_info = out
+        else:
+            angles, shifts = out
+        to_save = dict(
+            angles=angles,
+            shifts=shifts,
+            scales=reference_tforms["scales_between_channels"],
+        )
+    elif ops["align_method"] == "affine":
+        block_size = ops.get(f"{ops_prefix}_reg_block_size", 256)
+        overlap = ops.get(f"{ops_prefix}_reg_block_overlap", 0.5)
+        correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
+        max_residual = ops.get(f"{ops_prefix}_max_residual", 2)
+        print("Registration parameters:")
+        print(f"    block size {block_size}\n    overlap {overlap}")
+        print(f"    correlation threshold {correlation_threshold}")
+        print(f"    binarise quantile {binarise_quantile}")
+        print(f"    max residual {max_residual}")
+        print(f"    ref channel {ref_ch}")
+        print(f"    max shift {ops['rounds_max_shift']}")
+        if reference_prefix is None:
+            tform_matrix = None
+        else:
+            tform_matrix = reference_tforms["matrix_between_channels"]
+        matrix = estimate_affine_for_tile(
+            stack,
+            tform_matrix=tform_matrix,
+            ref_ch=ref_ch,
+            max_shift=ops["rounds_max_shift"],
+            max_residual=max_residual,
+            debug=debug,
+            block_size=block_size,
+            overlap=overlap,
+            correlation_threshold=correlation_threshold,
+            binarise_quantile=binarise_quantile,
+        )
+        if debug:
+            matrix, db_info = matrix
+        to_save = dict(matrix_between_channels=matrix)
+    else:
+        raise ValueError(f"Align method {ops['align_method']} not recognised")
     if debug:
         return to_save, db_info
     return to_save
@@ -1180,7 +1184,20 @@ def register_to_ref_using_stitched_registration(
 
     # first register within if needed
     iss.pipeline.register_within_acquisition(
-        data_path, prefix=ref_prefix, reload=True, save_plot=True, use_slurm=False
+        data_path,
+        prefix=ref_prefix,
+        roi=roi,
+        reload=True,
+        save_plot=True,
+        use_slurm=False,
+    )
+    iss.pipeline.register_within_acquisition(
+        data_path,
+        prefix=reg_prefix,
+        roi=roi,
+        reload=True,
+        save_plot=True,
+        use_slurm=False,
     )
 
     (
@@ -1211,9 +1228,9 @@ def register_to_ref_using_stitched_registration(
         shift,
         stitched_stack_target.shape[:2],
     )
-    ref_corners = iss.pipeline.stitch.get_tile_corners(data_path, ref_prefix, roi)
-    tile_shape = ref_corners[0, 0, :, 2] - ref_corners[0, 0, :, 0]
-    ref_centers = np.mean(ref_corners, axis=3)
+    reg_corners = iss.pipeline.stitch.get_tile_corners(data_path, reg_prefix, roi)
+    tile_shape = reg_corners[0, 0, :, 2] - reg_corners[0, 0, :, 0]
+    ref_centers = np.mean(reg_corners, axis=3)
     trans_centers = np.pad(ref_centers, ((0, 0), (0, 0), (0, 1)), constant_values=1)
     trans_centers = (
         tform2ref[np.newaxis, np.newaxis, ...] @ trans_centers[..., np.newaxis]
@@ -1267,44 +1284,93 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
         pd.DataFrame: The spot dataframe with x and y registered to reference tile.
 
     """
-
-    if ref_prefix is None:
-        ops = load_ops(data_path)
-        ref_prefix = ops["reference_prefix"]
-
     roi, tilex, tiley = tile_coors
     processed_path = iss.io.get_processed_path(data_path)
     spots = pd.read_pickle(
         processed_path / "spots" / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
     )
+    spots = _align_dataframe(spots, data_path, tile_coors, prefix, ref_prefix)
+    return spots
+
+
+def align_cell_dataframe(data_path, prefix, ref_prefix=None):
+    """Align a cell dataframe to reference coordinates
+
+    Designed for mCherry cells. Reads the f"{prefix}_df_corrected.pkl" file generated
+    by remove_all_duplicate_masks and aligns the x and y coordinates to the reference
+    tile by tile.
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of cells to load
+        ref_prefix (str, optional): Prefix of the reference cells. If None, reads from
+            ops. Defaults to None.
+
+    Returns:
+        pd.DataFrame: The cell dataframe with x and y registered to reference tile.
+    """
+    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
+    assert (
+        cells_df.exists()
+    ), f"Cells dataframe {cells_df} does not exist. Run remove_all_duplicate_masks first"
+    cells_df = pd.read_pickle(cells_df)
+    if "x" not in cells_df.columns:
+        cells_df.rename(columns={"centroid-1": "x", "centroid-0": "y"}, inplace=True)
+
+    aligned_df = []
+    for (roi, tilex, tiley), df in cells_df.groupby(["roi", "tilex", "tiley"]):
+        aligned_df.append(
+            _align_dataframe(df, data_path, (roi, tilex, tiley), prefix, ref_prefix)
+        )
+    aligned_df = pd.concat(aligned_df)
+
+    return aligned_df
+
+
+def _align_dataframe(df, data_path, tile_coors, prefix, ref_prefix=None):
+    """Align a dataframe of spots to reference coordinates
+
+    Split in internal function to re-use for cells and spots
+
+    Args:
+        df (pd.DataFrame): The dataframe with x and y to align
+        data_path (str): Relative path to data
+        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates
+        prefix (str): Prefix of spots to load
+        ref_prefix (str, optional): Prefix of the reference spots. If None, reads from
+            ops. Defaults to None.
+
+    Returns:
+        pd.DataFrame: The dataframe with x and y registered to reference tile.
+
+    """
+    processed_path = iss.io.get_processed_path(data_path)
+    if ref_prefix is None:
+        ops = load_ops(data_path)
+        ref_prefix = ops["reference_prefix"]
 
     if ref_prefix.startswith(prefix):
         # it is the ref, no need to register
-        return spots
+        return df
 
-    tform2ref = get_shifts_to_ref(data_path, prefix, roi, tilex, tiley)
-
+    tform = get_shifts_to_ref(data_path, prefix, *tile_coors)
     if ops["align_method"] == "similarity":
-        # always get tile shape for ref_prefix
         tile_shape = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")[
             "tile_shape"
         ]
-        spots_tform = make_transform(
-            tform2ref["scales"][0][0],
-            tform2ref["angles"][0][0],
-            tform2ref["shifts"][0],
-            tile_shape,
+        df_tform = make_transform(
+            tform["scales"][0][0], tform["angles"][0][0], tform["shifts"][0], tile_shape
         )
     else:
-        spots_tform = tform2ref["matrix_between_channels"][0]
-    transformed_coors = spots_tform @ np.stack(
-        [spots["x"], spots["y"], np.ones(len(spots))]
-    )
-    spots["x_raw"] = spots["x"].copy()
-    spots["y_raw"] = spots["y"].copy()
-    spots["x"] = [x for x in transformed_coors[0, :]]
-    spots["y"] = [y for y in transformed_coors[1, :]]
-    return spots
+        df_tform = tform["matrix_between_channels"][0]
+
+    transformed_coors = df_tform @ np.stack([df["x"], df["y"], np.ones(len(df))])
+    df["x_raw"] = df["x"].copy()
+    df["y_raw"] = df["y"].copy()
+    df["x"] = [x for x in transformed_coors[0, :]]
+    df["y"] = [y for y in transformed_coors[1, :]]
+    return df
 
 
 def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
@@ -1321,19 +1387,15 @@ def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
         np.NpzFile: The transformation parameter to reference coordinates
 
     """
-
     ops = load_ops(data_path)
-    match ops["corrected_shifts"]:
-        case "single_tile":
-            corrected_shifts = ""
-        case "ransac":
-            corrected_shifts = "_corrected"
-        case "best":
-            corrected_shifts = "_best"
-        case _:
-            raise ValueError(
-                f"Corrected shifts {ops['corrected_shifts']} not recognised"
-            )
+    if ops["corrected_shifts"] == "single_tile":
+        corrected_shifts = ""
+    elif ops["corrected_shifts"] == "ransac":
+        corrected_shifts = "_corrected"
+    elif ops["corrected_shifts"] == "best":
+        corrected_shifts = "_best"
+    else:
+        raise ValueError(f"Corrected shifts {ops['corrected_shifts']} not recognised")
     processed_path = iss.io.get_processed_path(data_path)
     tform2ref = np.load(
         processed_path

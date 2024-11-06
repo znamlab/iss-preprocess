@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import warnings
 import cv2
 import flexiznam as flz
 import matplotlib.patches as patches
@@ -201,7 +201,17 @@ def plot_affine_debug_images(debug_info, fig=None):
     return fig
 
 
-def adjacent_tiles_registration(data_path, prefix, roi, shifts, max_delta_shift=None):
+def adjacent_tiles_registration(
+    data_path,
+    prefix,
+    roi,
+    shifts,
+    raw_shifts,
+    xcorr_max,
+    max_shift=20,
+    min_corrcoef=0.5,
+    max_delta_shift=30,
+):
     """Save figure of tile registration for within acquisition stitching
 
     see pipeline.stitch.register_within_acquisition for usage.
@@ -211,37 +221,72 @@ def adjacent_tiles_registration(data_path, prefix, roi, shifts, max_delta_shift=
         prefix (str): Prefix of acquisition
         roi (int): ROI number
         shifts (np.array): (tilex x tiley x 4) vector of shifts per tile
-        max_shift (int): Maximum shift to plot
+        raw_shifts (np.array): (tilex x tiley x 4) vector of raw shifts per tile
+        xcorr_max (np.array): (tilex x tiley x 2) vector of max correlation per tile
+        max_shift (int): Maximum shift to plot, in pixels (default 20)
+        min_corrcoef (float): Minimum correlation coefficient to plot
 
     Returns:
         plt.Figure: Figure instance
     """
-    fig, axes = plt.subplots(2, 4)
-    fig.set_size_inches(9, 3)
-    labels = ["shift right x", "shift right y", "shift down x", "shift down y"]
-    for i in range(4):
-        med_shift = np.nanmedian(shifts[..., i])
-        rel_shift = shifts[..., i] - med_shift
-        ax = axes.flatten()[i]
-        img = ax.imshow(
-            shifts[..., i].T,
-            vmin=med_shift - 10,
-            vmax=med_shift + 10,
-        )
-        if max_delta_shift is not None:
-            bad_tiles = rel_shift > max_delta_shift
-            ax.contour(bad_tiles.T, levels=[0.5], colors="red")
-        ax.set_title(labels[i])
-        plt.colorbar(img, ax=ax)
-        ax = axes.flatten()[i + 4]
+    fig, axes = plt.subplots(4, 5)
+    fig.set_size_inches(7, 5)
+    warnings.filterwarnings("ignore", category=RuntimeWarning)  # ignore nan median
+    for idir, direction in enumerate(["right", "down"]):
+        sl = [0, 1] if idir == 0 else [2, 3]
+        rsh = raw_shifts[..., sl]
+        sh = shifts[..., sl]
+        xc = xcorr_max[..., idir]
 
-        img = ax.imshow(
-            rel_shift.T, vmin=-max_delta_shift, vmax=max_delta_shift, cmap="RdBu_r"
+        tmp = rsh.copy()
+        bad = xc < min_corrcoef
+        bad2plot = bad.astype(float)
+        tmp[bad] = np.nan
+
+        if idir:
+            med = np.nanmedian(tmp, axis=0)
+            med = med[None, :]
+        else:
+            med = np.nanmedian(tmp, axis=1)
+            med = med[:, None]
+        delta_shift = np.linalg.norm(rsh - med, axis=2)
+        # replace shifts that are either low corr or too far from median
+        bad = bad | (delta_shift > max_delta_shift)
+        bad2plot += bad
+
+        for i, x in enumerate("xy"):
+            ax = axes[idir * 2 + i, 0]
+            ax.set_ylabel(f"{direction}\nshift - {x}")
+            m = np.nanmedian(rsh[..., i])
+            iss.vis.plot_matrix_with_colorbar(
+                rsh[..., i].T, ax, vmin=m - max_shift, vmax=m + max_shift
+            )
+            if idir == 0 and i == 0:
+                ax.set_title(f"Raw")
+            ax = axes[idir * 2 + i, 1]
+            iss.vis.plot_matrix_with_colorbar(
+                sh[..., i].T, ax, vmin=m - max_shift, vmax=m + max_shift
+            )
+            if idir == 0 and i == 0:
+                ax.set_title(f"Corrected")
+            ax = axes[idir * 2 + i, 2]
+            iss.vis.plot_matrix_with_colorbar(
+                delta_shift.T, ax, vmin=0, vmax=max_delta_shift * 1.1
+            )
+            if idir == 0 and i == 0:
+                ax.set_title(f"Delta")
+            ax = axes[idir * 2 + i, 3]
+            if idir == 0 and i == 0:
+                ax.set_title(f"Bad tiles")
+            iss.vis.plot_matrix_with_colorbar(bad2plot.T, ax, vmin=0, vmax=2)
+        axes[idir * 2, 4].set_title(f"Max corr")
+        iss.vis.plot_matrix_with_colorbar(
+            xc.T, axes[idir * 2, 4], vmin=0, vmax=1, cmap="coolwarm"
         )
-        ax.set_title(rf"$\Delta$ {labels[i]}")
-        plt.colorbar(img, ax=ax)
+        axes[idir * 2 + 1, 4].axis("off")
+    # put back runtime warnings
+    warnings.filterwarnings("default", category=RuntimeWarning)
     fig.tight_layout()
-    fig.suptitle(prefix)
     fig_file = (
         iss.io.get_processed_path(data_path)
         / "figures"

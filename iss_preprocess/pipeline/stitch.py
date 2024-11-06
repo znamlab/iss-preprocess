@@ -27,10 +27,17 @@ from iss_preprocess.reg import (
     estimate_scale_rotation_translation,
 )
 from iss_preprocess import pipeline
-from iss_preprocess.pipeline.register import align_spots
+from iss_preprocess.pipeline.register import align_spots, align_cell_dataframe
 
 
-def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection=None):
+def load_tile_ref_coors(
+    data_path,
+    tile_coors,
+    prefix,
+    filter_r=True,
+    projection=None,
+    correct_illumination=True,
+):
     """Load one single tile in the reference coordinates
 
     This load a tile of `prefix` with channels/rounds registered
@@ -44,6 +51,8 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection
             from `ops`. Default to True
         projection (str, optional): Projection to load. If None, will use the one in
             `ops`. Default to None
+        correct_illumination (bool, optional): Apply illumination correction. Default
+            to True
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack
@@ -61,7 +70,12 @@ def load_tile_ref_coors(data_path, tile_coors, prefix, filter_r=True, projection
         interpolation = 0
     else:
         stack, bad_pixels = pipeline.load_and_register_tile(
-            data_path, tile_coors, prefix, filter_r=filter_r, projection=projection
+            data_path,
+            tile_coors,
+            prefix,
+            filter_r=filter_r,
+            projection=projection,
+            correct_illumination=correct_illumination,
         )
         interpolation = 1
     ops = load_ops(data_path)
@@ -196,29 +210,67 @@ def register_all_rois_within(
     ref_ch=None,
     suffix="max-median",
     correct_illumination=True,
-    reload=True,
+    reload=False,
     save_plot=True,
     dimension_prefix="genes_round_1_1",
-    max_delta_shift=50,
     verbose=1,
     use_slurm=True,
+    job_dependency=None,
+    scripts_name=None,
+    slurm_folder=None,
 ):
+    """Register all tiles within each ROI
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str, optional): Prefix of acquisition to register. If None, will use the
+            one in `ops`. Defaults to None.
+        ref_ch (int, optional): Reference channel to use for registration. If None, will
+            use the one in `ops`. Defaults to None.
+        suffix (str, optional): Suffix to use to load the images. Defaults to
+            'max-median'.
+        correct_illumination (bool, optional): Correct illumination before registration.
+            Defaults to True.
+        reload (bool, optional): Reload saved shifts if True. Defaults to False.
+        save_plot (bool, optional): Save diagnostic plot. Defaults to True.
+        dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
+            only if the acquisition is an overview. Defaults to 'genes_round_1_1'.
+        verbose (int, optional): Verbosity level. Defaults to 1.
+        use_slurm (bool, optional): Use SLURM to parallelize the registration. Defaults
+            to True.
+        job_dependency (list, optional): List of job dependencies. Defaults to None.
+        script_names (str, optional):Script names for slurm jobs. Defaults to None.
+        slurm_folder (str, optional): Folder to save SLURM logs. Defaults to None.
+
+    Returns:
+        list: List of outputs from `register_within_acquisition`
+    """
     ops = load_ops(data_path)
     if prefix is None:
         prefix = ops["reference_prefix"]
+
+    min_corrcoef = ops.get(f"{prefix}_min_corrcoef", 0.3)
+    max_delta_shift = ops.get(f"{prefix}_max_delta_shift", 20)
 
     roi_dims = get_roi_dimensions(data_path)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
     if use_slurm:
-        slurm_folder = Path.home() / "slurm_logs" / data_path / "register_within"
+        if slurm_folder is None:
+            slurm_folder = Path.home() / "slurm_logs" / data_path / "register_within"
         slurm_folder.mkdir(exist_ok=True, parents=True)
     else:
         slurm_folder = None
+    if scripts_name is None:
+        root_name = f"register_within_{prefix}"
+    else:
+        root_name = scripts_name
 
     outs = []
     for roi in roi_dims[use_rois, 0]:
+        print(f"Registering ROI {roi}")
+        scripts_name = f"register_within_{prefix}_{roi}"
         outs.append(
             register_within_acquisition(
                 data_path,
@@ -230,11 +282,13 @@ def register_all_rois_within(
                 reload=reload,
                 save_plot=save_plot,
                 dimension_prefix=dimension_prefix,
+                min_corrcoef=min_corrcoef,
                 max_delta_shift=max_delta_shift,
                 verbose=verbose,
                 use_slurm=use_slurm,
                 slurm_folder=slurm_folder,
-                scripts_name=f"register_within_{prefix}_{roi}",
+                scripts_name=f"{root_name}_{roi}",
+                job_dependency=job_dependency,
             )
         )
     return outs
@@ -253,7 +307,8 @@ def register_within_acquisition(
     reload=True,
     save_plot=False,
     dimension_prefix="genes_round_1_1",
-    max_delta_shift=30,
+    min_corrcoef=0.6,
+    max_delta_shift=20,
     verbose=2,
 ):
     """Estimate shifts between all adjacent tiles of an roi
@@ -273,9 +328,10 @@ def register_within_acquisition(
         save_plot (bool, optional): If True save diagnostic plot. Defaults to False
         dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
             only if the acquisition is an overview. Defaults to 'genes_round_1_1'
-        max_shift (int, optional): Maximum difference to the median shift allowed. Tiles
-            with absolute shifts above median(shift) + max_delta_shift will be replaced
-            by the median shift. Defaults to 30.
+        min_corrcoef (float, optional): Minimum correlation coefficient to consider a
+            shift as valid. Defaults to 0.6.
+        max_delta_shift (int, optional): Maximum shift, relative to median of the row or
+            column, to consider a shift as valid. Defaults to 20.
         verbose (int, optional): Verbosity level. Defaults to 2.
 
     Returns:
@@ -295,9 +351,9 @@ def register_within_acquisition(
         / f"{prefix}_within"
         / f"{prefix}_{roi}_shifts.npz"
     )
-
     if reload and save_fname.exists():
         print("Reloading saved shifts")
+        print(f"Shifts at {save_fname}")
         return np.load(save_fname)
 
     ndim = get_roi_dimensions(data_path, dimension_prefix)
@@ -323,17 +379,56 @@ def register_within_acquisition(
                     prefix=prefix,
                     correct_illumination=correct_illumination,
                     verbose=verbose > 1,
+                    overlap_ratio=0.01,
                 )
 
                 shifts[tilex, tiley] = np.hstack(
                     [reg_out["shift_right"], reg_out["shift_down"]]
                 )
                 xcorr_max[tilex, tiley] = [reg_out["corr_right"], reg_out["corr_down"]]
+
+        pbar.set_description(f"Correcting shifts")
+        clean_down = shifts[..., 2:].copy()
+        # Ignore shifts with low correlation
+        bad_down = xcorr_max[..., 1] < min_corrcoef
+        clean_down[bad_down, :] = np.nan
+        # Find the median of remain shift along each row
+        med_by_row = np.zeros((ntiles[1], 2)) + np.nan
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            med_by_row = np.nanmedian(clean_down, axis=0)
+        assert np.isnan(med_by_row).sum() <= 2, "Some rows have no valid shifts"
+        delta_shift = np.linalg.norm(shifts[..., 2:] - med_by_row[None, :, :], axis=2)
+        # replace shifts that are either low corr or too far from median
+        bad_down = bad_down | (delta_shift > max_delta_shift)
+        clean_down[bad_down, :] = med_by_row[np.where(bad_down)[1]]
+        assert (
+            np.isnan(clean_down).any(axis=0).sum() <= 2
+        ), "Some columns have no valid shifts"
+
+        # Same for right shifts
+        clean_right = shifts[..., :2].copy()
+        bad_right = xcorr_max[..., 0] < min_corrcoef
+        clean_right[bad_right, :] = np.nan
+        med_by_col = np.zeros((ntiles[0], 2)) + np.nan
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            med_by_col = np.nanmedian(clean_right, axis=1)
+        assert np.isnan(med_by_row).sum() <= 2, "Some rows have no valid shifts"
+        delta_shift = np.linalg.norm(clean_right - med_by_col[:, None, :], axis=2)
+        bad_right = bad_right | (delta_shift > max_delta_shift)
+        clean_right[bad_right, :] = med_by_col[np.where(bad_right)[0]]
+        assert (
+            np.isnan(clean_right).any(axis=1).sum() <= 2
+        ), "Some rows have no valid shifts"
+
         pbar.set_description(f"Saving shifts")
-        save_fname.parent.mkdir(exist_ok=True)
+        save_fname.parent.mkdir(exist_ok=True, parents=True)
         output = dict(
-            shift_right=shifts[..., :2],
-            shift_down=shifts[..., 2:],
+            raw_shift_right=shifts[..., :2],
+            raw_shift_down=shifts[..., 2:],
+            shift_right=clean_right,
+            shift_down=clean_down,
             xcorr_right=xcorr_max[..., 0],
             xcorr_down=xcorr_max[..., 1],
             tile_shape=reg_out["tile_shape"],
@@ -349,7 +444,10 @@ def register_within_acquisition(
                 data_path,
                 prefix,
                 roi=roi,
-                shifts=shifts,
+                shifts=np.dstack([clean_right, clean_down]),
+                raw_shifts=shifts,
+                xcorr_max=xcorr_max,
+                min_corrcoef=min_corrcoef,
                 max_delta_shift=max_delta_shift,
             )
     if verbose > 1:
@@ -364,6 +462,7 @@ def register_adjacent_tiles(
     suffix="max",
     prefix="genes_round_1_1",
     correct_illumination=False,
+    overlap_ratio=0.01,
     verbose=True,
     debug=False,
 ):
@@ -382,6 +481,8 @@ def register_adjacent_tiles(
         prefix (str, optional): Full name of the acquisition folder
         correct_illumination (bool, optional): Remove black levels and correct illumination
             before registration if True, return raw data otherwise. Default to False
+        overlap_ratio (float, optional): Minimum overlap between masks to consider the
+            correlation results. Defaults to 0.01.
         verbose (bool, optional): If True, print warnings when shifts are large.
             Defaults to True.
         debug (bool, optional): Return additional information for debugging. Defaults to
@@ -419,7 +520,7 @@ def register_adjacent_tiles(
     reg_pix_x = int(xpix * ops["reg_fraction"])
     reg_pix_y = int(ypix * ops["reg_fraction"])
 
-    roi_dims = get_roi_dimensions(data_path)
+    roi_dims = get_roi_dimensions(data_path, prefix)
     ntiles = roi_dims[roi_dims[:, 0] == ref_coors[0], 1:][0] + 1
 
     if debug:
@@ -447,7 +548,7 @@ def register_adjacent_tiles(
             moving_part,
             fixed_mask=fixed_mask,
             moving_mask=moving_mask,
-            overlap_ratio=0,
+            overlap_ratio=overlap_ratio,
         )
         if debug:
             db_dict["raw_right"] = np.array(shift_right)
@@ -486,7 +587,7 @@ def register_adjacent_tiles(
             moving_part,
             fixed_mask=fixed_mask,
             moving_mask=moving_mask,
-            overlap_ratio=0,
+            overlap_ratio=overlap_ratio,
         )
         if debug:
             db_dict["raw_down"] = np.array(shift_down)
@@ -545,11 +646,19 @@ def get_tile_corners(data_path, prefix, roi):
         # always use round 1
         prefix = f"{prefix}_1"
     shifts = np.load(
-        iss.io.get_processed_path(data_path) / "reg" / f"{prefix}_shifts.npz"
+        iss.io.get_processed_path(data_path)
+        / "reg"
+        / f"{prefix}_within"
+        / f"{prefix}_{roi}_shifts.npz"
     )
-
+    ops = load_ops(data_path)
     tile_origins, _ = calculate_tile_positions(
-        shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles
+        shifts["shift_right"],
+        shifts["shift_down"],
+        shifts["tile_shape"],
+        ntiles,
+        x_direction=ops["x_tile_direction"],
+        y_direction=ops["y_tile_direction"],
     )
 
     corners = np.stack(
@@ -562,7 +671,9 @@ def get_tile_corners(data_path, prefix, roi):
     return corners
 
 
-def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
+def calculate_tile_positions(
+    shift_right, shift_down, tile_shape, ntiles, x_direction, y_direction
+):
     """Calculate position of each tile based on the provided shifts.
 
     Args:
@@ -584,6 +695,10 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
     if shift_right.ndim == 1:
         assert shift_right.shape[0] == 2, "shift_right must have 2 elements"
         shift_right = np.tile(shift_right, (ntiles[0], ntiles[1], 1))
+        if x_direction == "left_to_right":
+            shift_right[-1] = np.nan
+        else:
+            shift_right[0] = np.nan
     else:
         assert shift_right.shape == (
             ntiles[0],
@@ -593,6 +708,10 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
     if shift_down.ndim == 1:
         assert shift_down.shape[0] == 2, "shift_down must have 2 elements"
         shift_down = np.tile(shift_down, (ntiles[0], ntiles[1], 1))
+        if y_direction == "top_to_bottom":
+            shift_down[:, 0] = np.nan
+        else:
+            shift_down[:, -1] = np.nan
     else:
         assert shift_down.shape == (
             ntiles[0],
@@ -600,9 +719,27 @@ def calculate_tile_positions(shift_right, shift_down, tile_shape, ntiles):
             2,
         ), "shift_down has wrong shape"
 
-    yy, xx = np.meshgrid(np.arange(ntiles[1]), np.arange(ntiles[0]))
+    # replace the first row/col that are NaNs with 0
+    # Add an assert to make sure that the first row/col are NaNs. It might not be
+    # the case if we didn't handle the microscope direction correctly
+    if x_direction == "right_to_left":
+        assert np.all(np.isnan(shift_right[0])), "First row of shift_right must be NaN"
+        shift_right[0] = 0
+        right_origin = shift_right.cumsum(axis=0)
+    else:
+        assert np.all(np.isnan(shift_right[-1])), "Last row of shift_right must be NaN"
+        shift_right[-1] = 0
+        right_origin = -shift_right[::-1].cumsum(axis=0)[::-1]
+    if y_direction == "top_to_bottom":
+        assert np.all(np.isnan(shift_down[:, 0])), "First col of shift_down must be NaN"
+        shift_down[:, 0] = 0
+        down_origin = shift_down.cumsum(axis=1)
+    else:
+        assert np.all(np.isnan(shift_down[:, -1])), "Last col of shift_down must be NaN"
+        shift_down[:, -1] = 0
+        down_origin = -shift_down[:, ::-1].cumsum(axis=1)[:, ::-1]
 
-    tile_origins = shift_right.cumsum(axis=0) + shift_down.cumsum(axis=1)
+    tile_origins = right_origin + down_origin
     tile_origins -= np.min(tile_origins, axis=(0, 1))[np.newaxis, np.newaxis, :]
 
     center_offset = np.array([tile_shape[0] / 2, tile_shape[1] / 2])
@@ -653,14 +790,15 @@ def stitch_tiles(
     shift_file = (
         processed_path
         / "reg"
-        / f"{prefix}_within"
+        / f"{shifts_prefix}_within"
         / f"{shifts_prefix}_{roi}_shifts.npz"
     )
+    ops = load_ops(data_path)
     if shift_file.exists():
         shifts = np.load(shift_file)
     elif allow_quick_estimate:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
-        ops = load_ops(data_path)
+
         try:
             metadata = iss.io.load_metadata(data_path)
             ref_roi = list(metadata["ROI"].keys())[0]
@@ -680,12 +818,7 @@ def stitch_tiles(
                     "ref_ch": 0,
                 }
             )
-        shifts = {}
-        (
-            shifts["shift_right"],
-            shifts["shift_down"],
-            shifts["tile_shape"],
-        ) = register_adjacent_tiles(
+        shifts = register_adjacent_tiles(
             data_path,
             ref_coors=ops["ref_tile"],
             ref_ch=ops["ref_ch"],
@@ -697,7 +830,12 @@ def stitch_tiles(
 
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
-        shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
+        shifts["shift_right"],
+        shifts["shift_down"],
+        shifts["tile_shape"],
+        ntiles=ntiles,
+        x_direction=ops["x_tile_direction"],
+        y_direction=ops["y_tile_direction"],
     )
     tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
@@ -740,7 +878,14 @@ def stitch_tiles(
 
 
 def stitch_registered(
-    data_path, prefix, roi, channels=0, ref_prefix=None, filter_r=False, projection=None
+    data_path,
+    prefix,
+    roi,
+    channels=0,
+    ref_prefix=None,
+    filter_r=False,
+    projection=None,
+    correct_illumination=True,
 ):
     """Load registered stack and stitch them
 
@@ -756,6 +901,8 @@ def stitch_registered(
         filter_r (bool, optional): Filter image before stitching? Defaults to False.
         projection (str, optional): Projection to load. If None, will use the one in
             `ops`. Default to None
+        correct_illumination (bool, optional): Correct illumination before stitching.
+            Defaults to True.
 
     Returns:
         np.array: stitched stack
@@ -785,7 +932,12 @@ def stitch_registered(
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     tile_shape = shifts["tile_shape"]
     tile_origins, _ = calculate_tile_positions(
-        shifts["shift_right"], shifts["shift_down"], shifts["tile_shape"], ntiles=ntiles
+        shifts["shift_right"],
+        shifts["shift_down"],
+        shifts["tile_shape"],
+        ntiles=ntiles,
+        x_direction=ops["x_tile_direction"],
+        y_direction=ops["y_tile_direction"],
     )
     tile_origins = np.round(tile_origins).astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
@@ -801,6 +953,7 @@ def stitch_registered(
                 prefix=prefix,
                 filter_r=filter_r,
                 projection=projection,
+                correct_illumination=correct_illumination,
             )
             if stack.ndim == 4:
                 stack = stack[:, :, :, 0]  # unique round
@@ -855,15 +1008,15 @@ def merge_roi_spots(
     all_spots = []
     ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
 
-    for ix in range(ntiles[0]):
-        for iy in range(ntiles[1]):
+    for tx in range(ntiles[0]):
+        for ty in range(ntiles[1]):
             try:
-                spots = align_spots(data_path, tile_coors=(iroi, ix, iy), prefix=prefix)
-                spots["x_tile"] = spots["x"].copy()
-                spots["y_tile"] = spots["y"].copy()
-                spots["tile"] = f"{iroi}_{ix}_{iy}"
-                spots["x"] = spots["x"] + tile_origins[ix, iy, 1]
-                spots["y"] = spots["y"] + tile_origins[ix, iy, 0]
+                spots = align_spots(data_path, tile_coors=(iroi, tx, ty), prefix=prefix)
+                spots["x_in_tile"] = spots["x"].copy()
+                spots["y_in_tile"] = spots["y"].copy()
+                spots["tile"] = f"{iroi}_{tx}_{ty}"
+                spots["x"] = spots["x"] + tile_origins[tx, ty, 1]
+                spots["y"] = spots["y"] + tile_origins[tx, ty, 0]
 
                 if not keep_all_spots:
                     # calculate distance to tile centers
@@ -874,18 +1027,60 @@ def merge_roi_spots(
                         spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
                         - tile_centers[np.newaxis, :, :, 0]
                     ) ** 2
-                    home_tile_dist = (spot_dist[:, ix, iy]).copy()
-                    spot_dist[:, ix, iy] = np.inf
+                    home_tile_dist = (spot_dist[:, tx, ty]).copy()
+                    spot_dist[:, tx, ty] = np.inf
                     min_spot_dist = np.min(spot_dist, axis=(1, 2))
                     keep_spots = home_tile_dist < min_spot_dist
                 else:
                     keep_spots = np.ones(spots.shape[0], dtype=bool)
                 all_spots.append(spots[keep_spots])
             except FileNotFoundError:
-                print(f"could not load roi {iroi}, tile {ix}, {iy}")
+                print(f"could not load roi {iroi}, tile {tx}, {ty}")
 
     spots = pd.concat(all_spots, ignore_index=True)
     return spots
+
+
+@slurm_it(conda_env="iss-preprocess", slurm_options={"time": "1:00:00", "mem": "8G"})
+def stitch_cell_dataframes(data_path, prefix, ref_prefix=None):
+    """Stitch cell dataframes across all tiles and ROI.
+
+    Args:
+        data_path (str): path to data
+        prefix (str): prefix of the cell dataframe to load
+        ref_prefix (str, optional): prefix of the reference tiles to use for stitching.
+            Defaults to None.
+
+    Returns:
+        pandas.DataFrame: stitched cell dataframe
+    """
+
+    ops = load_ops(data_path)
+    if ref_prefix is None:
+        ref_prefix = ops["reference_prefix"]
+
+    stitched_df = align_cell_dataframe(data_path, prefix, ref_prefix=None).copy()
+    stitched_df["x_in_tile"] = stitched_df["x"].copy()
+    stitched_df["y_in_tile"] = stitched_df["y"].copy()
+    stitched_df["tile"] = "Not Processed"
+    stitched_df["x"] = np.nan
+    stitched_df["y"] = np.nan
+
+    for roi, df in stitched_df.groupby("roi"):
+        # find tile origin, final shape, and shifts in reference coordinates
+        ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
+        ref_origins = ref_corners[..., 0]
+        for (tx, ty), tdf in df.groupby(["tilex", "tiley"]):
+            stitched_df.loc[tdf.index, "tile"] = f"{roi}_{tx}_{ty}"
+            stitched_df.loc[tdf.index, "x"] = tdf["x_in_tile"] + ref_origins[tx, ty, 1]
+            stitched_df.loc[tdf.index, "y"] = tdf["y_in_tile"] + ref_origins[tx, ty, 0]
+
+    # save stitched dataframe
+    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
+    stitched_df.to_pickle(cells_df)
+
+    return stitched_df
 
 
 def stitch_and_register(
@@ -964,7 +1159,7 @@ def stitch_and_register(
             suffix=target_projection,
             roi=roi,
             ich=ch,
-            shifts_prefix=reference_prefix,
+            shifts_prefix=target_prefix,
             correct_illumination=True,
         ).astype(
             np.single
@@ -1243,3 +1438,54 @@ def find_tile_order(
         tile_order[tile] = irow
 
     return tile_order, out_df
+
+
+def find_tile_overlap(data_path, ref_prefix, tile_coor1, tile_coor2):
+    """Find the overlap between two tiles
+
+    If tile1 is the stack, the overlap can be accessed by:
+    tile1[overlap_tile_1[1]:overlap_tile_1[3], overlap_tile_1[0]:overlap_tile_1[2]]
+
+    Args:
+        rect1 (tuple): Rectangle coordinates (x0, y0, x1, y1)
+        rect2 (tuple): Rectangle coordinates (x0, y0, x1, y1)
+
+    Returns:
+        tuple: Overlap in global coordinates (x0, y0, x1, y1)
+        tuple: Overlap in tile 1 (x0, y0, x1, y1)
+        tuple: Overlap in tile 2 (x0, y0, x1, y1)
+    """
+    if tile_coor1[0] != tile_coor2[0]:
+        # not the same ROI
+        return None, None, None
+    corners = get_tile_corners(data_path, prefix=ref_prefix, roi=tile_coor1[0])
+    rect1 = corners[tile_coor1[1], tile_coor1[2]]
+    rect2 = corners[tile_coor2[1], tile_coor2[2]]
+
+    # rect has the 4 corner, we just want the x0, y0, x1, y1
+    # but tile corners are row/col, not x/y, so swap
+    rect1 = (rect1[1, 0], rect1[0, 0], rect1[1, 2], rect1[0, 2])
+    rect2 = (rect2[1, 0], rect2[0, 0], rect2[1, 2], rect2[0, 2])
+
+    x0 = max(rect1[0], rect2[0])
+    y0 = max(rect1[1], rect2[1])
+    x1 = min(rect1[2], rect2[2])
+    y1 = min(rect1[3], rect2[3])
+    if x0 > x1 or y0 > y1:
+        return None, None, None
+
+    overlap = (x0, y0, x1, y1)
+    overlap_tile_1 = (
+        overlap[0] - rect1[0],
+        overlap[1] - rect1[1],
+        overlap[2] - rect1[0],
+        overlap[3] - rect1[1],
+    )
+    overlap_tile_2 = (
+        overlap[0] - rect2[0],
+        overlap[1] - rect2[1],
+        overlap[2] - rect2[0],
+        overlap[3] - rect2[1],
+    )
+
+    return overlap, overlap_tile_1, overlap_tile_2

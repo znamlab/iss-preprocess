@@ -178,6 +178,7 @@ def load_metadata(data_path):
     if not process_fname.exists():
         raw_fname = get_raw_path(data_path) / (Path(data_path).name + "_metadata.yml")
         if raw_fname.exists():
+            process_fname.parent.mkdir(parents=True, exist_ok=True)
             print("Metadata not found in processed data, copying from raw data")
             shutil.copy(raw_fname, process_fname)
         else:
@@ -323,7 +324,7 @@ def load_stack(fname):
         ims = []
         for page in stack.pages:
             ims.append(page.asarray())
-        return np.stack(ims, axis=2)
+    return np.stack(ims, axis=2)
 
 
 def get_zprofile(data_path, prefix, tile_coords):
@@ -396,20 +397,19 @@ def get_tile_ome(fname, fmetadata=None, use_indexmap=None):
     return im
 
 
-def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
+def get_roi_dimensions(data_path, prefix=None, save=True):
     """Find imaging ROIs and determine their dimensions.
 
     The output is the maximum index of the file names, which are 0 based. It is therefore
     the number of tiles in each dimension minus 1.
 
-    Create and/or load f"{prefix}_roi_dims.npy". The default ("genes_round_1_1") should
-    be used for all acquisitions that have the same ROI dimensions (everything except
-    overviews).
+    Create and/or load f"{prefix}_roi_dims.npy". The default (None for
+    ops['reference_prefix']) should be used for all acquisitions that have the same ROI
+    dimensions (everything except overviews).
 
     Args:
         data_path (str): Relative path to data
-        prefix (str, optional): Prefix of acquisition to load. Defaults to
-            "genes_round_1_1"
+        prefix (str, optional): Prefix of acquisition to load. Defaults to None.
         save (bool, optional): If True save roi dimensions if they are not already found
             on disk. Default to True
 
@@ -421,6 +421,9 @@ def get_roi_dimensions(data_path, prefix="genes_round_1_1", save=True):
     roi_dims_file = processed_path / f"{prefix}_roi_dims.npy"
     if roi_dims_file.exists():
         return np.load(roi_dims_file)
+    if prefix is None:
+        ops = load_ops(data_path)
+        prefix = ops["reference_prefix"]
 
     # file does not exist, let's find roi dims from filenames and create the file
     data_dir = get_raw_path(data_path) / prefix
@@ -495,13 +498,19 @@ def load_mask_by_coors(
         suffix = ""
     if "masks" in prefix:
         mask_name = suffix
+        acq_prefix = prefix.split("_masks")[0]
     else:
         mask_name = f"_masks{suffix}"
+        acq_prefix = prefix
 
     fname = f"{prefix}{mask_name}_{tile_roi}_{tile_x}_{tile_y}.npy"
 
-    if (processed_path / "cells" / fname).exists():
-        masks = np.load(processed_path / "cells" / fname, allow_pickle=True)
+    folder = processed_path / "cells"
+    if (folder / f"{acq_prefix}_cells").exists():
+        # if prefix specific subfolder exists, use that
+        folder = folder / f"{acq_prefix}_cells"
+    if (folder / fname).exists():
+        masks = np.load(folder / fname, allow_pickle=True)
         return masks
     else:
-        raise FileNotFoundError(f"Could not find mask file {fname}")
+        raise FileNotFoundError(f"Could not find mask file {folder / fname}")

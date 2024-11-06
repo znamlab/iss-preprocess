@@ -1,50 +1,9 @@
 import numpy as np
 import pandas as pd
+from skimage import measure
 from tqdm import tqdm
 from skimage.morphology import dilation
 from scipy.ndimage import binary_erosion, binary_dilation
-import iss_preprocess as iss
-
-
-def get_cell_masks(
-    data_path, roi, projection="corrected", mask_expansion=None, reload=True
-):
-    """Small wrapper to get cell masks from a given data path.
-
-    Wrap to ensure we use the same projection for all calls
-
-    Args:
-        data_path (str): Path to acquisition data (chamber folder)
-        roi (int): Region of interest
-        projection (str, optional): Projection to use. Defaults to "corrected".
-        mask_expansion (int, optional): Expansion of the mask. If None, reads from ops.
-            Defaults to None.
-        reload (bool, optional): If True, reload the masks. Defaults to True.
-
-    Returns:
-        np.ndarray: Cell masks
-    """
-    ops = iss.io.load_ops(data_path)
-    if mask_expansion is None:
-        mask_expansion = ops["mask_expansion"]
-
-    seg_prefix = f"{ops['segmentation_prefix']}_masks"
-    target = f"{data_path}/cells/{seg_prefix}_{roi}_{mask_expansion}.tif"
-    target = iss.io.get_processed_path(target)
-
-    if not reload and target.exists():
-        masks = iss.io.load_stack(target)[..., 0]
-    else:
-        masks = iss.pipeline.stitch_registered(
-            data_path,
-            prefix=seg_prefix,
-            roi=roi,
-            projection=projection,
-        )[..., 0]
-        if mask_expansion > 0:
-            masks = iss.pipeline.segment.get_big_masks(data_path, masks, mask_expansion)
-        iss.io.write_stack(masks, target, dtype=masks.dtype)
-    return masks
 
 
 def cellpose_segmentation(
@@ -318,3 +277,128 @@ def _fuse_masks(source, target, binary_masks, projected_mask, min_pix_size):
         projected_mask[s_mask] = source
 
     return projected_mask
+
+
+def remove_overlapping_labels(overlap_ref, overlap_shifted, upper_overlap_thresh=0.3):
+    """Remove overlapping labels in two adjacent tile overlaps.
+
+    Dynamically identifies and removes overlapping labels in place, in two adjacent tile
+    overlaps based on upper and lower overlap percentage thresholds. If the overlap is
+    above the upper threshold, the label in the shifted tile is removed. If the overlap
+    is below the lower threshold, the shared region is removed from both masks.
+
+    Args:
+        overlap_ref (np.array): The overlap area of the reference tile.
+        overlap_shifted (np.array): The overlap area of the shifted tile.
+        upper_overlap_thresh (float, optional): The upper threshold percentage for
+            considering mask overlap significant. Defaults to 0.3.
+
+    Returns:
+        overlapping_pairs (pandas.DataFrame): A dataframe containing the labels that
+            overlapped, their respective percentages and what happened to them.
+    """
+
+    # Continuously process until no more labels meet the criteria for adjustments
+    labels_changed = True
+    overlapping_pairs = []
+    while labels_changed:
+        labels_changed = False  # Reset flag for this iteration
+        unique_labels_1 = np.unique(overlap_ref[overlap_ref != 0])
+
+        for label1 in unique_labels_1:
+            mask1 = overlap_ref == label1
+            overlapping_masks = np.unique(overlap_shifted[mask1])
+            overlapping_masks = overlapping_masks[overlapping_masks != 0]
+            for label2 in overlapping_masks:
+                mask2 = overlap_shifted == label2
+                if not np.any(mask1 & mask2):  # Check if there's any overlap
+                    continue
+                overlap_area = np.sum(mask1 & mask2)
+                overlap_tile1 = overlap_area / np.sum(mask1)
+                overlap_tile2 = overlap_area / np.sum(mask2)
+                overlap_above_thresh = int(overlap_tile1 > upper_overlap_thresh) + int(
+                    overlap_tile2 > upper_overlap_thresh
+                )
+                overlapping_pairs.append(
+                    dict(
+                        ref_label=label1,
+                        match_label=label2,
+                        ref_overlap=overlap_tile1,
+                        match_overlap=overlap_tile2,
+                        overlap_above=overlap_above_thresh,
+                        delete_match=overlap_above_thresh > 0,
+                        erase_overlap=overlap_above_thresh == 0,
+                    )
+                )
+                # If overlap is above the upper threshold, remove the label from the
+                # shifted tile
+                if overlap_above_thresh > 0:
+                    print(f"Removing label {label2} from shifted_tile")
+                    overlap_shifted[mask2] = 0
+                    labels_changed = True
+                # If overlap is below the lower threshold, remove the shared region from
+                # both masks
+                else:
+                    print(f"Removing shared region from labels {label1} and {label2}")
+                    shared_mask = mask1 & mask2
+                    overlap_ref[shared_mask] = 0
+                    overlap_shifted[shared_mask] = 0
+                    labels_changed = True
+
+                if labels_changed:
+                    # Exit the inner loop to reevaluate conditions due to the changes
+                    break
+            if labels_changed:
+                # Exit the outer loop to restart the evaluation with updated overlaps
+                break
+    return overlapping_pairs
+
+
+def label_image(binary, mixed_stack, **kwargs):
+    """Label an image and extract properties.
+
+    This is intended for mCherry images and expects a mixed stack with two channels.
+
+    Args:
+        binary (np.ndarray): Binary image.
+        mixed_stack (np.ndarray): Mixed stack.
+        **kwargs: Additional keyword arguments, usually roi, tilex, and tiley. They
+            are used to add metadata to the dataframe.
+
+    Returns:
+        labeled_image (np.ndarray): Labeled image.
+        props_df (pd.DataFrame): DataFrame of properties.
+    """
+    labeled_image = measure.label(binary)
+    props = measure.regionprops_table(
+        labeled_image,
+        intensity_image=mixed_stack,
+        properties=(
+            "label",
+            "area",
+            "centroid",
+            "eccentricity",
+            "major_axis_length",
+            "minor_axis_length",
+            "intensity_max",
+            "intensity_mean",
+            "intensity_min",
+            "perimeter",
+            "solidity",
+        ),
+    )
+
+    props_df = pd.DataFrame(props)
+    props_df["circularity"] = (
+        4 * np.pi * props_df["area"] / (props_df["perimeter"] ** 2)
+    )
+    # unmixed_image has two channels, signal and background
+    props_df["intensity_ratio"] = (
+        props_df["intensity_mean-0"] / props_df["intensity_mean-1"]
+    )
+    props_df["clamped_ratio"] = np.log10(props_df["intensity_ratio"].clip(0, 100))
+
+    # Add extra kwargs as metadata to the dataframe
+    for key, value in kwargs.items():
+        props_df[key] = value
+    return labeled_image, props_df

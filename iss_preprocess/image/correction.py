@@ -2,6 +2,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from functools import partial
 from scipy.ndimage import median_filter, gaussian_filter
 from skimage.morphology import disk
 from sklearn.linear_model import LinearRegression
@@ -65,84 +66,90 @@ def filter_stack(stack, r1=2, r2=4, dtype=float):
         np.array: Filtered stack.
 
     """
-    nchannels = stack.shape[2]
+
     h = hanning_diff(r1, r2).astype(dtype)
     stack_filt = np.zeros(stack.shape, dtype=dtype)
+    filt_func = partial(
+        cv2.filter2D, ddepth=-1, kernel=np.flip(h), borderType=cv2.BORDER_REPLICATE
+    )
     # TODO: check if we can get rid of the np.flip
+    if stack.ndim == 2:
+        stack_filt = filt_func(stack.astype(dtype))
+        return stack_filt
+
+    nchannels = stack.shape[2]
     for ich in range(nchannels):
         if stack.ndim == 4:
             nrounds = stack.shape[3]
             for iround in range(nrounds):
-                stack_filt[:, :, ich, iround] = cv2.filter2D(
-                    stack[:, :, ich, iround].astype(dtype),
-                    -1,
-                    np.flip(h),
-                    borderType=cv2.BORDER_REPLICATE,
+                stack_filt[:, :, ich, iround] = filt_func(
+                    stack[:, :, ich, iround].astype(dtype)
                 )
         else:
-            stack_filt[:, :, ich] = cv2.filter2D(
-                stack[:, :, ich].astype(dtype),
-                -1,
-                np.flip(h),
-                borderType=cv2.BORDER_REPLICATE,
-            )
+            stack_filt[:, :, ich] = filt_func(stack[:, :, ich].astype(dtype))
     return stack_filt
 
 
-def unmix_ref_tile(
-    data_path,
-    prefix,
-    roi,
-    tilex,
-    tiley,
-    stack,
-    suffix="max",
-    background_ch=3,
-    signal_ch=2,
+def calculate_unmixing_coefficient(
+    signal_image,
+    background_image,
+    background_coef,
+    threshold_background=None,
+    threshold_signal=None,
+    fit_intercept=True,
 ):
     """
     Unmixes two images: one with only background autofluorescence and another with both
     background and useful signal. Uses Linear regression for the unmixing process.
 
-    TODO: docstring is all wrong
     Args:
         background_image: numpy array of the background image.
-        mixed_signal_image: numpy array of the image with both signal and background.
+        signal_image: numpy array of the image with both signal and background.
         background_coef: Coefficient to multiply the background image by before
             subtraction.
-        threshold_background: Minimum value for a pixel to be considered background.
+        threshold_background (optional): Minimum value for a pixel to be considered
+            background. If None will use the median. Default None.
+        threshold_signal (optional): Minimum value on signal channel for a pixel to be
+            considered background. If None will use the median. Default None.
+        fit_intercept (optional): Whether to fit an intercept in the linear model.
+            Default True.
+
 
     Returns:
-        signal_image: The isolated signal image after background subtraction.
+        pure_signal_image: The isolated signal image after background subtraction.
+        model_coef: Coefficient used to multiply the background image for unmixing.
+        intercept: Intercept of the linear model used for unmixing.
+        valid_pixel: Boolean array of pixels that passed the thresholding.
+
     """
-
-    processed_path = get_processed_path(data_path)
-    fname = (
-        f"{prefix}_MMStack_{roi}-"
-        + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_{suffix}.tif"
-    )
-    image_path = processed_path / prefix / fname
-    background_image = stack[:, :, background_ch, 0]
-    mixed_signal_image = stack[:, :, signal_ch, 0]
-
     # Flatten to 1D arrays for the regression model
     background_flat = background_image.ravel()
-    mixed_signal_flat = mixed_signal_image.ravel()
-
-    ops = load_ops(data_path)
-    background_coef = ops["background_coef"]
-    threshold_background = ops["threshold_background"]
+    mixed_signal_flat = signal_image.ravel()
 
     # Remove pixels that are too dark or too bright
     # The max pixel value is 4096, remove only very close to saturation
-    bright_pixels = (
-        (background_flat > threshold_background) & (background_flat < 4090)
-    ) & ((mixed_signal_flat > threshold_background) & (mixed_signal_flat < 4090))
-    background_flat = background_flat[bright_pixels].reshape(-1, 1)
-    mixed_signal_flat = mixed_signal_flat[bright_pixels]
+    valid_pixel = (background_flat < 4090) & (mixed_signal_flat < 4090)
+    valid_pixel &= background_flat > 0  # do that before for the median
+    valid_pixel &= mixed_signal_flat > 0  # do that before for the median
+    if threshold_signal is None:
+        threshold_signal = np.nanmedian(mixed_signal_flat[valid_pixel])
+    valid_pixel &= mixed_signal_flat > threshold_signal
+    if threshold_background is None:
+        threshold_background = np.nanmedian(background_flat[valid_pixel])
+    valid_pixel &= background_flat > threshold_background
+
+    # also remove pixels that are pure signal
+    valid_pixel &= mixed_signal_flat < 20 * background_flat
+    background_flat = background_flat[valid_pixel].reshape(-1, 1)
+    mixed_signal_flat = mixed_signal_flat[valid_pixel]
+
+    print("Parameters for unmixing:")
+    print(f"Threshold background: {threshold_background}")
+    print(f"Threshold signal: {threshold_signal}")
+    print(f"Number of valid pixels: {valid_pixel.sum()}/{valid_pixel.size}")
 
     # Initialize and fit Linear model
-    model = LinearRegression(positive=True)
+    model = LinearRegression(positive=True, fit_intercept=fit_intercept)
     try:
         model.fit(background_flat, mixed_signal_flat)
         # Predict the background component in the mixed signal image
@@ -153,71 +160,53 @@ def unmix_ref_tile(
         predicted_background = predicted_background_flat.reshape(background_image.shape)
 
         # Subtract the predicted background from the mixed signal to get the signal image
-        signal_image = mixed_signal_image - (
+        pure_signal_image = signal_image - (
             predicted_background * background_coef
         )  # TODO: Remove fudge factor
-        signal_image = np.clip(signal_image, 0, None)
+        pure_signal_image = np.clip(pure_signal_image, 0, None)
         print(
-            f"Image unmixed with coefficient: {model.coef_[0]}, intercept: {model.intercept_}"
+            f"Image unmixed with coefficient: {model.coef_[0]:.2f},"
+            + f" intercept: {model.intercept_:.2f}"
         )
     except ValueError:
         raise ValueError("Not enough data passing background threshold to fit model")
 
-    write_stack(
-        signal_image, image_path.with_name(image_path.name.replace(suffix, "unmixed"))
-    )
-
-    return signal_image, model.coef_[0], model.intercept_
+    return pure_signal_image, model.coef_[0], model.intercept_, valid_pixel
 
 
-def unmix_tile(
-    data_path,
-    prefix,
-    roi,
-    tilex,
-    tiley,
-    stack,
-    suffix="max",
-    background_ch=3,
-    signal_ch=2,
-    coef=None,
-    intercept=None,
+def unmix_images(
+    background_image: np.ndarray,
+    mixed_signal_image: np.ndarray,
+    coef: float,
+    intercept: float,
+    background_coef: float = 1.0,
+    offset: float = 10.0,
 ):
     """
-    Unmixes two images: one with only background autofluorescence and another with both background and useful signal.
-    Uses Linear regression for the unmixing process.
+    Unmixes two images
+
+    One must contain only background autofluorescence and another with both
+    background and useful signal.
 
     Args:
         background_image: numpy array of the background image.
         mixed_signal_image: numpy array of the image with both signal and background.
-        background_coef: Coefficient to multiply the background image by before subtraction.
-        threshold_background: Minimum value for a pixel to be considered background.
+        coef: Coefficient to multiply the background image by before subtraction.
+        intercept: Intercept of the linear model used for unmixing.
+        background_coef: Fudge factor to increase the amount of background subtracted.
+            Default 1.0.
+        offset: Small value to add to the signal image to avoid negative values after
+            subtraction. Default 10.0.
 
     Returns:
         signal_image: The isolated signal image after background subtraction.
     """
-
-    processed_path = get_processed_path(data_path)
-    ops = load_ops(data_path)
-    background_coef = ops["background_coef"]
-    print(
-        f"Unmixing with coef: {coef}, intercept: {intercept} and background coef: {background_coef}"
-    )
-    fname = (
-        f"{prefix}_MMStack_{roi}-"
-        + f"Pos{str(tilex).zfill(3)}_{str(tiley).zfill(3)}_{suffix}.tif"
-    )
-    image_path = processed_path / prefix / fname
-    background_image = stack[:, :, background_ch, 0]
-    mixed_signal_image = stack[:, :, signal_ch, 0]
     predicted_background = (background_image * float(coef)) + float(intercept)
     signal_image = mixed_signal_image - (predicted_background * background_coef)
+    # Clipping removes negative values, which can be an issue if the coefficient is
+    # a bit off, add a small value to avoid this
+    signal_image += offset
     signal_image = np.clip(signal_image, 0, None)
-    # TODO: Don't save files, compute on the fly during segmentation
-    write_stack(
-        signal_image, image_path.with_name(image_path.name.replace(suffix, "unmixed"))
-    )
-
     return signal_image
 
 

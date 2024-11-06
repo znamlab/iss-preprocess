@@ -1,13 +1,12 @@
 from pathlib import Path
 import gc
 from warnings import warn
-import bg_atlasapi as bga
+import brainglobe_atlasapi as bga
 import cv2
 import numpy as np
 import yaml
 from scipy.ndimage import gaussian_filter
 from skimage.transform import downscale_local_mean
-
 from image_tools.similarity_transforms import transform_image
 from image_tools.registration.phase_correlation import phase_correlation
 from znamutils import slurm_it
@@ -349,6 +348,13 @@ def spots_ara_infos(
         spots_filtered.loc[valid, "area_acronym"] = labels.loc[
             spots_filtered.area_id[valid], "acronym"
         ].values
+    if inplace:
+        spots["area_id"] = "NaN"
+        for w in "xyz":
+            spots[f"ara_{w}"] = np.nan
+        if acronyms:
+            spots["area_acronym"] = "NaN"
+        spots.update(spots_filtered)
     if verbose:
         print("Done", flush=True)
     return spots_filtered

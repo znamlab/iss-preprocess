@@ -123,10 +123,14 @@ def to_rgb(stack, colors, vmax=None, vmin=None):
 
     if vmax is None:
         vmax = np.nanmax(stack, axis=(0, 1))
+    elif np.isscalar(vmax):
+        vmax = np.full(nchannels, vmax)
     else:
         vmax = np.asarray(vmax)
     if vmin is None:
         vmin = np.nanmin(stack, axis=(0, 1))
+    elif np.isscalar(vmin):
+        vmin = np.full(nchannels, vmin)
     else:
         vmin = np.asarray(vmin)
 

@@ -1,9 +1,9 @@
 import napari
-from tifffile import imread
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
 import iss_preprocess as iss
+from iss_preprocess.io.load import load_stack
 from iss_preprocess.pipeline.stitch import load_tile_ref_coors
 
 
@@ -16,10 +16,15 @@ def load_roi(
     add_genes=True,
     add_rabies=True,
     image_to_load=("genes", "hyb", "rab", "reference", "mCherry"),
-    masks_to_load=("rabies_cells",),
+    masks_to_load=("rabies_cells", "mcherry", "all_cells"),
     barcode_to_plot=(),
+    label_tab20=False,
 ):
-    """Load one tile in the interactive viewer"""
+    """Load one tile in the interactive viewer
+
+    Args:
+        label_tab20 (bool, optional): Replace label by the tab20 version to make them the same color as rabies spots
+    """
     viewer = napari.Viewer()
     data_path = f"{project}/{mouse}/{chamber}"
     manual_folder = iss.io.get_processed_path(data_path) / "manual_starter_click"
@@ -44,7 +49,7 @@ def load_roi(
         if not fname.exists():
             print(f"Skipping {name}. Missing file")
             continue
-        img = imread(fname)
+        img = load_stack(fname)
         colors = chan_color[name]
         for ic, col in enumerate(colors):
             print(f"Adding {name}, ch {ic}")
@@ -66,7 +71,7 @@ def load_roi(
             hyb_points_layer = viewer.add_points(
                 coord,
                 face_color=col[gene],
-                edge_color=[0] * 4,
+                border_color=[0] * 4,
                 name=f"{gene} spots",
                 size=10,
                 opacity=0.9,
@@ -114,21 +119,32 @@ def load_roi(
             viewer.add_points(
                 coord,
                 face_color=face_colors,
-                edge_color=[0] * 4,
+                border_color=[0] * 4,
                 symbol=symbol,
                 name="Gene spots",
                 size=10,
             )
 
-    if add_rabies:
-        # add rabies mask
-        print("Adding rabies masks")
-        for mask in masks_to_load:
-            rab_mask = imread(
-                manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_mask.tif"
-            )
-            if rab_mask.ndim == 3:
-                rab_mask = rab_mask[..., 0]
+    if isinstance(masks_to_load, str):
+        masks_to_load = [masks_to_load]
+
+    for mask in masks_to_load:
+        mask_img_data = load_stack(
+            manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_masks.tif"
+        )
+        if mask == "mCherry":
+            # look for curated dataset
+            curated = iss.io.get_processed_path(data_path) / "cells"
+            curated = curated / f"mCherry_1_masks_{roi}_0_curated.tif"
+            if curated.exists():
+                curated_mask = load_stack(curated)[..., 0]
+                viewer.add_labels(
+                    data=curated_mask.astype(int),
+                    name=f"mCherry_1_masks_{roi}_curated",
+                )
+        if mask_img_data.ndim == 3:
+            mask_img_data = mask_img_data[..., 0]
+        if label_tab20:
             # Define the colormap as dict
             cmap_label = {
                 0: np.array([0.0, 0.0, 0.0, 0.0]),
@@ -137,13 +153,27 @@ def load_roi(
             colors = mpl.colormaps["tab20"].colors
             for i, c in enumerate(colors):
                 cmap_label[i + 1] = np.array([*c, 1])
-            data = (rab_mask % 20).astype(int) + 1
-            data[rab_mask == 0] = 0
-            viewer.add_labels(
-                data=data.astype("uint8"),
-                name=mask.replace("_", " "),
-                colormap=napari.utils.DirectLabelColormap(color_dict=cmap_label),
-            )
+            data = (mask_img_data % 20).astype(int) + 1
+            data[mask_img_data == 0] = 0
+            colormap = napari.utils.DirectLabelColormap(color_dict=cmap_label)
+        else:
+            data = mask_img_data
+            colormap = None
+        viewer.add_labels(
+            data=data.astype(int),
+            name=mask.replace("_", " "),
+            colormap=colormap,
+        )
+        center_npy = manual_folder / f"{mouse}_{chamber}_{roi}_{mask}_centers.npy"
+        if center_npy.exists():
+            # we need to put y first
+            coords = np.load(center_npy)[:, [1, 0]]
+            viewer.add_points(coords, name=f"{prefix} masks center", size=50)
+
+    if add_rabies:
+        # add rabies mask
+        print("Adding rabies masks")
+
         # add rabies spots
         print("Adding rabies spots")
         non_ass = np.load(
@@ -157,9 +187,9 @@ def load_roi(
             coord[:, ::-1],
             properties=dict(barcode_id=barcode_id, barcode=barcode),
             face_color="k",
-            edge_color="barcode_id",
-            edge_colormap="tab20",
-            edge_width=0.3,
+            border_color="barcode_id",
+            border_colormap="tab20",
+            border_width=0.3,
             name="Unassigned rabies spots",
         )
         rab_pts = np.load(
@@ -179,9 +209,9 @@ def load_roi(
             ),
             face_color="mask_id",
             face_colormap="tab20",
-            edge_color="barcode_id",
-            edge_colormap="tab20",
-            edge_width=0.3,
+            border_color="barcode_id",
+            border_colormap="tab20",
+            border_width=0.3,
             name="Rabies spots",
         )
         if isinstance(barcode_to_plot, str):
@@ -199,9 +229,9 @@ def load_roi(
                 ),
                 face_color="mask_id",
                 face_colormap="tab20",
-                edge_color="barcode_id",
-                edge_colormap="tab20",
-                edge_width=0.3,
+                border_color="barcode_id",
+                border_colormap="tab20",
+                border_width=0.3,
                 size=10,
                 name=f"Rabies {barcode}",
             )
@@ -235,8 +265,8 @@ def load_roi(
     mch_points_layer = viewer.add_points(
         data,
         face_color="white",
-        edge_color="black",
-        edge_width=0.2,
+        border_color="black",
+        border_width=0.2,
         name=f"roi_{roi}_{chamber}_{mouse}_starter_cells",
         size=50,
         opacity=0.8,
@@ -250,8 +280,8 @@ def load_roi(
     mch_points_layer = viewer.add_points(
         data,
         face_color="yellow",
-        edge_color="black",
-        edge_width=0.2,
+        border_color="black",
+        border_width=0.2,
         name=f"roi_{roi}_{chamber}_{mouse}_mcherry_cells",
         size=50,
         opacity=0.8,
@@ -263,20 +293,23 @@ def load_roi(
 if __name__ == "__main__":
     project = "becalia_rabies_barseq"
     mouse = "BRAC8498.3e"
-    chamber = "chamber_08"
-    roi = 9
+    chamber = "chamber_07"
+    roi = 5
     data_path = f"{project}/{mouse}/{chamber}"
     print(data_path)
+    print(f"Loading {project}/{mouse}/{chamber} roi {roi}")
     ops = iss.io.load_ops(data_path)
     load_roi(
         project,
         mouse,
         chamber,
         roi,
-        add_hyb=False,
-        add_genes=False,
-        add_rabies=False,
-        image_to_load=("mCherry"),
+        add_hyb=True,
+        add_genes=True,
+        add_rabies=True,
+        image_to_load=("mCherry", "reference", "rab", "hyb", "genes"),
+        masks_to_load=("mCherry"),
         barcode_to_plot=(),
+        label_tab20=True,
     )
     print("Done")

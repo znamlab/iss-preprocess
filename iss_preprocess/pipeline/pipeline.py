@@ -2,6 +2,8 @@ import shlex
 import subprocess
 import warnings
 from pathlib import Path
+import re
+import pandas as pd
 
 import flexiznam as flz
 import numpy as np
@@ -336,7 +338,15 @@ def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=
     return c_stack
 
 
-def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
+def batch_process_tiles(
+    data_path,
+    script,
+    roi_dims=None,
+    additional_args="",
+    dependency_type="afterok",
+    job_dependency=None,
+    verbose=False,
+):
     """Start sbatch scripts for all tiles across all rois.
 
     Args:
@@ -347,11 +357,20 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
         additional_args (str, optional): Additional environment variable to export
             to pass to the sbatch job. Should start with a leading comma.
             Defaults to ""
+        dependency_type (str, optional): Type of dependency. Defaults to "afterok".
+        job_dependency (list, optional): List of job IDs to wait for before starting the
+            batch jobs. Defaults to None.
+        verbose (bool, optional): Print the sbatch command. Defaults to False.
 
     Returns:
         list: List of job IDs for the slurm jobs created.
 
     """
+    if job_dependency is not None:
+        dep = f"--dependency={dependency_type}:{job_dependency} "
+    else:
+        dep = ""
+
     if roi_dims is None:
         roi_dims = get_roi_dimensions(data_path)
     script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
@@ -371,7 +390,6 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                     f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
                 )
                 args = args + additional_args
-                import re
 
                 # Regular expression to find prefix
                 pattern = r",PREFIX=([^,]+)"
@@ -384,9 +402,10 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 log_dir = Path.home() / "slurm_logs" / data_path / script
                 log_dir.mkdir(parents=True, exist_ok=True)
                 args = args + f" --output={log_dir}/{log_fname}.out"
-                command = f"sbatch --parsable {args} {script_path}"
+                command = f"sbatch --parsable {dep}{args} {script_path}"
                 arg_list.append(command)
-                print(command)
+                if verbose:
+                    print(command)
                 process = subprocess.Popen(
                     shlex.split(command),
                     stdout=subprocess.PIPE,
@@ -397,7 +416,6 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
                 job_ids.append(job_id)
     # save job ids and args to a csv file
     job_info_path = str(log_dir / f"{script}_jobs_info.csv")
-    import pandas as pd
 
     pd.DataFrame({"job_ids": job_ids, "arg_list": arg_list}).to_csv(
         job_info_path, index=False
@@ -418,7 +436,7 @@ def batch_process_tiles(data_path, script, roi_dims=None, additional_args=""):
     if process.returncode != 0:
         print(f"Error submitting handle_failed job: {stderr.decode().strip()}")
     failed_job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
-    return job_ids
+    return job_ids, failed_job_id
 
 
 def handle_failed_jobs(job_info_path):
@@ -440,7 +458,7 @@ def handle_failed_jobs(job_info_path):
         job_info = subprocess.check_output(
             f"sacct -j {job_id} --format=State,NodeList", shell=True
         ).decode("utf-8")
-        if "TIMEOUT" in job_info or "FAILED" in job_info:
+        if "TIMEOUT" in job_info or "FAILED" in job_info or "CANCELLED" in job_info:
             failed_params.append(
                 df_job_info[df_job_info["job_ids"] == job_id]["arg_list"].values[0]
             )
@@ -862,3 +880,94 @@ def setup_flexilims(path):
             flexilims_session=flm_session,
         )
         parent_id = sample["id"]
+
+
+def segment_and_stitch_mcherry_cells(
+    data_path, prefix, use_slurm=True, slurm_folder=None, job_dependency=None
+):
+    """Master function for mCherry cell segmentation and stitching
+
+    Will call in turn the following functions:
+    - `segment_mcherry_cells`
+    - `filter_mcherry_cells` if ops['filter_mask'] is True
+    - `register_within` to find overlapping region (with reload=True)
+    - `remove_duplicate`
+    - `stitch_mcherry_cells`
+
+    Args:
+        data_path (str): Relative path to the data folder
+        prefix (str): Prefix of the mCherry acquisition
+        use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
+            True.
+        slurm_folder (str, optional): Folder to save SLURM logs. Defaults to None.
+        job_dependency (list, optional): List of job IDs to wait for before starting the
+    """
+
+    ops = iss.io.load_ops(data_path)
+    if slurm_folder is None:
+        slurm_folder = Path.home() / "slurm_logs" / data_path / f"segment_{prefix}"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+
+    job_coef = iss.pipeline.segment.save_unmixing_coefficients(
+        data_path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"unmix_{prefix}",
+        job_dependency=job_dependency,
+    )
+
+    additional_args = f",PREFIX={prefix}"
+    job_ids, failed_job = batch_process_tiles(
+        data_path,
+        script="segment_mcherry_tile",
+        additional_args=additional_args,
+        job_dependency=job_coef,
+    )
+    print(f"Started {len(job_ids)} jobs for segmenting mCherry cells")
+
+    spref = prefix.split("_")[0].lower()
+    # ensure the "within" registration ran
+    reg_jobs = iss.pipeline.stitch.register_all_rois_within(
+        data_path,
+        prefix=prefix,
+        ref_ch=None,
+        suffix=ops[f"{spref}_projection"],
+        correct_illumination=True,
+        reload=True,
+        save_plot=True,
+        dimension_prefix="genes_round_1_1",
+        verbose=True,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"register_within_{prefix}",
+        job_dependency=failed_job,
+    )
+    # remove duplicate masks
+    dupl_job = iss.pipeline.segment.remove_all_duplicate_masks(
+        data_path,
+        prefix,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        job_dependency=reg_jobs,
+        scripts_name=f"remove_duplicate_masks_{prefix}",
+    )
+
+    # stitch the masks dataframes
+    stitch_job = iss.pipeline.stitch.stitch_cell_dataframes(
+        data_path,
+        prefix,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        job_dependency=dupl_job,
+        scripts_name=f"stitch_{prefix}",
+    )
+
+    if ops.get(f"{spref}_gmm_filter_masks", False):
+        filt_job = iss.pipeline.segment.filter_mcherry_cells(
+            data_path,
+            prefix,
+            use_slurm=True,
+            slurm_folder=slurm_folder,
+            job_dependency=stitch_job,
+        )

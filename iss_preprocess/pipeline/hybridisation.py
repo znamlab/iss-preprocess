@@ -115,21 +115,20 @@ def get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts):
     """
     processed_path = iss.io.get_processed_path(data_path)
     tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
-    match corrected_shifts:
-        case "reference":
-            tforms_fname = f"tforms_{prefix}.npz"
-            tforms_path = processed_path
-        case "single_tile":
-            tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
-            tforms_path = processed_path / "reg"
-        case "ransac":
-            tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
-            tforms_path = processed_path / "reg"
-        case "best":
-            tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
-            tforms_path = processed_path / "reg"
-        case _:
-            raise ValueError(f"unknown shift correction method: {corrected_shifts}")
+    if corrected_shifts == "reference":
+        tforms_fname = f"tforms_{prefix}.npz"
+        tforms_path = processed_path
+    elif corrected_shifts == "single_tile":
+        tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
+        tforms_path = processed_path / "reg"
+    elif corrected_shifts == "ransac":
+        tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
+        tforms_path = processed_path / "reg"
+    elif corrected_shifts == "best":
+        tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
+        tforms_path = processed_path / "reg"
+    else:
+        raise ValueError(f"unknown shift correction method: {corrected_shifts}")
     tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
     return tforms
 

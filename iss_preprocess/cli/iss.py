@@ -532,7 +532,7 @@ def basecall(path):
     """Start batch jobs to run basecalling for barcodes on all tiles."""
     from iss_preprocess.pipeline import batch_process_tiles
 
-    job_ids = batch_process_tiles(path, "basecall_tile")
+    job_ids, failed_job = batch_process_tiles(path, "basecall_tile")
     click.echo(f"Basecalling started for {len(job_ids)} tiles.")
     click.echo(f"Last job id: {job_ids[-1]}")
 
@@ -708,7 +708,6 @@ def register_to_reference(
     help="File name prefix for spot files.",
 )
 @click.option(
-    "-l",
     "--reload/--no-reload",
     default=True,
     help="Whether to reload register_adjacent_tiles shifts.",
@@ -1021,107 +1020,30 @@ def plot_overview(
 @click.option(
     "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
 )
-@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-@click.option(
-    "-b", "--background_ch", default=3, help="Channel containing background, e.g. 3"
-)
-@click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
-def unmix_channels(
-    path, prefix="mCherry_1", suffix="max", background_ch=3, signal_ch=2
-):
-    """Unmix autofluorescence from signal for all tiles in a dataset."""
-    from iss_preprocess.pipeline import batch_process_tiles
-    from iss_preprocess.image import unmix_ref_tile
-    from iss_preprocess.io.load import load_ops
-    from iss_preprocess.pipeline import load_and_register_tile
-
-    ops = load_ops(path)
-    (roi, tilex, tiley) = ops["mcherry_ref_tile"]
-    stack, _ = load_and_register_tile(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, filter_r=False
-    )
-    print(f"Unmixing autofluorescence from reference tile {roi}, {tilex}, {tiley}")
-    _, coef, intercept = unmix_ref_tile(
-        path,
-        prefix,
-        roi,
-        tilex,
-        tiley,
-        stack,
-        suffix=suffix,
-        background_ch=background_ch,
-        signal_ch=signal_ch,
-    )
-
-    additional_args = f",PREFIX={prefix},SUFFIX={suffix},BACKGROUND_CH={background_ch},SIGNAL_CH={signal_ch},COEF={coef},INTERCEPT={intercept}"
-    batch_process_tiles(path, script="unmix_channels", additional_args=additional_args)
-
-
-@cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option(
-    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
-)
-@click.option(
-    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
-)
-@click.option("-x", "--tilex", default=0, help="Tile X position")
-@click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-@click.option(
-    "-b", "--background_ch", default=3, help="Channel containing background, e.g. 3"
-)
-@click.option("-g", "--signal_ch", default=2, help="Channel containing signal, e.g. 2")
-@click.option("-c", "--coef", help="Coefficient for linear unmixing")
-@click.option("-i", "--intercept", help="Intercept for linear unmixing")
-def unmix_tile(
-    path,
-    prefix,
-    roi,
-    tilex,
-    tiley,
-    suffix="max",
-    background_ch=3,
-    signal_ch=2,
-    coef=None,
-    intercept=None,
-):
-    """Unmix autofluorescence from signal for all tiles in a dataset."""
-    from iss_preprocess.image import unmix_tile
-    from iss_preprocess.pipeline import load_and_register_tile
-
-    stack, _ = load_and_register_tile(
-        path, tile_coors=(roi, tilex, tiley), prefix=prefix, filter_r=False
-    )
-    unmix_tile(
-        path,
-        prefix,
-        roi,
-        tilex,
-        tiley,
-        stack,
-        suffix=suffix,
-        background_ch=background_ch,
-        signal_ch=signal_ch,
-        coef=coef,
-        intercept=intercept,
-    )
-
-
-@cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option(
-    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
-)
-@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-def segment_all_mcherry(path, prefix="mCherry_1", suffix="max"):
+def segment_all_mcherry(path, prefix="mCherry_1"):
     """Segment mcherry cells for all tiles in a dataset."""
+    from pathlib import Path
     from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.pipeline.segment import (
+        save_unmixing_coefficients,
+        remove_all_duplicate_masks,
+    )
 
-    additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
-    batch_process_tiles(
+    save_unmixing_coefficients(path, prefix, projection=None)
+    additional_args = f",PREFIX={prefix}"
+    job_ids, failed_job = batch_process_tiles(
         path, script="segment_mcherry_tile", additional_args=additional_args
     )
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    remove_all_duplicate_masks(
+        path,
+        prefix,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        job_dependency=failed_job,
+        scripts_name=f"remove_duplicate_masks_{prefix}",
+    )
 
 
 @cli.command()
@@ -1134,34 +1056,38 @@ def segment_all_mcherry(path, prefix="mCherry_1", suffix="max"):
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-@click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
-def segment_mcherry_tile(path, prefix, roi, tilex, tiley, suffix="max"):
+def segment_mcherry_tile(path, prefix, roi, tilex, tiley):
     """Segment mCherry channel for a single tile."""
     from iss_preprocess.pipeline import segment_mcherry_tile
 
+    # TODO: move out of main CLI
     segment_mcherry_tile(
         path,
         prefix,
         roi,
         tilex,
         tiley,
-        suffix,
     )
 
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
+    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
+)
+@click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
-def remove_non_cell_masks(path, roi, tilex, tiley):
+def remove_non_cell_masks(path, prefix, roi, tilex, tiley):
     """Remove masks from mCherry tiles that don't correspond to cells."""
-    from iss_preprocess.pipeline import remove_non_cell_masks
+    from iss_preprocess.pipeline.segment import _remove_non_cell_masks
 
-    remove_non_cell_masks(
+    # TODO: move out of main CLI
+    _remove_non_cell_masks(
         path,
+        prefix,
         roi,
         tilex,
         tiley,
@@ -1170,13 +1096,17 @@ def remove_non_cell_masks(path, roi, tilex, tiley):
 
 @cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def find_mcherry_cells(path):
+@click.option(
+    "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
+)
+def filter_mcherry_masks(path, prefix):
     """Find mCherry cells using a GMM to cluster masks based on their
     morphological features. Then remove non-cell masks from each tile.
     """
-    from iss_preprocess.pipeline import find_mcherry_cells
+    from iss_preprocess.pipeline import _gmm_cluster_mcherry_cells
 
-    find_mcherry_cells(path)
+    # TODO: move out of main CLI
+    _gmm_cluster_mcherry_cells(path, prefix)
 
 
 @cli.command()
@@ -1184,4 +1114,5 @@ def find_mcherry_cells(path):
 def handle_failed(jobsinfo):
     from iss_preprocess.pipeline import handle_failed_jobs
 
+    # TODO: move out of main CLI
     handle_failed_jobs(jobsinfo)

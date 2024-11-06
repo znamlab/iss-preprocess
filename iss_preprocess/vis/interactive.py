@@ -81,31 +81,30 @@ def _load_seq_img(data_path, tile_coors, prefix, mode="max"):
     stk, bad_pixels = load_tile_ref_coors(
         data_path=data_path, prefix=prefix, tile_coors=tile_coors, filter_r=False
     )
-    match mode:
-        case "max":
-            stk = np.max(stk, axis=3)
-            cl = np.percentile(stk, [0.01, 99.9])
-            data = np.moveaxis(stk, [0, 1, 2], [1, 2, 0])
-            rgb = False
-        case "rgb":
-            data = []
-            vmax = np.nanpercentile(stk, 99.99, axis=(0, 1, 3))
-            vmin = np.nanpercentile(stk, 0.01, axis=(0, 1, 3))
-            for irnd in range(stk.shape[3]):
-                rnd = stk[:, :, :, irnd]
-                rnd = iss.vis.to_rgb(
-                    rnd,
-                    colors=[(1, 0, 0), (0, 1, 0), (1, 0, 1), (0, 1, 1)],
-                    vmax=vmax,
-                    vmin=vmin,
-                )
-                data.append(rnd)
-            data = np.stack(data, axis=3)
-            data = np.moveaxis(data, [0, 1, 2, 3], [1, 2, 3, 0])
-            rgb = True
-            cl = [0, 1]
-        case _:
-            raise NotImplementedError(f"mode {mode} not implemented")
+    if mode == "max":
+        stk = np.max(stk, axis=3)
+        cl = np.percentile(stk, [0.01, 99.9])
+        data = np.moveaxis(stk, [0, 1, 2], [1, 2, 0])
+        rgb = False
+    elif mode == "rgb":
+        data = []
+        vmax = np.nanpercentile(stk, 99.99, axis=(0, 1, 3))
+        vmin = np.nanpercentile(stk, 0.01, axis=(0, 1, 3))
+        for irnd in range(stk.shape[3]):
+            rnd = stk[:, :, :, irnd]
+            rnd = iss.vis.to_rgb(
+                rnd,
+                colors=[(1, 0, 0), (0, 1, 0), (1, 0, 1), (0, 1, 1)],
+                vmax=vmax,
+                vmin=vmin,
+            )
+            data.append(rnd)
+        data = np.stack(data, axis=3)
+        data = np.moveaxis(data, [0, 1, 2, 3], [1, 2, 3, 0])
+        rgb = True
+        cl = [0, 1]
+    else:
+        raise NotImplementedError(f"mode {mode} not implemented")
     return data, cl, rgb
 
 

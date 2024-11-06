@@ -59,9 +59,9 @@ registration:
   # Minumum number of tile for RANSAC fit, otherwise median is used
   ransac_min_tiles: 10
   # Whether tile position increments from left to right or right to left
-  x_tile_direction: left_to_right
+  x_tile_direction: right_to_left
   # Whether tile position increments from bottom to top or top to bottom
-  y_tile_direction: bottom_to_top
+  y_tile_direction: top_to_bottom
   # Radius of disk for median filtering images before registration.
   # if `null` no filter is applied.
   reg_median_filter: 1
@@ -153,41 +153,62 @@ hybridisation:
   # Optionaly the registration can be done by group of channels, registering pairs of
   # channels together and then one of the pair to the reference. For instance, if you
   # have 4 channels and you want to register 1-2 and 3-4 together and then 4 to 1, the
-  # final reference, you would set channel_grouping to [[1,2], [4,3]]
-  hybridisation_reg_channel_grouping: [[1,2], [4,3]]
+  # final reference, you would set channel_grouping to [[0,1], [3,2]]
+  hybridisation_reg_channel_grouping: [[0,1], [3,2]]
 
 # Detection of mCherry+ cells
 mcherry:
   # Projection to use for mCherry detection
   mcherry_projection: max
+  # Signal and background channel for mCherry detection
+  mcherry_signal_channel: 2
+  mcherry_background_channel: 3
   # Binarisation quantile for registration of mCherry to reference channel
   mcherry_binarise_quantile: null
-  # Tile coors for finding coef and intercept for unmixing mCherry
-  mcherry_ref_tile: [ 3, 1, 5 ]
+  # Tile coors for finding coef and intercept for unmixing mCherry, can be "random" or
+  # a list of tile coordinates
+  mcherry_ref_tiles: "random"
+  # Random seed to select mCherry reference tiles for unmixing
+  mcherry_ref_tiles_seed: 42
+  # Number of random tiles to use for mCherry unmixing
+  mcherry_ref_tiles_n_random: 15
   # Multiplier for the background subtraction used for mCherry detection
-  background_coef: 1.1
-  # Intensity background threshold for linear fit of mCherry signal
-  threshold_background: 200
-  # Minimum area for mCherry cell masks
-  min_area_threshold: 600
-  # Maximum area for mCherry cell masks
+  unmixing_background_coef: 1.1
+  # Intensity thresholds for linear fit of mCherry signal
+  unmixing_threshold_background: null
+  unmixing_threshold_signal: 4096
+  unmixing_fit_intercept: true
+  # Threshold for detecting cells on unmixed image
+  mcherry_detection_threshold: 2
+  # Minimum area for mCherry cell masks, in px^2
+  min_area_threshold: 500
+  # Maximum area for mCherry cell masks, in px^2
   max_area_threshold: 5000
   # Minimum circularity for mCherry cell masks, closer to 1 is more circular
-  min_circularity_threshold: 0.7
+  min_circularity_threshold: null
   # Maximum circularity for mCherry cell masks, closer to 1 is more circular
-  max_circularity_threshold: 1
+  max_circularity_threshold: null
   # Minimum solidity for mCherry cell masks, closer to 1 is less convex
-  min_solidity_threshold: 0.9
+  min_solidity_threshold: null
   # Maximum solidity for mCherry cell masks
-  max_solidity_threshold: 1
+  max_solidity_threshold: null
   # Maximum eccentricity for mCherry cell masks
-  max_elongation_threshold: 0.99
+  max_elongation_threshold: null
   # Maximum background channel intensity for mCherry cell masks
-  max_bg_intensity_threshold: 200
-  # Inner radius of the han window annulus for mcherry prefiltering
-  mcherry_r1: 4
-  # Outer radius of the han window annulus for mcherry prefiltering
-  mcherry_r2: 70
+  max_bg_intensity_threshold: 50
+  # Minimum background channel intensity for mCherry cell masks
+  # to remove cells with 0 background (border of image after channel registration)
+  min_bg_intensity_threshold: 0.1
+  # Inner radius of the difference of gaussian filter for mcherry prefiltering
+  mcherry_r1: 7
+  # Outer radius of the difference of gaussian filter for mcherry prefiltering
+  mcherry_r2: 21
+  # Mask can be further filtered using a gmm
+  mcherry_gmm_filter_masks: true
+  # Parameters to register mCherry tiles within acquisition
+  mcherry_min_corrcoef: 0.5
+  mcherry_max_delta_shift: 30
+
 
 # projection for other acquisitions
 dapi_projection: max-median
@@ -236,4 +257,4 @@ atlas:
 
 # Database integration.
 # If true will upload ops to flexilims when performing a batch operation
-use_flexilims: true
+use_flexilims: False
