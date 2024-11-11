@@ -30,7 +30,7 @@ def sync_and_crunch_cli():
 )
 def project_tile(path, prefix, roi=1, x=0, y=0, overwrite=False):
     """Calculate Z-projection on a single tile."""
-    from iss_preprocess.pipeline import project_tile_by_coors
+    from iss_preprocess.pipeline.project import project_tile_by_coors
 
     click.echo(f"Projecting ROI {roi}, {prefix}, tile {x}, {y} from {path}")
     project_tile_by_coors((roi, x, y), path, prefix, overwrite=overwrite)
@@ -55,7 +55,7 @@ def project_tile(path, prefix, roi=1, x=0, y=0, overwrite=False):
 )
 def project_row(path, prefix, roi=1, x=0, max_col=0, overwrite=False):
     """Calculate Z-projection for a single row of tiles"""
-    from iss_preprocess.pipeline import project_tile_row
+    from iss_preprocess.pipeline.project import project_tile_row
 
     click.echo(f"Projecting ROI {roi}, {prefix}, row {x}, from {path}")
     project_tile_row(path, prefix, roi, x, max_col, overwrite=overwrite)
@@ -82,7 +82,7 @@ def project_row(path, prefix, roi=1, x=0, max_col=0, overwrite=False):
 )
 def project_round(path, prefix, overwrite=False, overview=True):
     """Calculate Z-projection for all tiles in a single sequencing round."""
-    from iss_preprocess.pipeline import project_round
+    from iss_preprocess.pipeline.project import project_round
 
     click.echo(f"Projecting ROI {prefix} from {path}")
     project_round(path, prefix, overwrite=overwrite, overview=overview)
