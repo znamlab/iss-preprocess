@@ -49,10 +49,21 @@ def project_and_average(data_path, force_redo=False):
     ops = iss.io.load_ops(data_path)
     # First, set up flexilims, adding chamber
     if ops["use_flexilims"]:
-        iss.pipeline.setup_flexilims(data_path)
+        setup_flexilims(data_path)
 
+    todo = ["genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"]
     # Make a list of expected acquisition folders using metadata.yml
-    todo = ("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation")
+    if metadata["genes_rounds"] == 0:
+        todo.remove("genes_rounds")
+    if metadata["barcode_rounds"] == 0:
+        todo.remove("barcode_rounds")
+    if ("fluorescence" not in metadata.keys()) or (len(metadata["fluorescence"]) == 0):
+        todo.remove("fluorescence")
+    if ("hybridisation" not in metadata.keys()) or (
+        len(metadata["hybridisation"]) == 0
+    ):
+        todo.remove("hybridisation")
+
     data_by_kind = {kind: [] for kind in todo}
     acquisition_complete = {kind: True for kind in todo}
     for kind in todo:
@@ -161,13 +172,28 @@ def project_and_average(data_path, force_redo=False):
 
     # Then create averages of projections
     csa_job_ids = iss.pipeline.create_all_single_averages(
-        data_path, n_batch=1, to_average=to_process, dependency=all_check_proj_job_ids
+        data_path,
+        n_batch=1,
+        to_average=to_process,
+        dependency=all_check_proj_job_ids,
+        force_redo=force_redo,
     )
 
     # Create grand averages if all rounds of a certain type are projected
-    if acquisition_complete["genes_rounds"] or acquisition_complete["barcode_rounds"]:
+    prefix_todo = []
+    if acquisition_complete.get("genes_rounds", False):
+        prefix_todo.append("genes_round")
+    if acquisition_complete.get("barcode_rounds", False):
+        prefix_todo.append("barcode_round")
+    if all(acquisition_complete.values()):
+        prefix_todo.append("")
+
+    if prefix_todo:
         cga_job_ids = iss.pipeline.create_grand_averages(
-            data_path, dependency=csa_job_ids if csa_job_ids else None
+            data_path,
+            dependency=csa_job_ids if csa_job_ids else None,
+            force_redo=force_redo,
+            prefix_todo=prefix_todo,
         )
     else:
         print(
@@ -588,6 +614,7 @@ def create_all_single_averages(
     todo=("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"),
     to_average=None,
     dependency=None,
+    force_redo=False,
 ):
     """Average all tiffs in each folder and then all folders by acquisition type
 
@@ -602,6 +629,8 @@ def create_all_single_averages(
             all folders listed in metadata. Defaults to None.
         dependency (list, optional): List of job IDs to wait for before starting the
             current job. Defaults to None.
+        force_redo (bool, optional): Redo if the average already exists. Defaults to
+            False.
     """
     processed_path = iss.io.get_processed_path(data_path)
     ops = iss.io.load_ops(data_path)
@@ -629,7 +658,7 @@ def create_all_single_averages(
             warnings.warn(f"{data_folder} projected data does not exist. Skipping")
             continue
         average_image = processed_path / "averages" / f"{folder}_average.tif"
-        if average_image.exists():
+        if (not force_redo) and average_image.exists():
             print(f"{folder} average already exists. Skipping")
             continue
         print(f"Creating single average {folder}", flush=True)
@@ -657,18 +686,22 @@ def create_all_single_averages(
 @updates_flexilims
 def create_grand_averages(
     data_path,
-    prefix_todo=("genes_round", "barcode_round"),
+    prefix_todo=("genes_round", "barcode_round", ""),
     n_batch=None,
     dependency=None,
+    force_redo=False,
 ):
     """Average single acquisition averages into grand average
 
     Args:
         data_path (str): Path to the folder, relative to `projects` folder
-        prefix_todo (tuple, optional): List of str, names of the tifs to average.
-            Defaults to ("genes_round", "barcode_round").
+        prefix_todo (tuple, optional): List of str, names of the tifs to average. An
+            empty string will average all tifs. Defaults to ("genes_round",
+                "barcode_round", "").
         n_batch (int, optional): Number of batch to average before taking their median.
             If None, will do as many batches as images. Defaults to None.
+        force_redo (bool, optional): Redo if the average already exists. Defaults to
+            False.
 
     """
     if prefix_todo is None:
@@ -678,13 +711,22 @@ def create_grand_averages(
             prefix_todo.append("genes_round")
         if metadata["barcode_rounds"] > 0:
             prefix_todo.append("barcode_round")
+        prefix_todo.append("")
 
     subfolder = "averages"
     job_ids = []
     slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    prefix_todo = list(prefix_todo) + [""]
+    target_folder = iss.io.get_processed_path(data_path) / subfolder
     for kind in prefix_todo:
+        if kind:
+            target_file = target_folder / f"averages_average.tif"
+        else:
+            target_file = target_folder / "grand_average.tif"
+        if (not force_redo) and target_file.exists():
+            print(f"{kind} grand average already exists. Skipping")
+            continue
+
         print(f"Creating grand average {kind}", flush=True)
         job_ids.append(
             create_single_average(
