@@ -32,5 +32,6 @@ setup(
         [console_scripts]
         iss=iss_preprocess.cli.iss:cli
         iss-register=iss_preprocess.cli.register_cli:register_cli
+        iss-sync-and-crunch=iss_preprocess.cli.sync_and_crunch_cli:sync_and_crunch_cli
         """,
 )
