@@ -27,26 +27,35 @@ The script will perform the following steps:
 
     graph TD;
         start[Start] --> find[Find acquisitions];
+        subgraph Project and average
+            subgraph Projecting
+                find --> prj[project_round];
+                prj --> check[check_roi_dims];
+                check --> reprj[reproject_failed];
+                reprj --> prj;
+            end
 
-        subgraph Projecting
-            find --> prj[project_round];
-            prj --> check[check_roi_dims];
-            check --> reprj[reproject_failed];
-            reprj --> prj;
+            subgraph Averaging
+                sav[create_all_single_averages];
+                sav --> gav[create_grand_averages];
+            end
+
+            prj --> sav;
+
+            subgraph ROI overview
+                ovw[plot_overview_images];
+            end
+
+            gav --> ovw;
         end
 
-        subgraph Averaging
-            sav[create_all_single_averages];
-            sav --> gav[create_grand_averages];
-        end
+Finding acquisitions:
+~~~~~~~~~~~~~~~~~~~~~
 
-        Projecting --> Averaging;
+To find the dataset, the script will parse the ``FOLDERNAME_metadata.yaml`` file in the
+data directory.
 
-        subgraph ROI overview
-            ovw[plot_overview_images];
-        end
-
-        Averaging --> ovw;
+TODO: Add template for metadata file
 
 
 Project tiles:
