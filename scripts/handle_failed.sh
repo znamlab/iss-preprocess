@@ -23,4 +23,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss handle-failed -j $JOBSINFO
+iss-core handle-failed -j $JOBSINFO

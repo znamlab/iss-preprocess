@@ -768,15 +768,6 @@ def overview_for_ara_registration(
 
 @iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def setup_flexilims(path):
-    """Setup the flexilims database"""
-    from iss_preprocess.pipeline import setup_flexilims
-
-    setup_flexilims(path)
-
-
-@iss_cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "--use-slurm/--local", is_flag=True, default=True, help="Whether to use slurm"
 )
@@ -951,12 +942,3 @@ def filter_mcherry_masks(path, prefix):
 
     # TODO: move out of main CLI
     _gmm_cluster_mcherry_cells(path, prefix)
-
-
-@iss_cli.command()
-@click.option("-j", "--jobsinfo", help="Job ids and args file.")
-def handle_failed(jobsinfo):
-    from iss_preprocess.pipeline import handle_failed_jobs
-
-    # TODO: move out of main CLI
-    handle_failed_jobs(jobsinfo)
