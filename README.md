@@ -24,6 +24,7 @@ The main workflow is as follows:
 
 ```mermaid
 graph TD;
+    start[Collect data] --> A[project-and-average];
     A[project-and-average] --> B[register-sequencing-rounds];
     A --> C[normalise-channel-and-rounds];
     A --> D[register-hybridisation];
@@ -37,10 +38,13 @@ graph TD;
     E --> H;
 ```
 
+For more information on the individual steps, see the [documentation](https://iss-preprocess.znamlab.org/).
 
 
 
-### Documentation
+## Development
+
+### Building the documentation
 
 To build the documentation you also need to install
 ```
