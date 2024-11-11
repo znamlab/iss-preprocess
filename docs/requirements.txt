@@ -1,2 +1,4 @@
+furo
 m2r2
 sphinx
+sphinxcontrib-mermaid

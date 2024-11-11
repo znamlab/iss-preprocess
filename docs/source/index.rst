@@ -10,6 +10,7 @@ Welcome to iss-preprocess's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   project_and_average
    registration
    correction
    bleedthrough

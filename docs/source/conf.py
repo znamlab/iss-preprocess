@@ -35,6 +35,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.githubpages",
+    'sphinxcontrib.mermaid',
     "m2r2",
 ]
 
