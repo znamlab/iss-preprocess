@@ -1,9 +1,13 @@
 ```mermaid
 graph TD;
-    A[Start] --> B[Load Data];
-    B --> C[Preprocess Data];
-    C --> D[Train Model];
-    D --> E[Evaluate Model];
-    E --> F[Deploy Model];
-    F --> G[End];
+    A[project-and-average] --> B[register-sequencing-rounds];
+    A --> C[normalise-channel-and-rounds];
+    A --> D[register-hybridisation];
+    D --> E[detect-hyb-spots];
+    C --> F[genes OMP];
+    B --> F;
+    C --> G[barcode base calling];
+    C --> G;
+    F --> H[register-to-ref];
+    G --> H;
 ```
