@@ -49,7 +49,7 @@ def project_and_average(data_path, force_redo=False):
     ops = iss.io.load_ops(data_path)
     # First, set up flexilims, adding chamber
     if ops["use_flexilims"]:
-        iss.pipeline.setup_flexilims(data_path)
+        setup_flexilims(data_path)
 
     # Make a list of expected acquisition folders using metadata.yml
     todo = ("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation")
