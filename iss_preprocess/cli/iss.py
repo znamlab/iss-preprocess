@@ -2,11 +2,11 @@ import click
 
 
 @click.group()
-def cli():
+def iss_cli():
     pass
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-f",
@@ -37,7 +37,7 @@ def project_and_average(path, force_redo=False, use_slurm=True):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
@@ -59,7 +59,7 @@ def extract_tile(path, roi=1, x=0, y=0, save=False):
     detect_genes_on_tile(path, (roi, x, y), save_stack=save)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
@@ -74,7 +74,7 @@ def basecall_tile(path, roi=1, x=0, y=0):
     basecall_tile(path, (roi, x, y))
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
@@ -99,7 +99,7 @@ def project_tile(path, prefix, roi=1, x=0, y=0, overwrite=False):
     project_tile_by_coors((roi, x, y), path, prefix, overwrite=overwrite)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
@@ -124,7 +124,7 @@ def project_row(path, prefix, roi=1, x=0, max_col=0, overwrite=False):
     project_tile_row(path, prefix, roi, x, max_col, overwrite=overwrite)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", prompt="Enter path prefix", help="Path prefile, e.g. round_01_1"
@@ -151,7 +151,7 @@ def project_round(path, prefix, overwrite=False, overview=True):
     project_round(path, prefix, overwrite=overwrite, overview=overview)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Acq prefix, e.g. `genes_round_1_1`, None for all")
 def check_projection(path, prefix):
@@ -161,7 +161,7 @@ def check_projection(path, prefix):
     pipeline.check_projection(path, prefix)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
@@ -202,7 +202,7 @@ def register_ref_tile(path, prefix, diag):
     print(f"Started 2 jobs: {job_id}, {job2}")
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 def setup_omp(path, use_slurm=True):
@@ -218,7 +218,7 @@ def setup_omp(path, use_slurm=True):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 def setup_barcodes(path, use_slurm=True):
@@ -237,7 +237,7 @@ def setup_barcodes(path, use_slurm=True):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n",
@@ -263,7 +263,7 @@ def setup_hybridisation(path, prefix=None, use_slurm=True):
     setup_hyb_spot_calling(path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option(
     "-p", "--path", prompt="Enter data path", help="Data path.", required=True
 )
@@ -277,7 +277,7 @@ def estimate_shifts(path, prefix, suffix="max"):
     batch_process_tiles(path, script="register_tile", additional_args=additional_args)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
 def estimate_hyb_shifts(path, prefix=None):
@@ -304,7 +304,7 @@ def estimate_hyb_shifts(path, prefix=None):
             )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option(
     "-p", "--path", prompt="Enter data path", help="Data path.", required=True
 )
@@ -348,7 +348,7 @@ def correct_shifts(path, prefix, use_slurm=False):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
@@ -398,7 +398,7 @@ def correct_hyb_shifts(path, prefix=None, use_slurm=False):
             print(f"Started 2 jobs: {job_id}, {job2}")
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
@@ -446,7 +446,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", default="genes_round", help="Path prefix, e.g. 'genes_round'"
@@ -458,7 +458,7 @@ def spot_sign_image(path, prefix="genes_round"):
     compute_spot_sign_image(path, prefix)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-r", "--roi", default=None, help="Number of the ROI..")
 @click.option("-x", "--tilex", default=None, help="Tile X position")
@@ -492,7 +492,7 @@ def check_omp(path, roi, tilex, tiley, use_slurm=True):
         )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-r", "--roi", default=None, help="Number of the ROI..")
 @click.option("-x", "--tilex", default=None, help="Tile X position")
@@ -526,7 +526,7 @@ def check_omp_alpha(path, roi, tilex, tiley, use_slurm=True):
         )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def basecall(path):
     """Start batch jobs to run basecalling for barcodes on all tiles."""
@@ -551,7 +551,7 @@ def basecall(path):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
 @click.option("--ref-tile-index", default=0, help="Reference tile index")
@@ -574,7 +574,7 @@ def check_basecall(path, use_slurm=False, ref_tile_index=0):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def extract(path):
     """Start batch jobs to run OMP on all tiles in a dataset."""
@@ -583,7 +583,7 @@ def extract(path):
     batch_process_tiles(path, "extract_tile")
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n",
@@ -605,7 +605,7 @@ def segment(path, prefix, roi=1, use_gpu=False):
     segment_roi(path, roi, prefix, use_gpu=use_gpu)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n",
@@ -626,7 +626,7 @@ def segment_all(path, prefix, use_gpu=False):
     segment_all_rois(path, prefix, use_gpu=use_gpu)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n",
@@ -699,7 +699,7 @@ def register_to_reference(
         )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-s",
@@ -747,7 +747,7 @@ def align_spots(
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-s",
@@ -775,7 +775,7 @@ def align_spots_roi(
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def hyb_spots(path):
     """Detect hybridisation in all ROIs / hybridisation rounds"""
@@ -784,7 +784,7 @@ def hyb_spots(path):
     extract_hyb_spots_all(path)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix for spot detection")
 @click.option("-r", "--roi", default=None, help="Number of the ROI..")
@@ -804,7 +804,7 @@ def extract_hyb_spots(path, prefix, roi, tilex, tiley):
         extract_hyb_spots_roi(path, prefix, roi)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 # TODO: expose prefix_to_do
 def create_grand_averages(path):
@@ -814,7 +814,7 @@ def create_grand_averages(path):
     pipeline.create_grand_averages(path, prefix_todo=None)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "--n-batch",
@@ -828,7 +828,7 @@ def create_all_single_averages(path, n_batch):
     pipeline.create_all_single_averages(path, n_batch=n_batch)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-b", "--subtract-black/--no-subtract-black", help="Subtract black level")
 @click.option(
@@ -873,7 +873,7 @@ def create_single_average(
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-r", "--roi", help="Roi id", type=int)
 @click.option("-s", "--slice_id", help="ID for ordering ROIs", type=int)
@@ -922,7 +922,7 @@ def overview_for_ara_registration(
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def setup_flexilims(path):
     """Setup the flexilims database"""
@@ -931,7 +931,7 @@ def setup_flexilims(path):
     setup_flexilims(path)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "--use-slurm/--local", is_flag=True, default=True, help="Whether to use slurm"
@@ -945,7 +945,7 @@ def setup_channel_correction(path, use_slurm=True):
     click.echo("Channel correction setup complete.")
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--genes", is_flag=True, help="Whether to call spots for genes.")
 @click.option("--barcodes", is_flag=True, help="Whether to call spots for barcodes.")
@@ -968,7 +968,7 @@ def call_spots(path, genes, barcodes, hybridisation):
     call_spots(path, genes, barcodes, hybridisation)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option(
     "--path", "-p", prompt="Enter data path", help="Data path.", required=True
 )
@@ -1015,7 +1015,7 @@ def plot_overview(
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
@@ -1046,7 +1046,7 @@ def segment_all_mcherry(path, prefix="mCherry_1"):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
@@ -1070,7 +1070,7 @@ def segment_mcherry_tile(path, prefix, roi, tilex, tiley):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
@@ -1094,7 +1094,7 @@ def remove_non_cell_masks(path, prefix, roi, tilex, tiley):
     )
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n", "--prefix", default="mCherry_1", help="Path prefix, e.g. 'mCherry_1'"
@@ -1109,7 +1109,7 @@ def filter_mcherry_masks(path, prefix):
     _gmm_cluster_mcherry_cells(path, prefix)
 
 
-@cli.command()
+@iss_cli.command()
 @click.option("-j", "--jobsinfo", help="Job ids and args file.")
 def handle_failed(jobsinfo):
     from iss_preprocess.pipeline import handle_failed_jobs
