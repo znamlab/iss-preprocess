@@ -16,7 +16,7 @@ def iss_cli():
     default=False,
     help="Force redoing all steps.",
 )
-@click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
+@click.option("--use-slurm/--no-use-slurm", default=True, help="Whether to use slurm")
 def project_and_average(path, force_redo=False, use_slurm=True):
     """Project and average all available data then create plots."""
     from datetime import datetime
