@@ -93,6 +93,75 @@ def project_round(path, prefix, overwrite=False, overview=True):
 @click.option("-n", "--prefix", help="Acq prefix, e.g. `genes_round_1_1`, None for all")
 def check_projection(path, prefix):
     """Check if projection has completed for all tile."""
-    import iss_preprocess.pipeline as pipeline
+    from iss_preprocess.pipeline.project import check_projection
 
-    pipeline.check_projection(path, prefix)
+    check_projection(path, prefix)
+
+
+@sync_and_crunch_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+# TODO: expose prefix_to_do
+def create_grand_averages(path):
+    """Create grand average for illumination correction"""
+    from iss_preprocess.pipeline import create_grand_averages
+
+    create_grand_averages(path, prefix_todo=None)
+
+
+@sync_and_crunch_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "--n-batch",
+    help="Number of average batches to compute before taking their median.",
+    default=1,
+)
+def create_all_single_averages(path, n_batch):
+    """Average all tiffs in all acquisition folders"""
+    from iss_preprocess.pipeline import create_all_single_averages
+
+    create_all_single_averages(path, n_batch=n_batch)
+
+
+@sync_and_crunch_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-b", "--subtract-black/--no-subtract-black", help="Subtract black level")
+@click.option(
+    "-s", "--subfolder", help="Subfolder containing tifs to average", default=""
+)
+@click.option(
+    "--prefix_filter",
+    help="Filter to average only subset of tifs of the folder",
+    type=str,
+    default=None,
+)
+@click.option(
+    "--suffix",
+    help="Filter to average only subset of tifs of the folder",
+    type=str,
+    default=None,
+)
+@click.option(
+    "--combine-stats/--no-combine-stats",
+    help="Combine pre-existing statistics into one instead of computing from images",
+    default=False,
+)
+@click.option(
+    "--n-batch",
+    help="Number of average batches to compute before taking their median.",
+    default=1,
+)
+def create_single_average(
+    path, subtract_black, subfolder, prefix_filter, suffix, combine_stats, n_batch
+):
+    """Average all tiffs in an acquisition folder"""
+    from iss_preprocess.pipeline import create_single_average
+
+    create_single_average(
+        path,
+        subfolder=subfolder,
+        subtract_black=subtract_black,
+        prefix_filter=prefix_filter,
+        suffix=suffix,
+        combine_tilestats=combine_stats,
+        n_batch=n_batch,
+    )
