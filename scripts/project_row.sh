@@ -24,4 +24,4 @@ source activate base
 
 conda activate iss-preprocess
 
-iss project-row -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -m $MAX_COL $OVERWRITE
+iss-sync-and-crunch project-row -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -m $MAX_COL $OVERWRITE

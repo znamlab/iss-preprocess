@@ -28,4 +28,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss create-single-average -p $DATAPATH -s $SUBFOLDER --subtract-black --suffix $SUFFIX --n-batch $N_BATCH
+iss-sync-and-crunch create-single-average -p $DATAPATH -s $SUBFOLDER --subtract-black --suffix $SUFFIX --n-batch $N_BATCH

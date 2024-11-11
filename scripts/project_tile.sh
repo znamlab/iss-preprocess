@@ -27,4 +27,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss project-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY $OVERWRITE
+iss-sync-and-crunch project-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY $OVERWRITE

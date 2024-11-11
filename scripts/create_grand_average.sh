@@ -27,4 +27,4 @@ echo "Conda environment activated"
 echo "Checking iss command"
 which iss
 echo "Running python script"
-iss create-single-average -p $DATAPATH -s $SUBFOLDER --prefix_filter $PREFIX --no-subtract-black --combine-stats --suffix "_1_average"
+iss-sync-and-crunch create-single-average -p $DATAPATH -s $SUBFOLDER --prefix_filter $PREFIX --no-subtract-black --combine-stats --suffix "_1_average"

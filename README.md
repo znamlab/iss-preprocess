@@ -18,13 +18,40 @@ conda activate iss-preprocess
 pip install -e .
 ```
 
-### Documentation
+## Usage
+
+The main workflow is as follows:
+
+```mermaid
+graph TD;
+    start[Collect data] --> A[project-and-average];
+    A[project-and-average] --> B[register-sequencing-rounds];
+    A --> C[normalise-channel-and-rounds];
+    A --> D[register-hybridisation];
+    D --> E[detect-hyb-spots];
+    C --> F[genes OMP];
+    B --> F;
+    C --> G[barcode base calling];
+    B --> G;
+    F --> H[register-to-ref];
+    G --> H;
+    E --> H;
+```
+
+For more information on the individual steps, see the [documentation](https://iss-preprocess.znamlab.org/).
+
+
+
+## Development
+
+### Building the documentation
 
 To build the documentation you also need to install
 ```
 Sphinx
 furo
 m2r2
+sphinxcontrib-mermaid
 ```
 
 ### Atlas cache
