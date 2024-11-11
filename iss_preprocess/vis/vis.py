@@ -456,7 +456,8 @@ def plot_overview_images(
 
         for ch in channels:
             if isinstance(ch, list):
-                scripts_name = f"plot_overview_{prefix}_{roi}_channels_{'_'.join([str(c) for c in ch])}"
+                ch_name = "_".join([str(c) for c in ch])
+                scripts_name = f"plot_overview_{prefix}_{roi}_channels_{ch_name}"
             else:
                 scripts_name = f"plot_overview_{prefix}_{roi}_channel_{ch}"
             slurm_folder = Path.home() / "slurm_logs" / data_path / "plot_overview/"
