@@ -233,6 +233,25 @@ def project_and_average(data_path, force_redo=False):
     print("All jobs submitted", flush=True)
 
 
+@slurm_it(conda_env="iss-preprocess")
+def register_acquisition(data_path, prefix):
+    """Register an acquisition across all rounds and channels
+
+    Args:
+        path (str): Path to the data folder
+        prefix (str): Prefix of the acquisition to register
+
+    """
+    ops = iss.io.load_ops(data_path)
+    metadata = iss.io.load_metadata(data_path)
+    if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
+        # Register a sequencing acquisition
+        raise NotImplementedError("Sequencing registration not yet implemented")
+    else:
+        # Register a single round fluorescence acquisition
+        raise NotImplementedError("Single round registration not yet implemented")
+
+
 def load_and_register_tile(
     data_path,
     tile_coors,

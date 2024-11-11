@@ -16,7 +16,12 @@ def iss_cli():
     default=False,
     help="Force redoing all steps.",
 )
-@click.option("--use-slurm/--no-use-slurm", default=True, help="Whether to use slurm")
+@click.option(
+    "--use-slurm/--no-use-slurm",
+    default=True,
+    help="Whether to use slurm for the main pipeline job "
+    + "(subsequent steps always use slurm).",
+)
 def project_and_average(path, force_redo=False, use_slurm=True):
     """Project and average all available data then create plots."""
     from datetime import datetime
@@ -34,6 +39,36 @@ def project_and_average(path, force_redo=False, use_slurm=True):
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         scripts_name=f"project_and_average_{time}",
+    )
+
+
+@iss_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
+    "--use-slurm/--no-use-slurm",
+    default=True,
+    help="Whether to use slurm for the main pipeline job "
+    + "(subsequent steps always use slurm).",
+)
+def register_acquisition(path, prefix, use_slurm=True):
+    """Register an acquisition across round and channels."""
+    from datetime import datetime
+    from pathlib import Path
+    from iss_preprocess.pipeline import register_acquisition
+
+    time = str(datetime.now().strftime("%Y-%m-%d_%H-%M"))
+    slurm_folder = Path.home() / "slurm_logs" / path
+    if use_slurm:
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    click.echo(f"Processing {path}")
+
+    register_acquisition(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"register_acquisition_{time}",
     )
 
 
