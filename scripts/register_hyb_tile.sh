@@ -27,4 +27,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss register-hyb-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY
+iss-register register-hyb-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY

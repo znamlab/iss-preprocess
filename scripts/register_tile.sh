@@ -28,4 +28,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss register-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY -s $SUFFIX
+iss-register register-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY -s $SUFFIX
