@@ -424,9 +424,9 @@ def load_and_register_sequencing_tile(
 
     Returns:
         numpy.ndarray: X x Y x Nch x len(specific_rounds) or Nrounds image stack.
-        numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged
-            for all channels and rounds (due to registration offsets) and should be discarded
-            during analysis.
+        numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not
+            imaged for all channels and rounds (due to registration offsets) and should
+            be discarded during analysis.
 
     """
     if specific_rounds is None:
@@ -500,18 +500,15 @@ def get_channel_round_shifts(data_path, prefix, tile_coors, corrected_shifts):
     """
     processed_path = iss.io.get_processed_path(data_path)
     tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
+    tforms_path = processed_path / "reg" / prefix
     if corrected_shifts == "reference":
-        tforms_fname = f"tforms_{prefix}.npz"
-        tforms_path = processed_path
+        tforms_fname = f"ref_tile_tforms_{prefix}.npz"
     elif corrected_shifts == "single_tile":
         tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
-        tforms_path = processed_path / "reg"
     elif corrected_shifts == "ransac":
         tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
-        tforms_path = processed_path / "reg"
     elif corrected_shifts == "best":
         tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
-        tforms_path = processed_path / "reg"
     else:
         raise ValueError(f"unknown shift correction method: {corrected_shifts}")
     tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
