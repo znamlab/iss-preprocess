@@ -1,21 +1,22 @@
 [project]
 name = "iss-preprocess"
-authors = [{name = "Antonin Blot", email= "antonin.blot@crick.ac.uk"}]
-description = "Preprocessing tools for ISS data"
+authors = [{name = "Znamenskiy lab", email= "petr.znamenskiy@crick.ac.uk"}]
+description = "Tools for processing in situ sequencing data"
 readme = "README.md"
 requires-python = ">=3.9.0"
 dynamic = ["version"]
-dependencies = [ "numpy",
+dependencies = [
+        "numpy",
         "matplotlib",
         "scikit-image",
         "scikit-learn",
         "flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git",
         "znamutils @ git+ssh://git@github.com/znamlab/znamutils.git",
-        "image-tools @ git+ssh://git@github.com/znamlab/image-tools.git",
+        "iss-preprocess @ git+ssh://git@github.com/znamlab/iss-preprocess.git",
         "opencv-python",
         "numba",
         "cellpose",
-        "Click",
+        "click",
         "brainglobe_atlasapi",
         "natsort",
         "seaborn",
@@ -34,6 +35,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 
+[project.scripts]
+iss = "iss_preprocess.cli.iss:iss_cli"
+iss-register = "iss_preprocess.cli.register_cli:register_cli"
+iss-sync-and-crunch = "iss_preprocess.cli.sync_and_crunch_cli:sync_and_crunch_cli"
+
 [project.urls]
 "Homepage" = "https://github.com/znamlab/iss-preprocess"
 "Bug Tracker" = "https://github.com/znamlab/iss-preprocess/issues"
@@ -42,17 +48,13 @@ classifiers = [
 "Source Code" = "https://github.com/znamlab/iss-preprocess"
 "User Support" = "https://github.com/znamlab/iss-preprocess/issues"
 
-
 [project.optional-dependencies]
 dev = [
   "pytest",
   "pytest-cov",
   "coverage",
   "tox",
-  "furo",
-  "m2r2",
-  "sphinx",
-  "sphinxcontrib-mermaid",
+  "black",
   "mypy",
   "pre-commit",
   "ruff",
@@ -72,22 +74,53 @@ build-backend = "setuptools.build_meta"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["iss_preprocess*"]
+include = ["image_tools*"]
 exclude = ["tests", "docs*"]
+
+
+[tool.pytest.ini_options]
+addopts = "--cov=image_tools"
+
+[tool.black]
+target-version = ['py39', 'py310', 'py311']
+skip-string-normalization = false
+line-length = 88
+
+[tool.setuptools_scm]
+
+[tool.check-manifest]
+ignore = [
+  ".yaml",
+  "tox.ini",
+  "tests/",
+  "tests/test_unit/",
+  "tests/test_integration/",
+  "docs/",
+  "docs/source/",
+]
 
 
 [tool.ruff]
 line-length = 88
-exclude = ["__init__.py", "build", ".eggs"]
-lint.select = ["I", "E", "F"]
+exclude = ["__init__.py","build",".eggs"]
+select = ["I", "E", "F"]
 fix = true
 
-[tool.ruff.format]
-docstring-code-format = true # Also format code in docstrings
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py{39,310,311}
+isolated_build = True
 
-[tool.codespell]
-# Ref: https://github.com/codespell-project/codespell#using-a-config-file
-skip = '.git'
-check-hidden = true
-# ignore-regex = ''
-# ignore-words-list = ''
+[gh-actions]
+python =
+    3.9: py39
+    3.10: py310
+    3.11: py311
+
+[testenv]
+extras =
+    dev
+commands =
+    pytest -v --color=yes --cov=image_tools --cov-report=xml
+"""
