@@ -25,10 +25,9 @@ The main workflow is as follows:
 ```mermaid
 graph TD;
     start[Collect data] --> A[project-and-average];
-    A[project-and-average] --> B[register-sequencing-rounds];
+    A[project-and-average] --> B[register];
     A --> C[normalise-channel-and-rounds];
-    A --> D[register-hybridisation];
-    D --> E[detect-hyb-spots];
+    B --> E[detect-hyb-spots];
     C --> F[genes OMP];
     B --> F;
     C --> G[barcode base calling];
@@ -46,12 +45,22 @@ For more information on the individual steps, see the [documentation](https://is
 
 ### Building the documentation
 
-To build the documentation you also need to install
+To build the documentation you need to install extra dependencies, either by running:
+
 ```
-Sphinx
-furo
-m2r2
-sphinxcontrib-mermaid
+pip install -e .[dev]
+```
+
+or using the requirement file:
+
+```
+pip install -r docs/requirements.txt
+```
+
+Then you can build the documentation locally by running:
+
+```
+sphinx-build docs/source docs/build
 ```
 
 ### Atlas cache
