@@ -29,24 +29,24 @@ The script will perform the following steps:
         start[Start] --> find[Find acquisitions];
         subgraph Project and average
             subgraph Projecting
-                find --> prj[project_round];
+                find --> prj(((project_round)));
                 prj --> check[check_roi_dims];
                 check --> reprj[reproject_failed];
                 reprj --> prj;
             end
 
             subgraph Averaging
-                sav[create_all_single_averages];
-                sav --> gav[create_grand_averages];
+                s_av[create_all_single_averages];
+                s_av --> g_av[create_grand_averages];
             end
 
-            prj --> sav;
+            prj --> s_av;
 
             subgraph ROI overview
-                ovw[plot_overview_images];
+                ovw([plot_overview_images]);
             end
 
-            gav --> ovw;
+            g_av --> ovw;
         end
 
 Finding acquisitions:

@@ -4,7 +4,50 @@ Registration
 Final data is in one common coordinate system. It takes quite a few steps to get that.
 This file describe how genes and barcodes are registered together.
 
-TODO: integrate hyb, reference, anchor, mcherry
+Overview
+--------
+
+The command is run as follows:
+
+.. code-block:: bash
+
+    iss register --path relative/path/to/data --prefix genes_round
+
+By default, the script will perform only missing steps. There is a ``--force-redo`` flag
+that will force the script to re-run all steps, even if the output files already exist.
+
+The script will perform different steps depending on the type of acquisition. See
+details for `sequencing` and `fluorescent` acquisitions.
+
+Register Sequencing acquisitions
+--------------------------------
+
+These are acquisitions that have multiple rounds, namely `genes_round` and
+`barcode_round`. The steps are:
+
+.. mermaid::
+
+    graph TD;
+        start[Start] --> regref[run_register_reference_tile];
+
+        subgraph Register reference
+            regref --> diag_ref([check_ref_tile_registration]);
+        end
+
+        subgraph Estimate shifts
+            regref --> batch_est(((register_tile)));
+        end
+
+        subgraph Correct shifts
+            corr[correct_shifts_roi];
+            corr --> filt[filter_ransac_shifts];
+            filt --> csc([check_shift_correction]);
+            filt --> ctr([check_tile_registration]);
+        end
+
+        batch_est --> corr;
+
+
 
 Registering sequencing rounds
 -----------------------------
@@ -162,7 +205,7 @@ Registering acquisition together
 --------------------------------
 
 The final reference coordinate is (for now) ``genes_round``. We can register each
-acquisition independantly first. Then we want to merge them. To do that we generate
+acquisition independently first. Then we want to merge them. To do that we generate
 a downsampled stitched image of the reference acquisition and the acquisition we want
 to register.
 
