@@ -3,12 +3,14 @@ Module containing diagnostic plots to make sure steps of the pipeline run smooth
 
 The functions in here do not compute anything useful, but create figures
 """
+
 import numbers
+
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import cv2
 from image_tools.similarity_transforms import transform_image
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy.ndimage import median_filter
@@ -19,9 +21,10 @@ from znamutils import slurm_it
 
 import iss_preprocess as iss
 from iss_preprocess import vis
-from iss_preprocess.vis.utils import get_stack_part, get_spot_part
 from iss_preprocess.pipeline import sequencing
 from iss_preprocess.pipeline.stitch import stitch_registered
+from iss_preprocess.vis.diagnostics import plot_all_rounds
+from iss_preprocess.vis.utils import get_spot_part, get_stack_part
 
 
 @slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
@@ -85,7 +88,7 @@ def plot_round_registration_diagnostics(
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
 
     print("Static figure")
-    fig, rgb_stack = vis.plot_all_rounds(
+    fig, rgb_stack = plot_all_rounds(
         reg_stack, view, channel_colors, round_labels=round_labels
     )
     fig.tight_layout()
@@ -368,7 +371,7 @@ def check_affine_channel_registration(
             block_size=block_size,
             overlap=overlap,
         )
-        iss.vis.diagnostics.plot_affine_debug_images(debug_info, fig=fig)
+        vis.diagnostics.plot_affine_debug_images(debug_info, fig=fig)
         fig.suptitle(f"{prefix} - Tile {tile_coors}")
         tile_name = "_".join([str(x) for x in tile_coors])
         fig.savefig(target_folder / f"affine_debug_{prefix}_{tile_name}.png")
@@ -470,7 +473,7 @@ def check_shift_correction(
                     raw_to_plot = raw[c, :, ifeat, ...]
                     corr_to_plot = corrected[c, :, ifeat, ...]
                     best_to_plot = best[c, :, ifeat, ...]
-                    iss.vis.plot_matrix_difference(
+                    vis.plot_matrix_difference(
                         raw=raw_to_plot,
                         corrected=corr_to_plot,
                         col_labels=[f"Round {i} {feat}" for i in np.arange(nr)],
@@ -489,7 +492,7 @@ def check_shift_correction(
                         if rng < rng_min:
                             vmin -= (rng_min - rng) / 2
                             vmax += (rng_min - rng) / 2
-                        iss.vis.plot_matrix_with_colorbar(
+                        vis.plot_matrix_with_colorbar(
                             best_to_plot[ir].T, ax, vmin=vmin, vmax=vmax
                         )
                         ax.set_xticks([])
@@ -519,7 +522,7 @@ def check_shift_correction(
                 raw_to_plot = raw[:, ifeat, ...]
                 corr_to_plot = corrected[:, ifeat, ...]
                 best_to_plot = best[:, ifeat, ...]
-                iss.vis.plot_matrix_difference(
+                vis.plot_matrix_difference(
                     raw=raw_to_plot,
                     corrected=corr_to_plot,
                     col_labels=[f"Channel {i} {feat}" for i in np.arange(nc)],
@@ -538,7 +541,7 @@ def check_shift_correction(
                     if rng < rng_min:
                         vmin -= (rng_min - rng) / 2
                         vmax += (rng_min - rng) / 2
-                    iss.vis.plot_matrix_with_colorbar(
+                    vis.plot_matrix_with_colorbar(
                         best_to_plot[ic].T, ax, vmin=vmin, vmax=vmax
                     )
                     ax.set_xticks([])
@@ -618,7 +621,7 @@ def check_hybridisation_setup(data_path, prefixes):
         reference_hyb_spots = np.load(
             processed_path / f"{hyb_round}_cluster_means.npz", allow_pickle=True
         )
-        figs = iss.vis.plot_clusters(
+        figs = vis.plot_clusters(
             [reference_hyb_spots["cluster_means"]],
             reference_hyb_spots["spot_colors"],
             [reference_hyb_spots["cluster_inds"]],
@@ -642,7 +645,7 @@ def check_barcode_calling(data_path):
         processed_path / "reference_barcode_spots.npz", allow_pickle=True
     )
     cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
-    figs = iss.vis.plot_clusters(
+    figs = vis.plot_clusters(
         cluster_means,
         reference_barcode_spots["spot_colors"],
         reference_barcode_spots["cluster_inds"],
@@ -737,7 +740,7 @@ def check_barcode_basecall(
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
     axes = []
     for iround in range(nr):
-        rgb_stack = iss.vis.round_to_rgb(
+        rgb_stack = vis.round_to_rgb(
             stack_part, iround, extent=None, channel_colors=channel_colors
         )
         # plot raw fluo
@@ -746,7 +749,7 @@ def check_barcode_basecall(
         ax.imshow(rgb_stack)
         ax.set_title(f"Round {iround}")
         if iround == nr - 1:
-            iss.vis.add_bases_legend(channel_colors, ax.transAxes, fontsize=14)
+            vis.add_bases_legend(channel_colors, ax.transAxes, fontsize=14)
 
         # plot basecall, a letter per spot
         ax = fig.add_subplot(ncol, nr, nr + iround + 1)
@@ -772,7 +775,7 @@ def check_barcode_basecall(
                 c=valid_spots[score],
                 s=5,
             )
-            cax, cb = iss.vis.plot_matrix_with_colorbar(empty, ax, cmap=cmap)
+            cax, cb = vis.plot_matrix_with_colorbar(empty, ax, cmap=cmap)
             cax.clear()
             cb = fig.colorbar(sc, cax=cax)
             cb.set_label(score.replace("_", " "))
@@ -809,13 +812,13 @@ def check_omp_setup(data_path):
     )
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
     nrounds = reference_gene_spots["spot_colors"].shape[0]
-    figs = iss.vis.plot_clusters(
+    figs = vis.plot_clusters(
         omp_stat["cluster_means"],
         reference_gene_spots["spot_colors"],
         reference_gene_spots["cluster_inds"],
     )
     figs.append(
-        iss.vis.plot_gene_templates(
+        vis.plot_gene_templates(
             omp_stat["gene_dict"],
             omp_stat["gene_names"],
             iss.call.BASES,
@@ -837,7 +840,7 @@ def check_spot_sign_image(data_path):
     figure_folder = processed_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     spot_image = np.load(processed_path / "spot_sign_image.npy")
-    iss.vis.plot_spot_sign_image(spot_image)
+    vis.plot_spot_sign_image(spot_image)
     plt.savefig(figure_folder / "spot_sign_image.png")
 
 
@@ -878,11 +881,11 @@ def check_illumination_correction(
             + f" and {len(distributions)} tilestats"
         )
 
-    iss.vis.plot_correction_images(
+    vis.plot_correction_images(
         correction_images, grand_averages, figure_folder, verbose=True
     )
     if plot_tilestats:
-        iss.vis.plot_tilestats_distributions(
+        vis.plot_tilestats_distributions(
             data_path, distributions, grand_averages, figure_folder
         )
 
@@ -1016,7 +1019,7 @@ def check_reg_to_ref_correction(
                 )["matrix_between_channels"][0]
                 best[:2, ix, iy] = tform[:2, 2]
         fig, axes = plt.subplots(4, 3, figsize=(12, 8))
-        fig = iss.vis.plot_matrix_difference(
+        fig = vis.plot_matrix_difference(
             raw=raw,
             corrected=corrected,
             col_labels=["Shift x", "Shift y"],
@@ -1026,9 +1029,7 @@ def check_reg_to_ref_correction(
         for i in range(3):
             # get the clim from the `raw` plot
             vmin, vmax = axes[0, i].get_images()[0].get_clim()
-            iss.vis.plot_matrix_with_colorbar(
-                best[i].T, axes[3, i], vmin=vmin, vmax=vmax
-            )
+            vis.plot_matrix_with_colorbar(best[i].T, axes[3, i], vmin=vmin, vmax=vmax)
         axes[3, 0].set_ylabel("Best")
         fig.tight_layout()
         fig.suptitle(f"Registration to reference. {prefix} ROI {roi}")
@@ -1101,7 +1102,7 @@ def check_tile_shifts(
         with PdfPages(figure_folder / f"tile_shifts_{prefix}_roi{roi}.pdf") as pdf:
             for ch in range(nchannels):
                 for dim in range(2):
-                    fig = iss.vis.plot_matrix_difference(
+                    fig = vis.plot_matrix_difference(
                         raw=shifts_within_channels_raw[ch, :, dim, :, :],
                         corrected=shifts_within_channels_corrected[ch, :, dim, :, :],
                         col_labels=[f"round {i}" for i in range(nrounds)],
@@ -1189,7 +1190,8 @@ def check_omp_thresholds(
                 plt.plot(spots.x, spots.y, "xk", ms=2)
                 plt.axis("off")
                 plt.title(
-                    f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}"
+                    f"OMP {omp_thresholds[i]:.3f}; spot score "
+                    + f"{spot_score_thresholds[j]:.3f}"
                 )
         plt.tight_layout()
         plt.savefig(
@@ -1287,7 +1289,8 @@ def check_omp_alpha_thresholds(
                 plt.plot(spots.x, spots.y, "xk", ms=2)
                 plt.axis("off")
                 plt.title(
-                    f"OMP {omp_thresholds[i]:.3f}; spot score {spot_score_thresholds[j]:.3f}; alpha {alpha}"
+                    f"OMP {omp_thresholds[i]:.3f}; spot score "
+                    + f"{spot_score_thresholds[j]:.3f}; alpha {alpha}"
                 )
         plt.tight_layout()
         plt.savefig(
@@ -1378,7 +1381,7 @@ def check_segmentation(
 
     if plot_boxes:
         box = np.array([-half_box, half_box])
-        # pick 6 boxes in the stiched stack. We want them uniformely distributed
+        # pick 6 boxes in the stiched stack. We want them uniformly distributed
         # but at least 10% from the border
         tile_x_center = (np.array([0.25, 0.75]) * stitched_stack.shape[0]).astype(int)
         tile_y_center = (np.array([0.25, 0.75]) * stitched_stack.shape[1]).astype(int)
@@ -1435,12 +1438,12 @@ def check_tile_reg2ref(
         correction (str, optional): Corrections to plot. Defaults to 'best'.
         tile_coords (list, optional): List of tile coordinates to process. If None, will
             select 10 tiles. Defaults to None.
-        reg_channels (list, optional): List of channels to plot for the registered images.
-            If None, will use the average of all channels. Defaults to None.
-        ref_channels (list, optional): List of channels to plot for the reference images.
-            If None, will use the average of all channels. Defaults to None.
-        binarise_quantile (float, optional): Quantile to binarise the images. Defaults to
-            0.7.
+        reg_channels (list, optional): List of channels to plot for the registered
+            images. If None, will use the average of all channels. Defaults to None.
+        ref_channels (list, optional): List of channels to plot for the reference
+            images. If None, will use the average of all channels. Defaults to None.
+        binarise_quantile (float, optional): Quantile to binarise the images. Defaults
+            to 0.7.
         window (int, optional): Size of the window to plot around the center of the
             image. Full image if None. Defaults to None.
     """
@@ -1516,13 +1519,13 @@ def check_tile_reg2ref(
         # add an rgb overlay
         vmins = [np.percentile(ref, 1), np.percentile(reg_t, 1)]
         vmaxs = [np.percentile(ref, 99.5), np.percentile(reg_t, 99.5)]
-        rgb = iss.vis.to_rgb(
+        rgb = vis.to_rgb(
             np.stack([ref, reg_t], axis=2),
             colors=([1, 0, 0], [0, 1, 0]),
             vmin=vmins,
             vmax=vmaxs,
         )
-        rgb_b = iss.vis.to_rgb(
+        rgb_b = vis.to_rgb(
             np.stack([ref_b, reg_bt], axis=2),
             colors=([1, 0, 0], [0, 1, 0]),
             vmin=[0, 0],
@@ -1592,7 +1595,7 @@ def check_reg2ref_using_stitched(
     save_folder.mkdir(parents=True, exist_ok=True)
     save_path = save_folder / f"{reg_prefix}_to_{ref_prefix}_roi_{roi}.png"
     st = np.dstack([stitched_stack_reference, stitched_stack_target])
-    rgb = iss.vis.to_rgb(
+    rgb = vis.to_rgb(
         st, colors=[(0, 1, 0), (1, 0, 1)], vmax=np.nanpercentile(st, 99, axis=(0, 1))
     )
     del st
