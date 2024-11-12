@@ -81,7 +81,11 @@ def register_channels_and_rounds(
             )
         )
         if debug:
-            debug_info["correct_by_block"] = out_across.pop(-1)
+            matrix_across, db_info = out_across
+            debug_info["correct_by_block"] = db_info
+        else:
+            matrix_across = out_across
+
     else:
         out_across = list(
             estimate_correction(
@@ -95,8 +99,11 @@ def register_channels_and_rounds(
             )
         )
         if debug:
-            debug_info["estimate_correction"] = out_across.pop(-1)
-    output = [angles_within_channels, shifts_within_channels] + [out_across]
+            matrix_across, db_info = out_across
+            debug_info["estimate_correction"] = db_info
+        else:
+            matrix_across = out_across
+    output = [angles_within_channels, shifts_within_channels, matrix_across]
 
     if debug:
         output.append(debug_info)
@@ -116,7 +123,7 @@ def generate_channel_round_transforms(
     Args:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
         shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
-        matrix_between_channels (list): Nchannels list of affine transformations matrices
+        matrix_between_channels (list): Nchannels list of affine transformation matrices
         stack_shape (tuple): shape of the stack
         align_channels (bool): whether to register channels to each other
 
@@ -188,8 +195,8 @@ def align_within_channels(
 
     Args:
         stack (np.array): X x Y x Nchannels x Nrounds images stack
-        upsample (bool, or int): whether to use subpixel registration, and if so, how much
-            to upsample
+        upsample (bool, or int): whether to use subpixel registration, and if so, how
+            much to upsample
         ref_round (int): round to align to
         angle_range (float): range of angles to search for each round
         niter (int): number of iterations to run
@@ -446,7 +453,7 @@ def estimate_shifts_for_tile(
     Args:
         stack (np.array): X x Y x Nchannels x Nrounds images stack
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
-        matrix_between_channels (list): Nchannels list of affine transformations matrices
+        matrix_between_channels (list): Nchannels list of affine transformation matrices
         ref_ch (int): reference channel
         ref_round (int): reference round
         max_shift (int): maximum shift to avoid spurious cross-correlations
@@ -516,7 +523,7 @@ def estimate_shifts_for_tile(
 
 
 def get_channel_reference_images(stack, angles_channels, shifts_channels):
-    """Get reference images for each channel from STD or mean projection after registration.
+    """Get registered reference images for each channel from STD or mean projection.
 
     Args:
         stack (np.array): X x Y x Nchannels x Nrounds images stack
@@ -593,20 +600,21 @@ def correct_by_block(
     max_residual=2,
     debug=False,
 ):
-    """Estimate affine transformations by block for each channel of a multichannel image.
+    """Estimate affine transformations by block for each channel of a multichannel image
 
     Args:
         im (np.array): X x Y x Nchannels image
         ch_to_align (int): channel to align to
         median_filter_size (int, optional): size of median filter to apply to the stack.
-        block_size (int, optional): size of the block to use for registration. Default: 256
+        block_size (int, optional): size of the block to use for registration. Default
+            to 256
         overlap (float, optional): overlap between blocks. Default: 0.5
         max_shift (int, optional): maximum shift to avoid spurious cross-correlations.
             Default: None
-        correlation_threshold (float, optional): threshold for correlation to use for fitting
-            affine transformations. None to keep all values. Default: None
+        correlation_threshold (float, optional): threshold for correlation to use for
+            fitting affine transformations. None to keep all values. Default to None
         binarise_quantile (float, optional): quantile to use for binarisation of
-            each block. Default: None
+            each block. Default to None
         max_residual (int, optional): maximum residual to include shift in the final
             fit in affine_by_block. defaults to 2
         debug (bool, optional): whether to return debug info, default: False
@@ -685,7 +693,7 @@ def estimate_correction(
     use_masked_correlation=False,
 ):
     """
-    Estimate scale, rotation and translation corrections for each channel of a multichannel image.
+    Estimate scale, rotation and translation for each channel of a multichannel image.
 
     Args:
         im (np.array): X x Y x Nchannels image
@@ -804,9 +812,9 @@ def estimate_scale_rotation_translation(
     use_masked_correlation=False,
 ):
     """
-    Estimate rotation and translation that maximizes phase correlation between the target and the
-    reference image. Search for the best angle is performed iteratively by gradually
-    searching over small and smaller angle range.
+    Estimate rotation and translation that maximizes phase correlation between the
+    target and the reference image. Search for the best angle is performed iteratively
+    by gradually searching over small and smaller angle range.
 
     Args:
         reference (numpy.ndarray): X x Y reference image
@@ -817,7 +825,8 @@ def estimate_scale_rotation_translation(
         niter (int): number of iterations to refine rotation angle
         nangles (int): number of angles to try on each iteration
         verbose (bool): whether to print progress of registration
-        upsample (bool, or int): whether to upsample the image, and if so but what factor
+        upsample (bool, or int): whether to upsample the image, and if so but what
+            factor. Default: False
         max_shift (int): maximum shift to avoid spurious cross-correlations
         debug (bool): whether to return debug info. Default: False
         use_masked_correlation (bool): whether to use masked phase correlation
@@ -932,12 +941,12 @@ def estimate_rotation_angle(
         max_shift (int): maximum shift to avoid spurious cross-correlations
         min_shift (int): minimum shift to avoid spurious cross-correlations
         debug (bool): whether to return debug info
-        reference_mask_fft (numpy.ndarray): Binary mask for reference image. If not None,
-            will compute masked phase correlation. Default: None
+        reference_mask_fft (numpy.ndarray): Binary mask for reference image. If not
+            None, will compute masked phase correlation. Default: None
         target_mask (numpy.ndarray): Binary mask for target image. If not None,
             will compute masked phase correlation. Default: None
-        reference_squared_fft (numpy.ndarray): FFT of the squared reference image. Required
-            for masked phase correlation. Default: None
+        reference_squared_fft (numpy.ndarray): FFT of the squared reference image.
+            Required for masked phase correlation. Default: None
 
 
     Returns:
@@ -1000,9 +1009,9 @@ def estimate_rotation_translation(
     debug=False,
 ):
     """
-    Estimate rotation and translation that maximizes phase correlation between the target and the
-    reference image. Search for the best angle is performed iteratively by decreasing the gradually
-    searching over small and smaller angle range.
+    Estimate rotation and translation that maximizes phase correlation between the
+    target and the reference image. Search for the best angle is performed iteratively
+    by decreasing the gradually searching over small and smaller angle range.
 
     Args:
         reference (numpy.ndarray): X x Y reference image
@@ -1096,8 +1105,8 @@ def estimate_rotation_translation(
 def phase_correlation_by_block(
     reference, target, block_size=256, overlap=0.1, upsample_factor=1
 ):
-    """Estimate translation between two images by dividing them into blocks and estimating
-    translation for each block.
+    """Estimate translation between two images by dividing them into blocks and
+    estimating translation for each block.
 
     Args:
         reference (np.array): reference image
