@@ -590,10 +590,10 @@ def align_spots(
     from pathlib import Path
 
     from iss_preprocess.io import load_ops
-    from iss_preprocess.pipeline import (
+    from iss_preprocess.pipeline.align_spots_and_cells import (
         merge_and_align_spots_all_rois,
-        register_all_rois_within,
     )
+    from iss_preprocess.pipeline.stitch import register_all_rois_within
 
     slurm_folder = Path.home() / "slurm_logs" / path / "align_spots"
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -638,7 +638,7 @@ def align_spots_roi(
     reg_prefix="barcode_round_1_1",
     roi=1,
 ):
-    from iss_preprocess.pipeline import merge_and_align_spots
+    from iss_preprocess.pipeline.align_spots_and_cells import merge_and_align_spots
 
     merge_and_align_spots(
         path, spots_prefix=spots_prefix, reg_prefix=reg_prefix, roi=roi
