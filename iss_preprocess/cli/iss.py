@@ -51,10 +51,11 @@ def project_and_average(path, force_redo=False, use_slurm=True):
     help="Whether to use slurm for the main pipeline job "
     + "(subsequent steps always use slurm).",
 )
-def register_acquisition(path, prefix, use_slurm=True):
+def register(path, prefix, use_slurm=True):
     """Register an acquisition across round and channels."""
     from datetime import datetime
     from pathlib import Path
+
     from iss_preprocess.pipeline import register_acquisition
 
     time = str(datetime.now().strftime("%Y-%m-%d_%H-%M"))
@@ -107,7 +108,6 @@ def basecall_tile(path, roi=1, x=0, y=0):
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
     basecall_tile(path, (roi, x, y))
-
 
 
 @iss_cli.command()
@@ -348,14 +348,14 @@ def check_omp(path, roi, tilex, tiley, use_slurm=True):
             tile_coors=(roi, tilex, tiley),
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
-            scripts_name=f"check_omp",
+            scripts_name="check_omp",
         )
     else:
         check_omp_thresholds(
             path,
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
-            scripts_name=f"check_omp",
+            scripts_name="check_omp",
         )
 
 
@@ -382,14 +382,14 @@ def check_omp_alpha(path, roi, tilex, tiley, use_slurm=True):
             tile_coors=(roi, tilex, tiley),
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
-            scripts_name=f"check_omp",
+            scripts_name="check_omp",
         )
     else:
         check_omp_alpha_thresholds(
             path,
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
-            scripts_name=f"check_omp",
+            scripts_name="check_omp",
         )
 
 
@@ -414,7 +414,7 @@ def basecall(path):
         use_slurm=True,
         job_dependency=job_ids,
         slurm_folder=slurm_folder,
-        scripts_name=f"check_basecall",
+        scripts_name="check_basecall",
     )
 
 
@@ -586,11 +586,11 @@ def align_spots(
 ):
     from pathlib import Path
 
+    from iss_preprocess.io import load_ops
     from iss_preprocess.pipeline import (
         merge_and_align_spots_all_rois,
         register_all_rois_within,
     )
-    from iss_preprocess.io import load_ops
 
     slurm_folder = Path.home() / "slurm_logs" / path / "align_spots"
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -812,10 +812,11 @@ def plot_overview(
 def segment_all_mcherry(path, prefix="mCherry_1"):
     """Segment mcherry cells for all tiles in a dataset."""
     from pathlib import Path
+
     from iss_preprocess.pipeline import batch_process_tiles
     from iss_preprocess.pipeline.segment import (
-        save_unmixing_coefficients,
         remove_all_duplicate_masks,
+        save_unmixing_coefficients,
     )
 
     save_unmixing_coefficients(path, prefix, projection=None)
