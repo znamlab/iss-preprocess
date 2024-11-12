@@ -14,6 +14,24 @@ import iss_preprocess as iss
 
 from ..io import get_processed_path, load_micromanager_metadata
 
+__all__ = [
+    "plot_clusters",
+    "plot_spot_sign_image",
+    "to_rgb",
+    "make_lut",
+    "plot_spots",
+    "plot_gene_matrix",
+    "plot_gene_templates",
+    "add_bases_legend",
+    "round_to_rgb",
+    "plot_sequencing_rounds",
+    "animate_sequencing_rounds",
+    "plot_overview_images",
+    "plot_single_overview",
+    "plot_spot_called_base",
+    "combine_overview_plots",
+]
+
 
 def plot_clusters(cluster_means, spot_colors, cluster_inds):
     """
@@ -157,7 +175,7 @@ def make_lut(color, nlevels=256):
 
     Args:
         color: the maximum RGB value for look-up table.
-        nlevels: nummber of LUT levels
+        nlevels: number of LUT levels
 
     Returns:
         nlevels x 3 matrix.
@@ -295,7 +313,7 @@ def round_to_rgb(
         iround (int): sequencing round to visualize
         extent (list, optional): extent of plot. [[xmin, xmax], [ymin, ymax]] or None,
              in which case the full image is used. Default: None
-        channel_colors (list, optinal): list of colors for each channel. Default to
+        channel_colors (list, optional): list of colors for each channel. Default to
             red, green, magenta, cyan
         vmax (float, optional): maximum value for each channel.
         vmin (float, optional): minimum value for each channel.
@@ -334,7 +352,8 @@ def plot_sequencing_rounds(
         extent (list, optional): extent of plot. [[xmin, xmax], [ymin, ymax]]. If None,
             use full image. Default: ((0, 2000), (0, 2000))
         channel_colors (list, optional): list of colors for each channel.
-            Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+            Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1],
+            [0, 1, 1])
 
     """
     nrounds = stack.shape[3]
@@ -369,7 +388,8 @@ def animate_sequencing_rounds(
         vmin (float): minimum value for each channel.
         extent (list): extent of plot. [[xmin, xmax], [ymin, ymax]]
         channel_colors (list): list of colors for each channel.
-            Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+            Default: red, green, magenta, cyan = ([1, 0, 0], [0, 1, 0], [1, 0, 1],
+            [0, 1, 1])
         axes_titles (list, optional): list of titles for each stack
 
     """
@@ -429,12 +449,16 @@ def plot_overview_images(
     Args:
         data_path (str): Relative path to data
         prefix (str): Prefix of acquisition
-        plot_axis (bool, optional): Whether to plot gridlines at tile boundaries. Defaults to True.
-        downsample_factor (int, optional): Amount to downsample overview. Defaults to 25.
-        save_raw (bool, optional): Whether to save a tif with no gridlines. Defaults to True.
+        plot_axis (bool, optional): Whether to plot gridlines at tile boundaries.
+            Defaults to True.
+        downsample_factor (int, optional): Amount to downsample overview. Defaults to 25
+        save_raw (bool, optional): Whether to save a tif with no gridlines. Defaults to
+            True.
         dependency (str, optional): Dependency for the generates slurm scripts
-        group_channels (bool, optional): Whether to group channels together. Defaults to True.
-        use_slurm (bool, optional): Whether to use slurm to run the jobs. Defaults to True.
+        group_channels (bool, optional): Whether to group channels together. Defaults to
+            True.
+        use_slurm (bool, optional): Whether to use slurm to run the jobs. Defaults to
+            True.
         vmin (list, optional): vmin for each channel. Default to None
         vmax (list, optional): vmax for each channel. Default to None
     """
@@ -513,7 +537,7 @@ def plot_single_overview(
         ny (int, optional): Number of tiles in y. If None will read from roi_dimensions
         plot_axis (bool, optional): Whether to plot gridlines at tile boundaries.
             Defaults to True.
-        downsample_factor (int, optional): Amount to downsample overview. Defaults to 25.
+        downsample_factor (int, optional): Amount to downsample overview. Defaults to 25
         save_raw (bool, optional): Whether to save a full size tif with no gridlines.
             Defaults to False.
         correct_illumination (bool, optional): Whether to correct for uneven
@@ -691,7 +715,8 @@ def combine_overview_plots(data_path, prefix, chamber_list):
 
     Args:
         data_path (str): path to the data
-        prefix (str): prefix for the round overview files, e.g. "genes_round", "barcode_round", "DAPI"
+        prefix (str): prefix for the round overview files, e.g. "genes_round",
+            "barcode_round", "DAPI"
         chamber_list (list): list of chambers to include
     """
     processed_path = iss.io.get_processed_path(data_path)
@@ -725,11 +750,12 @@ def combine_overview_plots(data_path, prefix, chamber_list):
                 axs[row_index, column_index].axis("off")
                 try:
                     roi_str = str(roi).zfill(2)
+                    file_end = "1_channels_0_1_2_3.ome.tif"
                     img = tifffile.TiffFile(
                         processed_path
                         / "figures"
                         / "round_overviews"
-                        / f"chamber_{chamber}_roi_{roi_str}_{prefix}_{round}_1_channels_0_1_2_3.ome.tif"
+                        / f"chamber_{chamber}_roi_{roi_str}_{prefix}_{round}_{file_end}"
                     ).asarray()
                     img = np.rot90(img, k=1, axes=(1, 2))
                     img = np.moveaxis(img, 0, 2)
