@@ -17,4 +17,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss register-ref-tile -p $DATAPATH -n $PREFIX
+iss-register register-ref-tile -p $DATAPATH -n $PREFIX
