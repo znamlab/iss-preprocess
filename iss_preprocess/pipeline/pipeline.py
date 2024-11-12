@@ -16,7 +16,7 @@ from iss_preprocess.io import (
     load_metadata,
     load_ops,
 )
-from iss_preprocess.io.load import find_roi_position_on_cryostat
+from iss_preprocess.io.load import find_roi_position_on_cryostat, get_processed_path
 from iss_preprocess.pipeline.hybridisation import load_and_register_hyb_tile
 from iss_preprocess.pipeline.register import register_reference_tile
 from iss_preprocess.pipeline.sequencing import load_and_register_sequencing_tile
@@ -590,7 +590,7 @@ def create_single_average(
         print(f"    {ops_values}={ops[ops_values]}")
     print("", flush=True)
 
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
 
     if prefix_filter:
         target_file = f"{prefix_filter}_average.tif"
@@ -649,7 +649,7 @@ def create_all_single_averages(
         force_redo (bool, optional): Redo if the average already exists. Defaults to
             False.
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = iss.io.load_ops(data_path)
     metadata = iss.io.load_metadata(data_path)
     # Collect all folder names
@@ -734,7 +734,7 @@ def create_grand_averages(
     job_ids = []
     slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    target_folder = iss.io.get_processed_path(data_path) / subfolder
+    target_folder = get_processed_path(data_path) / subfolder
     for kind in prefix_todo:
         if kind:
             target_file = target_folder / "averages_average.tif"
@@ -798,7 +798,7 @@ def overview_for_ara_registration(
             `genes_round`
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     registration_folder = processed_path / "register_to_ara"
     registration_folder.mkdir(exist_ok=True)
     # also make sure that the relevant subfolders are created
