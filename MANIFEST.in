@@ -1,0 +1,22 @@
+include LICENSE
+include README.md
+include CHANGELOG.md
+include iss_preprocess/coppafish/LICENSE.md
+include iss_preprocess/config/default_ops.yml
+recursive-include scripts *.sh  # Scripts for CLI
+recursive-include iss_preprocess *.py # Python code
+recursive-include iss_preprocess/call *.csv  # codebook for gene panels
+include iss_preprocess/call/spot_sign_image.npy
+include iss_preprocess/call/hybridisation_probes.yml
+
+recursive-exclude notebooks temp_*  #Notebooks that are not under version control
+recursive-exclude notebooks/.ipynb_checkpoints *
+recursive-include notebooks *.ipynb
+
+exclude .pre-commit-config.yaml
+exclude update_docs.sh
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude docs *
+recursive-exclude tests *
+recursive-exclude .vscode *
