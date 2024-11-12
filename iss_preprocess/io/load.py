@@ -438,6 +438,11 @@ def get_roi_dimensions(data_path, prefix=None, save=True):
         ops = load_ops(data_path)
         data_dir = processed_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
+        if not fnames:
+            raise FileNotFoundError(
+                f"Cannot get roi dimension for {data_path} "
+                + f"using {prefix}. No file found in raw or processed data"
+            )
         proj = ops["genes_projection"]
         if proj == "max-median":
             proj = "max"
