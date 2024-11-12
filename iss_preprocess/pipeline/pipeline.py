@@ -1,27 +1,25 @@
+import re
 import shlex
 import subprocess
 import warnings
 from pathlib import Path
-import re
-import pandas as pd
 
 import flexiznam as flz
 import numpy as np
+import pandas as pd
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-
-from ..decorators import updates_flexilims
-from ..image import apply_illumination_correction
-from ..io import (
+from iss_preprocess.decorators import updates_flexilims
+from iss_preprocess.io import (
     get_roi_dimensions,
     load_metadata,
     load_ops,
-    load_tile_by_coors,
 )
-from . import ara_registration
-from .hybridisation import load_and_register_hyb_tile
-from .sequencing import load_and_register_sequencing_tile
+from iss_preprocess.io.load import find_roi_position_on_cryostat
+from iss_preprocess.pipeline.hybridisation import load_and_register_hyb_tile
+from iss_preprocess.pipeline.register import register_reference_tile
+from iss_preprocess.pipeline.sequencing import load_and_register_sequencing_tile
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -92,8 +90,6 @@ def project_and_average(data_path, force_redo=False):
     # Run projection on unprojected data
     pr_job_ids = []
     proj, mouse, chamber = Path(data_path).parts
-    if ops["use_flexilims"]:
-        flm_sess = flz.get_flexilims_session(project_id=proj)
     print(f"\nto_process: {to_process}")
     for prefix in to_process:
         if not force_redo:
@@ -207,7 +203,7 @@ def project_and_average(data_path, force_redo=False):
     if cga_job_ids and plot_job_ids:
         plot_job_ids.extend(cga_job_ids)
 
-    # TODO: When plotting overview, check whether grand average has occured if it is a
+    # TODO: When plotting overview, check whether grand average has occurred if it is a
     # 'round' type, use it if so, otherwise use single average.
     po_job_ids = []
     for prefix in to_process:
@@ -242,10 +238,9 @@ def register_acquisition(data_path, prefix):
         prefix (str): Prefix of the acquisition to register
 
     """
-    ops = iss.io.load_ops(data_path)
-    metadata = iss.io.load_metadata(data_path)
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
         # Register a sequencing acquisition
+        register_reference_tile(data_path, prefix, diag=True, use_slurm=True)
         raise NotImplementedError("Sequencing registration not yet implemented")
     else:
         # Register a single round fluorescence acquisition
@@ -470,7 +465,10 @@ def batch_process_tiles(
     handle_failed_script_path = str(
         Path(__file__).parent.parent.parent / "scripts" / "handle_failed.sh"
     )
-    failed_command = f"sbatch --parsable {args} --dependency=afterany:{':'.join(job_ids)} --output={log_dir}/handle_failed_{script}.out {handle_failed_script_path} "
+    failed_command = f"sbatch --parsable {args} "
+    failed_command += f"--dependency=afterany:{':'.join(job_ids)} "
+    failed_command += f"--output={log_dir}/handle_failed_{script}.out "
+    failed_command += f"{handle_failed_script_path} "
     print(failed_command)
     process = subprocess.Popen(
         shlex.split(failed_command),
@@ -681,7 +679,7 @@ def create_all_single_averages(
             print(f"{folder} average already exists. Skipping")
             continue
         print(f"Creating single average {folder}", flush=True)
-        projection = ops[f"averaging_projection"]
+        projection = ops["averaging_projection"]
         slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
         slurm_folder.mkdir(parents=True, exist_ok=True)
         job_ids.append(
@@ -739,7 +737,7 @@ def create_grand_averages(
     target_folder = iss.io.get_processed_path(data_path) / subfolder
     for kind in prefix_todo:
         if kind:
-            target_file = target_folder / f"averages_average.tif"
+            target_file = target_folder / "averages_average.tif"
         else:
             target_file = target_folder / "grand_average.tif"
         if (not force_redo) and target_file.exists():
@@ -810,9 +808,7 @@ def overview_for_ara_registration(
     metadata = load_metadata(data_path)
     if rois_to_do is None:
         rois_to_do = metadata["ROI"].keys()
-    roi_slice_pos_um, min_step = ara_registration.find_roi_position_on_cryostat(
-        data_path=data_path
-    )
+    roi_slice_pos_um, min_step = find_roi_position_on_cryostat(data_path=data_path)
     roi2section_order = {
         roi: int(pos / min_step) for roi, pos in roi_slice_pos_um.items()
     }
@@ -1023,7 +1019,11 @@ def segment_and_stitch_mcherry_cells(
         job_dependency=dupl_job,
         scripts_name=f"stitch_{prefix}",
     )
-
+    out = (
+        reg_jobs,
+        dupl_job,
+        stitch_job,
+    )
     if ops.get(f"{spref}_gmm_filter_masks", False):
         filt_job = iss.pipeline.segment.filter_mcherry_cells(
             data_path,
@@ -1032,3 +1032,5 @@ def segment_and_stitch_mcherry_cells(
             slurm_folder=slurm_folder,
             job_dependency=stitch_job,
         )
+        out += (filt_job,)
+    return out
