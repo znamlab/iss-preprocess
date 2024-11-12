@@ -51,7 +51,15 @@ def project_and_average(path, force_redo=False, use_slurm=True):
     help="Whether to use slurm for the main pipeline job "
     + "(subsequent steps always use slurm).",
 )
-def register(path, prefix, use_slurm=True):
+@click.option(
+    "-f",
+    "--force-redo",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Force redoing all steps.",
+)
+def register(path, prefix, use_slurm=True, force_redo=False):
     """Register an acquisition across round and channels."""
     from datetime import datetime
     from pathlib import Path
@@ -70,6 +78,7 @@ def register(path, prefix, use_slurm=True):
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         scripts_name=f"register_acquisition_{time}",
+        force_redo=force_redo,
     )
 
 

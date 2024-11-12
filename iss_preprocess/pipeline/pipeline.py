@@ -231,17 +231,20 @@ def project_and_average(data_path, force_redo=False):
 
 
 @slurm_it(conda_env="iss-preprocess")
-def register_acquisition(data_path, prefix):
+def register_acquisition(data_path, prefix, force_redo=False):
     """Register an acquisition across all rounds and channels
 
     Args:
         path (str): Path to the data folder
         prefix (str): Prefix of the acquisition to register
+        force_redo (bool, optional): Redo if files exist. Defaults to False.
 
     """
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
         # Register a sequencing acquisition
-        register_reference_tile(data_path, prefix, diag=True, use_slurm=True)
+        register_reference_tile(
+            data_path, prefix, diag=True, use_slurm=True, force_redo=force_redo
+        )
         raise NotImplementedError("Sequencing registration not yet implemented")
     else:
         # Register a single round fluorescence acquisition
