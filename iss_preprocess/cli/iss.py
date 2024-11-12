@@ -181,50 +181,6 @@ def setup_hybridisation(path, prefix=None, use_slurm=True):
 
 
 @iss_cli.command()
-@click.option(
-    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
-)
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
-@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
-def correct_shifts(path, prefix, use_slurm=False):
-    """Correct X-Y shifts using robust regression across tiles."""
-    # import with different name to not get confused with the cli function name
-    from iss_preprocess.pipeline import correct_shifts as corr_shifts
-    from iss_preprocess.pipeline import diagnostics as diag
-
-    if use_slurm:
-        from pathlib import Path
-
-        slurm_folder = Path.home() / "slurm_logs" / path
-        slurm_folder.mkdir(parents=True, exist_ok=True)
-    else:
-        slurm_folder = None
-    job_id = corr_shifts(
-        path,
-        prefix,
-        use_slurm=use_slurm,
-        slurm_folder=slurm_folder,
-        scripts_name=f"correct_shifts_{prefix}",
-    )
-    diag.check_shift_correction(
-        path,
-        prefix,
-        use_slurm=use_slurm,
-        slurm_folder=slurm_folder,
-        job_dependency=job_id if use_slurm else None,
-        scripts_name=f"check_shift_correction_{prefix}",
-    )
-    diag.check_tile_registration(
-        path,
-        prefix,
-        use_slurm=use_slurm,
-        slurm_folder=slurm_folder,
-        job_dependency=job_id if use_slurm else None,
-        scripts_name=f"check_tile_registration_{prefix}",
-    )
-
-
-@iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")

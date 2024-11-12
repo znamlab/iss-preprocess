@@ -17,8 +17,13 @@ from iss_preprocess.io import (
     load_ops,
 )
 from iss_preprocess.io.load import find_roi_position_on_cryostat, get_processed_path
-from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
+from iss_preprocess.pipeline.diagnostics import (
+    check_ref_tile_registration,
+    check_shift_correction,
+    check_tile_registration,
+)
 from iss_preprocess.pipeline.hybridisation import load_and_register_hyb_tile
+from iss_preprocess.pipeline.register import correct_shifts as correct_shifts_func
 from iss_preprocess.pipeline.register import run_register_reference_tile
 from iss_preprocess.pipeline.sequencing import load_and_register_sequencing_tile
 
@@ -240,11 +245,24 @@ def register_acquisition(data_path, prefix, force_redo=False):
         force_redo (bool, optional): Redo if files exist. Defaults to False.
 
     """
+    ops = load_ops(data_path)
+    sprefix = prefix.split("_")[0]  # short prefix, e.g. 'genes'
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
         # Register a sequencing acquisition
-        register_reference_tile(
+        job_id, diag_job = register_reference_tile(
             data_path, prefix, diag=True, use_slurm=True, force_redo=force_redo
         )
+        suffix = ops[f"{sprefix}_projection"]
+        additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+        batch_id, rerun_id = batch_process_tiles(
+            data_path,
+            script="register_tile",
+            additional_args=additional_args,
+            job_dependency=job_id,
+        )
+        print(f"Final job id: {rerun_id}")
+        correct_shifts(data_path, prefix, use_slurm=True, job_dependency=rerun_id)
+
         raise NotImplementedError("Sequencing registration not yet implemented")
     else:
         # Register a single round fluorescence acquisition
@@ -301,6 +319,43 @@ def register_reference_tile(
     )
     if use_slurm:
         print(f"Started 2 jobs: {job_id}, {job2}")
+    return job_id, job2
+
+
+def correct_shifts(path, prefix, use_slurm=True, job_dependency=None):
+    """Correct X-Y shifts using robust regression across tiles."""
+    # import with different name to not get confused with the cli function name
+
+    if use_slurm:
+        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+    job_id = correct_shifts_func(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_shifts_{prefix}",
+        job_dependency=job_dependency,
+    )
+    check_corr_id = check_shift_correction(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_shift_correction_{prefix}",
+    )
+    check_reg_id = check_tile_registration(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_tile_registration_{prefix}",
+    )
+    return job_id, check_corr_id, check_reg_id
 
 
 def load_and_register_tile(

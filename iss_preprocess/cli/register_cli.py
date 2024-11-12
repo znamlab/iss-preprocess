@@ -10,6 +10,23 @@ def register_cli():
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
 @click.option(
+    "--diag/--no-diag",
+    show_default=True,
+    default=False,
+    help="Save diagnostic cross correlogram plots",
+)
+@click.option("-f/", "--force-redo/--no-force-redo", default=False, help="Force redo.")
+def register_ref_tile(path, prefix, diag, force_redo):
+    """Run registration across channels and rounds for the reference tile."""
+    from iss_preprocess.pipeline import register_reference_tile
+
+    register_reference_tile(path, prefix, diag, force_redo)
+
+
+@register_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
 )
 @click.option("-x", "--tilex", default=0, help="Tile X position")
@@ -23,6 +40,20 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="max"):
     estimate_shifts_by_coors(
         path, tile_coors=(roi, tilex, tiley), prefix=prefix, suffix=suffix
     )
+
+
+@register_cli.command()
+@click.option(
+    "-p", "--path", prompt="Enter data path", help="Data path.", required=True
+)
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
+@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
+def correct_shifts(path, prefix, use_slurm=False):
+    """Correct X-Y shifts using robust regression across tiles."""
+    # import with different name to not get confused with the cli function name
+    from iss_preprocess.pipeline import correct_shifts as corr_shifts
+
+    corr_shifts(path, prefix, use_slurm=use_slurm, job_dependency=None)
 
 
 @register_cli.command()
@@ -44,23 +75,6 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley):
         prefix=prefix,
         reference_prefix=None,
     )
-
-
-@register_cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
-@click.option(
-    "--diag/--no-diag",
-    show_default=True,
-    default=False,
-    help="Save diagnostic cross correlogram plots",
-)
-@click.option("-f/", "--force-redo/--no-force-redo", default=False, help="Force redo.")
-def register_ref_tile(path, prefix, diag, force_redo):
-    """Run registration across channels and rounds for the reference tile."""
-    from iss_preprocess.pipeline import register_reference_tile
-
-    register_reference_tile(path, prefix, diag, force_redo)
 
 
 @register_cli.command()
