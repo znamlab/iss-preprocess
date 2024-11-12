@@ -1,0 +1,93 @@
+[project]
+name = "iss-preprocess"
+authors = [{name = "Antonin Blot", email= "antonin.blot@crick.ac.uk"}]
+description = "Preprocessing tools for ISS data"
+readme = "README.md"
+requires-python = ">=3.9.0"
+dynamic = ["version"]
+dependencies = [ "numpy",
+        "matplotlib",
+        "scikit-image",
+        "scikit-learn",
+        "flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git",
+        "znamutils @ git+ssh://git@github.com/znamlab/znamutils.git",
+        "image-tools @ git+ssh://git@github.com/znamlab/image-tools.git",
+        "opencv-python",
+        "numba",
+        "cellpose",
+        "Click",
+        "brainglobe_atlasapi",
+        "natsort",
+        "seaborn",
+        "decorator",
+        "scipy>=1.11.0",]
+license = {text = "MIT"}
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/znamlab/iss-preprocess"
+"Bug Tracker" = "https://github.com/znamlab/iss-preprocess/issues"
+"Documentation" = "https://znamlab.github.io/iss-preprocess"
+
+"Source Code" = "https://github.com/znamlab/iss-preprocess"
+"User Support" = "https://github.com/znamlab/iss-preprocess/issues"
+
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "coverage",
+  "tox",
+  "furo",
+  "m2r2",
+  "sphinx",
+  "sphinxcontrib-mermaid",
+  "mypy",
+  "pre-commit",
+  "ruff",
+  "setuptools_scm",
+  "imageio",
+]
+
+[build-system]
+requires = [
+    "setuptools>=45",
+    "wheel",
+    "setuptools_scm[toml]>=6.2",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["iss_preprocess*"]
+exclude = ["tests", "docs*"]
+
+
+[tool.ruff]
+line-length = 88
+exclude = ["__init__.py", "build", ".eggs"]
+lint.select = ["I", "E", "F"]
+fix = true
+
+[tool.ruff.format]
+docstring-code-format = true # Also format code in docstrings
+
+[tool.codespell]
+# Ref: https://github.com/codespell-project/codespell#using-a-config-file
+skip = '.git'
+check-hidden = true
+# ignore-regex = ''
+# ignore-words-list = ''
