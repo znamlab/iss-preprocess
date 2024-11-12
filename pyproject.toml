@@ -12,7 +12,6 @@ dependencies = [
         "scikit-learn",
         "flexiznam @ git+ssh://git@github.com/znamlab/flexiznam.git",
         "znamutils @ git+ssh://git@github.com/znamlab/znamutils.git",
-        "iss-preprocess @ git+ssh://git@github.com/znamlab/iss-preprocess.git",
         "opencv-python",
         "numba",
         "cellpose",
