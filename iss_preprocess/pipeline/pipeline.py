@@ -17,8 +17,9 @@ from iss_preprocess.io import (
     load_ops,
 )
 from iss_preprocess.io.load import find_roi_position_on_cryostat, get_processed_path
+from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 from iss_preprocess.pipeline.hybridisation import load_and_register_hyb_tile
-from iss_preprocess.pipeline.register import register_reference_tile
+from iss_preprocess.pipeline.register import run_register_reference_tile
 from iss_preprocess.pipeline.sequencing import load_and_register_sequencing_tile
 
 
@@ -40,7 +41,7 @@ def project_and_average(data_path, force_redo=False):
         po_job_ids (list): A list of job IDs for the slurm jobs created.
     """
 
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     metadata = iss.io.load_metadata(data_path)
     slurm_folder = processed_path / "slurm_scripts"
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -245,6 +246,58 @@ def register_acquisition(data_path, prefix):
     else:
         # Register a single round fluorescence acquisition
         raise NotImplementedError("Single round registration not yet implemented")
+
+
+def register_reference_tile(
+    data_path, prefix="genes_round", diag=False, use_slurm=True, force_redo=False
+):
+    """Register the reference tile across channels and rounds
+
+    This function estimates the shifts and rotations between rounds and
+    channels using the reference tile and generates diagnostic plots if
+    requested.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str, optional): Directory prefix to use, e.g. 'genes_round'.
+            Defaults to 'genes_round'.
+        diag (bool, optional): Save diagnostic plots. Defaults to False.
+        use_slurm (bool, optional): Submit job to slurm. Defaults to True.
+        redo (bool, optional): Redo if files exist. Defaults to False.
+    """
+    if use_slurm:
+        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+    target_file = get_processed_path(data_path) / "reg" / prefix
+    target_file /= f"ref_tile_tforms_{prefix}.npz"
+    if target_file.exists() and not force_redo:
+        print(f"{prefix} reference tile already registered, skipping")
+        return
+
+    scripts_name = f"register_ref_tile_{prefix}"
+    slurm_options = {"mem": "128G"} if diag else None
+    job_id = run_register_reference_tile(
+        data_path,
+        prefix=prefix,
+        diag=diag,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        slurm_options=slurm_options,
+        scripts_name=scripts_name,
+    )
+    scripts_name = f"check_ref_tile_registration_{prefix}"
+    job2 = check_ref_tile_registration(
+        data_path,
+        prefix,
+        use_slurm=True,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=scripts_name,
+    )
+    if use_slurm:
+        print(f"Started 2 jobs: {job_id}, {job2}")
 
 
 def load_and_register_tile(

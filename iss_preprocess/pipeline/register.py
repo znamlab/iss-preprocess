@@ -1,34 +1,44 @@
 from warnings import warn
+
 import numpy as np
-import pandas as pd
-from skimage.transform import SimilarityTransform
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
+from skimage.transform import SimilarityTransform
 from sklearn.linear_model import RANSACRegressor
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-
-from ..io import get_roi_dimensions, load_metadata, load_ops, load_tile_by_coors
-from ..reg import (
-    estimate_rotation_translation,
+from iss_preprocess.io import (
+    get_roi_dimensions,
+    load_metadata,
+    load_ops,
+    load_tile_by_coors,
+)
+from iss_preprocess.pipeline.sequencing import load_sequencing_rounds
+from iss_preprocess.reg import (
     estimate_affine_for_tile,
+    estimate_rotation_translation,
     estimate_shifts_and_angles_for_tile,
     estimate_shifts_for_tile,
     make_transform,
     register_channels_and_rounds,
 )
-from .sequencing import load_sequencing_rounds
+from iss_preprocess.vis.diagnostics import plot_registration_correlograms
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
-def register_reference_tile(data_path, prefix="genes_round", diag=False):
-    """Estimate round and channel registration parameters for
-    the specified tile, include shifts and rotations between rounds
-    and shifts, rotations, and scaling between channels.
+def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
+    """Subfunction to run the registration of the reference tile
 
-    Shifts are estimated using phase correlation. Rotation and
-    scaling are estimated using iterative grid search.
+    This function actually perform the computation. It performs the registration of the
+    the reference tile specified inn the ops. This include shifts and rotations between
+    rounds and shifts, rotations, and scaling between channels.
+
+    Shifts are estimated using phase correlation. Rotation and scaling are estimated
+    using iterative grid search.
+
+    Results are saved in a npz file in the processed directory in:
+    data_path / 'reg' / `prefix` / 'ref_tile_tforms_`prefix`_round.npz'
 
     Args:
         data_path (str): Relative path to data.
@@ -46,6 +56,12 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
     stack = load_sequencing_rounds(
         data_path, ops["ref_tile"], prefix=prefix, suffix=projection, nrounds=nrounds
     )
+    if ops["align_method"] == "affine":
+        affine_by_block = True
+    elif ops["align_method"] == "similarity":
+        affine_by_block = False
+    else:
+        raise ValueError(f"Align method {ops['align_method']} not recognised")
 
     out = register_channels_and_rounds(
         stack,
@@ -56,7 +72,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
         min_shift=ops["rounds_min_shift"],
         debug=diag,
         use_masked_correlation=ops["use_masked_correlation"],
-        affine_by_block=ops["align_method"],
+        affine_by_block=affine_by_block,
     )
     if diag:
         (
@@ -65,7 +81,7 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
             matrix_between_channels,
             debug_dict,
         ) = out
-        iss.vis.diagnostics.plot_registration_correlograms(
+        plot_registration_correlograms(
             data_path,
             prefix,
             "register_reference_tile",
@@ -78,7 +94,9 @@ def register_reference_tile(data_path, prefix="genes_round", diag=False):
             matrix_between_channels,
         ) = out
 
-    save_path = iss.io.get_processed_path(data_path) / f"tforms_{prefix}.npz"
+    save_path = iss.io.get_processed_path(data_path) / "reg" / prefix
+    save_path.mkdir(parents=True, exist_ok=True)
+    save_path /= f"ref_tile_tforms_{prefix}.npz"
     np.savez(
         save_path,
         angles_within_channels=angles_within_channels,
@@ -535,7 +553,7 @@ def correct_shifts_roi(
     xs, ys = np.meshgrid(range(nx), range(ny))
     shifts_within_channels_corrected = np.zeros(shifts_within_channels.shape)
     shifts_between_channels_corrected = np.zeros(shifts_between_channels.shape)
-    # TODO: maybe make `trianing` in the loop above?
+    # TODO: maybe make `training` in the loop above?
     training = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
     ntiles = nx * ny
     if ntiles < min_tiles:
@@ -562,9 +580,9 @@ def correct_shifts_roi(
                         training[inliers, :],
                         shifts_within_channels[ich, iround, idim, inliers],
                     )
-                    shifts_within_channels_corrected[
-                        ich, iround, idim, :
-                    ] = reg.predict(training)
+                    shifts_within_channels_corrected[ich, iround, idim, :] = (
+                        reg.predict(training)
+                    )
             median_shift = np.median(shifts_between_channels[ich, :, :], axis=1)[
                 :, np.newaxis
             ]
@@ -619,7 +637,7 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
             )
             tforms_best = {key: tforms_init[key] for key in tforms_init.keys()}
 
-            # first for within, it's easy shifts are saved separatly
+            # first for within, it's easy shifts are saved separately
             if "shifts_within_channels" not in tforms_init.keys():
                 # it must be a non-round acquisition, let's skip
                 pass
@@ -690,7 +708,7 @@ def correct_hyb_shifts(data_path, prefix=None):
                     )
                 except ValueError:
                     txt = f"!!! Could not correct shifts for ROI {roi}, {hyb_round}"
-                    # We both warn and print to make sure the message is seen in out and err
+                    # We both warn and print to have the message in out and err
                     warn(txt)
                     print(txt)
                     continue
@@ -746,7 +764,7 @@ def correct_shifts_to_ref(data_path, prefix, max_shift=None, fit_angle=False):
 def merge_shifts(data_path, prefix, n_chans=4):
     """Merge shifts for all ROI/tiles into a single shift median shift
 
-    Usefull if some of the registration failed and we want to use the same shift for all
+    Useful if some of the registration failed and we want to use the same shift for all
     tiles
 
     Args:
@@ -1002,7 +1020,7 @@ def register_tile_to_ref(
 
     Args:
         data_path (str): Relative path to data
-        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinats
+        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates
         reg_prefix (str): Prefix to register, "barcode_round" for instance
         ref_prefix (str, optional): Reference prefix, if None will read from ops.
             Defaults to None.
@@ -1024,7 +1042,7 @@ def register_tile_to_ref(
 
     """
     ops = load_ops(data_path)
-    # if None, read ref_prefix, ref_channels, binarise_quantile and reg_channels from ops
+    # if None, get ref_prefix, ref_channels, binarise_quantile and reg_channels from ops
     if (ref_prefix is None) or (ref_prefix == "None"):
         ref_prefix = ops["reference_prefix"]
     if ref_prefix == reg_prefix:
@@ -1151,7 +1169,8 @@ def register_to_ref_using_stitched_registration(
             will read from ops. Defaults to None.
         estimate_rotation (bool, optional): Estimate rotation. Defaults to True.
         target_suffix (str, optional): Suffix of the target tile. Defaults to None.
-        use_masked_correlation (bool, optional): Use masked correlation. Defaults to False.
+        use_masked_correlation (bool, optional): Use masked correlation. Defaults to
+            False.
         downsample (int, optional): Downsample factor. Defaults to 3.
         save_plot (bool, optional): Save a diagnostic plot. Defaults to True.
 
@@ -1267,110 +1286,6 @@ def register_to_ref_using_stitched_registration(
         )
 
     print("Done")
-
-
-def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
-    """Use previously computed transformation matrices to align spots to reference
-    coordinates.
-
-    Args:
-        data_path (str): Relative path to data
-        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates
-        prefix (str): Prefix of spots to load
-        ref_prefix (str, optional): Prefix of the reference spots. If None, reads from
-            ops. Defaults to None.
-
-    Returns:
-        pd.DataFrame: The spot dataframe with x and y registered to reference tile.
-
-    """
-    roi, tilex, tiley = tile_coors
-    processed_path = iss.io.get_processed_path(data_path)
-    spots = pd.read_pickle(
-        processed_path / "spots" / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
-    )
-    spots = _align_dataframe(spots, data_path, tile_coors, prefix, ref_prefix)
-    return spots
-
-
-def align_cell_dataframe(data_path, prefix, ref_prefix=None):
-    """Align a cell dataframe to reference coordinates
-
-    Designed for mCherry cells. Reads the f"{prefix}_df_corrected.pkl" file generated
-    by remove_all_duplicate_masks and aligns the x and y coordinates to the reference
-    tile by tile.
-
-    Args:
-        data_path (str): Relative path to data
-        prefix (str): Prefix of cells to load
-        ref_prefix (str, optional): Prefix of the reference cells. If None, reads from
-            ops. Defaults to None.
-
-    Returns:
-        pd.DataFrame: The cell dataframe with x and y registered to reference tile.
-    """
-    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
-    cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
-    assert (
-        cells_df.exists()
-    ), f"Cells dataframe {cells_df} does not exist. Run remove_all_duplicate_masks first"
-    cells_df = pd.read_pickle(cells_df)
-    if "x" not in cells_df.columns:
-        cells_df.rename(columns={"centroid-1": "x", "centroid-0": "y"}, inplace=True)
-
-    aligned_df = []
-    for (roi, tilex, tiley), df in cells_df.groupby(["roi", "tilex", "tiley"]):
-        aligned_df.append(
-            _align_dataframe(df, data_path, (roi, tilex, tiley), prefix, ref_prefix)
-        )
-    aligned_df = pd.concat(aligned_df)
-
-    return aligned_df
-
-
-def _align_dataframe(df, data_path, tile_coors, prefix, ref_prefix=None):
-    """Align a dataframe of spots to reference coordinates
-
-    Split in internal function to re-use for cells and spots
-
-    Args:
-        df (pd.DataFrame): The dataframe with x and y to align
-        data_path (str): Relative path to data
-        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates
-        prefix (str): Prefix of spots to load
-        ref_prefix (str, optional): Prefix of the reference spots. If None, reads from
-            ops. Defaults to None.
-
-    Returns:
-        pd.DataFrame: The dataframe with x and y registered to reference tile.
-
-    """
-    processed_path = iss.io.get_processed_path(data_path)
-    if ref_prefix is None:
-        ops = load_ops(data_path)
-        ref_prefix = ops["reference_prefix"]
-
-    if ref_prefix.startswith(prefix):
-        # it is the ref, no need to register
-        return df
-
-    tform = get_shifts_to_ref(data_path, prefix, *tile_coors)
-    if ops["align_method"] == "similarity":
-        tile_shape = np.load(processed_path / "reg" / f"{ref_prefix}_shifts.npz")[
-            "tile_shape"
-        ]
-        df_tform = make_transform(
-            tform["scales"][0][0], tform["angles"][0][0], tform["shifts"][0], tile_shape
-        )
-    else:
-        df_tform = tform["matrix_between_channels"][0]
-
-    transformed_coors = df_tform @ np.stack([df["x"], df["y"], np.ones(len(df))])
-    df["x_raw"] = df["x"].copy()
-    df["y_raw"] = df["y"].copy()
-    df["x"] = [x for x in transformed_coors[0, :]]
-    df["y"] = [y for y in transformed_coors[1, :]]
-    return df
 
 
 def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):

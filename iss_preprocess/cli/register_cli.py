@@ -55,37 +55,12 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley):
     default=False,
     help="Save diagnostic cross correlogram plots",
 )
-def register_ref_tile(path, prefix, diag):
+@click.option("-f/", "--force-redo/--no-force-redo", default=False, help="Force redo.")
+def register_ref_tile(path, prefix, diag, force_redo):
     """Run registration across channels and rounds for the reference tile."""
-    from pathlib import Path
-
     from iss_preprocess.pipeline import register_reference_tile
-    from iss_preprocess.pipeline.diagnostics import check_ref_tile_registration
 
-    slurm_folder = Path.home() / "slurm_logs" / path
-    scripts_name = f"register_ref_tile_{prefix}"
-    slurm_folder.mkdir(parents=True, exist_ok=True)
-    slurm_options = {"mem": "128G"} if diag else None
-    job_id = register_reference_tile(
-        path,
-        prefix=prefix,
-        diag=diag,
-        use_slurm=True,
-        slurm_folder=str(slurm_folder),
-        slurm_options=slurm_options,
-        scripts_name=scripts_name,
-    )
-    scripts_name = f"check_ref_tile_registration_{prefix}"
-    job2 = check_ref_tile_registration(
-        path,
-        prefix,
-        use_slurm=True,
-        slurm_folder=str(slurm_folder),
-        job_dependency=job_id,
-        scripts_name=scripts_name,
-    )
-    print(f"Started 2 jobs: {job_id}, {job2}")
-
+    register_reference_tile(path, prefix, diag, force_redo)
 
 
 @register_cli.command()
@@ -107,8 +82,7 @@ def estimate_shifts(path, prefix, suffix="max"):
 @click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
 def estimate_hyb_shifts(path, prefix=None):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
-    from iss_preprocess.io import load_metadata
-    from iss_preprocess.io import get_roi_dimensions
+    from iss_preprocess.io import get_roi_dimensions, load_metadata
     from iss_preprocess.pipeline import batch_process_tiles
 
     if prefix:
