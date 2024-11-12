@@ -295,7 +295,7 @@ def register_reference_tile(
     target_file /= f"ref_tile_tforms_{prefix}.npz"
     if target_file.exists() and not force_redo:
         print(f"{prefix} reference tile already registered, skipping")
-        return
+        return None, None
 
     scripts_name = f"register_ref_tile_{prefix}"
     slurm_options = {"mem": "128G"} if diag else None
