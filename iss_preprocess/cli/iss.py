@@ -525,7 +525,10 @@ def register_to_reference(
     use_stitched,
 ):
     """Register an acquisition to reference tile by tile."""
-    from iss_preprocess.pipeline import register
+    from iss_preprocess.pipeline.register import (
+        register_all_tiles_to_ref,
+        register_tile_to_ref,
+    )
 
     if use_stitched:
         from pathlib import Path
@@ -555,10 +558,10 @@ def register_to_reference(
             )
         return
     if any([x is None for x in [roi, tilex, tiley]]):
-        register.register_all_tiles_to_ref(path, reg_prefix, use_masked_correlation)
+        register_all_tiles_to_ref(path, reg_prefix, use_masked_correlation)
     else:
         print(f"Registering ROI {roi}, Tile ({tilex}, {tiley})", flush=True)
-        register.register_tile_to_ref(
+        register_tile_to_ref(
             data_path=path,
             reg_prefix=reg_prefix,
             tile_coors=(int(roi), int(tilex), int(tiley)),
