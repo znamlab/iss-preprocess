@@ -1,5 +1,6 @@
-from pathlib import Path
 import warnings
+from pathlib import Path
+
 import cv2
 import flexiznam as flz
 import matplotlib.patches as patches
@@ -10,6 +11,7 @@ from matplotlib.animation import FFMpegWriter, FuncAnimation
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from natsort import natsorted
 from znamutils import slurm_it
+
 import iss_preprocess as iss
 from iss_preprocess.pipeline import ara_registration as ara_registration
 from iss_preprocess.pipeline import sequencing
@@ -115,7 +117,7 @@ def _plot_channels_intensity(
 
     This will plot the first len(axes) channels of correction image
     Args:
-        axes (list): List of plt.Axes to plot. Must be same lenght as number of channel
+        axes (list): List of plt.Axes to plot. Must be same length as number of channel
         correction_image (np.array): A X x Y x Nch image to plot
         subtract_chan (int, optional): Channel to subtract before displaying. Defaults
             to None, no subtraction
@@ -262,24 +264,24 @@ def adjacent_tiles_registration(
                 rsh[..., i].T, ax, vmin=m - max_shift, vmax=m + max_shift
             )
             if idir == 0 and i == 0:
-                ax.set_title(f"Raw")
+                ax.set_title("Raw")
             ax = axes[idir * 2 + i, 1]
             iss.vis.plot_matrix_with_colorbar(
                 sh[..., i].T, ax, vmin=m - max_shift, vmax=m + max_shift
             )
             if idir == 0 and i == 0:
-                ax.set_title(f"Corrected")
+                ax.set_title("Corrected")
             ax = axes[idir * 2 + i, 2]
             iss.vis.plot_matrix_with_colorbar(
                 delta_shift.T, ax, vmin=0, vmax=max_delta_shift * 1.1
             )
             if idir == 0 and i == 0:
-                ax.set_title(f"Delta")
+                ax.set_title("Delta")
             ax = axes[idir * 2 + i, 3]
             if idir == 0 and i == 0:
-                ax.set_title(f"Bad tiles")
+                ax.set_title("Bad tiles")
             iss.vis.plot_matrix_with_colorbar(bad2plot.T, ax, vmin=0, vmax=2)
-        axes[idir * 2, 4].set_title(f"Max corr")
+        axes[idir * 2, 4].set_title("Max corr")
         iss.vis.plot_matrix_with_colorbar(
             xc.T, axes[idir * 2, 4], vmin=0, vmax=1, cmap="coolwarm"
         )
@@ -378,6 +380,10 @@ def plot_tilestats_distributions(
     colors = ["blue", "green", "red", "purple"]
     # TODO: adapt to varying number of rounds
     nrounds = [np.sum([k.startswith(p) for k in distri]) for p in grand_averages]
+    if not len(grand_averages):
+        print("No grand averages to plot. Not doing anything.")
+        return
+
     for ip, prefix in enumerate(grand_averages):
         grand_data = distri.pop(prefix)
         ax = fig.add_subplot(np.max(nrounds), 2, 1 + ip)
@@ -881,20 +887,20 @@ def check_barcode_mcherry_reg(
     ops = iss.io.load_ops(data_path)
     ref_prefix = ops["reference_prefix"]
     ref_ch = ops["reg2ref_reference_channels"]
-    print(f"Stitching ref")
+    print("Stitching ref")
     ref = iss.pipeline.stitch_registered(
         data_path, prefix=ref_prefix, roi=roi, channels=ref_ch
     )
     ref = np.nanmean(ref, axis=2)
 
     bc_chans = ops.get("reg2ref_barcode_channels", [0, 1, 2, 3])
-    print(f"Stitching barcode")
+    print("Stitching barcode")
     barcode_round_1 = iss.pipeline.stitch_registered(
         data_path, prefix=barcode_prefix, roi=roi, channels=bc_chans
     )
     barcode_round_1 = np.nanmax(barcode_round_1, axis=2)
     mch_chan = ops.get("reg2ref_mCherry_channels", [3])
-    print(f"Stitching mCherry")
+    print("Stitching mCherry")
     mcherry = iss.pipeline.stitch_registered(
         data_path, prefix=mcherry_prefix, roi=roi, channels=mch_chan
     )

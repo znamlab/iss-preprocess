@@ -50,7 +50,8 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
         ny = roi[2] + 1
         for iy in range(ny):
             for ix in range(nx):
-                fname = f"{prefix}_MMStack_{roi[0]}-Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}"
+                tile_name = f"Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}"
+                fname = f"{prefix}_MMStack_{roi[0]}-{tile_name}"
                 for suffix in suffixes:
                     proj_path = processed_path / prefix / f"{fname}_{suffix}.tif"
                     if not proj_path.exists():
@@ -96,7 +97,10 @@ def check_roi_dims(data_path):
         differences = ""
         for i, (round_name, roi_dims) in enumerate(rounds_info):
             if not np.array_equal(rounds_info[0][1], roi_dims):
-                differences += f"{round_name} \n{roi_dims} \n{rounds_info[0][0]} \n{rounds_info[0][1]}\n"
+                differences += (
+                    f"{round_name} \n{roi_dims} "
+                    + "\n{rounds_info[0][0]} \n{rounds_info[0][1]}\n"
+                )
         raise ValueError(f"Differences in roi_dims found across rounds:\n{differences}")
     else:
         print("All ROI dimensions are the same across rounds.", flush=True)
@@ -140,7 +144,7 @@ def reproject_failed(
         print("No failed tiles to re-project!", flush=True)
 
 
-@updates_flexilims(name_source="prefix")
+@updates_flexilims(name_source="prefix")  # type: ignore
 def project_round(data_path, prefix, overwrite=False, overview=True):
     """Start SLURM jobs to z-project all tiles from a single imaging round.
     Also, copy one of the MicroManager metadata files from raw to processed directory.
@@ -224,7 +228,7 @@ def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
 
 
 def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
-    """Calculates extended depth of field and max intensity projections for a single tile.
+    """Calculates projections for a single tile.
 
     Args:
         fname (str): path to tile *without* `'.ome.tif'` extension.
@@ -259,7 +263,7 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
         print("making fstack projection\n")
         im_fstack = fstack_channels(
             im.astype(float), sth=sth
-        )  # TODO check if float is usefull here
+        )  # TODO check if float is useful here
         write_stack(im_fstack, save_path_fstack, bigtiff=True)
     if ops["make_median"]:
         print("making median projection\n")
@@ -277,14 +281,14 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
 
 
 def project_tile_row(data_path, prefix, tile_roi, tile_row, max_col, overwrite=False):
-    """Calculate max intensity and extended DOF projections for a row of tiles in an ROI.
+    """Calculate max intensity and extended DOF projections for a row of tiles in an ROI
 
     Args:
         data_path (str): relative path to dataset
         prefix (str): directory / file name prefix, e.g. 'gene_round'
         tile_roi (int): index of the ROI
         tile_row (int): index of the row to process
-        max_col (int): maximum columns index. Will project tiles from column 0 to max_col
+        max_col (int): Maximum columns index. Column 0 to max_col will be projected.
         overwrite (bool, optional): whether to redo projection if files already exist.
             Defaults to False.
 
