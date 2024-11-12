@@ -74,12 +74,12 @@ build-backend = "setuptools.build_meta"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["image_tools*"]
+include = ["iss_preprocess*"]
 exclude = ["tests", "docs*"]
 
 
 [tool.pytest.ini_options]
-addopts = "--cov=image_tools"
+addopts = "--cov=iss_preprocess"
 
 [tool.black]
 target-version = ['py39', 'py310', 'py311']
@@ -122,5 +122,5 @@ python =
 extras =
     dev
 commands =
-    pytest -v --color=yes --cov=image_tools --cov-report=xml
+    pytest -v --color=yes --cov=iss_preprocess --cov-report=xml
 """
