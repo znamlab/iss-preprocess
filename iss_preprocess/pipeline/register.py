@@ -94,9 +94,10 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
             matrix_between_channels,
         ) = out
 
-    save_path = iss.io.get_processed_path(data_path) / "reg" / prefix
-    save_path.mkdir(parents=True, exist_ok=True)
-    save_path /= f"ref_tile_tforms_{prefix}.npz"
+    save_path = iss.io.get_channel_round_transforms(
+        data_path, prefix, tile_coors=None, shifts_type="reference", load_file=False
+    )
+    save_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez(
         save_path,
         angles_within_channels=angles_within_channels,
@@ -104,6 +105,7 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
         matrix_between_channels=matrix_between_channels,
         allow_pickle=True,
     )
+    print(f"Saved tforms to {save_path}")
 
 
 def register_fluorescent_tile(
@@ -202,14 +204,15 @@ def register_fluorescent_tile(
     else:
         to_save = out
     if save_output:
-        save_dir = processed_path / "reg"
+        save_dir = processed_path / "reg" / prefix
         save_dir.mkdir(parents=True, exist_ok=True)
+        target = f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
         np.savez(
-            save_dir
-            / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
+            save_dir / target,
             allow_pickle=True,
             **to_save,
         )
+        print(f"Saved tforms to {save_dir / target}")
 
     if debug:
         return to_save, db_info
@@ -542,7 +545,7 @@ def correct_shifts_roi(
     for iy in range(ny):
         for ix in range(nx):
             tforms = np.load(
-                processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+                processed_path / "reg" / prefix / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
             )
             shifts_within_channels.append(tforms["shifts_within_channels"])
             matrix_between_channels = tforms["matrix_between_channels"]
@@ -597,20 +600,22 @@ def correct_shifts_roi(
                 )
                 shifts_between_channels_corrected[ich, idim, :] = reg.predict(training)
 
-    save_dir = processed_path / "reg"
+    save_dir = processed_path / "reg" / prefix
     save_dir.mkdir(parents=True, exist_ok=True)
     itile = 0
     matrix = matrix_between_channels.copy()
     for iy in range(ny):
         for ix in range(nx):
             matrix[:, :2, 2] = shifts_between_channels_corrected[:, :, itile]
+            target = f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
             np.savez(
-                save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
+                save_dir / target,
                 angles_within_channels=tforms["angles_within_channels"],
                 shifts_within_channels=shifts_within_channels_corrected[:, :, :, itile],
                 matrix_between_channels=matrix,
                 allow_pickle=True,
             )
+            print(f"Saved tforms to {save_dir / target}")
             # TODO: perhaps save in a cleaner way
             itile += 1
 

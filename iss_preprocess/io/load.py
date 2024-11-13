@@ -575,14 +575,15 @@ def find_roi_position_on_cryostat(data_path):
 
 
 def get_channel_round_transforms(
-    data_path, prefix, tile_coors, shifts_type="best", load_file=True
+    data_path, prefix, tile_coors=None, shifts_type="best", load_file=True
 ):
     """Load the channel and round shifts for a given tile and sequencing acquisition.
 
     Args:
         data_path (str): Relative path to data.
         prefix (str): Prefix of the sequencing round.
-        tile_coors (tuple): Coordinates of the tile to process.
+        tile_coors (tuple, optional): Coordinates of the tile to process. Required if
+            `shifts_type` is not `reference`. Defaults to None.
         corrected_shifts (str, optional): Which shift to use. One of `reference`,
             `single_tile`, `ransac`, or `best`. Defaults to `best`.
         load_file (bool, optional): Whether to load the shifts from file or just return
@@ -595,8 +596,11 @@ def get_channel_round_transforms(
     """
 
     tforms_path = get_processed_path(data_path) / "reg" / prefix
+    if tile_coors is not None:
+        tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
+    elif shifts_type != "reference":
+        raise ValueError("tile_coors must be provided for non-reference shifts")
 
-    tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
     if shifts_type == "reference":
         tforms_fname = f"ref_tile_tforms_{prefix}.npz"
     elif shifts_type == "single_tile":
