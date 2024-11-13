@@ -455,7 +455,7 @@ def estimate_shifts_by_coors(
 
     median_filter_size = ops["reg_median_filter"]
     nrounds = ops[prefix + "s"]
-    tforms_path = processed_path / f"tforms_{prefix}.npz"
+    tforms_path = processed_path / "reg" / prefix / f"ref_tile_tforms_{prefix}.npz"
     stack = load_sequencing_rounds(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
@@ -470,16 +470,17 @@ def estimate_shifts_by_coors(
         min_shift=ops["rounds_min_shift"],
         median_filter_size=median_filter_size,
     )
-    save_dir = processed_path / "reg"
+    save_dir = processed_path / "reg" / prefix
     save_dir.mkdir(parents=True, exist_ok=True)
+    target = f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
     np.savez(
-        save_dir
-        / f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz",
+        save_dir / target,
         angles_within_channels=reference_tforms["angles_within_channels"],
         shifts_within_channels=shifts_within_channels,
         matrix_between_channels=matrix_between_channels,
         allow_pickle=True,
     )
+    print(f"Saved tforms to {save_dir / target}")
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))

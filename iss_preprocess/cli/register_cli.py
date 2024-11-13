@@ -34,7 +34,7 @@ def register_ref_tile(path, prefix, diag, force_redo):
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 def register_tile(path, prefix, roi, tilex, tiley, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
-    from iss_preprocess.pipeline import estimate_shifts_by_coors
+    from iss_preprocess.pipeline.register import estimate_shifts_by_coors
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}")
     estimate_shifts_by_coors(

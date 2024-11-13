@@ -39,6 +39,7 @@ classifiers = [
 iss = "iss_preprocess.cli.iss:iss_cli"
 iss-register = "iss_preprocess.cli.register_cli:register_cli"
 iss-sync-and-crunch = "iss_preprocess.cli.sync_and_crunch_cli:sync_and_crunch_cli"
+iss-core = "iss_preprocess.cli.core_cli:core_cli"
 
 [project.urls]
 "Homepage" = "https://github.com/znamlab/iss-preprocess"
