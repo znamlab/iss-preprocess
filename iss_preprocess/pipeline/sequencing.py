@@ -8,6 +8,7 @@ from sklearn.preprocessing import OneHotEncoder
 from znamutils import slurm_it
 
 import iss_preprocess as iss
+from iss_preprocess.io.load import get_channel_round_transforms
 
 from ..call import (
     BASES,
@@ -454,7 +455,9 @@ def load_and_register_sequencing_tile(
         stack = apply_illumination_correction(data_path, stack, prefix)
 
     ops = iss.io.load_ops(data_path)
-    tforms = get_channel_round_shifts(data_path, prefix, tile_coors, corrected_shifts)
+    tforms = get_channel_round_transforms(
+        data_path, prefix, tile_coors, corrected_shifts
+    )
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],
@@ -482,37 +485,6 @@ def load_and_register_sequencing_tile(
             stack = stack / norm_factors[np.newaxis, np.newaxis, :, specific_rounds - 1]
 
     return stack, bad_pixels
-
-
-def get_channel_round_shifts(data_path, prefix, tile_coors, corrected_shifts):
-    """Load the channel and round shifts for a given tile and sequencing acquisition.
-
-    Args:
-        data_path (str): Relative path to data.
-        prefix (str): Prefix of the sequencing round.
-        tile_coors (tuple): Coordinates of the tile to process.
-        corrected_shifts (str): Which shift to use. One of `reference`, `single_tile`,
-            `ransac`, or `best`.
-
-    Returns:
-        np.ndarray: Array of channel and round shifts.
-
-    """
-    processed_path = iss.io.get_processed_path(data_path)
-    tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
-    tforms_path = processed_path / "reg" / prefix
-    if corrected_shifts == "reference":
-        tforms_fname = f"ref_tile_tforms_{prefix}.npz"
-    elif corrected_shifts == "single_tile":
-        tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
-    elif corrected_shifts == "ransac":
-        tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
-    elif corrected_shifts == "best":
-        tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
-    else:
-        raise ValueError(f"unknown shift correction method: {corrected_shifts}")
-    tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
-    return tforms
 
 
 def compute_spot_sign_image(data_path, prefix="genes_round"):

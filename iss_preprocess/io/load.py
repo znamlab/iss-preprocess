@@ -572,3 +572,43 @@ def find_roi_position_on_cryostat(data_path):
     }
 
     return roi_slice_pos_um, section_info.section_thickness_um.min()
+
+
+def get_channel_round_transforms(
+    data_path, prefix, tile_coors, shifts_type="best", load_file=True
+):
+    """Load the channel and round shifts for a given tile and sequencing acquisition.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Prefix of the sequencing round.
+        tile_coors (tuple): Coordinates of the tile to process.
+        corrected_shifts (str, optional): Which shift to use. One of `reference`,
+            `single_tile`, `ransac`, or `best`. Defaults to `best`.
+        load_file (bool, optional): Whether to load the shifts from file or just return
+            the file name. Defaults to True.
+
+
+    Returns:
+        np.ndarray | Path: Array of channel and round shifts if load_file, else the path
+
+    """
+
+    tforms_path = get_processed_path(data_path) / "reg" / prefix
+
+    tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
+    if shifts_type == "reference":
+        tforms_fname = f"ref_tile_tforms_{prefix}.npz"
+    elif shifts_type == "single_tile":
+        tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
+    elif shifts_type == "ransac":
+        tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
+    elif shifts_type == "best":
+        tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
+    else:
+        raise ValueError(f"unknown shift correction method: {shifts_type}")
+    filename = tforms_path / tforms_fname
+    if not load_file:
+        return filename
+    tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
+    return tforms
