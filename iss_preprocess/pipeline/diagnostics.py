@@ -1,6 +1,7 @@
 """
 Module containing diagnostic plots to make sure steps of the pipeline run smoothly
 
+
 The functions in here do not compute anything useful, but create figures
 """
 
@@ -21,7 +22,7 @@ from znamutils import slurm_it
 
 import iss_preprocess as iss
 from iss_preprocess import vis
-from iss_preprocess.io import (
+from ..io import (
     get_processed_path,
     load_metadata,
     load_ops,
@@ -31,6 +32,7 @@ from iss_preprocess.pipeline import sequencing
 from iss_preprocess.pipeline.stitch import stitch_registered
 from iss_preprocess.vis.diagnostics import plot_all_rounds
 from iss_preprocess.vis.utils import get_spot_part, get_stack_part
+from ..vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
 
 
 @slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
@@ -479,7 +481,7 @@ def check_shift_correction(
                     raw_to_plot = raw[c, :, ifeat, ...]
                     corr_to_plot = corrected[c, :, ifeat, ...]
                     best_to_plot = best[c, :, ifeat, ...]
-                    vis.plot_matrix_difference(
+                    plot_matrix_difference(
                         raw=raw_to_plot,
                         corrected=corr_to_plot,
                         col_labels=[f"Round {i} {feat}" for i in np.arange(nr)],
@@ -498,7 +500,7 @@ def check_shift_correction(
                         if rng < rng_min:
                             vmin -= (rng_min - rng) / 2
                             vmax += (rng_min - rng) / 2
-                        vis.plot_matrix_with_colorbar(
+                        plot_matrix_with_colorbar(
                             best_to_plot[ir].T, ax, vmin=vmin, vmax=vmax
                         )
                         ax.set_xticks([])
@@ -528,7 +530,7 @@ def check_shift_correction(
                 raw_to_plot = raw[:, ifeat, ...]
                 corr_to_plot = corrected[:, ifeat, ...]
                 best_to_plot = best[:, ifeat, ...]
-                vis.plot_matrix_difference(
+                plot_matrix_difference(
                     raw=raw_to_plot,
                     corrected=corr_to_plot,
                     col_labels=[f"Channel {i} {feat}" for i in np.arange(nc)],
@@ -547,7 +549,7 @@ def check_shift_correction(
                     if rng < rng_min:
                         vmin -= (rng_min - rng) / 2
                         vmax += (rng_min - rng) / 2
-                    vis.plot_matrix_with_colorbar(
+                    plot_matrix_with_colorbar(
                         best_to_plot[ic].T, ax, vmin=vmin, vmax=vmax
                     )
                     ax.set_xticks([])
@@ -781,7 +783,7 @@ def check_barcode_basecall(
                 c=valid_spots[score],
                 s=5,
             )
-            cax, cb = vis.plot_matrix_with_colorbar(empty, ax, cmap=cmap)
+            cax, cb = plot_matrix_with_colorbar(empty, ax, cmap=cmap)
             cax.clear()
             cb = fig.colorbar(sc, cax=cax)
             cb.set_label(score.replace("_", " "))
@@ -1023,7 +1025,7 @@ def check_reg_to_ref_correction(
                 )["matrix_between_channels"][0]
                 best[:2, ix, iy] = tform[:2, 2]
         fig, axes = plt.subplots(4, 3, figsize=(12, 8))
-        fig = vis.plot_matrix_difference(
+        fig = plot_matrix_difference(
             raw=raw,
             corrected=corrected,
             col_labels=["Shift x", "Shift y"],
@@ -1033,7 +1035,7 @@ def check_reg_to_ref_correction(
         for i in range(3):
             # get the clim from the `raw` plot
             vmin, vmax = axes[0, i].get_images()[0].get_clim()
-            vis.plot_matrix_with_colorbar(best[i].T, axes[3, i], vmin=vmin, vmax=vmax)
+            plot_matrix_with_colorbar(best[i].T, axes[3, i], vmin=vmin, vmax=vmax)
         axes[3, 0].set_ylabel("Best")
         fig.tight_layout()
         fig.suptitle(f"Registration to reference. {prefix} ROI {roi}")
@@ -1106,7 +1108,7 @@ def check_tile_shifts(
         with PdfPages(figure_folder / f"tile_shifts_{prefix}_roi{roi}.pdf") as pdf:
             for ch in range(nchannels):
                 for dim in range(2):
-                    fig = vis.plot_matrix_difference(
+                    fig = plot_matrix_difference(
                         raw=shifts_within_channels_raw[ch, :, dim, :, :],
                         corrected=shifts_within_channels_corrected[ch, :, dim, :, :],
                         col_labels=[f"round {i}" for i in range(nrounds)],

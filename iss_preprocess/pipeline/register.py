@@ -25,6 +25,7 @@ from ..reg import (
 )
 from ..vis.diagnostics import plot_registration_correlograms
 from .core import batch_process_tiles
+from .diagnostics import check_tile_shifts
 from .sequencing import load_sequencing_rounds
 
 
@@ -514,7 +515,7 @@ def correct_shifts(data_path, prefix):
         filter_ransac_shifts(
             data_path, prefix, roi_dim, max_residuals=ops["ransac_residual_threshold"]
         )
-    iss.pipeline.check_tile_shifts(data_path, prefix)
+    check_tile_shifts(data_path, prefix)
 
 
 def correct_shifts_roi(

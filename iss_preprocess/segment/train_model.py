@@ -1,13 +1,13 @@
 """WARNING THESE ARE DRAFT UTILITY FUNCTIONS AND WILL NEED TO BE ADAPTED"""
 
-import tifffile
-import numpy as np
-from cellpose import io, models, train
 from pathlib import Path
 
+import numpy as np
+import tifffile
+from cellpose import io, models, train
 from znamutils import slurm_it
 
-import iss_preprocess as iss
+from ..pipeline.segment import get_stack_for_cellpose
 
 
 def save_tile_for_cellpose_gui(data_path, prefix, tile_coors, channels, target_folder):
@@ -24,7 +24,7 @@ def save_tile_for_cellpose_gui(data_path, prefix, tile_coors, channels, target_f
     Returns:
         None
     """
-    stack = iss.pipeline.segment.get_stack_for_cellpose(data_path, prefix, tile_coors)
+    stack = get_stack_for_cellpose(data_path, prefix, tile_coors)
     # reorder into cellpose order and save
     part = stack.copy()
     part = np.moveaxis(part, 2, 0)
