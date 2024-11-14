@@ -6,14 +6,15 @@ from pathlib import Path
 import numpy as np
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
 from ..decorators import updates_flexilims
+from ..diagnostics import check_illumination_correction
 from ..diagnostics.diag_register import (
     check_ref_tile_registration,
     check_shift_correction,
     check_tile_registration,
 )
+from ..diagnostics.diag_stitching import plot_overview_images
+from ..image import tilestats_and_mean_image
 from ..io import (
     find_roi_position_on_cryostat,
     get_processed_path,
@@ -22,11 +23,26 @@ from ..io import (
     load_ops,
     write_stack,
 )
+from .align_spots_and_cells import stitch_cell_dataframes
 from .core import batch_process_tiles, setup_flexilims
+from .hybridisation import (
+    estimate_channel_correction_hybridisation,
+    extract_hyb_spots_all,
+    setup_hyb_spot_calling,
+)
+from .project import check_projection, check_roi_dims, project_round, reproject_failed
 from .register import (
+    correct_hyb_shifts,
     run_correct_shifts,
     run_register_reference_tile,
 )
+from .segment import (
+    filter_mcherry_cells,
+    remove_all_duplicate_masks,
+    save_unmixing_coefficients,
+)
+from .sequencing import estimate_channel_correction, setup_barcode_calling, setup_omp
+from .stitch import register_all_rois_within
 
 __all__ = [
     "project_and_average",
@@ -117,15 +133,13 @@ def project_and_average(data_path, force_redo=False):
             if (processed_path / prefix / "missing_tiles.txt").exists():
                 print(f"{prefix} is already projected, continuing", flush=True)
                 continue
-        tileproj_job_ids, _ = iss.pipeline.project_round(
-            data_path, prefix, overview=False
-        )
+        tileproj_job_ids, _ = project_round(data_path, prefix, overview=False)
         pr_job_ids.extend(tileproj_job_ids)
     pr_job_ids = pr_job_ids if pr_job_ids else None
 
     # Now check that all roi_dims are the same, can sometimes be truncated
     # if project_round occurs during data transfer
-    roi_dim_job_ids = iss.pipeline.check_roi_dims(
+    roi_dim_job_ids = check_roi_dims(
         data_path,
         use_slurm=True,
         slurm_folder=slurm_folder,
@@ -141,7 +155,7 @@ def project_and_average(data_path, force_redo=False):
     for prefix in to_process:
         slurm_folder = Path.home() / "slurm_logs" / data_path
         slurm_folder.mkdir(parents=True, exist_ok=True)
-        check_proj_job_ids = iss.pipeline.check_projection(
+        check_proj_job_ids = check_projection(
             data_path,
             prefix,
             use_slurm=True,
@@ -154,11 +168,11 @@ def project_and_average(data_path, force_redo=False):
     all_check_proj_job_ids = all_check_proj_job_ids if all_check_proj_job_ids else None
     print(f"check_projection job ids: {all_check_proj_job_ids}", flush=True)
 
-    # Then run iss.pipeline.reproject_failed() which opens txt files from check
+    # Then run reproject_failed() which opens txt files from check
     # projection and reprojects failed tiles, collecting job_ids for each tile
     slurm_folder = Path.home() / "slurm_logs" / data_path
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    reproj_job_ids = iss.pipeline.reproject_failed(
+    reproj_job_ids = reproject_failed(
         data_path,
         use_slurm=True,
         slurm_folder=slurm_folder,
@@ -174,7 +188,7 @@ def project_and_average(data_path, force_redo=False):
     for prefix in to_process:
         slurm_folder = Path.home() / "slurm_logs" / data_path
         slurm_folder.mkdir(parents=True, exist_ok=True)
-        check_proj_job_ids = iss.pipeline.check_projection(
+        check_proj_job_ids = check_projection(
             data_path,
             prefix,
             use_slurm=True,
@@ -188,7 +202,7 @@ def project_and_average(data_path, force_redo=False):
     print(f"check_projection job ids: {all_check_proj_job_ids}", flush=True)
 
     # Then create averages of projections
-    csa_job_ids = iss.pipeline.create_all_single_averages(
+    csa_job_ids = create_all_single_averages(
         data_path,
         n_batch=1,
         to_average=to_process,
@@ -206,7 +220,7 @@ def project_and_average(data_path, force_redo=False):
         prefix_todo.append("")
 
     if prefix_todo:
-        cga_job_ids = iss.pipeline.create_grand_averages(
+        cga_job_ids = create_grand_averages(
             data_path,
             dependency=csa_job_ids if csa_job_ids else None,
             force_redo=force_redo,
@@ -237,7 +251,7 @@ def project_and_average(data_path, force_redo=False):
             ).exists():
                 print(f"{prefix} is already plotted, continuing", flush=True)
                 continue
-        job_id = iss.vis.plot_overview_images(
+        job_id = plot_overview_images(
             data_path,
             prefix,
             plot_grid=True,
@@ -446,7 +460,7 @@ def create_single_average(
 
     black_level = ops["black_level"] if subtract_black else 0
 
-    av_image, tilestats = iss.image.tilestats_and_mean_image(
+    av_image, tilestats = tilestats_and_mean_image(
         processed_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
@@ -604,7 +618,7 @@ def create_grand_averages(
             )
         )
 
-    iss.pipeline.diagnostics.check_illumination_correction(
+    check_illumination_correction(
         data_path,
         grand_averages=prefix_todo[:-1],
         plot_tilestats=True,
@@ -695,7 +709,7 @@ def setup_channel_correction(data_path, use_slurm=True):
     ops = load_ops(data_path)
     slurm_folder = Path.home() / "slurm_logs" / data_path
     if ops["barcode_rounds"] > 0:
-        iss.pipeline.estimate_channel_correction(
+        estimate_channel_correction(
             data_path,
             prefix="barcode_round",
             nrounds=ops["barcode_rounds"],
@@ -705,7 +719,7 @@ def setup_channel_correction(data_path, use_slurm=True):
             scripts_name="barcode_channel_correction",
         )
     if ops["genes_rounds"] > 0:
-        iss.pipeline.estimate_channel_correction(
+        estimate_channel_correction(
             data_path,
             prefix="genes_round",
             nrounds=ops["genes_rounds"],
@@ -715,7 +729,7 @@ def setup_channel_correction(data_path, use_slurm=True):
             scripts_name="genes_channel_correction",
         )
 
-    iss.pipeline.estimate_channel_correction_hybridisation(
+    estimate_channel_correction_hybridisation(
         data_path, use_slurm=use_slurm, slurm_folder=slurm_folder
     )
 
@@ -733,19 +747,19 @@ def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
 
     """
     if genes:
-        iss.pipeline.correct_shifts(data_path, prefix="genes_round")
-        iss.pipeline.setup_omp(data_path)
+        correct_shifts(data_path, prefix="genes_round")
+        setup_omp(data_path)
         batch_process_tiles(data_path, "extract_tile")
 
     if barcodes:
-        iss.pipeline.correct_shifts(data_path, prefix="barcode_round")
-        iss.pipeline.setup_barcode_calling(data_path)
+        correct_shifts(data_path, prefix="barcode_round")
+        setup_barcode_calling(data_path)
         batch_process_tiles(data_path, "basecall_tile")
 
     if hybridisation:
-        iss.pipeline.correct_hyb_shifts(data_path)
-        iss.pipeline.setup_hyb_spot_calling(data_path)
-        iss.pipeline.extract_hyb_spots_all(data_path)
+        correct_hyb_shifts(data_path)
+        setup_hyb_spot_calling(data_path)
+        extract_hyb_spots_all(data_path)
 
 
 def segment_and_stitch_mcherry_cells(
@@ -774,7 +788,7 @@ def segment_and_stitch_mcherry_cells(
         slurm_folder = Path.home() / "slurm_logs" / data_path / f"segment_{prefix}"
     slurm_folder.mkdir(parents=True, exist_ok=True)
 
-    job_coef = iss.pipeline.segment.save_unmixing_coefficients(
+    job_coef = save_unmixing_coefficients(
         data_path,
         prefix,
         use_slurm=use_slurm,
@@ -794,7 +808,7 @@ def segment_and_stitch_mcherry_cells(
 
     spref = prefix.split("_")[0].lower()
     # ensure the "within" registration ran
-    reg_jobs = iss.pipeline.stitch.register_all_rois_within(
+    reg_jobs = register_all_rois_within(
         data_path,
         prefix=prefix,
         ref_ch=None,
@@ -810,7 +824,7 @@ def segment_and_stitch_mcherry_cells(
         job_dependency=failed_job,
     )
     # remove duplicate masks
-    dupl_job = iss.pipeline.segment.remove_all_duplicate_masks(
+    dupl_job = remove_all_duplicate_masks(
         data_path,
         prefix,
         use_slurm=True,
@@ -820,7 +834,7 @@ def segment_and_stitch_mcherry_cells(
     )
 
     # stitch the masks dataframes
-    stitch_job = iss.pipeline.stitch.stitch_cell_dataframes(
+    stitch_job = stitch_cell_dataframes(
         data_path,
         prefix,
         use_slurm=True,
@@ -834,7 +848,7 @@ def segment_and_stitch_mcherry_cells(
         stitch_job,
     )
     if ops.get(f"{spref}_gmm_filter_masks", False):
-        filt_job = iss.pipeline.segment.filter_mcherry_cells(
+        filt_job = filter_mcherry_cells(
             data_path,
             prefix,
             use_slurm=True,
