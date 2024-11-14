@@ -605,7 +605,7 @@ def get_channel_round_transforms(
         tforms_fname = f"ref_tile_tforms_{prefix}.npz"
     elif shifts_type == "single_tile":
         tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
-    elif shifts_type == "ransac":
+    elif (shifts_type == "ransac") or (shifts_type == "corrected"):
         tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
     elif shifts_type == "best":
         tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
