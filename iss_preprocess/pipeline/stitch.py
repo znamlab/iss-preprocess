@@ -14,7 +14,6 @@ from tqdm import tqdm
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-from iss_preprocess import pipeline, vis
 from iss_preprocess.image.correction import apply_illumination_correction
 from iss_preprocess.io import (
     get_roi_dimensions,
@@ -22,6 +21,7 @@ from iss_preprocess.io import (
     load_stack,
     load_tile_by_coors,
 )
+from iss_preprocess.pipeline import register, vis
 from iss_preprocess.reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
@@ -67,7 +67,7 @@ def load_tile_ref_coors(
         stack = stack[:, :, np.newaxis]
         interpolation = 0
     else:
-        stack, bad_pixels = pipeline.load_and_register_tile(
+        stack, bad_pixels = register.load_and_register_tile(
             data_path,
             tile_coors,
             prefix,

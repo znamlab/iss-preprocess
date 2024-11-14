@@ -490,7 +490,7 @@ def register_to_reference(
     use_stitched,
 ):
     """Register an acquisition to reference tile by tile."""
-    from iss_preprocess.pipeline.register import (
+    from iss_preprocess.pipeline.reg2ref import (
         register_all_tiles_to_ref,
         register_tile_to_ref,
     )

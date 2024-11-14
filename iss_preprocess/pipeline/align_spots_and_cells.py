@@ -6,7 +6,7 @@ from znamutils import slurm_it
 
 import iss_preprocess as iss
 from iss_preprocess.io import get_roi_dimensions, load_ops
-from iss_preprocess.pipeline.register import get_shifts_to_ref
+from iss_preprocess.pipeline.reg2ref import get_shifts_to_ref
 from iss_preprocess.pipeline.stitch import get_tile_corners
 from iss_preprocess.reg import make_transform
 

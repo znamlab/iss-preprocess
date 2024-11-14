@@ -1,3 +1,4 @@
+from pathlib import Path
 from warnings import warn
 
 import numpy as np
@@ -9,25 +10,27 @@ from znamutils import slurm_it
 
 import iss_preprocess as iss
 
+from ..image.correction import apply_illumination_correction
 from ..io import (
     get_channel_round_transforms,
+    get_processed_path,
     get_roi_dimensions,
+    get_tile_ome,
     load_metadata,
     load_ops,
     load_tile_by_coors,
 )
 from ..reg import (
     estimate_affine_for_tile,
-    estimate_rotation_translation,
     estimate_shifts_and_angles_for_tile,
     estimate_shifts_for_tile,
     make_transform,
     register_channels_and_rounds,
 )
 from ..vis.diagnostics import plot_registration_correlograms
-from .core import batch_process_tiles
 from .diagnostics import check_tile_shifts
-from .sequencing import load_sequencing_rounds
+from .hybridisation import load_and_register_hyb_tile
+from .sequencing import load_and_register_sequencing_tile, load_sequencing_rounds
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
@@ -52,7 +55,7 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
 
     """
     if diag:
-        diag_plot_dir = iss.io.get_processed_path(data_path) / "figures" / "ref_tile"
+        diag_plot_dir = get_processed_path(data_path) / "figures" / "ref_tile"
         diag_plot_dir.mkdir(parents=True, exist_ok=True)
     ops = load_ops(data_path)
     nrounds = ops[prefix + "s"]
@@ -98,7 +101,7 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
             matrix_between_channels,
         ) = out
 
-    save_path = iss.io.get_channel_round_transforms(
+    save_path = get_channel_round_transforms(
         data_path, prefix, tile_coors=None, shifts_type="reference", load_file=False
     )
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -141,7 +144,7 @@ def register_fluorescent_tile(
         dict: Debug information if debug is True, None otherwise.
     """
 
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     ops_prefix = prefix.split("_")[0].lower()
     projection = ops[f"{ops_prefix}_projection"]
@@ -159,9 +162,7 @@ def register_fluorescent_tile(
     correct_illumination = ops.get(f"{ops_prefix}_reg_correct_illumination", False)
     if correct_illumination:
         print("Correcting illumination")
-        stack = iss.image.correction.apply_illumination_correction(
-            data_path, stack, prefix
-        )
+        stack = apply_illumination_correction(data_path, stack, prefix)
     else:
         print("Not correcting illumination")
 
@@ -457,7 +458,7 @@ def estimate_shifts_by_coors(
             Defaults to "fstack".
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
 
     median_filter_size = ops["reg_median_filter"]
@@ -491,7 +492,7 @@ def estimate_shifts_by_coors(
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
-def correct_shifts(data_path, prefix):
+def run_correct_shifts(data_path, prefix):
     """Use robust regression to correct shifts across tiles within an ROI
     for all ROIs.
 
@@ -539,7 +540,7 @@ def correct_shifts_roi(
             otherwise median is used.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     roi = roi_dims[0]
     nx = roi_dims[1] + 1
     ny = roi_dims[2] + 1
@@ -825,7 +826,7 @@ def merge_shifts(data_path, prefix, n_chans=4):
         raise NotImplementedError("Merging shifts for non-affine not implemented yet")
 
     # save all the corrected to the same median value
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     save_dir = processed_path / "reg"
     save_dir.mkdir(parents=True, exist_ok=True)
     for roi, nx, ny in roi_dims[use_rois, ...]:
@@ -852,7 +853,7 @@ def merge_shifts(data_path, prefix, n_chans=4):
 
 
 def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     shifts = []
     angles = []
     scales = []
@@ -926,7 +927,7 @@ def correct_shifts_single_round_roi(
         None
     """
 
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     if align_method is None:
         align_method = ops["align_method"]
@@ -989,344 +990,132 @@ def correct_shifts_single_round_roi(
             itile += 1
 
 
-def register_all_tiles_to_ref(data_path, reg_prefix, use_masked_correlation):
-    """Register all tiles to the reference tile
-
-    Args:
-        data_path (str): Relative path to data
-        reg_prefix (str): Prefix to register, "barcode_round" for instance
-        use_masked_correlation (bool): Use masked correlation to register
-
-    Returns:
-        list: Job IDs for batch processing
-
-    """
-    print("Batch processing all tiles", flush=True)
-
-    roi_dims = get_roi_dimensions(data_path)
-    additional_args = (
-        f",REG_PREFIX={reg_prefix},"
-        + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
-    )
-    job_ids = batch_process_tiles(
-        data_path,
-        "register_tile_to_ref",
-        additional_args=additional_args,
-        roi_dims=roi_dims,
-    )
-    return job_ids
-
-
-def register_tile_to_ref(
+def load_and_register_tile(
     data_path,
     tile_coors,
-    reg_prefix,
-    ref_prefix=None,
-    binarise_quantile=None,
-    ref_tile_coors=None,
-    reg_channels=None,
-    ref_channels=None,
-    use_masked_correlation=False,
+    prefix,
+    filter_r=True,
+    projection=None,
+    zero_bad_pixels=False,
+    correct_illumination=True,
 ):
-    """Register a single tile to the corresponding reference tile
+    """Load one single tile
+
+    Load a tile of `prefix` with channels/rounds registered, apply illumination
+    correction and filtering.
 
     Args:
         data_path (str): Relative path to data
-        tile_coors (tuple): (roi, tilex, tiley) tuple of tile coordinates
-        reg_prefix (str): Prefix to register, "barcode_round" for instance
-        ref_prefix (str, optional): Reference prefix, if None will read from ops.
-            Defaults to None.
-        binarise_quantile (float, optional): Quantile to binarise images before
-            registration. If None will read from ops, Defaults to None.
-        ref_tile_coors (tuple, optional): Tile coordinates of the reference tile.
-            Usually not needed as it is assumed to be the same as the tile to register.
-            Defaults to None.
-        reg_channels (list, optional): Channels to use for registration. If None
-            will read from ops. Defaults to None
-        ref_channels (list, optional): Channels to use for registration. If None will
-            read from ops. Defaults to None
-        use_masked_correlation (bool, optional): Use masked correlation to register.
-            Defaults to False.
+        tile_coors (tuple): (Roi, tileX, tileY) tuple
+        prefix (str): Acquisition to load. If `genes_round` or `barcode_round` will load
+            all the rounds.
+        filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
+            from `ops`. Default to True
+        projection (str, optional): Projection to use. If None, will read from `ops`.
+            Defaults to None
+        zero_bad_pixels (bool, optional): Set bad pixels to zero. Defaults to False
+        correct_illumination (bool, optional): Apply illumination correction. Defaults
+            to True
 
     Returns:
-        angle (float): Rotation angle
-        shifts (np.array): X and Y shifts
+        numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
+        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after
+            registration
 
     """
     ops = load_ops(data_path)
-    # if None, get ref_prefix, ref_channels, binarise_quantile and reg_channels from ops
-    if (ref_prefix is None) or (ref_prefix == "None"):
-        ref_prefix = ops["reference_prefix"]
-    if ref_prefix == reg_prefix:
-        raise ValueError("Reference and register prefixes are the same")
-    spref = reg_prefix.split("_")[0]  # short prefix
-    if ref_channels is None:
-        ref_channels = ops["reg2ref_reference_channels"]
-        ref_channels = ops.get(f"reg2ref_reference_channels_for_{spref}", ref_channels)
+    if projection is None:
+        projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
+    if filter_r and isinstance(filter_r, bool):
+        filter_r = ops["filter_r"]
+    if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
+        parts = prefix.split("_")
+        if len(parts) > 2:
+            acq_type = "_".join(parts[:2])
+            rounds = np.array([int(parts[2])])
+        else:
+            acq_type = prefix
+            rounds = np.arange(ops[f"{acq_type}s"]) + 1
 
-    if binarise_quantile is None:
-        binarise_quantile = ops.get(f"{spref}_binarise_quantile", 0.7)
-    if reg_channels is None:
-        # use either the same as ref or what is in the ops
-        reg_channels = ops.get(f"reg2ref_{spref}_channels", ref_channels)
-        # if there is something defined for this acquisition, use it instead
-        reg_channels = ops.get(f"reg2ref_{reg_prefix}_channels", reg_channels)
-
-    print(f"Registering {reg_prefix} to {ref_prefix}", flush=True)
-    if use_masked_correlation:
-        print("Using masked correlation", flush=True)
-    if ref_tile_coors is None:
-        ref_tile_coors = tile_coors
-    else:
-        print(f"Register to {ref_tile_coors}", flush=True)
-
-    print("Parameters: ")
-    print(f"    reg_channels: {reg_channels}")
-    print(f"    ref_channels: {ref_channels}")
-    print(f"    binarise_quantile: {binarise_quantile}", flush=True)
-
-    # For registration, we don't want to 0 bad pixels. If one round is bad, we will
-    # average across others so we don't care, if a channel is bad, we should have
-    # signal in the other, if we don't, it's already 0.
-    ref_all_channels, ref_bad_pixels = iss.pipeline.load_and_register_tile(
-        data_path=data_path,
-        tile_coors=ref_tile_coors,
-        prefix=ref_prefix,
-        filter_r=False,
-        zero_bad_pixels=False,
-    )
-    reg_all_channels, reg_bad_pixels = iss.pipeline.load_and_register_tile(
-        data_path=data_path,
-        tile_coors=tile_coors,
-        prefix=reg_prefix,
-        filter_r=False,
-        zero_bad_pixels=False,
-    )
-
-    if ref_channels is not None:
-        if isinstance(ref_channels, int):
-            ref_channels = [ref_channels]
-        ref_all_channels = ref_all_channels[:, :, ref_channels]
-    ref = np.nanmean(ref_all_channels, axis=(2, 3))
-    ref = np.nan_to_num(ref)
-
-    if reg_channels is not None:
-        if isinstance(reg_channels, int):
-            reg_channels = [reg_channels]
-        reg_all_channels = reg_all_channels[:, :, reg_channels]
-    reg = np.nanmean(reg_all_channels, axis=(2, 3))
-    reg = np.nan_to_num(reg)
-
-    if ops["reg_median_filter"]:
-        ref = median_filter(ref, footprint=disk(ops["reg_median_filter"]), axes=(0, 1))
-        reg = median_filter(reg, footprint=disk(ops["reg_median_filter"]), axes=(0, 1))
-
-    if binarise_quantile is not None:
-        reg = reg > np.quantile(reg, binarise_quantile)
-        ref = ref > np.quantile(ref, binarise_quantile)
-
-    angle, shift = estimate_rotation_translation(
-        ref,
-        reg,
-        angle_range=1.0,
-        niter=3,
-        nangles=15,
-        max_shift=ops["rounds_max_shift"],
-        reference_mask=~ref_bad_pixels if use_masked_correlation else None,
-        target_mask=~reg_bad_pixels if use_masked_correlation else None,
-    )
-    print(f"Angle: {angle}, Shifts: {shift}")
-    # make it into affine matrix
-    tforms = make_transform(s=1, angle=angle, shift=shift, shape=reg.shape[:2])
-    processed_path = iss.io.get_processed_path(data_path)
-    r, x, y = tile_coors
-    target = processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
-    # reshape tforms to be like the multichannels tforms
-    np.savez(target, matrix_between_channels=tforms.reshape((1, 3, 3)))
-    print(f"Saved tforms to {target}", flush=True)
-    return tforms
-
-
-@slurm_it(conda_env="iss-preprocess", print_job_id=True, slurm_options=dict(mem="72G"))
-def register_to_ref_using_stitched_registration(
-    data_path,
-    roi,
-    reg_prefix,
-    ref_prefix=None,
-    ref_channels=None,
-    reg_channels=None,
-    estimate_rotation=True,
-    target_suffix=None,
-    use_masked_correlation=False,
-    downsample=5,
-    save_plot=True,
-):
-    """Register all tiles to the reference using the stitched registration
-
-    This will stitch both the reference and target tiles using the reference shifts,
-    then register the stitched target to the stitched reference to get the best
-    similarity transform.
-    Then the transformation is applied to each tile and saved instead of the one
-    generated by "register_tile_to_ref".
-
-    Args:
-        data_path (str): Relative path to data
-        roi (int): ROI to register
-        target_prefix (str): Prefix of the target tile
-        ref_prefix (str, optional): Prefix of the reference tile. If None, reads
-            from ops. Defaults to None.
-        ref_channels (list, optional): Channels to use for registration. If None
-            will read from ops. Defaults to None.
-        reg_channels (list, optional): Channels to use for registration. If None
-            will read from ops. Defaults to None.
-        estimate_rotation (bool, optional): Estimate rotation. Defaults to True.
-        target_suffix (str, optional): Suffix of the target tile. Defaults to None.
-        use_masked_correlation (bool, optional): Use masked correlation. Defaults to
-            False.
-        downsample (int, optional): Downsample factor. Defaults to 3.
-        save_plot (bool, optional): Save a diagnostic plot. Defaults to True.
-
-    Returns:
-        None
-
-    """
-    ops = load_ops(data_path)
-    if (ref_prefix is None) or (ref_prefix == "None"):
-        ref_prefix = ops["reference_prefix"]
-    if ref_prefix == reg_prefix:
-        raise ValueError("Reference and register prefixes are the same")
-    if ref_channels is None:
-        ref_channels = ops["reg2ref_reference_channels"]
-    spref = reg_prefix.split("_")[0]  # short prefix
-    if reg_channels is None:
-        # use either the same as ref or what is in the ops
-        reg_channels = ops.get(f"reg2ref_{spref}_channels", ref_channels)
-        # if there is something defined for this acquisition, use it instead
-        reg_channels = ops.get(f"reg2ref_{reg_prefix}_channels", reg_channels)
-
-    # get the transformation from the stitched image to the reference
-    print(f"Registering {reg_prefix} to {ref_prefix} for ROI {roi}")
-    print(f"    mask: {use_masked_correlation}")
-    print(f"    ref_channels: {ref_channels}")
-    print(f"    reg_channels: {reg_channels}")
-    print(f"    estimate_rotation: {estimate_rotation}")
-    print(f"    downsample: {downsample}")
-    print(f"    save_plot: {save_plot}")
-
-    # first register within if needed
-    iss.pipeline.register_within_acquisition(
-        data_path,
-        prefix=ref_prefix,
-        roi=roi,
-        reload=True,
-        save_plot=True,
-        use_slurm=False,
-    )
-    iss.pipeline.register_within_acquisition(
-        data_path,
-        prefix=reg_prefix,
-        roi=roi,
-        reload=True,
-        save_plot=True,
-        use_slurm=False,
-    )
-
-    (
-        stitched_stack_target,
-        stitched_stack_reference,
-        angle,
-        shift,
-        scale,
-    ) = iss.pipeline.stitch.stitch_and_register(
-        data_path,
-        reference_prefix=ref_prefix,
-        target_prefix=reg_prefix,
-        roi=roi,
-        downsample=downsample,
-        ref_ch=ref_channels,
-        target_ch=reg_channels,
-        estimate_scale=False,  # never estimate scale
-        estimate_rotation=estimate_rotation,
-        target_projection=target_suffix,
-        use_masked_correlation=use_masked_correlation,
-        debug=False,
-    )
-    print(f"Angle: {angle}, Shifts: {shift}, Scale: {scale}")
-    # transform the center of each tile
-    tform2ref = make_transform(
-        scale,
-        angle,
-        shift,
-        stitched_stack_target.shape[:2],
-    )
-    reg_corners = iss.pipeline.stitch.get_tile_corners(data_path, reg_prefix, roi)
-    tile_shape = reg_corners[0, 0, :, 2] - reg_corners[0, 0, :, 0]
-    ref_centers = np.mean(reg_corners, axis=3)
-    trans_centers = np.pad(ref_centers, ((0, 0), (0, 0), (0, 1)), constant_values=1)
-    trans_centers = (
-        tform2ref[np.newaxis, np.newaxis, ...] @ trans_centers[..., np.newaxis]
-    )
-    trans_centers = trans_centers[..., :-1, 0]
-
-    # make tile by tile transformation from that
-    for tilex in range(trans_centers.shape[0]):
-        for tiley in range(trans_centers.shape[1]):
-            shift_tile = trans_centers[tilex, tiley] - ref_centers[tilex, tiley]
-            # this is a col/row shift, flip to x/y
-            shift_tile = shift_tile[::-1]
-            tforms = make_transform(1, angle, shift_tile, tile_shape)
-            processed_path = iss.io.get_processed_path(data_path)
-
-            target = (
-                processed_path
-                / "reg"
-                / f"tforms_to_ref_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
-            )
-            # reshape tforms to be like the multichannels tforms
-            np.savez(target, matrix_between_channels=tforms.reshape((1, 3, 3)))
-
-    if save_plot:
-        iss.pipeline.diagnostics.check_reg2ref_using_stitched(
+        stack, bad_pixels = load_and_register_sequencing_tile(
             data_path,
-            reg_prefix,
-            ref_prefix,
-            roi,
-            stitched_stack_reference,
-            stitched_stack_target,
-            ref_centers,
-            trans_centers,
+            tile_coors=tile_coors,
+            suffix=projection,
+            prefix=acq_type,
+            filter_r=filter_r,
+            correct_channels=True,
+            correct_illumination=correct_illumination,
+            corrected_shifts=ops["corrected_shifts"],
+            specific_rounds=rounds,
+        )
+        # the transforms for all rounds are the same and saved with round 1
+        prefix = acq_type + "_1_1"
+    else:
+        stack, bad_pixels = load_and_register_hyb_tile(
+            data_path,
+            tile_coors=tile_coors,
+            prefix=prefix,
+            suffix=projection,
+            filter_r=filter_r,
+            correct_illumination=correct_illumination,
+            correct_channels=False,
+            corrected_shifts=ops["corrected_shifts"],
         )
 
-    print("Done")
+    # ensure we have 4d to match acquisitions with rounds
+    if stack.ndim == 3:
+        stack = stack[..., np.newaxis]
+
+    if zero_bad_pixels:
+        stack[bad_pixels] = 0
+
+    return stack, bad_pixels
 
 
-def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
-    """Get the shifts to reference coordinates for a given tile
+def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=None):
+    """Load a raw stack and apply illumination correction and channel registration.
 
     Args:
-        data_path (str): Relative path to data
-        prefix (str): Prefix of the tile to register
-        roi (int): ROI ID
-        tilex (int): X coordinate of the tile
-        tiley (int): Y coordinate of the tile
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition to load.
+        tile_coors (tuple): (Roi, tileX, tileY) tuple
+        corrected_shifts (str, optional): Shift correction method. Defaults to None.
 
     Returns:
-        np.NpzFile: The transformation parameter to reference coordinates
+        numpy.ndarray: A (X x Y x Nchannels) registered stack
 
     """
-    ops = load_ops(data_path)
-    if ops["corrected_shifts"] == "single_tile":
-        corrected_shifts = ""
-    elif ops["corrected_shifts"] == "ransac":
-        corrected_shifts = "_corrected"
-    elif ops["corrected_shifts"] == "best":
-        corrected_shifts = "_best"
-    else:
-        raise ValueError(f"Corrected shifts {ops['corrected_shifts']} not recognised")
-    processed_path = iss.io.get_processed_path(data_path)
-    tform2ref = np.load(
-        processed_path
-        / "reg"
-        / f"tforms{corrected_shifts}_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
+
+    if corrected_shifts is None:
+        ops = load_ops(data_path)
+        corrected_shifts = ops["corrected_shifts"]
+    valid_shifts = ["reference", "single_tile", "ransac", "best"]
+    assert corrected_shifts in valid_shifts, (
+        f"unknown shift correction method, must be one of {valid_shifts}",
     )
-    return tform2ref
+    tforms = iss.pipeline.hybridisation.get_channel_shifts(
+        data_path, prefix, tile_coors, corrected_shifts
+    )
+    fname = iss.io.get_raw_filename(data_path, prefix, tile_coors)
+    tile_path = str(Path(data_path) / prefix / fname)
+
+    fmetadata = iss.io.get_raw_path(tile_path + "_metadata.txt")
+    if fmetadata.exists():
+        stack = get_tile_ome(
+            iss.io.get_raw_path(tile_path + ".ome.tif"),
+            fmetadata,
+        )
+    else:
+        stack = get_tile_ome(
+            iss.io.get_raw_path(tile_path + ".ome.tif"),
+            None,
+            use_indexmap=True,
+        )
+    stack = iss.image.correction.apply_illumination_correction(data_path, stack, prefix)
+    c_stack = np.zeros_like(stack)
+    for z in np.arange(stack.shape[-1]):
+        c_stack[..., z] = iss.reg.rounds_and_channels.apply_corrections(
+            stack[..., z], matrix=tforms["matrix_between_channels"], cval=np.nan
+        )
+
+    return c_stack

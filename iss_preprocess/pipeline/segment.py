@@ -33,7 +33,7 @@ from ..segment.cells import label_image, remove_overlapping_labels
 from . import ara_registration as ara_registration
 from . import diagnostics
 from .core import batch_process_tiles
-from .pipeline import load_and_register_raw_stack, load_and_register_tile
+from .register import load_and_register_raw_stack, load_and_register_tile
 from .stitch import find_tile_overlap, stitch_registered
 
 

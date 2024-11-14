@@ -9,7 +9,6 @@ from znamutils import slurm_it
 import iss_preprocess as iss
 from iss_preprocess.decorators import updates_flexilims
 from iss_preprocess.io import (
-    get_tile_ome,
     load_metadata,
     load_ops,
 )
@@ -20,18 +19,16 @@ from iss_preprocess.pipeline.diagnostics import (
     check_shift_correction,
     check_tile_registration,
 )
-from iss_preprocess.pipeline.hybridisation import load_and_register_hyb_tile
-from iss_preprocess.pipeline.register import correct_shifts as correct_shifts_func
-from iss_preprocess.pipeline.register import run_register_reference_tile
-from iss_preprocess.pipeline.sequencing import load_and_register_sequencing_tile
+from iss_preprocess.pipeline.register import (
+    run_correct_shifts,
+    run_register_reference_tile,
+)
 
 __all__ = [
     "project_and_average",
     "register_acquisition",
     "register_reference_tile",
     "correct_shifts",
-    "load_and_register_tile",
-    "load_and_register_raw_stack",
     "create_single_average",
     "create_all_single_averages",
     "create_grand_averages",
@@ -344,7 +341,7 @@ def correct_shifts(path, prefix, use_slurm=True, job_dependency=None):
         slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
         slurm_folder = None
-    job_id = correct_shifts_func(
+    job_id = run_correct_shifts(
         path,
         prefix,
         use_slurm=use_slurm,
@@ -369,137 +366,6 @@ def correct_shifts(path, prefix, use_slurm=True, job_dependency=None):
         scripts_name=f"check_tile_registration_{prefix}",
     )
     return job_id, check_corr_id, check_reg_id
-
-
-def load_and_register_tile(
-    data_path,
-    tile_coors,
-    prefix,
-    filter_r=True,
-    projection=None,
-    zero_bad_pixels=False,
-    correct_illumination=True,
-):
-    """Load one single tile
-
-    Load a tile of `prefix` with channels/rounds registered, apply illumination
-    correction and filtering.
-
-    Args:
-        data_path (str): Relative path to data
-        tile_coors (tuple): (Roi, tileX, tileY) tuple
-        prefix (str): Acquisition to load. If `genes_round` or `barcode_round` will load
-            all the rounds.
-        filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
-            from `ops`. Default to True
-        projection (str, optional): Projection to use. If None, will read from `ops`.
-            Defaults to None
-        zero_bad_pixels (bool, optional): Set bad pixels to zero. Defaults to False
-        correct_illumination (bool, optional): Apply illumination correction. Defaults
-            to True
-
-    Returns:
-        numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
-        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after
-            registration
-
-    """
-    ops = load_ops(data_path)
-    if projection is None:
-        projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
-    if filter_r and isinstance(filter_r, bool):
-        filter_r = ops["filter_r"]
-    if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
-        parts = prefix.split("_")
-        if len(parts) > 2:
-            acq_type = "_".join(parts[:2])
-            rounds = np.array([int(parts[2])])
-        else:
-            acq_type = prefix
-            rounds = np.arange(ops[f"{acq_type}s"]) + 1
-
-        stack, bad_pixels = load_and_register_sequencing_tile(
-            data_path,
-            tile_coors=tile_coors,
-            suffix=projection,
-            prefix=acq_type,
-            filter_r=filter_r,
-            correct_channels=True,
-            correct_illumination=correct_illumination,
-            corrected_shifts=ops["corrected_shifts"],
-            specific_rounds=rounds,
-        )
-        # the transforms for all rounds are the same and saved with round 1
-        prefix = acq_type + "_1_1"
-    else:
-        stack, bad_pixels = load_and_register_hyb_tile(
-            data_path,
-            tile_coors=tile_coors,
-            prefix=prefix,
-            suffix=projection,
-            filter_r=filter_r,
-            correct_illumination=correct_illumination,
-            correct_channels=False,
-            corrected_shifts=ops["corrected_shifts"],
-        )
-
-    # ensure we have 4d to match acquisitions with rounds
-    if stack.ndim == 3:
-        stack = stack[..., np.newaxis]
-
-    if zero_bad_pixels:
-        stack[bad_pixels] = 0
-
-    return stack, bad_pixels
-
-
-def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=None):
-    """Load a raw stack and apply illumination correction and channel registration.
-
-    Args:
-        data_path (str): Relative path to data.
-        prefix (str): Acquisition to load.
-        tile_coors (tuple): (Roi, tileX, tileY) tuple
-        corrected_shifts (str, optional): Shift correction method. Defaults to None.
-
-    Returns:
-        numpy.ndarray: A (X x Y x Nchannels) registered stack
-
-    """
-
-    if corrected_shifts is None:
-        ops = load_ops(data_path)
-        corrected_shifts = ops["corrected_shifts"]
-    valid_shifts = ["reference", "single_tile", "ransac", "best"]
-    assert corrected_shifts in valid_shifts, (
-        f"unknown shift correction method, must be one of {valid_shifts}",
-    )
-    tforms = iss.pipeline.hybridisation.get_channel_shifts(
-        data_path, prefix, tile_coors, corrected_shifts
-    )
-    fname = iss.io.get_raw_filename(data_path, prefix, tile_coors)
-    tile_path = str(Path(data_path) / prefix / fname)
-
-    fmetadata = iss.io.get_raw_path(tile_path + "_metadata.txt")
-    if fmetadata.exists():
-        stack = get_tile_ome(
-            iss.io.get_raw_path(tile_path + ".ome.tif"),
-            fmetadata,
-        )
-    else:
-        stack = get_tile_ome(
-            iss.io.get_raw_path(tile_path + ".ome.tif"),
-            None,
-            use_indexmap=True,
-        )
-    stack = iss.image.correction.apply_illumination_correction(data_path, stack, prefix)
-    c_stack = np.zeros_like(stack)
-    for z in np.arange(stack.shape[-1]):
-        c_stack[..., z] = iss.reg.rounds_and_channels.apply_corrections(
-            stack[..., z], matrix=tforms["matrix_between_channels"], cval=np.nan
-        )
-
-    return c_stack
 
 
 @slurm_it(conda_env="iss-preprocess")
