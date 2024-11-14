@@ -4,11 +4,9 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 from natsort import natsorted
-from znamutils import slurm_it
 
-import iss_preprocess as iss
-
-from ..io import load_ops
+from ..io import get_processed_path, load_ops
+from . import add_bases_legend, to_rgb
 from .utils import plot_matrix_with_colorbar
 
 
@@ -252,19 +250,19 @@ def adjacent_tiles_registration(
             ax = axes[idir * 2 + i, 0]
             ax.set_ylabel(f"{direction}\nshift - {x}")
             m = np.nanmedian(rsh[..., i])
-            iss.vis.plot_matrix_with_colorbar(
+            plot_matrix_with_colorbar(
                 rsh[..., i].T, ax, vmin=m - max_shift, vmax=m + max_shift
             )
             if idir == 0 and i == 0:
                 ax.set_title("Raw")
             ax = axes[idir * 2 + i, 1]
-            iss.vis.plot_matrix_with_colorbar(
+            plot_matrix_with_colorbar(
                 sh[..., i].T, ax, vmin=m - max_shift, vmax=m + max_shift
             )
             if idir == 0 and i == 0:
                 ax.set_title("Corrected")
             ax = axes[idir * 2 + i, 2]
-            iss.vis.plot_matrix_with_colorbar(
+            plot_matrix_with_colorbar(
                 delta_shift.T, ax, vmin=0, vmax=max_delta_shift * 1.1
             )
             if idir == 0 and i == 0:
@@ -272,9 +270,9 @@ def adjacent_tiles_registration(
             ax = axes[idir * 2 + i, 3]
             if idir == 0 and i == 0:
                 ax.set_title("Bad tiles")
-            iss.vis.plot_matrix_with_colorbar(bad2plot.T, ax, vmin=0, vmax=2)
+            plot_matrix_with_colorbar(bad2plot.T, ax, vmin=0, vmax=2)
         axes[idir * 2, 4].set_title("Max corr")
-        iss.vis.plot_matrix_with_colorbar(
+        plot_matrix_with_colorbar(
             xc.T, axes[idir * 2, 4], vmin=0, vmax=1, cmap="coolwarm"
         )
         axes[idir * 2 + 1, 4].axis("off")
@@ -282,7 +280,7 @@ def adjacent_tiles_registration(
     warnings.filterwarnings("default", category=RuntimeWarning)
     fig.tight_layout()
     fig_file = (
-        iss.io.get_processed_path(data_path)
+        get_processed_path(data_path)
         / "figures"
         / "registration"
         / prefix
@@ -392,7 +390,7 @@ def plot_all_rounds(
             0.01,
             axis=(0, 1),
         )
-        return iss.vis.to_rgb(
+        return to_rgb(
             stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
             channel_colors,
             vmin=vmin,
@@ -417,7 +415,7 @@ def plot_all_rounds(
             ax.set_xticklabels([])
             ax.set_yticklabels([])
     fig.tight_layout()
-    iss.vis.add_bases_legend(channel_colors)
+    add_bases_legend(channel_colors)
     return fig, rgb_stack
 
 
@@ -427,7 +425,7 @@ def plot_registration_correlograms(
     figure_name,
     debug_dict,
 ):
-    target_folder = iss.io.get_processed_path(data_path) / "figures" / prefix
+    target_folder = get_processed_path(data_path) / "figures" / prefix
     print(f"Creating figures in {target_folder}")
     if not target_folder.exists():
         target_folder.mkdir()
@@ -442,7 +440,7 @@ def plot_registration_correlograms(
         elif what == "correct_by_block":
             tile_coors = ops["ref_tile"]
             fig = plt.figure(figsize=(2 * 7, 1.5 * 3))
-            iss.vis.diagnostics.plot_affine_debug_images(data, fig=fig)
+            plot_affine_debug_images(data, fig=fig)
             fig.suptitle(f"{prefix} - Tile {tile_coors}")
             tile_name = "_".join([str(x) for x in tile_coors])
             fig.savefig(target_folder / f"affine_debug_{prefix}_{tile_name}.png")
@@ -571,93 +569,6 @@ def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax):
         s=0.5,
         alpha=0.2,
     )
-
-
-@slurm_it(conda_env="iss-preprocess")
-def check_barcode_mcherry_reg(
-    data_path,
-    roi,
-    barcode_prefix="barcode_round_1_1",
-    mcherry_prefix="mCherry_1",
-    target=None,
-):
-    """Check registration of barcode and mCherry to reference on whole stitched image
-
-    Args:
-        data_path (str): Path to data
-        roi (int): ROI number
-        barcode_prefix (str, optional): Prefix for barcode. Defaults to
-            "barcode_round_1_1".
-        mcherry_prefix (str, optional): Prefix for mCherry. Defaults to "mCherry_1".
-        target (str, optional): Path to save the figure to. Defaults to None.
-
-    Returns:
-        plt.Figure: Figure instance
-    """
-
-    ops = load_ops(data_path)
-    ref_prefix = ops["reference_prefix"]
-    ref_ch = ops["reg2ref_reference_channels"]
-    print("Stitching ref")
-    ref = iss.pipeline.stitch_registered(
-        data_path, prefix=ref_prefix, roi=roi, channels=ref_ch
-    )
-    ref = np.nanmean(ref, axis=2)
-
-    bc_chans = ops.get("reg2ref_barcode_channels", [0, 1, 2, 3])
-    print("Stitching barcode")
-    barcode_round_1 = iss.pipeline.stitch_registered(
-        data_path, prefix=barcode_prefix, roi=roi, channels=bc_chans
-    )
-    barcode_round_1 = np.nanmax(barcode_round_1, axis=2)
-    mch_chan = ops.get("reg2ref_mCherry_channels", [3])
-    print("Stitching mCherry")
-    mcherry = iss.pipeline.stitch_registered(
-        data_path, prefix=mcherry_prefix, roi=roi, channels=mch_chan
-    )
-    mcherry = np.nanmean(mcherry, axis=2)
-
-    st = np.dstack([ref, mcherry, barcode_round_1])
-    rgb = iss.vis.to_rgb(
-        st,
-        colors=[(0, 0, 1), (1, 0, 0), (0, 1, 0)],
-        vmin=np.nanpercentile(st, 1, axis=(0, 1)),
-        vmax=np.nanpercentile(st, 99.9, axis=(0, 1)),
-    )
-
-    aspect_ratio = rgb.shape[1] / rgb.shape[0]
-    print(aspect_ratio)
-    fig = plt.figure(figsize=(10 * aspect_ratio, 20))
-    ax = fig.add_subplot(2, 1, 1)
-    ax.imshow(rgb, interpolation="none")
-    ax.set_axis_off()
-
-    fw, fh = ref.shape[:2]
-    w = int(fw // 4 * aspect_ratio)
-    h = fh // 4
-    margin = [fw // 6, fh // 6]
-    for ix in range(2):
-        for iy in range(2):
-            ax = fig.add_subplot(4, 2, ix + 2 * iy + 5)
-            xlims = np.array([margin[0], margin[0] + w])
-            if ix:
-                xlims = fw - xlims[::-1]
-            ylims = np.array([margin[1], margin[1] + h])
-            if iy:
-                ylims = fh - ylims[::-1]
-            s_corner = st[ylims[0] : ylims[1], xlims[0] : xlims[1]]
-            rgb_part = iss.vis.to_rgb(
-                s_corner,
-                colors=[(0, 0, 1), (1, 0, 0), (0, 1, 0)],
-                vmin=np.nanpercentile(s_corner, 1, axis=(0, 1)),
-                vmax=np.nanpercentile(s_corner, 99.9, axis=(0, 1)),
-            )
-            ax.imshow(rgb_part, interpolation="none")
-            ax.set_axis_off()
-    fig.tight_layout()
-    if target is not None:
-        fig.savefig(target, dpi=300)
-    return fig
 
 
 def plot_spot_sign_image(spot_image):
