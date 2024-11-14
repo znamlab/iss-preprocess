@@ -2,7 +2,7 @@ import numba
 import numpy as np
 
 from ..vis import plot_gene_templates
-from . import BASES, rois_to_array
+from .call import BASES, rois_to_array
 
 
 def make_gene_templates(cluster_means, codebook):
@@ -263,14 +263,15 @@ def omp_weighted(
         on the current weights. Higher alpha increases the effect of the selected
         components' contributions, making the algorithm more sensitive to the
         already chosen components.
-        beta_squared (float): This parameter sets a baseline for the variance
-        in the weights calculation. It ensures that the weights are not solely
-        dependent on the residuals but also have a minimum variance that can stabilize the process.
+        beta_squared (float): This parameter sets a baseline for the variance in the
+            weights calculation. It ensures that the weights are not solely dependent on
+            the residuals but also have a minimum variance that can stabilize the
+            process.
         weighted (bool): whether to use weighted OMP. Default is True.
-        refit_background (bool): whether to refit background coefficients on every iteration.
-            Default is True.
-        norm_shift (float): additional shift to add to the norm of the pixel trace. Larger values
-            reduce false positive gene calls in dim pixels. Default is 0.
+        refit_background (bool): whether to refit background coefficients on every
+            iteration. Default is True.
+        norm_shift (float): additional shift to add to the norm of the pixel trace.
+            Larger values reduce false positive gene calls in dim pixels. Default is 0.
 
     Returns:
         Length M + O array of component coefficients
@@ -380,16 +381,16 @@ def run_omp(
             number of genes.
         tol (float): tolerance threshold for OMP algorithm.
         weighted (bool): whether to use weighted OMP. Default is True.
-        refit_background (bool): whether to refit background coefficients on every iteration.
-            Default is True.
+        refit_background (bool): whether to refit background coefficients on every
+            iteration. Default is True.
         alpha (float): parameter for weighted OMP.
         beta_squared (float): parameter for weighted OMP.
-        norm_shift (float): additional shift to add to the norm of the pixel trace. Larger values
-            reduce false positive gene calls in dim pixels. Default is 0.
-        max_comp (int): maximum number of components to use in OMP. Default is None, in which case
-            OMP proceeds until the tolerance threshold is reached.
-        min_intensity (float): minimum intensity for a pixel to be considered. Calculated as
-            the mean absolute value of the pixel trace. Default is 0.
+        norm_shift (float): additional shift to add to the norm of the pixel trace.
+            Larger values reduce false positive gene calls in dim pixels. Default is 0.
+        max_comp (int): maximum number of components to use in OMP. Default is None, in
+            which case OMP proceeds until the tolerance threshold is reached.
+        min_intensity (float): minimum intensity for a pixel to be considered.
+            Calculated as the mean absolute value of the pixel trace. Default is 0.
 
     Returns:
         Gene coefficient matrix of shape X x Y x M
