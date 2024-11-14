@@ -1,10 +1,9 @@
+import matplotlib as mpl
 import napari
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
-import iss_preprocess as iss
-from iss_preprocess.io.load import load_stack
-from iss_preprocess.pipeline.stitch import load_tile_ref_coors
+
+from iss_preprocess.io import get_processed_path, load_ops, load_stack
 
 
 def load_roi(
@@ -23,11 +22,12 @@ def load_roi(
     """Load one tile in the interactive viewer
 
     Args:
-        label_tab20 (bool, optional): Replace label by the tab20 version to make them the same color as rabies spots
+        label_tab20 (bool, optional): Replace label by the tab20 version to make them
+        the same color as rabies spots
     """
     viewer = napari.Viewer()
     data_path = f"{project}/{mouse}/{chamber}"
-    manual_folder = iss.io.get_processed_path(data_path) / "manual_starter_click"
+    manual_folder = get_processed_path(data_path) / "manual_starter_click"
 
     stuff_to_load = dict(
         genes="genes_round_1_1",
@@ -68,7 +68,7 @@ def load_roi(
         col = dict(Gad1="blue", Vip="green", Slc17a7="red", Sst="orange")
         for gene, spdf in sp.groupby("gene"):
             coord = spdf[["y", "x"]].values
-            hyb_points_layer = viewer.add_points(
+            viewer.add_points(
                 coord,
                 face_color=col[gene],
                 border_color=[0] * 4,
@@ -134,7 +134,7 @@ def load_roi(
         )
         if mask == "mCherry":
             # look for curated dataset
-            curated = iss.io.get_processed_path(data_path) / "cells"
+            curated = get_processed_path(data_path) / "cells"
             curated = curated / f"mCherry_1_masks_{roi}_0_curated.tif"
             if curated.exists():
                 curated_mask = load_stack(curated)[..., 0]
@@ -183,7 +183,7 @@ def load_roi(
         coord = non_ass[:, :2].astype(float)
         barcode_id = non_ass[:, 2].astype(float) % 20
         barcode = non_ass[:, 4].astype(str)
-        mch_points_layer = viewer.add_points(
+        viewer.add_points(
             coord[:, ::-1],
             properties=dict(barcode_id=barcode_id, barcode=barcode),
             face_color="k",
@@ -202,7 +202,7 @@ def load_roi(
         barcode = rab_pts[:, 4].astype(str)
 
         coord = rab_pts[:, :2].astype(float)
-        mch_points_layer = viewer.add_points(
+        viewer.add_points(
             coord[:, ::-1],
             properties=dict(
                 barcode_id=barcode_id, mask_id=mask_id, barcode=barcode, cell_mask=mask
@@ -222,7 +222,7 @@ def load_roi(
             if valid_pts.sum() == 0:
                 print(f"    no points for {barcode}")
                 continue
-            mch_points_layer = viewer.add_points(
+            viewer.add_points(
                 coord[valid_pts, ::-1],
                 properties=dict(
                     barcode_id=barcode_id[valid_pts], mask_id=mask_id[valid_pts]
@@ -244,7 +244,7 @@ def load_roi(
     else:
         data = []
     # add the polygons
-    shapes_layer = viewer.add_shapes(
+    viewer.add_shapes(
         data,
         shape_type="polygon",
         edge_width=5,
@@ -262,7 +262,7 @@ def load_roi(
         data = starter_cells[["axis-0", "axis-1"]].values
     else:
         data = []
-    mch_points_layer = viewer.add_points(
+    viewer.add_points(
         data,
         face_color="white",
         border_color="black",
@@ -277,7 +277,7 @@ def load_roi(
         data = starter_cells[["axis-0", "axis-1"]].values
     else:
         data = []
-    mch_points_layer = viewer.add_points(
+    viewer.add_points(
         data,
         face_color="yellow",
         border_color="black",
@@ -298,7 +298,7 @@ if __name__ == "__main__":
     data_path = f"{project}/{mouse}/{chamber}"
     print(data_path)
     print(f"Loading {project}/{mouse}/{chamber} roi {roi}")
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     load_roi(
         project,
         mouse,

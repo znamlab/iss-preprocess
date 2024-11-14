@@ -12,7 +12,14 @@ import iss_preprocess as iss
 
 from ..decorators import updates_flexilims
 from ..image import fstack_channels
-from ..io import get_roi_dimensions, get_tile_ome, load_ops, write_stack
+from ..io import (
+    get_processed_path,
+    get_roi_dimensions,
+    get_tile_ome,
+    load_metadata,
+    load_ops,
+    write_stack,
+)
 from .core import batch_process_tiles
 
 
@@ -27,9 +34,9 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
             Defaults to ("max", "median").
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     if prefix is None:
-        metadata = iss.io.load_metadata(data_path)
+        metadata = load_metadata(data_path)
         prefixes = [f"genes_round_{i+1}_1" for i in range(metadata["genes_rounds"])]
         prefixes += [
             f"barcode_round_{i+1}_1" for i in range(metadata["barcode_rounds"])
@@ -78,8 +85,8 @@ def check_roi_dims(data_path):
     Raises:
         ValueError: If ROI dimensions are not the same across rounds.
     """
-    processed_path = iss.io.get_processed_path(data_path)
-    ops = iss.io.load_ops(data_path)
+    processed_path = get_processed_path(data_path)
+    ops = load_ops(data_path)
     rounds_info = []
     for root, dirs, _ in os.walk(processed_path):
         dirs.sort()
@@ -87,7 +94,7 @@ def check_roi_dims(data_path):
             if d.endswith("_1"):
                 if d in ops["overview_round"]:
                     continue
-                roi_dims = iss.io.get_roi_dimensions(data_path, d)
+                roi_dims = get_roi_dimensions(data_path, d)
                 rounds_info.append((d, roi_dims))
 
     all_same = all(
@@ -156,14 +163,14 @@ def project_round(data_path, prefix, overwrite=False, overview=True):
             Defaults to False.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     target_path = processed_path / prefix
     target_path.mkdir(parents=True, exist_ok=True)
     roi_dims = get_roi_dimensions(data_path, prefix)
     ops = load_ops(data_path)
     # Change ref tile to a central position where tissue will be
     try:
-        metadata = iss.io.load_metadata(data_path)
+        metadata = load_metadata(data_path)
         ref_roi = list(metadata["ROI"].keys())[0]
     except FileNotFoundError:
         ref_roi = roi_dims[0, 0]

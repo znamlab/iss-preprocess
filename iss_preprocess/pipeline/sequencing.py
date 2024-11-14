@@ -27,11 +27,7 @@ from ..image import (
     compute_distribution,
     filter_stack,
 )
-from ..io import (
-    load_ops,
-    load_tile_by_coors,
-    write_stack,
-)
+from ..io import get_processed_path, load_ops, load_tile_by_coors, write_stack
 from ..reg import (
     align_channels_and_rounds,
     generate_channel_round_transforms,
@@ -442,7 +438,7 @@ def load_and_register_sequencing_tile(
         f"unknown shift correction method, must be one of {valid_shifts}",
     )
 
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     stack = load_sequencing_rounds(
         data_path,
         tile_coors,
@@ -454,7 +450,7 @@ def load_and_register_sequencing_tile(
     if correct_illumination:
         stack = apply_illumination_correction(data_path, stack, prefix)
 
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     tforms = get_channel_round_transforms(
         data_path, prefix, tile_coors, corrected_shifts
     )

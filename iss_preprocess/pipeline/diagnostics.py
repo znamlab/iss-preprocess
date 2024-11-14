@@ -21,6 +21,12 @@ from znamutils import slurm_it
 
 import iss_preprocess as iss
 from iss_preprocess import vis
+from iss_preprocess.io import (
+    get_processed_path,
+    load_metadata,
+    load_ops,
+    load_stack,
+)
 from iss_preprocess.pipeline import sequencing
 from iss_preprocess.pipeline.stitch import stitch_registered
 from iss_preprocess.vis.diagnostics import plot_all_rounds
@@ -35,10 +41,10 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
         data_path (str): Relative path to data folder
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     target_folder = processed_path / "figures" / "registration"
     target_folder.mkdir(exist_ok=True, parents=True)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     nrounds = ops[f"{prefix}s"]
 
     # get stack registered between channel and rounds
@@ -135,10 +141,10 @@ def check_tile_registration(
     """
     if isinstance(corrections, str):
         corrections = [corrections]
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     target_folder = processed_path / "figures" / "registration" / prefix
     target_folder.mkdir(exist_ok=True, parents=True)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     nrounds = ops[f"{prefix}s"]
 
     tile_coords = _get_some_tiles(
@@ -181,7 +187,7 @@ def _get_some_tiles(data_path, prefix, tile_coords=None):
     Returns:
         list: List of tile coordinates
     """
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     # get stack registered between channel and rounds
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=prefix)
     if tile_coords is None:
@@ -207,7 +213,7 @@ def _get_some_tiles(data_path, prefix, tile_coords=None):
 
 @slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
 def check_registration_to_reference(data_path, prefix, ref_prefix, tile_coords=None):
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     if ref_prefix is None:
         ref_prefix = ops["reference_prefix"]
     if prefix.endswith("_round"):
@@ -267,7 +273,7 @@ def check_affine_channel_registration(
     ref_ch="ops",
     correct_illumination="ops",
 ):
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     ops_pref = prefix.split("_")[0].lower()
     if binarise_quantile == "ops":
         binarise_quantile = ops[f"{ops_pref}_binarise_quantile"]
@@ -327,7 +333,7 @@ def check_affine_channel_registration(
         if ops["align_method"] != "affine":
             print("This function is only for affine registration")
             return
-        ops = iss.io.load_ops(data_path)
+        ops = load_ops(data_path)
 
         median_filter = ops["reg_median_filter"]
 
@@ -402,13 +408,13 @@ def check_shift_correction(
 
     """
     print(f"Checking shift correction for {prefix}")
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     target_folder = processed_path / "figures" / "registration" / prefix
     target_folder.mkdir(exist_ok=True, parents=True)
 
-    reg_dir = processed_path / "reg"
+    reg_dir = processed_path / "reg" / prefix
     ndims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     if "use_rois" in ops:
         ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
     nc = len(ops["camera_order"])
@@ -571,7 +577,7 @@ def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_rou
 
     target_folder.mkdir(exist_ok=True, parents=True)
 
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     nrounds = ops[f"{prefix}s"]
 
     # get stack registered between channel and rounds
@@ -611,11 +617,11 @@ def check_hybridisation_setup(data_path, prefixes):
         prefixes (list): Prefix of the acquisition to check
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     figure_folder = processed_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     if prefixes is None:
-        metadata = iss.io.load_metadata(data_path)
+        metadata = load_metadata(data_path)
         prefixes = metadata["hybridisation"].keys()
     for hyb_round in prefixes:
         reference_hyb_spots = np.load(
@@ -679,7 +685,7 @@ def check_barcode_basecall(
         figure_folder.mkdir(exist_ok=True)
 
     # get one of the reference tiles
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
 
     if tile_coords is None:
         tile_coords = _get_some_tiles(
@@ -870,9 +876,7 @@ def check_illumination_correction(
     distributions = dict()
 
     for fname in average_dir.glob("*average.tif"):
-        correction_images[fname.name.replace("_average.tif", "")] = iss.io.load_stack(
-            fname
-        )
+        correction_images[fname.name.replace("_average.tif", "")] = load_stack(fname)
     for fname in average_dir.glob("*_tilestats.npy"):
         distributions[fname.name.replace("_tilestats.npy", "")] = np.load(fname)
     if verbose:
@@ -903,7 +907,7 @@ def debug_reg_to_ref(
 
     This redo the steps of register_to_reference to plot intermediate figures
     """
-    ops = iss.io.load.load_ops(data_path)
+    ops = load_ops(data_path)
     if tile_coords is None:
         tile_coords = ops["ref_tile"]
     naxes = 1
@@ -988,7 +992,7 @@ def check_reg_to_ref_correction(
     figure_folder = processed_path / "figures" / "registration" / f"{prefix}_to_ref"
     figure_folder.mkdir(exist_ok=True, parents=True)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     if rois is not None:
         roi_dims = roi_dims[np.in1d(roi_dims[:, 0], rois)]
     elif "use_rois" in ops:
@@ -1061,7 +1065,7 @@ def check_tile_shifts(
     figure_folder = processed_path / "figures" / "registration" / prefix
     figure_folder.mkdir(exist_ok=True, parents=True)
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     if rois is not None:
         roi_dims = roi_dims[np.in1d(roi_dims[:, 0], rois)]
     elif "use_rois" in ops:
@@ -1123,7 +1127,7 @@ def check_omp_thresholds(
     tile_coors=None,
 ):
     processed_path = iss.io.get_processed_path(data_path)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     if tile_coors is None:
         tile_coors = ops["ref_tile"]
     stack, bad_pixels = iss.pipeline.load_and_register_sequencing_tile(
@@ -1218,7 +1222,7 @@ def check_omp_alpha_thresholds(
     tile_coors=None,
 ):
     processed_path = iss.io.get_processed_path(data_path)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     if tile_coors is None:
         tile_coors = ops["ref_tile"]
     stack, bad_pixels = iss.pipeline.load_and_register_sequencing_tile(
@@ -1344,7 +1348,7 @@ def check_segmentation(
             data_path, ref_prefix=reference, prefix=prefix, roi=roi
         )[..., 0]
     elif stitched_stack.ndim == 3:
-        ops = iss.io.load_ops(data_path)
+        ops = load_ops(data_path)
         stitched_stack = stitched_stack[..., ops["cellpose_channels"][0]]
 
     # normalize the stack and downsample by 2 using block_reduce
@@ -1450,7 +1454,7 @@ def check_tile_reg2ref(
     processed_path = iss.io.get_processed_path(data_path)
     target_folder = processed_path / "figures" / "registration" / f"{reg_prefix}_to_ref"
     target_folder.mkdir(exist_ok=True, parents=True)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
 
     # get stack registered between channel and rounds
     roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{reg_prefix}_1_1")

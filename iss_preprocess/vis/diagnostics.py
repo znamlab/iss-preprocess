@@ -373,7 +373,7 @@ def plot_tilestats_distributions(
         figure_folder (pathlib.Path): Path where to save the figures.
         camera_order (list): Order list of camera as in ops['camera_order']
     """
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     camera_order = ops["camera_order"]
     distri = distributions.copy()
     fig = plt.figure(figsize=(10, 20), facecolor="white")
@@ -596,7 +596,7 @@ def plot_registration_correlograms(
     print(f"Creating figures in {target_folder}")
     if not target_folder.exists():
         target_folder.mkdir()
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     mshift = ops["rounds_max_shift"]
     for what, data in debug_dict.items():
         print(f"Plotting {what}", flush=True)
@@ -884,7 +884,7 @@ def check_barcode_mcherry_reg(
         plt.Figure: Figure instance
     """
 
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     ref_prefix = ops["reference_prefix"]
     ref_ch = ops["reg2ref_reference_channels"]
     print("Stitching ref")

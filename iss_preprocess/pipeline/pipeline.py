@@ -9,6 +9,7 @@ from znamutils import slurm_it
 import iss_preprocess as iss
 from iss_preprocess.decorators import updates_flexilims
 from iss_preprocess.io import (
+    get_tile_ome,
     load_metadata,
     load_ops,
 )
@@ -60,10 +61,10 @@ def project_and_average(data_path, force_redo=False):
     """
 
     processed_path = get_processed_path(data_path)
-    metadata = iss.io.load_metadata(data_path)
+    metadata = load_metadata(data_path)
     slurm_folder = processed_path / "slurm_scripts"
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     # First, set up flexilims, adding chamber
     if ops["use_flexilims"]:
         setup_flexilims(data_path)
@@ -467,7 +468,7 @@ def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=
     """
 
     if corrected_shifts is None:
-        ops = iss.io.load_ops(data_path)
+        ops = load_ops(data_path)
         corrected_shifts = ops["corrected_shifts"]
     valid_shifts = ["reference", "single_tile", "ransac", "best"]
     assert corrected_shifts in valid_shifts, (
@@ -481,12 +482,12 @@ def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=
 
     fmetadata = iss.io.get_raw_path(tile_path + "_metadata.txt")
     if fmetadata.exists():
-        stack = iss.io.load.get_tile_ome(
+        stack = get_tile_ome(
             iss.io.get_raw_path(tile_path + ".ome.tif"),
             fmetadata,
         )
     else:
-        stack = iss.io.load.get_tile_ome(
+        stack = get_tile_ome(
             iss.io.get_raw_path(tile_path + ".ome.tif"),
             None,
             use_indexmap=True,
@@ -621,8 +622,8 @@ def create_all_single_averages(
             False.
     """
     processed_path = get_processed_path(data_path)
-    ops = iss.io.load_ops(data_path)
-    metadata = iss.io.load_metadata(data_path)
+    ops = load_ops(data_path)
+    metadata = load_metadata(data_path)
     # Collect all folder names
     if to_average is None:
         to_average = []
@@ -898,7 +899,7 @@ def segment_and_stitch_mcherry_cells(
         job_dependency (list, optional): List of job IDs to wait for before starting the
     """
 
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     if slurm_folder is None:
         slurm_folder = Path.home() / "slurm_logs" / data_path / f"segment_{prefix}"
     slurm_folder.mkdir(parents=True, exist_ok=True)
