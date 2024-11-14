@@ -10,6 +10,7 @@ from znamutils import slurm_it
 import iss_preprocess as iss
 
 from ..io import (
+    get_channel_round_transforms,
     get_roi_dimensions,
     load_metadata,
     load_ops,
@@ -637,12 +638,13 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
     roi = roi_dims[0]
     nx = roi_dims[1] + 1
     ny = roi_dims[2] + 1
-    save_dir = iss.io.get_processed_path(data_path) / "reg"
     for iy in range(ny):
         for ix in range(nx):
-            tforms_init = np.load(save_dir / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz")
-            tforms_corrected = np.load(
-                save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
+            tforms_init = get_channel_round_transforms(
+                data_path, prefix, (roi, ix, iy), shifts_type="reference"
+            )
+            tforms_corrected = get_channel_round_transforms(
+                data_path, prefix, (roi, ix, iy), shifts_type="corrected"
             )
             tforms_best = {key: tforms_init[key] for key in tforms_init.keys()}
 
@@ -672,9 +674,10 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
             tforms_best["matrix_between_channels"] = matrix_best
 
             tforms_best.update({"allow_pickle": True})
-            np.savez(
-                save_dir / f"tforms_best_{prefix}_{roi}_{ix}_{iy}.npz", **tforms_best
+            target = get_channel_round_transforms(
+                data_path, prefix, (roi, ix, iy), shifts_type="best", load_file=False
             )
+            np.savez(target, **tforms_best)
 
 
 @slurm_it(conda_env="iss-preprocess")
