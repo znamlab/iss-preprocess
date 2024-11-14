@@ -12,6 +12,24 @@ from skimage.morphology import disk
 from skimage.registration import phase_cross_correlation
 from skimage.transform import AffineTransform, warp
 
+__all__ = [
+    "register_channels_and_rounds",
+    "generate_channel_round_transforms",
+    "align_channels_and_rounds",
+    "align_within_channels",
+    "estimate_affine_for_tile",
+    "estimate_shifts_and_angles_for_tile",
+    "estimate_shifts_for_tile",
+    "get_channel_reference_images",
+    "apply_corrections",
+    "correct_by_block",
+    "estimate_correction",
+    "estimate_scale_rotation_translation",
+    "estimate_rotation_angle",
+    "estimate_rotation_translation",
+    "phase_correlation_by_block",
+]
+
 
 def register_channels_and_rounds(
     stack,

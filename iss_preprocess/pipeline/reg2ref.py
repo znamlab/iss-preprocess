@@ -1,14 +1,14 @@
 import numpy as np
+from image_tools.similarity_transforms import make_transform
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-from iss_preprocess.io import get_processed_path, get_roi_dimensions, load_ops
-from iss_preprocess.pipeline.core import batch_process_tiles
-from iss_preprocess.pipeline.register import load_and_register_tile
-from iss_preprocess.reg import estimate_rotation_translation, make_transform
-
+from ..diagnostics.diag_reg2ref import check_reg2ref_using_stitched
+from ..io import get_processed_path, get_roi_dimensions, load_ops
+from ..reg import estimate_rotation_translation
+from .core import batch_process_tiles
+from .register import load_and_register_tile
 from .stitch import get_tile_corners, register_within_acquisition, stitch_and_register
 
 
@@ -341,7 +341,7 @@ def register_to_ref_using_stitched_registration(
             np.savez(target, matrix_between_channels=tforms.reshape((1, 3, 3)))
 
     if save_plot:
-        iss.pipeline.diagnostics.check_reg2ref_using_stitched(
+        check_reg2ref_using_stitched(
             data_path,
             reg_prefix,
             ref_prefix,

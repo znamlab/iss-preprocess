@@ -2,6 +2,7 @@ from pathlib import Path
 from warnings import warn
 
 import numpy as np
+from image_tools.similarity_transforms import make_transform
 from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from skimage.transform import SimilarityTransform
@@ -25,7 +26,6 @@ from ..reg import (
     estimate_affine_for_tile,
     estimate_shifts_and_angles_for_tile,
     estimate_shifts_for_tile,
-    make_transform,
     register_channels_and_rounds,
 )
 from ..vis.diagnostics import plot_registration_correlograms
