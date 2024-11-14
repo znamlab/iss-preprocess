@@ -4,12 +4,19 @@ from matplotlib.backends.backend_pdf import PdfPages
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-from iss_preprocess import vis
-from iss_preprocess.diagnostics import _get_some_tiles
-from iss_preprocess.io import get_channel_round_transforms, get_processed_path, load_ops
-from iss_preprocess.pipeline import sequencing
-from iss_preprocess.vis.diagnostics import plot_all_rounds
-from iss_preprocess.vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
+
+from ..io import (
+    get_channel_round_transforms,
+    get_processed_path,
+    get_roi_dimensions,
+    load_ops,
+    write_stack,
+)
+from ..pipeline import sequencing
+from ..vis import animate_sequencing_rounds
+from ..vis.diagnostics import plot_affine_debug_images, plot_all_rounds
+from ..vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
+from . import _get_some_tiles
 
 
 def plot_round_registration_diagnostics(
@@ -48,13 +55,13 @@ def plot_round_registration_diagnostics(
     print(f"Saved to {fname}")
 
     # also save the stack for fiji
-    iss.io.save.write_stack(
+    write_stack(
         (rgb_stack * 255).astype("uint8"),
         target_folder / f"{fname_base}_rgb_stack_{reg_stack.shape[-1]}rounds.tif",
     )
 
     print("Animating")
-    vis.animate_sequencing_rounds(
+    animate_sequencing_rounds(
         reg_stack,
         savefname=target_folder / f"{fname_base}.mp4",
         vmax=vmaxs,
@@ -178,7 +185,7 @@ def check_shift_correction(
     target_folder.mkdir(exist_ok=True, parents=True)
 
     reg_dir = processed_path / "reg" / prefix
-    ndims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
+    ndims = get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = load_ops(data_path)
     if "use_rois" in ops:
         ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
@@ -344,7 +351,7 @@ def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_rou
         data_path (str): Relative path to data folder
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     target_folder = processed_path / "figures" / "registration"
 
     target_folder.mkdir(exist_ok=True, parents=True)
@@ -372,7 +379,7 @@ def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_rou
     view = np.array([center - 200, center + 200]).T
 
     tilename = "_".join([str(x) for x in tile_coords])
-    vis.animate_sequencing_rounds(
+    animate_sequencing_rounds(
         reg_stack,
         savefname=target_folder / f"registration_tile{tilename}_{prefix}.mp4",
         vmax=vmaxs,
@@ -409,10 +416,10 @@ def check_affine_channel_registration(
         ref_ch = ops["ref_ch"]
         ref_ch = ops.get(f"{ops_pref}_ref_ch", ref_ch)
     if "_1" not in prefix:
-        roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
+        roi_dims = get_roi_dimensions(data_path, prefix=f"{prefix}_1_1")
         multi_rounds = True
     else:
-        roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{prefix}")
+        roi_dims = get_roi_dimensions(data_path, prefix=f"{prefix}")
         multi_rounds = False
 
     # select some tiles
@@ -436,7 +443,7 @@ def check_affine_channel_registration(
         tile_coords = [tile_coords]
 
     target_folder = (
-        iss.io.get_processed_path(data_path)
+        get_processed_path(data_path)
         / "figures"
         / "registration"
         / f"affine_transform_{prefix}"
@@ -497,7 +504,7 @@ def check_affine_channel_registration(
             block_size=block_size,
             overlap=overlap,
         )
-        vis.diagnostics.plot_affine_debug_images(debug_info, fig=fig)
+        plot_affine_debug_images(debug_info, fig=fig)
         fig.suptitle(f"{prefix} - Tile {tile_coors}")
         tile_name = "_".join([str(x) for x in tile_coors])
         fig.savefig(target_folder / f"affine_debug_{prefix}_{tile_name}.png")
@@ -521,11 +528,11 @@ def check_tile_shifts(
             "genes_round_1_1"
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     reg_dir = processed_path / "reg"
     figure_folder = processed_path / "figures" / "registration" / prefix
     figure_folder.mkdir(exist_ok=True, parents=True)
-    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
+    roi_dims = get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = load_ops(data_path)
     if rois is not None:
         roi_dims = roi_dims[np.in1d(roi_dims[:, 0], rois)]

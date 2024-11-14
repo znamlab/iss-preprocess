@@ -266,7 +266,7 @@ def run_mask_projection(
 ):
     """Project masks to a single plane.
 
-    Wrapper around iss.segment.cell.project_mask to run on slurm.
+    Wrapper around iss_preprocess.segment.cell.project_mask to run on slurm.
 
     Args:
         data_path (str): Relative path to data.

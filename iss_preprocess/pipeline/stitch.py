@@ -13,21 +13,23 @@ from skimage.transform import AffineTransform, warp
 from tqdm import tqdm
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-from iss_preprocess.image.correction import apply_illumination_correction
-from iss_preprocess.io import (
+from ..image.correction import apply_illumination_correction
+from ..io import (
+    get_processed_path,
+    get_raw_path,
     get_roi_dimensions,
+    load_mask_by_coors,
+    load_metadata,
     load_ops,
     load_stack,
     load_tile_by_coors,
 )
-from iss_preprocess.pipeline import register
-from iss_preprocess.reg import (
+from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
 )
-
 from ..vis import diagnostics
+from .register import load_and_register_tile
 
 
 def load_tile_ref_coors(
@@ -62,14 +64,14 @@ def load_tile_ref_coors(
     """
     if "_masks" in prefix:
         # we have a mask, the load is different
-        stack = iss.io.load_mask_by_coors(data_path, prefix, tile_coors, projection)
+        stack = load_mask_by_coors(data_path, prefix, tile_coors, projection)
         prefix = prefix.replace("_masks", "")
         # make 3D to match the other load
         bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
         stack = stack[:, :, np.newaxis]
         interpolation = 0
     else:
-        stack, bad_pixels = register.load_and_register_tile(
+        stack, bad_pixels = load_and_register_tile(
             data_path,
             tile_coors,
             prefix,
@@ -197,7 +199,7 @@ def get_tform_to_ref(data_path, prefix, tile_coors, corrected_shifts=None):
     elif corrected_shifts == "best":
         correction_fname = "tforms_best_to_ref"
     reg2ref = np.load(
-        iss.io.get_processed_path(data_path)
+        get_processed_path(data_path)
         / "reg"
         / f"{correction_fname}_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
@@ -347,7 +349,7 @@ def register_within_acquisition(
 
     verbose = int(verbose)
     save_fname = (
-        iss.io.get_processed_path(data_path)
+        get_processed_path(data_path)
         / "reg"
         / f"{prefix}_within"
         / f"{prefix}_{roi}_shifts.npz"
@@ -650,7 +652,7 @@ def get_tile_corners(data_path, prefix, roi):
         # always use round 1
         prefix = f"{prefix}_1"
     shifts = np.load(
-        iss.io.get_processed_path(data_path)
+        get_processed_path(data_path)
         / "reg"
         / f"{prefix}_within"
         / f"{prefix}_{roi}_shifts.npz"
@@ -786,7 +788,7 @@ def stitch_tiles(
         numpy.ndarray: stitched image.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     if not shifts_prefix:
@@ -804,7 +806,7 @@ def stitch_tiles(
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
 
         try:
-            metadata = iss.io.load_metadata(data_path)
+            metadata = load_metadata(data_path)
             ref_roi = list(metadata["ROI"].keys())[0]
         except FileNotFoundError:
             ref_roi = roi_dims[0, 0]
@@ -847,7 +849,7 @@ def stitch_tiles(
     if register_channels:
 
         def load_func(data_path, tile_coors, prefix):
-            stack, _ = iss.pipeline.load_and_register_tile(
+            stack, _ = load_and_register_tile(
                 data_path,
                 tile_coors,
                 prefix=prefix,
@@ -922,7 +924,7 @@ def stitch_registered(
     if ref_prefix is None:
         ref_prefix = ops["reference_prefix"]
 
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     if ref_prefix == "genes_round":
         ref_prefix = f"{ref_prefix}_{ops['ref_round']}_1"
 
@@ -1154,7 +1156,7 @@ def stitch_and_register(
     fname = f"{target_prefix}_roi{roi}_tform_to_ref.npz"
     print(f"Saving {fname} in the reg folder")
     np.savez(
-        iss.io.get_processed_path(data_path) / "reg" / fname,
+        get_processed_path(data_path) / "reg" / fname,
         angle=angle,
         shift=shift,
         scale=scale,
@@ -1191,7 +1193,7 @@ def find_tile_order(
         prefix = ops["reference_prefix"]
 
     # look for position file
-    pos_files = list(iss.io.get_raw_path(data_path).glob("*.pos"))
+    pos_files = list(get_raw_path(data_path).glob("*.pos"))
     pos_files = [f for f in pos_files if prefix in f.stem]
 
     if len(pos_files) == 0:

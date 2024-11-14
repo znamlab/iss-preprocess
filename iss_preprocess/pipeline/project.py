@@ -8,12 +8,13 @@ from warnings import warn
 import numpy as np
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
 from ..decorators import updates_flexilims
+from ..diagnostics.diag_stitching import plot_overview_images
 from ..image import fstack_channels
 from ..io import (
     get_processed_path,
+    get_raw_filename,
+    get_raw_path,
     get_roi_dimensions,
     get_tile_ome,
     load_metadata,
@@ -123,7 +124,7 @@ def reproject_failed(
         data_path (str): Relative path to data.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     missing_tiles = []
     for d in processed_path.iterdir():
         if not d.is_dir() or not d.name.endswith("_1"):
@@ -144,9 +145,7 @@ def reproject_failed(
         ix = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[0])
         iy = int(tile.split("_MMStack")[1].split("-Pos")[1].split("_")[1])
         print(f"Reprojecting {prefix} {roi}_{ix}_{iy}", flush=True)
-        iss.pipeline.project_tile_by_coors(
-            (roi, ix, iy), data_path, prefix, overwrite=True
-        )
+        project_tile_by_coors((roi, ix, iy), data_path, prefix, overwrite=True)
     if len(missing_tiles) == 0:
         print("No failed tiles to re-project!", flush=True)
 
@@ -191,9 +190,9 @@ def project_round(data_path, prefix, overwrite=False, overview=True):
         data_path, "project_tile", roi_dims=roi_dims, additional_args=additional_args
     )
     # copy one of the tiff metadata files
-    raw_path = iss.io.get_raw_path(data_path)
+    raw_path = get_raw_path(data_path)
     metadata_fname = (
-        iss.io.get_raw_filename(data_path, prefix, tile_coors=(roi_dims[0][0], 0, 0))
+        get_raw_filename(data_path, prefix, tile_coors=(roi_dims[0][0], 0, 0))
         + "_metadata.txt"
     )
     if not (target_path / metadata_fname).exists():
@@ -202,7 +201,7 @@ def project_round(data_path, prefix, overwrite=False, overview=True):
             target_path / metadata_fname,
         )
     if overview:
-        overview_job_ids = iss.vis.plot_overview_images(
+        overview_job_ids = plot_overview_images(
             data_path=data_path,
             prefix=prefix,
             dependency=tileproj_job_ids,
@@ -224,7 +223,7 @@ def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
             Defaults to False.
 
     """
-    fname = iss.io.get_raw_filename(data_path, prefix, tile_coors)
+    fname = get_raw_filename(data_path, prefix, tile_coors)
     tile_path = str(Path(data_path) / prefix / fname)
     ops = load_ops(data_path)
     # we want to ensure that file all have the same name after projection, even if raw
@@ -249,9 +248,9 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
     if target_name is None:
         target_name = fname
     print(f"Target name: {target_name}")
-    save_path_fstack = iss.io.get_processed_path(target_name + "_fstack.tif")
-    save_path_max = iss.io.get_processed_path(target_name + "_max.tif")
-    save_path_median = iss.io.get_processed_path(target_name + "_median.tif")
+    save_path_fstack = get_processed_path(target_name + "_fstack.tif")
+    save_path_max = get_processed_path(target_name + "_max.tif")
+    save_path_median = get_processed_path(target_name + "_median.tif")
     if not overwrite and (
         save_path_fstack.exists() or save_path_max.exists() or save_path_median.exists()
     ):
@@ -259,13 +258,13 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
         return
     print(f"loading {fname}\n")
     im = get_tile_ome(
-        iss.io.get_raw_path(fname + ".ome.tif"),
-        iss.io.get_raw_path(fname + "_metadata.txt"),  # note that this won't be used
+        get_raw_path(fname + ".ome.tif"),
+        get_raw_path(fname + "_metadata.txt"),  # note that this won't be used
         # if use_indexmap is True
         use_indexmap=True,
     )
     print("computing projection\n")
-    iss.io.get_processed_path(fname).parent.mkdir(parents=True, exist_ok=True)
+    get_processed_path(fname).parent.mkdir(parents=True, exist_ok=True)
     if ops["make_fstack"]:
         print("making fstack projection\n")
         im_fstack = fstack_channels(
@@ -283,7 +282,7 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
     # To check if the focus was correct, we also save a small projectiong along Z
     std_z = np.std(im, axis=(0, 1))
     perc_z = np.percentile(im, 99.9, axis=(0, 1))
-    np_z_profile = iss.io.get_processed_path(target_name + "_zprofile.npz")
+    np_z_profile = get_processed_path(target_name + "_zprofile.npz")
     np.savez(np_z_profile, std=std_z, top_1permille=perc_z)
 
 

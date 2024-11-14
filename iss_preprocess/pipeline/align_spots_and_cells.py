@@ -5,10 +5,9 @@ import pandas as pd
 from image_tools.similarity_transforms import make_transform
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-from iss_preprocess.io import get_roi_dimensions, load_ops
-from iss_preprocess.pipeline.reg2ref import get_shifts_to_ref
-from iss_preprocess.pipeline.stitch import get_tile_corners
+from ..io import get_processed_path, get_roi_dimensions, load_ops
+from .reg2ref import get_shifts_to_ref
+from .stitch import get_tile_corners
 
 
 def _align_dataframe(df, data_path, tile_coors, prefix, ref_prefix=None):
@@ -28,7 +27,7 @@ def _align_dataframe(df, data_path, tile_coors, prefix, ref_prefix=None):
         pd.DataFrame: The dataframe with x and y registered to reference tile.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     if ref_prefix is None:
         ops = load_ops(data_path)
         ref_prefix = ops["reference_prefix"]
@@ -72,7 +71,7 @@ def align_spots(data_path, tile_coors, prefix, ref_prefix=None):
 
     """
     roi, tilex, tiley = tile_coors
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     spots = pd.read_pickle(
         processed_path / "spots" / f"{prefix}_spots_{roi}_{tilex}_{tiley}.pkl"
     )
@@ -155,9 +154,9 @@ def merge_and_align_spots(
     """Combine spots across tiles and align to reference coordinates for a single ROI.
 
     For each tile, spots will be registered to the reference coordinates using
-    `iss.pipeline.register.align_spots`. The spots will then be merged together using
-    `merge_roi_spots`. To avoid duplicate spots, we define a set of tile centers and
-    keep only the spots that are closest to the center of the tile they were detected on
+    `align_spots`. The spots will then be merged together using `merge_roi_spots`. To
+    avoid duplicate spots, we define a set of tile centers and keep only the spots that
+    are closest to the center of the tile they were detected on
 
 
     Args:
@@ -178,7 +177,7 @@ def merge_and_align_spots(
     ops = load_ops(data_path)
     if ref_prefix is None:
         ref_prefix = ops["reference_prefix"]
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
 
     # find tile origin, final shape, and shifts in reference coordinates
     ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
@@ -257,7 +256,7 @@ def align_cell_dataframe(data_path, prefix, ref_prefix=None):
     Returns:
         pd.DataFrame: The cell dataframe with x and y registered to reference tile.
     """
-    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    mask_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
     cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
     assert cells_df.exists(), (
         f"Cells dataframe {cells_df} does not exist. "
@@ -312,7 +311,7 @@ def stitch_cell_dataframes(data_path, prefix, ref_prefix=None):
             stitched_df.loc[tdf.index, "y"] = tdf["y_in_tile"] + ref_origins[tx, ty, 0]
 
     # save stitched dataframe
-    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    mask_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
     cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
     stitched_df.to_pickle(cells_df)
 
