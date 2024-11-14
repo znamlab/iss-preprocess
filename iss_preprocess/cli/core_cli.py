@@ -7,11 +7,11 @@ import click
 
 
 @click.group()
-def iss_core():
+def core_cli():
     pass
 
 
-@iss_core.command()
+@core_cli.command()
 @click.option("-j", "--jobsinfo", help="Job ids and args file.")
 def handle_failed(jobsinfo):
     """Handle failed jobs.
@@ -23,7 +23,7 @@ def handle_failed(jobsinfo):
     handle_failed_jobs(jobsinfo)
 
 
-@iss_core.command()
+@core_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def setup_flexilims(path):
     """Setup the flexilims database"""
