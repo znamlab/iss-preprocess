@@ -2,6 +2,7 @@
 of relative imports (using import_depts)."""
 
 import pathlib
+from itertools import cycle
 
 import graphviz
 from import_deps import ModuleSet
@@ -17,11 +18,12 @@ dot.node_attr.update(style="filled", shape="box")
 # first create all the nodes
 colors = list(cm.get_cmap("Set3").colors)
 colors = [f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}" for r, g, b in colors]
+color_cycle = cycle(colors)
 color_dict = {}
 for mod in sorted(module_set.by_name.keys()):
     submod = mod.split(".")[1]
     if submod not in color_dict:
-        color_dict[submod] = colors.pop(0)
+        color_dict[submod] = color_cycle.__next__()
     dot.node(mod, fillcolor=color_dict[submod])
 
 # then create all the edges
