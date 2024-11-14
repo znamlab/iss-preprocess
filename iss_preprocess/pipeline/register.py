@@ -9,13 +9,13 @@ from skimage.transform import SimilarityTransform
 from sklearn.linear_model import RANSACRegressor
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
 from ..diagnostics.diag_register import check_tile_shifts
 from ..image.correction import apply_illumination_correction
 from ..io import (
     get_channel_round_transforms,
     get_processed_path,
+    get_raw_filename,
+    get_raw_path,
     get_roi_dimensions,
     get_tile_ome,
     load_metadata,
@@ -23,13 +23,14 @@ from ..io import (
     load_tile_by_coors,
 )
 from ..reg import (
+    apply_corrections,
     estimate_affine_for_tile,
     estimate_shifts_and_angles_for_tile,
     estimate_shifts_for_tile,
     register_channels_and_rounds,
 )
 from ..vis.diagnostics import plot_registration_correlograms
-from .hybridisation import load_and_register_hyb_tile
+from .hybridisation import get_channel_shifts, load_and_register_hyb_tile
 from .sequencing import load_and_register_sequencing_tile, load_sequencing_rounds
 
 
@@ -1093,28 +1094,26 @@ def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=
     assert corrected_shifts in valid_shifts, (
         f"unknown shift correction method, must be one of {valid_shifts}",
     )
-    tforms = iss.pipeline.hybridisation.get_channel_shifts(
-        data_path, prefix, tile_coors, corrected_shifts
-    )
-    fname = iss.io.get_raw_filename(data_path, prefix, tile_coors)
+    tforms = get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts)
+    fname = get_raw_filename(data_path, prefix, tile_coors)
     tile_path = str(Path(data_path) / prefix / fname)
 
-    fmetadata = iss.io.get_raw_path(tile_path + "_metadata.txt")
+    fmetadata = get_raw_path(tile_path + "_metadata.txt")
     if fmetadata.exists():
         stack = get_tile_ome(
-            iss.io.get_raw_path(tile_path + ".ome.tif"),
+            get_raw_path(tile_path + ".ome.tif"),
             fmetadata,
         )
     else:
         stack = get_tile_ome(
-            iss.io.get_raw_path(tile_path + ".ome.tif"),
+            get_raw_path(tile_path + ".ome.tif"),
             None,
             use_indexmap=True,
         )
-    stack = iss.image.correction.apply_illumination_correction(data_path, stack, prefix)
+    stack = apply_illumination_correction(data_path, stack, prefix)
     c_stack = np.zeros_like(stack)
     for z in np.arange(stack.shape[-1]):
-        c_stack[..., z] = iss.reg.rounds_and_channels.apply_corrections(
+        c_stack[..., z] = apply_corrections(
             stack[..., z], matrix=tforms["matrix_between_channels"], cval=np.nan
         )
 
