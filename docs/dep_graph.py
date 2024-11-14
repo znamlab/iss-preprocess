@@ -8,6 +8,7 @@ import graphviz
 from import_deps import ModuleSet
 from matplotlib import cm
 
+module_to_skip = ["io"]
 # First initialise a ModuleSet instance with a list str of modules to track
 pkg_paths = pathlib.Path("iss_preprocess").glob("**/*.py")
 module_set = ModuleSet([str(p) for p in pkg_paths])
@@ -21,6 +22,8 @@ colors = [f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}" for r, g, b in co
 color_cycle = cycle(colors)
 color_dict = {}
 for mod in sorted(module_set.by_name.keys()):
+    if any([i in mod.split(".") for i in module_to_skip]):
+        continue
     submod = mod.split(".")[1]
     if submod not in color_dict:
         color_dict[submod] = color_cycle.__next__()
@@ -28,7 +31,11 @@ for mod in sorted(module_set.by_name.keys()):
 
 # then create all the edges
 for mod in sorted(module_set.by_name.keys()):
+    if any([i in mod.split(".") for i in module_to_skip]):
+        continue
     for dep in module_set.mod_imports(mod):
+        if any([i in dep.split(".") for i in module_to_skip]):
+            continue
         dot.edge(dep, mod)
 
 dot.render("docs/dep_graph", format="png", cleanup=True)
