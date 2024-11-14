@@ -13,7 +13,7 @@ import iss_preprocess as iss
 from ..decorators import updates_flexilims
 from ..image import fstack_channels
 from ..io import get_roi_dimensions, get_tile_ome, load_ops, write_stack
-from .pipeline import batch_process_tiles
+from .core import batch_process_tiles
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"time": "00:30:00", "mem": "8G"})

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -7,6 +5,7 @@ from skimage.morphology import binary_dilation
 from znamutils import slurm_it
 
 import iss_preprocess as iss
+
 from ..call import extract_spots
 from ..coppafish import scaled_k_means
 from ..image import apply_illumination_correction, compute_distribution, filter_stack
@@ -19,6 +18,7 @@ from ..io import (
 )
 from ..reg import apply_corrections
 from ..segment import detect_spots
+from .core import batch_process_tiles
 
 
 def load_and_register_hyb_tile(
@@ -53,9 +53,9 @@ def load_and_register_hyb_tile(
 
     Returns:
         numpy.ndarray: X x Y x Nch image stack.
-        numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged
-            for all channels (due to registration offsets) and should be discarded
-            during analysis.
+        numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not
+            imaged for all channels (due to registration offsets) and should be
+            discarded during analysis.
 
     """
     processed_path = iss.io.get_processed_path(data_path)
@@ -162,9 +162,8 @@ def estimate_channel_correction_hybridisation(data_path):
     pixel_dist = np.zeros((max_val + 1, nch))
     for hyb_round in metadata["hybridisation"].keys():
         for tile in ops["correction_tiles"]:
-            print(
-                f"counting pixel values for {hyb_round}, roi {tile[0]}, tile {tile[1]}, {tile[2]}"
-            )
+            roi_name = f"roi {tile[0]}, tile {tile[1]}, {tile[2]}"
+            print(f"counting pixel values for {hyb_round}, roi {roi_name}")
             stack = filter_stack(
                 load_tile_by_coors(
                     data_path,
@@ -331,7 +330,7 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
     if roi is not None:
         roi_dims = roi_dims[roi_dims[:, 0] == int(roi), :]
         assert len(roi_dims), f"no ROI {roi} found in roi_dims for {data_path}"
-    iss.pipeline.batch_process_tiles(
+    batch_process_tiles(
         data_path,
         "extract_hyb_spots",
         roi_dims=roi_dims,

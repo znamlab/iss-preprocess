@@ -18,7 +18,7 @@ def handle_failed(jobsinfo):
 
     This will re-run failed jobs on other nodes.
     """
-    from iss_preprocess.pipeline import handle_failed_jobs
+    from iss_preprocess.pipeline.core import handle_failed_jobs
 
     handle_failed_jobs(jobsinfo)
 
@@ -27,6 +27,6 @@ def handle_failed(jobsinfo):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def setup_flexilims(path):
     """Setup the flexilims database"""
-    from iss_preprocess.pipeline import setup_flexilims
+    from iss_preprocess.pipeline.core import setup_flexilims
 
     setup_flexilims(path)

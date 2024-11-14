@@ -1,38 +1,38 @@
 import warnings
-from tqdm import tqdm
-import glob
 from os import system
 from pathlib import Path
-from znamutils import slurm_it
+
+import cv2
 import numpy as np
 import pandas as pd
-import cv2
 from skimage import measure
-from sklearn.preprocessing import StandardScaler
-from sklearn.mixture import GaussianMixture
 from skimage.morphology import binary_closing
 from skimage.segmentation import expand_labels
+from sklearn.mixture import GaussianMixture
+from tqdm import tqdm
+from znamutils import slurm_it
 
 import iss_preprocess as iss
 
-from iss_preprocess.image.correction import calculate_unmixing_coefficient
-from iss_preprocess.segment.cells import label_image
-from iss_preprocess.io import (
+from ..image.correction import calculate_unmixing_coefficient
+from ..io import (
     get_pixel_size,
+    get_processed_path,
     get_roi_dimensions,
     load_metadata,
     load_ops,
-    get_processed_path,
     write_stack,
 )
 from ..segment import (
     cellpose_segmentation,
     count_spots,
-    spot_mask_value,
     project_mask,
+    spot_mask_value,
 )
+from ..segment.cells import label_image
 from . import ara_registration as ara_registration
 from . import diagnostics
+from .core import batch_process_tiles
 from .stitch import stitch_registered
 
 
@@ -127,7 +127,6 @@ def segment_all_tiles(
         assert len(tile_coors) == 3, "Tile coordinates should be a tuple of 3 elements"
         tile_name = "_".join(map(str, tile_coors))
         fname = f"{prefix}_masks_{tile_name}.npy"
-        save_raw_masks = True
         if use_raw_stack and (not rerun_cellpose) and (raw_target / fname).exists():
             continue
         tile_2cellpose.append(tile_coors)
@@ -267,7 +266,7 @@ def run_mask_projection(
     Args:
         data_path (str): Relative path to data.
         prefix (str): Acquisition prefix to use for segmentation.
-        roi (int): ROI ID to segment as specificied in MicroManager (i.e. 1-based).
+        roi (int): ROI ID to segment as specified in MicroManager (i.e. 1-based).
         tx (int): X coordinate of the tile.
         ty (int): Y coordinate of the tile.
 
@@ -343,8 +342,9 @@ def segment_roi(data_path, iroi, prefix="DAPI_1", use_gpu=False):
 
     Args:
         data_path (str): Relative path to data.
-        iroi (int): ROI ID to segment as specificied in MicroManager (i.e. 1-based).
-        prefix (str, optional): Acquisition prefix to use for segmentation. Defaults to "DAPI_1".
+        iroi (int): ROI ID to segment as specified in MicroManager (i.e. 1-based).
+        prefix (str, optional): Acquisition prefix to use for segmentation. Defaults to
+            "DAPI_1".
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
 
     """
@@ -870,7 +870,8 @@ def find_edge_touching_masks(masks, border_width=4):
             touching. Defaults to 4.
 
     Returns:
-        edge_touching_labels (list): A list of unique labels that touch the edge of the image.
+        edge_touching_labels (list): A list of unique labels that touch the edge of the
+        image.
     """
     if border_width < 1:
         raise ValueError("Border width must be at least 1.")
@@ -889,22 +890,30 @@ def find_edge_touching_masks(masks, border_width=4):
 
 def get_overlap_regions(data_path, prefix, ref_coors):
     """
-    Determine the coordinates of the overlap region between two adjacent tiles using explicit tile direction.
+    Determine the coordinates of the overlap region between two adjacent tiles using
+    explicit tile direction.
 
     Args:
-        shifts (dict): The dictionary containing the shift values for the down and right tiles.
+        shifts (dict): The dictionary containing the shift values for the down and right
+            tiles.
         tile_ref (np.ndarray): The reference tile.
         tile_right (np.ndarray): The right tile.
         tile_down (np.ndarray): The down tile.
         tile_down_right (np.ndarray): The down right tile.
 
     Returns:
-        overlap_ref_vert (np.ndarray): The overlap region between the reference tile and the down tile.
-        overlap_down (np.ndarray): The overlap region between the down tile and the reference tile.
-        overlap_ref_side (np.ndarray): The overlap region between the reference tile and the right tile.
-        overlap_right (np.ndarray): The overlap region between the right tile and the reference tile.
-        overlap_ref_with_down_right (np.ndarray): The overlap region between the reference tile and the down right tile.
-        overlap_down_right_with_ref (np.ndarray): The overlap region between the down right tile and the reference tile.
+        overlap_ref_vert (np.ndarray): The overlap region between the reference tile and
+            the down tile.
+        overlap_down (np.ndarray): The overlap region between the down tile and the
+            reference tile.
+        overlap_ref_side (np.ndarray): The overlap region between the reference tile and
+            the right tile.
+        overlap_right (np.ndarray): The overlap region between the right tile and the
+            reference tile.
+        overlap_ref_with_down_right (np.ndarray): The overlap region between the
+            reference tile and the down right tile.
+        overlap_down_right_with_ref (np.ndarray): The overlap region between the down
+            right tile and the reference tile.
 
     """
     roi_dim = get_roi_dimensions(data_path)
@@ -1311,7 +1320,7 @@ def _gmm_cluster_mcherry_cells(data_path, prefix):
     fig_folder.mkdir(exist_ok=True, parents=True)
     fig.savefig(fig_folder / f"{prefix}_gmm_diagnostics.png")
 
-    iss.pipeline.batch_process_tiles(
+    batch_process_tiles(
         data_path, script="remove_non_cell_masks", additional_args=f",PREFIX={prefix}"
     )
 

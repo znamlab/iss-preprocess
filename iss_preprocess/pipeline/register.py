@@ -8,14 +8,14 @@ from sklearn.linear_model import RANSACRegressor
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-from iss_preprocess.io import (
+
+from ..io import (
     get_roi_dimensions,
     load_metadata,
     load_ops,
     load_tile_by_coors,
 )
-from iss_preprocess.pipeline.sequencing import load_sequencing_rounds
-from iss_preprocess.reg import (
+from ..reg import (
     estimate_affine_for_tile,
     estimate_rotation_translation,
     estimate_shifts_and_angles_for_tile,
@@ -23,7 +23,9 @@ from iss_preprocess.reg import (
     make_transform,
     register_channels_and_rounds,
 )
-from iss_preprocess.vis.diagnostics import plot_registration_correlograms
+from ..vis.diagnostics import plot_registration_correlograms
+from .core import batch_process_tiles
+from .sequencing import load_sequencing_rounds
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
@@ -1002,7 +1004,7 @@ def register_all_tiles_to_ref(data_path, reg_prefix, use_masked_correlation):
         f",REG_PREFIX={reg_prefix},"
         + f"USE_MASK={'true' if use_masked_correlation else 'false'}"
     )
-    job_ids = iss.pipeline.batch_process_tiles(
+    job_ids = batch_process_tiles(
         data_path,
         "register_tile_to_ref",
         additional_args=additional_args,

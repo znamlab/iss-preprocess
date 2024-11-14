@@ -85,7 +85,7 @@ def register_hyb_tile(path, prefix, roi, tilex, tiley):
 @click.option("-s", "--suffix", default="max", help="Projection suffix, e.g. 'max'")
 def estimate_shifts(path, prefix, suffix="max"):
     """Estimate X-Y shifts across rounds and channels for all tiles."""
-    from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.pipeline.core import batch_process_tiles
 
     additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
     batch_process_tiles(path, script="register_tile", additional_args=additional_args)
@@ -97,7 +97,7 @@ def estimate_shifts(path, prefix, suffix="max"):
 def estimate_hyb_shifts(path, prefix=None):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.io import get_roi_dimensions, load_metadata
-    from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.pipeline.core import batch_process_tiles
 
     if prefix:
         roi_dims = get_roi_dimensions(path, prefix)

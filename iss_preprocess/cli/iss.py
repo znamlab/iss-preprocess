@@ -362,7 +362,7 @@ def check_omp_alpha(path, roi, tilex, tiley, use_slurm=True):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def basecall(path):
     """Start batch jobs to run basecalling for barcodes on all tiles."""
-    from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.pipeline.core import batch_process_tiles
 
     job_ids, failed_job = batch_process_tiles(path, "basecall_tile")
     click.echo(f"Basecalling started for {len(job_ids)} tiles.")
@@ -410,7 +410,7 @@ def check_basecall(path, use_slurm=False, ref_tile_index=0):
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def extract(path):
     """Start batch jobs to run OMP on all tiles in a dataset."""
-    from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.pipeline.core import batch_process_tiles
 
     batch_process_tiles(path, "extract_tile")
 
@@ -781,7 +781,7 @@ def segment_all_mcherry(path, prefix="mCherry_1"):
     """Segment mcherry cells for all tiles in a dataset."""
     from pathlib import Path
 
-    from iss_preprocess.pipeline import batch_process_tiles
+    from iss_preprocess.pipeline.core import batch_process_tiles
     from iss_preprocess.pipeline.segment import (
         remove_all_duplicate_masks,
         save_unmixing_coefficients,
