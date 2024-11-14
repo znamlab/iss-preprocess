@@ -1,5 +1,8 @@
 import click
 
+import iss_preprocess.diagnostics.diag_reg2ref
+import iss_preprocess.diagnostics.diag_register
+
 
 @click.group()
 def iss_cli():
@@ -190,7 +193,6 @@ def correct_hyb_shifts(path, prefix=None, use_slurm=False):
     across tiles.
     """
     from iss_preprocess.pipeline import correct_hyb_shifts
-    from iss_preprocess.pipeline import diagnostics as diag
 
     if prefix is None:
         from iss_preprocess.io import load_metadata
@@ -216,7 +218,7 @@ def correct_hyb_shifts(path, prefix=None, use_slurm=False):
             slurm_folder=slurm_folder,
             scripts_name=f"correct_hyb_shifts_{prefix}",
         )
-        job2 = diag.check_shift_correction(
+        job2 = iss_preprocess.diagnostics.diag_register.check_shift_correction(
             path,
             prefix,
             roi_dimension_prefix=prefix,
@@ -240,7 +242,6 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     across tiles.
     """
     from iss_preprocess.pipeline import correct_shifts_to_ref
-    from iss_preprocess.pipeline import diagnostics as diag
 
     if use_slurm:
         from pathlib import Path
@@ -257,7 +258,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         slurm_folder=slurm_folder,
         scripts_name=f"correct_shifts_to_ref_{prefix}",
     )
-    diag.check_reg_to_ref_correction(
+    iss_preprocess.diagnostics.diag_reg2ref.check_reg_to_ref_correction(
         path,
         prefix,
         rois=None,
@@ -267,7 +268,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         job_dependency=job_id if use_slurm else None,
         scripts_name=f"check_reg_to_ref_correction_{prefix}",
     )
-    diag.check_registration_to_reference(
+    iss_preprocess.diagnostics.diag_reg2ref.check_registration_to_reference(
         path,
         prefix=prefix,
         ref_prefix=None,
@@ -370,7 +371,7 @@ def basecall(path):
 
     from pathlib import Path
 
-    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
+    from iss_preprocess.diagnostics.diag_sequencing import check_barcode_basecall
 
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -389,7 +390,7 @@ def basecall(path):
 @click.option("--ref-tile-index", default=0, help="Reference tile index")
 def check_basecall(path, use_slurm=False, ref_tile_index=0):
     """Check if basecalling has completed for all tiles."""
-    from iss_preprocess.pipeline.diagnostics import check_barcode_basecall
+    from iss_preprocess.diagnostics.diag_sequencing import check_barcode_basecall
 
     if use_slurm:
         from pathlib import Path

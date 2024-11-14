@@ -10,6 +10,7 @@ from znamutils import slurm_it
 
 import iss_preprocess as iss
 
+from ..diagnostics.diag_register import check_tile_shifts
 from ..image.correction import apply_illumination_correction
 from ..io import (
     get_channel_round_transforms,
@@ -28,7 +29,6 @@ from ..reg import (
     register_channels_and_rounds,
 )
 from ..vis.diagnostics import plot_registration_correlograms
-from .diagnostics import check_tile_shifts
 from .hybridisation import load_and_register_hyb_tile
 from .sequencing import load_and_register_sequencing_tile, load_sequencing_rounds
 

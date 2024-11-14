@@ -8,17 +8,17 @@ from znamutils import slurm_it
 
 import iss_preprocess as iss
 from iss_preprocess.decorators import updates_flexilims
+from iss_preprocess.diagnostics.diag_register import (
+    check_ref_tile_registration,
+    check_shift_correction,
+    check_tile_registration,
+)
 from iss_preprocess.io import (
     load_metadata,
     load_ops,
 )
 from iss_preprocess.io.load import find_roi_position_on_cryostat, get_processed_path
 from iss_preprocess.pipeline.core import batch_process_tiles, setup_flexilims
-from iss_preprocess.pipeline.diagnostics import (
-    check_ref_tile_registration,
-    check_shift_correction,
-    check_tile_registration,
-)
 from iss_preprocess.pipeline.register import (
     run_correct_shifts,
     run_register_reference_tile,

@@ -12,11 +12,16 @@ from znamutils import slurm_it
 
 import iss_preprocess as iss
 
-from ..io import get_processed_path, load_micromanager_metadata
+from ..io import (
+    get_processed_path,
+    get_roi_dimensions,
+    load_metadata,
+    load_micromanager_metadata,
+    load_ops,
+)
 
 __all__ = [
     "plot_clusters",
-    "plot_spot_sign_image",
     "to_rgb",
     "make_lut",
     "plot_spots",
@@ -101,26 +106,6 @@ def plot_clusters(cluster_means, spot_colors, cluster_inds):
     figs.append(fig)
 
     return figs
-
-
-def plot_spot_sign_image(spot_image):
-    """
-    Plot the average spot sign image.
-
-    Args:
-        spot_image: X x Y array of average spot sign values.
-
-    """
-    plt.figure(figsize=(5, 5), facecolor="white")
-    plt.pcolormesh(
-        spot_image, cmap="bwr", vmin=-1, vmax=1, edgecolors="white", linewidths=1
-    )
-    image_size = spot_image.shape[0]
-    ticks_labels = np.arange(image_size) - int(image_size / 2)
-    plt.xticks(np.arange(image_size) + 0.5, ticks_labels)
-    plt.yticks(np.arange(image_size) + 0.5, ticks_labels)
-    plt.colorbar()
-    plt.gca().set_aspect("equal")
 
 
 def to_rgb(stack, colors, vmax=None, vmin=None):
@@ -463,7 +448,7 @@ def plot_overview_images(
         vmax (list, optional): vmax for each channel. Default to None
     """
     processed_path = get_processed_path(data_path)
-    roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
+    roi_dims = get_roi_dimensions(data_path, prefix)
     image_metadata = load_micromanager_metadata(data_path, prefix)
     nchannels = image_metadata["Summary"]["Channels"]
     # Check if average image exists for illumination correction
@@ -551,7 +536,7 @@ def plot_single_overview(
         fig: Figure object
     """
     if nx is None or ny is None:
-        roi_dims = iss.io.get_roi_dimensions(data_path, prefix=prefix)
+        roi_dims = get_roi_dimensions(data_path, prefix=prefix)
         for roi_dim in roi_dims:
             if roi_dim[0] == roi:
                 nx = roi_dim[1] + 1
@@ -636,7 +621,7 @@ def plot_single_overview(
             getattr(ax, f"{x}axis").set_minor_locator(minor_locator)
 
         # Adjust tick labels to display between the ticks
-        ops = iss.io.load_ops(data_path)
+        ops = load_ops(data_path)
         if ops["x_tile_direction"] == "left_to_right":
             ax.set_xticklabels(np.arange(0, len(ax.get_xticks())), rotation=90)
         else:
@@ -719,8 +704,8 @@ def combine_overview_plots(data_path, prefix, chamber_list):
             "barcode_round", "DAPI"
         chamber_list (list): list of chambers to include
     """
-    processed_path = iss.io.get_processed_path(data_path)
-    metadata = iss.io.load_metadata(data_path)
+    processed_path = get_processed_path(data_path)
+    metadata = load_metadata(data_path)
     if prefix in ("genes_round", "barcode_round"):
         rounds = metadata[f"{prefix}s"]
     else:
@@ -729,10 +714,8 @@ def combine_overview_plots(data_path, prefix, chamber_list):
         fig, axs = plt.subplots(8, 5, figsize=(10, 12), dpi=500)
         chamber_count = 0
         for chamber in chamber_list:
-            processed_path = (
-                iss.io.get_processed_path(data_path).parent / f"chamber_{chamber}"
-            )
-            roi_dims = iss.io.get_roi_dimensions(data_path, f"{prefix}_1_1")
+            processed_path = get_processed_path(data_path).parent / f"chamber_{chamber}"
+            roi_dims = get_roi_dimensions(data_path, f"{prefix}_1_1")
             num_rois = len(roi_dims)
             for roi in range(1, num_rois + 1):
                 # Initialize empty image

@@ -21,11 +21,13 @@ from iss_preprocess.io import (
     load_stack,
     load_tile_by_coors,
 )
-from iss_preprocess.pipeline import register, vis
+from iss_preprocess.pipeline import register
 from iss_preprocess.reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
 )
+
+from ..vis import diagnostics
 
 
 def load_tile_ref_coors(
@@ -439,7 +441,7 @@ def register_within_acquisition(
         )
         if save_plot:
             pbar.set_description("Saving plot")
-            vis.diagnostics.adjacent_tiles_registration(
+            diagnostics.adjacent_tiles_registration(
                 data_path,
                 prefix,
                 roi=roi,

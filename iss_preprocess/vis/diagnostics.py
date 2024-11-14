@@ -1,23 +1,15 @@
 import warnings
-from pathlib import Path
 
-import cv2
-import flexiznam as flz
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from matplotlib.animation import FFMpegWriter, FuncAnimation
 from natsort import natsorted
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-from iss_preprocess.pipeline import ara_registration as ara_registration
-from iss_preprocess.pipeline import sequencing
-from iss_preprocess.vis import add_bases_legend, round_to_rgb
-from iss_preprocess.vis.utils import plot_matrix_with_colorbar
 
 from ..io import load_ops
+from .utils import plot_matrix_with_colorbar
 
 
 def plot_correction_images(
@@ -302,64 +294,6 @@ def adjacent_tiles_registration(
     return fig
 
 
-def plot_ara_registration(data_path, roi, reference_prefix="genes_round_1_1"):
-    """Overlay reference image to ARA borders
-
-    Args:
-        data_path (str): Relative path to data
-        roi (int): ROI number to plot
-        reference_prefix (str, optional): Image to use as reference. Defaults to
-            "genes_round_1_1".
-
-    Raises:
-        ImportError: If `cricksaw_analysis` is not installed
-
-    Returns:
-        plt.Figure: Reference to the figure created.
-    """
-    try:
-        from cricksaw_analysis import atlas_utils
-    except ImportError:
-        raise ImportError("`plot_registration requires `cricksaw_analysis")
-    area_ids = ara_registration.make_area_image(
-        data_path=data_path, roi=roi, atlas_size=10, full_scale=False
-    )
-    reg_metadata = ara_registration.load_registration_reference_metadata(
-        data_path, roi=roi
-    )
-
-    ops = load_ops(data_path)
-    stitched_stack = iss.pipeline.stitch_registered(
-        data_path,
-        reference_prefix,
-        roi=roi,
-        channels=ops["ref_ch"],
-    ).astype(np.single)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    new_shape = reg_metadata["new_shape"]
-    downsampled = cv2.resize(stitched_stack, (new_shape[1], new_shape[0]))
-    ax.imshow(
-        downsampled,
-        extent=(0, new_shape[1], 0, new_shape[0]),
-        vmax=np.quantile(downsampled, 0.99),
-        vmin=0,
-        origin="lower",
-        cmap="gray",
-    )
-    atlas_utils.plot_borders_and_areas(
-        ax,
-        area_ids,
-        border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
-    )
-    ax.set_ylim(ax.get_ylim()[::-1])
-    ax.set_xticks([])
-    ax.set_yticks([])
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    return fig
-
-
 def plot_tilestats_distributions(
     data_path, distributions, grand_averages, figure_folder
 ):
@@ -639,130 +573,6 @@ def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax):
     )
 
 
-def check_rolonies_registration(
-    savefname,
-    data_path,
-    tile_coors,
-    n_rolonies,
-    prefix="genes_round",
-    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
-    vmax=0.5,
-    correct_illumination=True,
-    corrected_shifts="best",
-):
-    """Check the registration of rolonies
-
-    Will plot a random selection of rolonies overlaid on the spot sign image circles.
-
-    Args:
-        savefname (str): Path to save the figure to
-        data_path (str): Path to the data folder
-        tile_coors (tuple): Tile coordinates
-        n_rolonies (int): Number of rolonies to plot
-        prefix (str, optional): Prefix to use. Defaults to "genes_round".
-        channel_colors (list, optional): List of colors for each channel. Defaults to
-            ([1,0,0],[0,1,0],[1,0,1],[0,1,1]).
-        vmax (float, optional): Max value image scale. Defaults to 0.5.
-        correct_illumination (bool, optional): Whether to correct for illumination.
-            Defaults to True.
-        corrected_shifts (str, optional): Which shifts to use. One of `best`, `ransac`,
-            `single_tile`, `reference`, Defaults to 'best'.
-
-    """
-    ops = load_ops(data_path)
-    processed_path = Path(flz.config.PARAMETERS["data_root"]["processed"])
-    spot_sign = np.load(processed_path / data_path / "spot_sign_image.npy")
-    # cut a line in the middle
-    line = spot_sign[spot_sign.shape[0] // 2, :]
-    positive_radius = np.diff(np.where(line > 0)[0][[0, -1]]) / 2 + 0.5
-    negative_radius = np.diff(np.where(line < -0.1)[0][[0, -1]]) / 2
-
-    spot_folder = processed_path / data_path / "spots"
-    spots = pd.read_pickle(
-        spot_folder
-        / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
-    )
-    spots.reset_index(inplace=True)
-    nrounds = ops[f"{prefix}s"]
-    # get stack registered between channel and rounds
-    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
-        data_path,
-        filter_r=ops["filter_r"],
-        correct_channels=True,
-        correct_illumination=correct_illumination,
-        corrected_shifts=corrected_shifts,
-        tile_coors=tile_coors,
-        suffix=ops[f"{prefix.split('_')[0]}_projection"],
-        prefix=prefix,
-        nrounds=nrounds,
-        specific_rounds=None,
-    )
-    extent = np.array([-1, 1]) * 100
-
-    rng = np.random.default_rng(42)
-    rolonies = rng.choice(spots.index, n_rolonies, replace=False)
-    if n_rolonies == 1:
-        fig, axes = plt.subplots(1, 1, figsize=(5, 5))
-        axes = np.array([axes])
-    else:
-        nrow = int(np.sqrt(n_rolonies))
-        ncol = int(np.ceil(n_rolonies / nrow))
-        fig, axes = plt.subplots(nrow, ncol, figsize=(ncol * 3, nrow * 3))
-    fig.subplots_adjust(
-        top=0.9, wspace=0.01, hspace=0.1, bottom=0.01, left=0.01, right=0.99
-    )
-
-    # get codebook
-    codebook = pd.read_csv(
-        Path(__file__).parent.parent / "call" / ops["codebook"],
-        header=None,
-        names=["gii", "seq", "gene"],
-    )
-    base_params = dict(color="white", fontsize=20, fontweight="bold")
-    stacks_list = []
-    sequences = []
-    labels = []
-    for i, ax in enumerate(axes.flatten()):
-        spot = spots.loc[rolonies[i]]
-        center = spot[["x", "y"]].astype(int).values
-        wx = np.clip(center[0] + extent, 0, reg_stack.shape[0])
-        wy = np.clip(center[1] + extent, 0, reg_stack.shape[1])
-        stack_part = reg_stack[slice(*wy), slice(*wx)]
-        stacks_list.append(stack_part)
-        pc = plt.Circle(center, radius=positive_radius, ec="r", fc="none", lw=2)
-        ax.add_artist(pc)
-        nc = plt.Circle(center, radius=negative_radius, ec="b", fc="none", lw=2)
-        ax.add_artist(nc)
-        ax.imshow(
-            round_to_rgb(stack_part, 0, None, channel_colors, vmax),
-            extent=np.hstack([wx, wy]),
-            origin="lower",
-        )
-        ax.axis("off")
-        ax.set_title(f"Rol #{rolonies[i]}. X: {center[0]}, Y: {center[1]}")
-        gene = spots.loc[rolonies[i], "gene"]
-        sequences.append(codebook.loc[codebook["gene"] == gene, "seq"].values[0])
-        txt = ax.text(0.05, 0.9, sequences[i][0], transform=ax.transAxes, **base_params)
-        labels.append(txt)
-
-    add_bases_legend(channel_colors=channel_colors)
-
-    def animate(iround):
-        for iax, stack in enumerate(stacks_list):
-            ax = axes.flatten()[iax]
-
-            ax.images[0].set_data(
-                round_to_rgb(stack, iround, None, channel_colors, vmax),
-            )
-            labels[iax].set_text(sequences[iax][iround])
-        fig.suptitle(
-            f"Tile {tile_coors}. Corrected shifts: {corrected_shifts}. Round {iround}"
-        )
-
-    anim = FuncAnimation(fig, animate, frames=reg_stack.shape[3], interval=200)
-    anim.save(savefname, writer=FFMpegWriter(fps=2))
-
-
 @slurm_it(conda_env="iss-preprocess")
 def check_barcode_mcherry_reg(
     data_path,
@@ -848,3 +658,23 @@ def check_barcode_mcherry_reg(
     if target is not None:
         fig.savefig(target, dpi=300)
     return fig
+
+
+def plot_spot_sign_image(spot_image):
+    """
+    Plot the average spot sign image.
+
+    Args:
+        spot_image: X x Y array of average spot sign values.
+
+    """
+    plt.figure(figsize=(5, 5), facecolor="white")
+    plt.pcolormesh(
+        spot_image, cmap="bwr", vmin=-1, vmax=1, edgecolors="white", linewidths=1
+    )
+    image_size = spot_image.shape[0]
+    ticks_labels = np.arange(image_size) - int(image_size / 2)
+    plt.xticks(np.arange(image_size) + 0.5, ticks_labels)
+    plt.yticks(np.arange(image_size) + 0.5, ticks_labels)
+    plt.colorbar()
+    plt.gca().set_aspect("equal")
