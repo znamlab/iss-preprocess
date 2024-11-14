@@ -5,8 +5,14 @@ import scipy
 from scipy.ndimage import grey_dilation
 
 from ..coppafish import annulus
+from ..io import get_pixel_size, get_processed_path
 
-import iss_preprocess as iss
+__all__ = [
+    "detect_isolated_spots",
+    "detect_spots",
+    "make_spot_image",
+    "convolve_spots",
+]
 
 
 def detect_isolated_spots(
@@ -139,11 +145,11 @@ def convolve_spots(
     """
     if tile is None:
         spots = pd.read_pickle(
-            iss.io.get_processed_path(data_path) / f"{prefix}_spots_{roi}.pkl"
+            get_processed_path(data_path) / f"{prefix}_spots_{roi}.pkl"
         )
     else:
         spots = pd.read_pickle(
-            iss.io.get_processed_path(data_path)
+            get_processed_path(data_path)
             / "spots"
             / f"{prefix}_spots_{roi}_{tile[0]}_{tile[1]}.pkl"
         )
@@ -151,7 +157,7 @@ def convolve_spots(
         spots = spots[spots.dot_product_score > dot_threshold]
 
     # load barcode_round_1_1 but anything should work
-    pixel_size = iss.io.get_pixel_size(data_path)
+    pixel_size = get_pixel_size(data_path)
     gaussian_width = int(kernel_um / pixel_size)
 
     return make_spot_image(
