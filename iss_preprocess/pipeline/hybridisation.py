@@ -4,12 +4,12 @@ import pandas as pd
 from skimage.morphology import binary_dilation
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
 from ..call import extract_spots
 from ..coppafish import scaled_k_means
+from ..diagnostics.diag_hybridisation import check_hybridisation_setup
 from ..image import apply_illumination_correction, compute_distribution, filter_stack
 from ..io import (
+    get_processed_path,
     get_roi_dimensions,
     load_hyb_probes_metadata,
     load_metadata,
@@ -58,7 +58,7 @@ def load_and_register_hyb_tile(
             discarded during analysis.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     valid_shifts = ["reference", "single_tile", "ransac", "best"]
     assert corrected_shifts in valid_shifts, (
         f"unknown shift correction method, must be one of {valid_shifts}",
@@ -113,7 +113,7 @@ def get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts):
         np.ndarray: Array of channel and round shifts.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
     if corrected_shifts == "reference":
         tforms_fname = f"tforms_{prefix}.npz"
@@ -155,7 +155,7 @@ def estimate_channel_correction_hybridisation(data_path):
     metadata = load_metadata(data_path)
     if "hybridisation" not in metadata.keys():
         return
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
     max_val = 65535
@@ -200,7 +200,7 @@ def setup_hyb_spot_calling(data_path, prefix=None, vis=True):
         vis (bool, optional): Whether to generate diagnostic plots. Defaults to True.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     metadata = load_metadata(data_path)
     if prefix is None:
         prefix = list(metadata["hybridisation"].keys())
@@ -227,7 +227,7 @@ def setup_hyb_spot_calling(data_path, prefix=None, vis=True):
             spot_colors=spot_colors,
             cluster_inds=cluster_inds,
         )
-    iss.pipeline.check_hybridisation_setup(data_path, prefixes=prefix)
+    check_hybridisation_setup(data_path, prefixes=prefix)
 
 
 def hyb_spot_cluster_means(data_path, prefix):
@@ -348,7 +348,7 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
         prefix (str): Prefix of the hybridisation round, e.g. "hybridisation_1_1".
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     clusters = np.load(
         processed_path / f"{prefix}_cluster_means.npz", allow_pickle=True
@@ -370,7 +370,7 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
         print(f"Found {spots.shape[0]} spots. Extracting")
         stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
         spots["size"] = np.ones(len(spots)) * ops["spot_extraction_radius"]
-        iss.pipeline.extract_spots(spots, stack, ops["spot_extraction_radius"])
+        extract_spots(spots, stack, ops["spot_extraction_radius"])
         x = np.stack(spots["trace"], axis=2)
         x_norm = x[0, :, :].T / np.linalg.norm(x[0, :, :].T, axis=1)[:, np.newaxis]
         score = x_norm @ clusters["cluster_means"].T

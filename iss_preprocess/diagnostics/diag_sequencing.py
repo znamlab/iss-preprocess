@@ -6,18 +6,24 @@ import pandas as pd
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-from iss_preprocess import vis
-from iss_preprocess.diagnostics import _get_some_tiles
-from iss_preprocess.io import get_processed_path, load_ops
-from iss_preprocess.vis.utils import (
-    get_spot_part,
-    get_stack_part,
-    plot_matrix_with_colorbar,
-)
 
 from ..call import BASES
 from ..call.omp import run_omp
 from ..call.spot_shape import find_gene_spots
+from ..io import get_processed_path, load_ops
+from ..vis import (
+    add_bases_legend,
+    plot_clusters,
+    plot_gene_templates,
+    plot_spot_called_base,
+    round_to_rgb,
+)
+from ..vis.utils import (
+    get_spot_part,
+    get_stack_part,
+    plot_matrix_with_colorbar,
+)
+from . import _get_some_tiles
 
 
 def check_barcode_calling(data_path):
@@ -35,7 +41,7 @@ def check_barcode_calling(data_path):
         processed_path / "reference_barcode_spots.npz", allow_pickle=True
     )
     cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
-    figs = vis.plot_clusters(
+    figs = plot_clusters(
         cluster_means,
         reference_barcode_spots["spot_colors"],
         reference_barcode_spots["cluster_inds"],
@@ -60,13 +66,13 @@ def check_omp_setup(data_path):
     )
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
     nrounds = reference_gene_spots["spot_colors"].shape[0]
-    figs = vis.plot_clusters(
+    figs = plot_clusters(
         omp_stat["cluster_means"],
         reference_gene_spots["spot_colors"],
         reference_gene_spots["cluster_inds"],
     )
     figs.append(
-        vis.plot_gene_templates(
+        plot_gene_templates(
             omp_stat["gene_dict"],
             omp_stat["gene_names"],
             BASES,
@@ -357,7 +363,7 @@ def check_barcode_basecall(
     channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
     axes = []
     for iround in range(nr):
-        rgb_stack = vis.round_to_rgb(
+        rgb_stack = round_to_rgb(
             stack_part, iround, extent=None, channel_colors=channel_colors
         )
         # plot raw fluo
@@ -366,7 +372,7 @@ def check_barcode_basecall(
         ax.imshow(rgb_stack)
         ax.set_title(f"Round {iround}")
         if iround == nr - 1:
-            vis.add_bases_legend(channel_colors, ax.transAxes, fontsize=14)
+            add_bases_legend(channel_colors, ax.transAxes, fontsize=14)
 
         # plot basecall, a letter per spot
         ax = fig.add_subplot(ncol, nr, nr + iround + 1)
@@ -374,7 +380,7 @@ def check_barcode_basecall(
         spots_in_frame = valid_spots.copy()
         spots_in_frame["x"] -= center[0] - window
         spots_in_frame["y"] -= center[1] - window
-        vis.plot_spot_called_base(spots_in_frame, ax, iround)
+        plot_spot_called_base(spots_in_frame, ax, iround)
 
     if show_scores:
         # plot spot scores

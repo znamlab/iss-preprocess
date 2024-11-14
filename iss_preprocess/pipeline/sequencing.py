@@ -7,8 +7,6 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import OneHotEncoder
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
 from ..call import (
     BASES,
     extract_spots,
@@ -21,6 +19,8 @@ from ..call.spot_shape import (
     find_gene_spots,
     get_spot_shape,
 )
+from ..diagnostics import check_spot_sign_image
+from ..diagnostics.diag_sequencing import check_barcode_calling, check_omp_setup
 from ..image import (
     apply_illumination_correction,
     compute_distribution,
@@ -109,7 +109,7 @@ def setup_barcode_calling(data_path):
         cluster_inds=cluster_inds,
     )
     np.save(processed_path / "barcode_cluster_means.npy", cluster_means)
-    iss.pipeline.check_barcode_calling(data_path)
+    check_barcode_calling(data_path)
     print("barcode calling setup complete")
     return cluster_means, all_spots
 
@@ -253,7 +253,7 @@ def setup_omp(data_path):
         norm_shift=norm_shift,
         cluster_means=cluster_means,
     )
-    iss.pipeline.check_omp_setup(data_path)
+    check_omp_setup(data_path)
     return gene_dict, gene_names, norm_shift
 
 
@@ -514,7 +514,7 @@ def compute_spot_sign_image(data_path, prefix="genes_round"):
     spot_sign_image = np.sum(np.stack(images, axis=2), axis=2) / total_spots
     spot_sign_image = apply_symmetry(spot_sign_image)
     np.save(processed_path / "spot_sign_image.npy", spot_sign_image)
-    iss.pipeline.check_spot_sign_image(data_path)
+    check_spot_sign_image(data_path)
 
 
 def load_spot_sign_image(data_path, threshold, return_raw_image=False):

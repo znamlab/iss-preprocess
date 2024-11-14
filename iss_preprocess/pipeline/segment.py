@@ -12,8 +12,11 @@ from sklearn.mixture import GaussianMixture
 from tqdm import tqdm
 from znamutils import slurm_it
 
-import iss_preprocess.diagnostics.diag_segmentation
-
+from ..diagnostics.diag_segmentation import (
+    check_segmentation,
+    plot_mcherry_gmm,
+    plot_unmixing_diagnostics,
+)
 from ..image.correction import calculate_unmixing_coefficient, unmix_images
 from ..io import (
     get_pixel_size,
@@ -32,7 +35,7 @@ from ..segment import (
     spot_mask_value,
 )
 from ..segment.cells import label_image, remove_overlapping_labels
-from . import ara_registration as ara_registration
+from .ara_registration import spots_ara_infos
 from .core import batch_process_tiles
 from .register import load_and_register_raw_stack, load_and_register_tile
 from .stitch import find_tile_overlap, stitch_registered
@@ -374,9 +377,7 @@ def segment_roi(data_path, iroi, prefix="DAPI_1", use_gpu=False):
         use_gpu=use_gpu,
     )
     np.save(get_processed_path(data_path) / f"masks_{iroi}.npy", masks)
-    iss_preprocess.diagnostics.diag_segmentation.check_segmentation(
-        data_path, iroi, prefix, reference_prefix, stitched_stack, masks
-    )
+    check_segmentation(data_path, iroi, prefix, reference_prefix, stitched_stack, masks)
 
 
 def get_cell_masks(
@@ -499,7 +500,7 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=None, atlas_s
     # TODO: add coordinate in tile
 
     if atlas_size is not None:
-        ara_registration.spots_ara_infos(
+        spots_ara_infos(
             data_path,
             spots=cell_df,
             atlas_size=atlas_size,
@@ -1313,7 +1314,7 @@ def _gmm_cluster_mcherry_cells(data_path, prefix):
     fused_df.to_pickle(fused_df_fname)
     print(f"Saved GMM clustering results to {fused_df_fname}")
     # Plot diagnostics plot
-    fig = iss_preprocess.diagnostics.diag_segmentation.plot_mcherry_gmm(
+    fig = plot_mcherry_gmm(
         fused_df, features, cluster_centers=gmm.means_, initial_centers=initial_unscaled
     )
     fig_folder = get_processed_path(data_path) / "figures" / "segmentation"
@@ -1429,7 +1430,7 @@ def save_unmixing_coefficients(
     )
 
     # save diagnostics plot
-    figs = iss_preprocess.diagnostics.diag_segmentation.plot_unmixing_diagnostics(
+    figs = plot_unmixing_diagnostics(
         signal_image=np.vstack(signal),
         background_image=np.vstack(background),
         pure_signal=pure_signal,
