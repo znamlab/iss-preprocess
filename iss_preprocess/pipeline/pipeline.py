@@ -7,19 +7,23 @@ import numpy as np
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-from iss_preprocess.decorators import updates_flexilims
-from iss_preprocess.diagnostics.diag_register import (
+
+from ..decorators import updates_flexilims
+from ..diagnostics.diag_register import (
     check_ref_tile_registration,
     check_shift_correction,
     check_tile_registration,
 )
-from iss_preprocess.io import (
+from ..io import (
+    find_roi_position_on_cryostat,
+    get_processed_path,
+    get_raw_path,
     load_metadata,
     load_ops,
+    write_stack,
 )
-from iss_preprocess.io.load import find_roi_position_on_cryostat, get_processed_path
-from iss_preprocess.pipeline.core import batch_process_tiles, setup_flexilims
-from iss_preprocess.pipeline.register import (
+from .core import batch_process_tiles, setup_flexilims
+from .register import (
     run_correct_shifts,
     run_register_reference_tile,
 )
@@ -92,7 +96,7 @@ def project_and_average(data_path, force_redo=False):
     print(data_by_kind, flush=True)
 
     # Check for expected folders in raw_data and check acquisition types for completion
-    raw_path = iss.io.get_raw_path(data_path)
+    raw_path = get_raw_path(data_path)
     to_process = []
     print(f"\nChecking for expected folders in {raw_path}", flush=True)
     for kind in todo:
@@ -456,7 +460,7 @@ def create_single_average(
         combine_tilestats=combine_tilestats,
         exclude_tiffs=exclude_tiffs,
     )
-    iss.io.write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
+    write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
     np.save(target_stats, tilestats)
     print(f"Average saved to {target_file}, tilestats to {target_stats}", flush=True)
     return av_image, tilestats

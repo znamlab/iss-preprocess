@@ -8,7 +8,7 @@ from znamutils import slurm_it
 import iss_preprocess as iss
 from iss_preprocess import vis
 from iss_preprocess.diagnostics import _get_some_tiles
-from iss_preprocess.io import load_ops
+from iss_preprocess.io import get_processed_path, load_ops
 from iss_preprocess.vis.utils import (
     get_spot_part,
     get_stack_part,
@@ -24,7 +24,7 @@ def check_barcode_calling(data_path):
         data_path (str): Relative path to data folder
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     figure_folder = processed_path / "figures" / "barcode_round"
     figure_folder.mkdir(exist_ok=True)
     reference_barcode_spots = np.load(
@@ -48,7 +48,7 @@ def check_omp_setup(data_path):
         data_path (str): Relative path to data folder
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     figure_folder = processed_path / "figures"
     figure_folder.mkdir(exist_ok=True)
     reference_gene_spots = np.load(
@@ -81,7 +81,7 @@ def check_omp_alpha_thresholds(
     alphas=(10, 50, 100, 200, 300, 400),
     tile_coors=None,
 ):
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     if tile_coors is None:
         tile_coors = ops["ref_tile"]
@@ -180,7 +180,7 @@ def check_omp_thresholds(
     rhos=(0.5, 1.0, 2.0, 4.0, 8.0),
     tile_coors=None,
 ):
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     if tile_coors is None:
         tile_coors = ops["ref_tile"]
@@ -286,7 +286,7 @@ def check_barcode_basecall(
     Returns:
         plt.Figure: Figure(s) with the basecall
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     figure_folder = processed_path / "figures" / "barcode_round"
     if savefig:
         figure_folder.mkdir(exist_ok=True)

@@ -8,7 +8,6 @@ from sklearn.preprocessing import OneHotEncoder
 from znamutils import slurm_it
 
 import iss_preprocess as iss
-from iss_preprocess.io.load import get_channel_round_transforms
 
 from ..call import (
     BASES,
@@ -27,7 +26,13 @@ from ..image import (
     compute_distribution,
     filter_stack,
 )
-from ..io import get_processed_path, load_ops, load_tile_by_coors, write_stack
+from ..io import (
+    get_channel_round_transforms,
+    get_processed_path,
+    load_ops,
+    load_tile_by_coors,
+    write_stack,
+)
 from ..reg import (
     align_channels_and_rounds,
     generate_channel_round_transforms,
@@ -97,7 +102,7 @@ def setup_barcode_calling(data_path):
         score_thresh=ops["barcode_cluster_score_thresh"],
         initial_cluster_mean=np.array(ops["initial_cluster_means"]),
     )
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     np.savez(
         processed_path / "reference_barcode_spots.npz",
         spot_colors=spot_colors,
@@ -119,7 +124,7 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
             without erasing during diagnostics. Defaults to True.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
 
@@ -221,7 +226,7 @@ def setup_omp(data_path):
 
     """
     ops = load_ops(data_path)
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     all_spots, norm_shifts = get_reference_spots(data_path, prefix="genes")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
         all_spots,
@@ -372,7 +377,7 @@ def estimate_channel_correction(
     else:
         norm_factors_fit = norm_factors_raw
 
-    save_path = iss.io.get_processed_path(data_path) / f"correction_{prefix}.npz"
+    save_path = get_processed_path(data_path) / f"correction_{prefix}.npz"
     np.savez(
         save_path,
         pixel_dist=pixel_dist,
@@ -494,7 +499,7 @@ def compute_spot_sign_image(data_path, prefix="genes_round"):
 
     """
     ops = load_ops(data_path)
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     total_spots = 0
     images = []
     for tile in ops["genes_ref_tiles"]:
@@ -528,7 +533,7 @@ def load_spot_sign_image(data_path, threshold, return_raw_image=False):
         numpy.ndarray: Spot sign image after thresholding, containing -1, 0, or 1s.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     spot_image_path = processed_path / "spot_sign_image.npy"
     if spot_image_path.exists():
         spot_sign_image = np.load(spot_image_path)
@@ -562,7 +567,7 @@ def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_
         dict: Dictionary of OMP parameters.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
 
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
@@ -633,7 +638,7 @@ def detect_genes_on_tile(data_path, tile_coors, save_stack=False, prefix="genes_
 
     for df, gene in zip(gene_spots, omp_stat["gene_names"]):
         df["gene"] = gene
-    save_dir = iss.io.get_processed_path(data_path) / "spots"
+    save_dir = get_processed_path(data_path) / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     pd.concat(gene_spots).to_pickle(
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
