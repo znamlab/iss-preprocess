@@ -16,8 +16,8 @@ from iss_preprocess.diagnostics import _get_some_tiles
 from iss_preprocess.diagnostics.diag_register import plot_round_registration_diagnostics
 from iss_preprocess.io import load_ops
 from iss_preprocess.pipeline import sequencing
+from iss_preprocess.vis import add_bases_legend, round_to_rgb
 from iss_preprocess.vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
-from iss_preprocess.vis.vis import add_bases_legend, round_to_rgb
 
 
 def debug_reg_to_ref(

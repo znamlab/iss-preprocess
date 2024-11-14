@@ -15,6 +15,10 @@ from iss_preprocess.vis.utils import (
     plot_matrix_with_colorbar,
 )
 
+from ..call import BASES
+from ..call.omp import run_omp
+from ..call.spot_shape import find_gene_spots
+
 
 def check_barcode_calling(data_path):
     """Plot the barcode cluster scatter plots and cluster means and save them in the
@@ -65,7 +69,7 @@ def check_omp_setup(data_path):
         vis.plot_gene_templates(
             omp_stat["gene_dict"],
             omp_stat["gene_names"],
-            iss.call.BASES,
+            BASES,
             nrounds=nrounds,
         )
     )
@@ -104,7 +108,7 @@ def check_omp_alpha_thresholds(
     for alpha in alphas:
         temp_gene_spots = []
         for omp_threshold in omp_thresholds:
-            g, _, _ = iss.call.run_omp(
+            g, _, _ = run_omp(
                 stack,
                 omp_stat["gene_dict"],
                 tol=omp_threshold,
@@ -119,7 +123,7 @@ def check_omp_alpha_thresholds(
             spot_sign_image = iss.pipeline.load_spot_sign_image(
                 data_path, ops["spot_shape_threshold"]
             )
-            gene_spots = iss.call.find_gene_spots(
+            gene_spots = find_gene_spots(
                 g,
                 spot_sign_image,
                 rho=2,  # Set rho value to 2
@@ -200,7 +204,7 @@ def check_omp_thresholds(
     all_gene_spots = []
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
     for omp_threshold in omp_thresholds:
-        g, _, _ = iss.call.run_omp(
+        g, _, _ = run_omp(
             stack,
             omp_stat["gene_dict"],
             tol=omp_threshold,
@@ -215,7 +219,7 @@ def check_omp_thresholds(
         spot_sign_image = iss.pipeline.load_spot_sign_image(
             data_path, ops["spot_shape_threshold"]
         )
-        gene_spots = iss.call.find_gene_spots(
+        gene_spots = find_gene_spots(
             g,
             spot_sign_image,
             rho=ops["genes_spot_rho"],

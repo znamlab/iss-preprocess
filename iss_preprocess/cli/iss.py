@@ -761,7 +761,7 @@ def plot_overview(
     path, prefix, plot_grid, downsample_factor, save_raw, separate_channels
 ):
     """Plot individual channel overview images."""
-    from iss_preprocess.vis import plot_overview_images
+    from iss_preprocess.diagnostics.diag_stitching import plot_overview_images
 
     plot_overview_images(
         data_path=path,

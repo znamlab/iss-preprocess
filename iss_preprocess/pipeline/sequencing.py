@@ -11,15 +11,15 @@ import iss_preprocess as iss
 
 from ..call import (
     BASES,
-    apply_symmetry,
-    barcode_spots_dot_product,
-    detect_spots_by_shape,
     extract_spots,
-    find_gene_spots,
     get_cluster_means,
+)
+from ..call.omp import barcode_spots_dot_product, make_gene_templates, run_omp
+from ..call.spot_shape import (
+    apply_symmetry,
+    detect_spots_by_shape,
+    find_gene_spots,
     get_spot_shape,
-    make_gene_templates,
-    run_omp,
 )
 from ..image import (
     apply_illumination_correction,
