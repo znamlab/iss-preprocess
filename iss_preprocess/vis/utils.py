@@ -1,8 +1,14 @@
-# define helper to plot resutls
+"""Generic plotting utilities
+
+They are not even specific to ISS data, but can be used for any kind of data
+visualization. We might consider moving some out of this repo.
+"""
+
 import matplotlib
-import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.cm
+import matplotlib.pyplot as plt
+import numpy as np
+from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 
 
 def get_stack_part(stack, xlim, ylim):
@@ -56,7 +62,7 @@ def plot_bc_over_mask(
 ):
     # get the list of colors from tab20
     colors = matplotlib.cm.get_cmap("tab20", nc).colors
-    im = ax.imshow(
+    ax.imshow(
         get_stack_part(ma, xlim, ylim) % nc,
         cmap="tab20",
         vmin=0,
@@ -135,3 +141,102 @@ def plot_bc_over_mask(
                 zorder=-70,
             )
     ax.axis("off")
+
+
+def plot_matrix_with_colorbar(mtx, ax=None, **kwargs):
+    """Plot a matrix with a colorbar just on the side
+
+    Args:
+        mtx (np.array): Matrix to plot
+        ax (plt.Axes, optional): Axes instance. Will be created if None. Defaults to
+            None.
+
+    Returns:
+        plt.Axes: Colorbar axes
+        plt.colorbar: Colorbar instance
+    """
+    if ax is None:
+        ax = plt.subplot(1, 1, 1)
+
+    im = ax.imshow(mtx, **kwargs)
+    ax_divider = make_axes_locatable(ax)
+    cax = ax_divider.append_axes("right", size="7%", pad="2%")
+    cb = ax.figure.colorbar(im, cax=cax)
+    return cax, cb
+
+
+def plot_matrix_difference(
+    raw,
+    corrected,
+    col_labels=None,
+    line_labels=("Raw", "Corrected", "Difference"),
+    range_min=(5, 5, 0.1),
+    range_max=None,
+    axes=None,
+):
+    """Plot the raw, corrected matrices and their difference
+
+    Args:
+        raw (np.array): n feature x tilex x tiley array of raw estimates
+        corrected (np.array): n feature x tilex x tiley array of corrected estimates
+        col_labels (list, optional): List of feature names for axes titles. Defaults to
+            None.
+        line_labels (list, optional): List of names for ylabel of leftmost plots.
+            Defaults to ('Raw', 'Corrected', 'Difference').
+        range_min (tuple, optional): N features long tuple of minimal range for color
+            bars. Defaults to (5,5,0.1)
+        range_max (tuple, optional): N features long tuple of maximal range for color
+            bars. Defaults to None, no max.
+        axes (np.array, optional): 3 x n features array of axes to plot into. Defaults
+            to None.
+
+    Returns:
+        plt.Figure: Figure instance
+    """
+    ncols = raw.shape[0]
+    if axes is None:
+        fig, axes = plt.subplots(3, ncols)
+        fig.set_size_inches((ncols * 3.5, 6))
+        fig.subplots_adjust(top=0.9, wspace=0.15, hspace=0)
+    else:
+        fig = axes[0, 0].figure
+
+    for col in range(ncols):
+        vmin = corrected[col].min()
+        vmax = corrected[col].max()
+        rng = vmax - vmin
+        if rng < range_min[col]:
+            rng = range_min[col]
+            vmin = vmin - rng
+            vmax = vmax + rng
+        elif (range_max is not None) and (rng > range_max[col]):
+            rng = range_max[col]
+            vmin = vmin - rng
+            vmax = vmax + rng
+        plot_matrix_with_colorbar(
+            raw[col].T, axes[0, col], vmin=vmin - rng / 5, vmax=vmax + rng / 5
+        )
+        plot_matrix_with_colorbar(
+            corrected[col].T,
+            axes[1, col],
+            vmin=vmin - rng / 5,
+            vmax=vmax + rng / 5,
+        )
+        plot_matrix_with_colorbar(
+            (raw[col] - corrected[col]).T,
+            axes[2, col],
+            cmap="RdBu_r",
+            vmin=-rng,
+            vmax=rng,
+        )
+
+    for x in axes.flatten():
+        x.set_xticks([])
+        x.set_yticks([])
+    if col_labels is not None:
+        for il, label in enumerate(col_labels):
+            axes[0, il].set_title(label, fontsize=11)
+    if line_labels is not None:
+        for il, label in enumerate(line_labels):
+            axes[il, 0].set_ylabel(label, fontsize=11)
+    return fig
