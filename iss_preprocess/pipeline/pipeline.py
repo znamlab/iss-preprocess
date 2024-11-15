@@ -290,7 +290,8 @@ def register_acquisition(data_path, prefix, force_redo=False):
             job_dependency=job_id,
         )
         print(f"Final job id: {rerun_id}")
-        correct_shifts(data_path, prefix, use_slurm=True, job_dependency=rerun_id)
+        jid = correct_shifts(data_path, prefix, use_slurm=True, job_dependency=rerun_id)
+        print(f"Correct shifts job id: {jid}")
 
     else:
         # Register a single round fluorescence acquisition
