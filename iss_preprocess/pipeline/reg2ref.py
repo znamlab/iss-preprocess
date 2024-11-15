@@ -4,9 +4,9 @@ from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from znamutils import slurm_it
 
-from ..diagnostics.diag_reg2ref import check_reg2ref_using_stitched
 from ..io import get_processed_path, get_roi_dimensions, load_ops
 from ..reg import estimate_rotation_translation
+from ..vis.diagnostics import check_reg2ref_using_stitched
 from .core import batch_process_tiles
 from .register import load_and_register_tile
 from .stitch import get_tile_corners, register_within_acquisition, stitch_and_register
@@ -341,11 +341,12 @@ def register_to_ref_using_stitched_registration(
             np.savez(target, matrix_between_channels=tforms.reshape((1, 3, 3)))
 
     if save_plot:
+        save_folder = get_processed_path(data_path) / "figures" / "registration"
+        save_folder /= f"{reg_prefix}_to_{ref_prefix}"
+        save_folder.mkdir(parents=True, exist_ok=True)
+        save_path = save_folder / f"{reg_prefix}_to_{ref_prefix}_roi_{roi}.png"
         check_reg2ref_using_stitched(
-            data_path,
-            reg_prefix,
-            ref_prefix,
-            roi,
+            save_path,
             stitched_stack_reference,
             stitched_stack_target,
             ref_centers,

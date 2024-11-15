@@ -10,7 +10,6 @@ from ..io import (
     get_roi_dimensions,
     load_ops,
     load_tile_by_coors,
-    write_stack,
 )
 from ..pipeline import sequencing
 from ..pipeline.sequencing import (
@@ -19,61 +18,12 @@ from ..pipeline.sequencing import (
 )
 from ..reg import correct_by_block, get_channel_reference_images
 from ..vis import animate_sequencing_rounds
-from ..vis.diagnostics import plot_affine_debug_images, plot_all_rounds
+from ..vis.diagnostics import (
+    plot_affine_debug_images,
+    plot_round_registration_diagnostics,
+)
 from ..vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
 from . import _get_some_tiles
-
-
-def plot_round_registration_diagnostics(
-    reg_stack, target_folder, fname_base, view_window=200, round_labels=None
-):
-    """Generate 3 diagnostics tools for the registration of a tile
-
-    - A static figure showing the stack of all rounds
-    - An animated figure showing the stack of all rounds
-    - A stack of RGB images for fiji
-
-    Args:
-        reg_stack (np.ndarray): Registered stack of images
-        target_folder (pathlib.Path): Folder to save the figures
-        fname_base (str): Base name for the figures
-        view_window (int, optional): Half size of the window to show in the figures.
-            Defaults to 200.
-
-    Returns:
-        None
-
-    """
-    # compute vmax based on round 0
-    vmins, vmaxs = np.percentile(reg_stack[..., 0], (0.01, 99.99), axis=(0, 1))
-    center = np.array(reg_stack.shape[:2]) // 2
-    view = np.array([center - view_window, center + view_window]).T
-    channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
-
-    print("Static figure")
-    fig, rgb_stack = plot_all_rounds(
-        reg_stack, view, channel_colors, round_labels=round_labels
-    )
-    fig.tight_layout()
-    fname = target_folder / f"{fname_base}.png"
-    fig.savefig(fname)
-    print(f"Saved to {fname}")
-
-    # also save the stack for fiji
-    write_stack(
-        (rgb_stack * 255).astype("uint8"),
-        target_folder / f"{fname_base}_rgb_stack_{reg_stack.shape[-1]}rounds.tif",
-    )
-
-    print("Animating")
-    animate_sequencing_rounds(
-        reg_stack,
-        savefname=target_folder / f"{fname_base}.mp4",
-        vmax=vmaxs,
-        vmin=vmins,
-        extent=(view[0], view[1]),
-        channel_colors=channel_colors,
-    )
 
 
 @slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])

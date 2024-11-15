@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from natsort import natsorted
 
-from ..io import get_processed_path, load_ops
-from . import add_bases_legend, to_rgb
+from ..io import get_processed_path, load_ops, write_stack
+from . import add_bases_legend, animate_sequencing_rounds, to_rgb
 from .utils import plot_matrix_with_colorbar
 
 
@@ -589,3 +589,105 @@ def plot_spot_sign_image(spot_image):
     plt.yticks(np.arange(image_size) + 0.5, ticks_labels)
     plt.colorbar()
     plt.gca().set_aspect("equal")
+
+
+def plot_round_registration_diagnostics(
+    reg_stack, target_folder, fname_base, view_window=200, round_labels=None
+):
+    """Generate 3 diagnostics tools for the registration of a tile
+
+    - A static figure showing the stack of all rounds
+    - An animated figure showing the stack of all rounds
+    - A stack of RGB images for fiji
+
+    Args:
+        reg_stack (np.ndarray): Registered stack of images
+        target_folder (pathlib.Path): Folder to save the figures
+        fname_base (str): Base name for the figures
+        view_window (int, optional): Half size of the window to show in the figures.
+            Defaults to 200.
+
+    Returns:
+        None
+
+    """
+    # compute vmax based on round 0
+    vmins, vmaxs = np.percentile(reg_stack[..., 0], (0.01, 99.99), axis=(0, 1))
+    center = np.array(reg_stack.shape[:2]) // 2
+    view = np.array([center - view_window, center + view_window]).T
+    channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+
+    print("Static figure")
+    fig, rgb_stack = plot_all_rounds(
+        reg_stack, view, channel_colors, round_labels=round_labels
+    )
+    fig.tight_layout()
+    fname = target_folder / f"{fname_base}.png"
+    fig.savefig(fname)
+    print(f"Saved to {fname}")
+
+    # also save the stack for fiji
+    write_stack(
+        (rgb_stack * 255).astype("uint8"),
+        target_folder / f"{fname_base}_rgb_stack_{reg_stack.shape[-1]}rounds.tif",
+    )
+
+    print("Animating")
+    animate_sequencing_rounds(
+        reg_stack,
+        savefname=target_folder / f"{fname_base}.mp4",
+        vmax=vmaxs,
+        vmin=vmins,
+        extent=(view[0], view[1]),
+        channel_colors=channel_colors,
+    )
+
+
+def check_reg2ref_using_stitched(
+    save_path,
+    stitched_stack_reference,
+    stitched_stack_target,
+    ref_centers=None,
+    trans_centers=None,
+):
+    """Check the registration to reference done on stitched images
+
+    Args:
+        data_path (str): Relative path to data
+        reg_prefix (str): Prefix of the registered images
+        ref_prefix (str): Prefix of the reference images
+        roi (int): ROI to process
+        stitched_stack_reference (np.ndarray): Stitched stack of the reference images
+        stitched_stack_target (np.ndarray): Stitched stack of the registered images
+        ref_centers (np.ndarray): Reference centers to plot. Defaults
+            to None.
+        trans_centers (np.ndarray): Transformed centers to plot. Defaults
+
+    Returns:
+        plt.Figure: Figure
+    """
+
+    st = np.dstack([stitched_stack_reference, stitched_stack_target])
+    rgb = to_rgb(
+        st, colors=[(0, 1, 0), (1, 0, 1)], vmax=np.nanpercentile(st, 99, axis=(0, 1))
+    )
+    del st
+    aspect_ratio = rgb.shape[0] / rgb.shape[1]
+    fig = plt.figure(figsize=(5, 5 * aspect_ratio))
+    ax = fig.add_subplot(111)
+    ax.imshow(rgb, zorder=0)
+    if ref_centers is not None:
+        flat_refc = ref_centers.reshape(-1, 2)
+        ax.scatter(flat_refc[:, 1], flat_refc[:, 0], c="blue", s=1, zorder=2)
+    if trans_centers is not None:
+        flat_trac = trans_centers.reshape(-1, 2)
+        ax.scatter(flat_trac[:, 1], flat_trac[:, 0], c="orange", s=2, zorder=3)
+    if trans_centers is not None and ref_centers is not None:
+        for c, t in zip(flat_refc, flat_trac):
+            ax.plot([c[1], t[1]], [c[0], t[0]], "k", zorder=1)
+    ax.set_axis_off()
+    fig.tight_layout()
+    fig.savefig(save_path, dpi=1200)
+    print(f"Saving plot to {save_path}")
+    del rgb
+    return fig

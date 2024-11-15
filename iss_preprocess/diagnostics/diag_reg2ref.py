@@ -11,11 +11,11 @@ from skimage.morphology import disk
 from znamutils import slurm_it
 
 from ..diagnostics import _get_some_tiles
-from ..diagnostics.diag_register import plot_round_registration_diagnostics
 from ..io import get_processed_path, get_roi_dimensions, load_ops
 from ..pipeline.register import load_and_register_tile
 from ..pipeline.sequencing import load_and_register_sequencing_tile
 from ..vis import add_bases_legend, round_to_rgb, to_rgb
+from ..vis.diagnostics import plot_round_registration_diagnostics
 from ..vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
 
 
@@ -316,63 +316,6 @@ def check_tile_reg2ref(
         fname = f"check_reg2ref_{tname}_{correction}"
         fig.savefig(target_folder / f"{fname}.png")
         plt.close(fig)  # close the figure to avoid memory leak
-
-
-def check_reg2ref_using_stitched(
-    data_path,
-    reg_prefix,
-    ref_prefix,
-    roi,
-    stitched_stack_reference,
-    stitched_stack_target,
-    ref_centers=None,
-    trans_centers=None,
-):
-    """Check the registration to reference done on stitched images
-
-    Args:
-        data_path (str): Relative path to data
-        reg_prefix (str): Prefix of the registered images
-        ref_prefix (str): Prefix of the reference images
-        roi (int): ROI to process
-        stitched_stack_reference (np.ndarray): Stitched stack of the reference images
-        stitched_stack_target (np.ndarray): Stitched stack of the registered images
-        ref_centers (np.ndarray): Reference centers to plot. Defaults
-            to None.
-        trans_centers (np.ndarray): Transformed centers to plot. Defaults
-
-    Returns:
-        plt.Figure: Figure
-    """
-
-    save_folder = get_processed_path(data_path) / "figures" / "registration"
-    save_folder /= f"{reg_prefix}_to_{ref_prefix}"
-    save_folder.mkdir(parents=True, exist_ok=True)
-    save_path = save_folder / f"{reg_prefix}_to_{ref_prefix}_roi_{roi}.png"
-    st = np.dstack([stitched_stack_reference, stitched_stack_target])
-    rgb = to_rgb(
-        st, colors=[(0, 1, 0), (1, 0, 1)], vmax=np.nanpercentile(st, 99, axis=(0, 1))
-    )
-    del st
-    aspect_ratio = rgb.shape[0] / rgb.shape[1]
-    fig = plt.figure(figsize=(5, 5 * aspect_ratio))
-    ax = fig.add_subplot(111)
-    ax.imshow(rgb, zorder=0)
-    if ref_centers is not None:
-        flat_refc = ref_centers.reshape(-1, 2)
-        ax.scatter(flat_refc[:, 1], flat_refc[:, 0], c="blue", s=1, zorder=2)
-    if trans_centers is not None:
-        flat_trac = trans_centers.reshape(-1, 2)
-        ax.scatter(flat_trac[:, 1], flat_trac[:, 0], c="orange", s=2, zorder=3)
-    if trans_centers is not None and ref_centers is not None:
-        for c, t in zip(flat_refc, flat_trac):
-            ax.plot([c[1], t[1]], [c[0], t[0]], "k", zorder=1)
-    ax.set_axis_off()
-    fig.tight_layout()
-    fig.savefig(save_path, dpi=1200)
-    print(f"Saving plot to {save_path}")
-    del rgb
-    return fig
 
 
 @slurm_it(conda_env="iss-preprocess", module_list=["FFmpeg"])
