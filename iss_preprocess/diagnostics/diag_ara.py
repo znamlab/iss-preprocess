@@ -2,9 +2,12 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-import iss_preprocess as iss
-from iss_preprocess.io import load_ops
-from iss_preprocess.pipeline import ara_registration as ara_registration
+from ..io import load_ops
+from ..pipeline.ara_registration import (
+    load_registration_reference_metadata,
+    make_area_image,
+)
+from ..pipeline.stitch import stitch_registered
 
 
 def plot_ara_registration(data_path, roi, reference_prefix="genes_round_1_1"):
@@ -26,15 +29,13 @@ def plot_ara_registration(data_path, roi, reference_prefix="genes_round_1_1"):
         from cricksaw_analysis import atlas_utils
     except ImportError:
         raise ImportError("`plot_registration requires `cricksaw_analysis")
-    area_ids = ara_registration.make_area_image(
+    area_ids = make_area_image(
         data_path=data_path, roi=roi, atlas_size=10, full_scale=False
     )
-    reg_metadata = ara_registration.load_registration_reference_metadata(
-        data_path, roi=roi
-    )
+    reg_metadata = load_registration_reference_metadata(data_path, roi=roi)
 
     ops = load_ops(data_path)
-    stitched_stack = iss.pipeline.stitch_registered(
+    stitched_stack = stitch_registered(
         data_path,
         reference_prefix,
         roi=roi,

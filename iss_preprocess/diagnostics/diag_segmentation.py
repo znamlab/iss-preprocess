@@ -5,9 +5,8 @@ import seaborn as sns
 from skimage.filters import gaussian
 from skimage.measure import block_reduce
 
-import iss_preprocess as iss
-from iss_preprocess.io import load_ops
-from iss_preprocess.pipeline import stitch
+from ..io import get_processed_path, load_ops
+from ..pipeline.stitch import stitch_registered
 
 
 def check_segmentation(
@@ -37,12 +36,12 @@ def check_segmentation(
     Returns:
         plt.Figure: Figure
     """
-    figure_folder = iss.io.get_processed_path(data_path) / "figures" / "segmentation"
+    figure_folder = get_processed_path(data_path) / "figures" / "segmentation"
     figure_folder.mkdir(exist_ok=True, parents=True)
     # get a tile in the middle of roi
     if stitched_stack is None:
         print(f"stitching {prefix} and aligning to {reference}", flush=True)
-        stitched_stack = stitch.stitch_registered(
+        stitched_stack = stitch_registered(
             data_path, ref_prefix=reference, prefix=prefix, roi=roi
         )[..., 0]
     elif stitched_stack.ndim == 3:
@@ -56,7 +55,7 @@ def check_segmentation(
 
     if masks is None:
         print("loading segmentation", flush=True)
-        masks = np.load(iss.io.get_processed_path(data_path) / f"masks_{roi}.npy")
+        masks = np.load(get_processed_path(data_path) / f"masks_{roi}.npy")
     # Make the masks binary and downsample by 2
     masks = (masks > 0)[::2, ::2]
 

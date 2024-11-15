@@ -1,8 +1,5 @@
 import click
 
-import iss_preprocess.diagnostics.diag_reg2ref
-import iss_preprocess.diagnostics.diag_register
-
 
 @click.group()
 def iss_cli():
@@ -192,10 +189,11 @@ def correct_hyb_shifts(path, prefix=None, use_slurm=False):
     Correct X-Y shifts for hybridisation rounds using robust regression
     across tiles.
     """
-    from iss_preprocess.pipeline import correct_hyb_shifts
+    from ..diagnostics.diag_register import check_shift_correction
+    from ..pipeline import correct_hyb_shifts
 
     if prefix is None:
-        from iss_preprocess.io import load_metadata
+        from ..io import load_metadata
 
         metadata = load_metadata(path)
         prefixes = metadata["hybridisation"].keys()
@@ -218,7 +216,7 @@ def correct_hyb_shifts(path, prefix=None, use_slurm=False):
             slurm_folder=slurm_folder,
             scripts_name=f"correct_hyb_shifts_{prefix}",
         )
-        job2 = iss_preprocess.diagnostics.diag_register.check_shift_correction(
+        job2 = check_shift_correction(
             path,
             prefix,
             roi_dimension_prefix=prefix,
@@ -241,7 +239,11 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
     Correct X-Y shifts for registration to reference using robust regression
     across tiles.
     """
-    from iss_preprocess.pipeline import correct_shifts_to_ref
+    from ..diagnostics.diag_reg2ref import (
+        check_reg_to_ref_correction,
+        check_registration_to_reference,
+    )
+    from ..pipeline import correct_shifts_to_ref
 
     if use_slurm:
         from pathlib import Path
@@ -258,7 +260,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         slurm_folder=slurm_folder,
         scripts_name=f"correct_shifts_to_ref_{prefix}",
     )
-    iss_preprocess.diagnostics.diag_reg2ref.check_reg_to_ref_correction(
+    check_reg_to_ref_correction(
         path,
         prefix,
         rois=None,
@@ -268,7 +270,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         job_dependency=job_id if use_slurm else None,
         scripts_name=f"check_reg_to_ref_correction_{prefix}",
     )
-    iss_preprocess.diagnostics.diag_reg2ref.check_registration_to_reference(
+    check_registration_to_reference(
         path,
         prefix=prefix,
         ref_prefix=None,

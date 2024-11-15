@@ -3,16 +3,21 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
+from ..image.correction import apply_illumination_correction
 from ..io import (
     get_channel_round_transforms,
     get_processed_path,
     get_roi_dimensions,
     load_ops,
+    load_tile_by_coors,
     write_stack,
 )
 from ..pipeline import sequencing
+from ..pipeline.sequencing import (
+    load_and_register_sequencing_tile,
+    load_sequencing_rounds,
+)
+from ..reg import correct_by_block, get_channel_reference_images
 from ..vis import animate_sequencing_rounds
 from ..vis.diagnostics import plot_affine_debug_images, plot_all_rounds
 from ..vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
@@ -87,7 +92,7 @@ def check_ref_tile_registration(data_path, prefix="genes_round"):
 
     # get stack registered between channel and rounds
     print("Loading and registering sequencing tile")
-    reg_stack, _ = sequencing.load_and_register_sequencing_tile(
+    reg_stack, _ = load_and_register_sequencing_tile(
         data_path,
         filter_r=False,
         correct_channels=False,
@@ -466,23 +471,23 @@ def check_affine_channel_registration(
 
         if multi_rounds:
             nrounds = ops[prefix + "s"]
-            stack = iss.pipeline.load_sequencing_rounds(
+            stack = load_sequencing_rounds(
                 data_path, tile_coors, prefix=prefix, suffix=projection, nrounds=nrounds
             )
             # load corrections
-            tforms = iss.pipeline.sequencing.get_channel_round_shifts(
+            tforms = get_channel_round_transforms(
                 data_path, prefix, tile_coors, ops["corrected_shifts"]
             )
             (
                 std_stack,
                 mean_stack,
-            ) = iss.reg.rounds_and_channels.get_channel_reference_images(
+            ) = get_channel_reference_images(
                 stack,
                 tforms["angles_within_channels"],
                 tforms["shifts_within_channels"],
             )
         else:
-            std_stack = iss.pipeline.load_tile_by_coors(
+            std_stack = load_tile_by_coors(
                 data_path=data_path,
                 tile_coors=tile_coors,
                 prefix=prefix,
@@ -490,11 +495,9 @@ def check_affine_channel_registration(
             )
 
         if correct_illumination:
-            std_stack = iss.image.correction.apply_illumination_correction(
-                data_path, std_stack, prefix
-            )
+            std_stack = apply_illumination_correction(data_path, std_stack, prefix)
 
-        matrices, debug_info = iss.reg.rounds_and_channels.correct_by_block(
+        matrices, debug_info = correct_by_block(
             std_stack,
             ch_to_align=ref_ch,
             median_filter_size=median_filter,

@@ -5,12 +5,15 @@ import numpy as np
 import pandas as pd
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
 from ..call import BASES
 from ..call.omp import run_omp
 from ..call.spot_shape import find_gene_spots
 from ..io import get_processed_path, load_ops
+from ..pipeline.sequencing import (
+    basecall_tile,
+    load_and_register_sequencing_tile,
+    load_spot_sign_image,
+)
 from ..vis import (
     add_bases_legend,
     plot_clusters,
@@ -95,7 +98,7 @@ def check_omp_alpha_thresholds(
     ops = load_ops(data_path)
     if tile_coors is None:
         tile_coors = ops["ref_tile"]
-    stack, bad_pixels = iss.pipeline.load_and_register_sequencing_tile(
+    stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
         filter_r=ops["filter_r"],
@@ -126,7 +129,7 @@ def check_omp_alpha_thresholds(
                 max_comp=ops["omp_max_genes"],
                 min_intensity=ops["omp_min_intensity"],
             )
-            spot_sign_image = iss.pipeline.load_spot_sign_image(
+            spot_sign_image = load_spot_sign_image(
                 data_path, ops["spot_shape_threshold"]
             )
             gene_spots = find_gene_spots(
@@ -194,7 +197,7 @@ def check_omp_thresholds(
     ops = load_ops(data_path)
     if tile_coors is None:
         tile_coors = ops["ref_tile"]
-    stack, bad_pixels = iss.pipeline.load_and_register_sequencing_tile(
+    stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
         filter_r=ops["filter_r"],
@@ -222,9 +225,7 @@ def check_omp_thresholds(
             max_comp=ops["omp_max_genes"],
             min_intensity=ops["omp_min_intensity"],
         )
-        spot_sign_image = iss.pipeline.load_spot_sign_image(
-            data_path, ops["spot_shape_threshold"]
-        )
+        spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
         gene_spots = find_gene_spots(
             g,
             spot_sign_image,
@@ -326,7 +327,7 @@ def check_barcode_basecall(
         return figs
 
     # we have been called with a single tile coordinate
-    stack, spot_sign_image, spots = iss.pipeline.sequencing.basecall_tile(
+    stack, spot_sign_image, spots = basecall_tile(
         data_path, tile_coords, save_spots=False
     )
 

@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
-import struct
-from tifffile import TiffWriter, imwrite
+from tifffile import TiffWriter
 
 
 def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress=False):
@@ -14,7 +13,7 @@ def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress
         fname (str): save path for the TIFF
         bigtiff (bool, optional): use bigtiff format. Default to False
         dtype (str, optional): datatype of the output image. Default to 'uint16'
-        clip (bool, optional): clip negative values before convertion. Default to True
+        clip (bool, optional): clip negative values before conversion. Default to True
         compress (bool, optional): compress the image using zlib, default to False
 
     """

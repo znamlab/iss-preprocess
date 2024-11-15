@@ -19,8 +19,6 @@ from ..call.spot_shape import (
     find_gene_spots,
     get_spot_shape,
 )
-from ..diagnostics import check_spot_sign_image
-from ..diagnostics.diag_sequencing import check_barcode_calling, check_omp_setup
 from ..image import (
     apply_illumination_correction,
     compute_distribution,
@@ -94,6 +92,7 @@ def setup_barcode_calling(data_path):
         all_spots (pandas.DataFrame): All detected spots.
 
     """
+    # TODO: move most of this to a pipeline.py function
     ops = load_ops(data_path)
     print("detecting barcode spots")
     all_spots, _ = get_reference_spots(data_path, prefix="barcode")
@@ -109,7 +108,8 @@ def setup_barcode_calling(data_path):
         cluster_inds=cluster_inds,
     )
     np.save(processed_path / "barcode_cluster_means.npy", cluster_means)
-    check_barcode_calling(data_path)
+
+    # check_barcode_calling(data_path)
     print("barcode calling setup complete")
     return cluster_means, all_spots
 
@@ -225,6 +225,7 @@ def setup_omp(data_path):
         float: norm shift for the OMP algorithm, estimated as median norm of all pixels.
 
     """
+    # TODO: move most of this to a pipeline.py function
     ops = load_ops(data_path)
     processed_path = get_processed_path(data_path)
     all_spots, norm_shifts = get_reference_spots(data_path, prefix="genes")
@@ -253,7 +254,7 @@ def setup_omp(data_path):
         norm_shift=norm_shift,
         cluster_means=cluster_means,
     )
-    check_omp_setup(data_path)
+    # check_omp_setup(data_path)
     return gene_dict, gene_names, norm_shift
 
 
@@ -514,7 +515,8 @@ def compute_spot_sign_image(data_path, prefix="genes_round"):
     spot_sign_image = np.sum(np.stack(images, axis=2), axis=2) / total_spots
     spot_sign_image = apply_symmetry(spot_sign_image)
     np.save(processed_path / "spot_sign_image.npy", spot_sign_image)
-    check_spot_sign_image(data_path)
+    # TODO: move this call to a pipeline.py function
+    # check_spot_sign_image(data_path)
 
 
 def load_spot_sign_image(data_path, threshold, return_raw_image=False):

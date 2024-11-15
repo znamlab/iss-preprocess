@@ -10,14 +10,13 @@ from scipy.ndimage import median_filter
 from skimage.morphology import disk
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-from iss_preprocess import vis
-from iss_preprocess.diagnostics import _get_some_tiles
-from iss_preprocess.diagnostics.diag_register import plot_round_registration_diagnostics
-from iss_preprocess.io import load_ops
-from iss_preprocess.pipeline import sequencing
-from iss_preprocess.vis import add_bases_legend, round_to_rgb
-from iss_preprocess.vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
+from ..diagnostics import _get_some_tiles
+from ..diagnostics.diag_register import plot_round_registration_diagnostics
+from ..io import get_processed_path, get_roi_dimensions, load_ops
+from ..pipeline.register import load_and_register_tile
+from ..pipeline.sequencing import load_and_register_sequencing_tile
+from ..vis import add_bases_legend, round_to_rgb, to_rgb
+from ..vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
 
 
 def debug_reg_to_ref(
@@ -44,13 +43,13 @@ def debug_reg_to_ref(
 
     fig, axes = plt.subplots(2, naxes, figsize=(6 * naxes, 5))
 
-    ref_all_channels, _ = iss.pipeline.load_and_register_tile(
+    ref_all_channels, _ = load_and_register_tile(
         data_path=data_path,
         tile_coors=tile_coords,
         prefix=ref_prefix,
         filter_r=False,
     )
-    reg_all_channels, _ = iss.pipeline.load_and_register_tile(
+    reg_all_channels, _ = load_and_register_tile(
         data_path=data_path, tile_coors=tile_coords, prefix=reg_prefix, filter_r=False
     )
 
@@ -88,7 +87,7 @@ def debug_reg_to_ref(
     for ax in fig.axes:
         ax.axis("off")
     fig.tight_layout()
-    figure_folder = iss.io.get_processed_path(data_path) / "figures" / "registration"
+    figure_folder = get_processed_path(data_path) / "figures" / "registration"
     figure_folder.mkdir(exist_ok=True)
     fig.savefig(figure_folder / f"debug_reg_to_ref_{reg_prefix}_to_{ref_prefix}.png")
 
@@ -113,11 +112,11 @@ def check_reg_to_ref_correction(
             "genes_round_1_1"
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     reg_dir = processed_path / "reg"
     figure_folder = processed_path / "figures" / "registration" / f"{prefix}_to_ref"
     figure_folder.mkdir(exist_ok=True, parents=True)
-    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
+    roi_dims = get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = load_ops(data_path)
     if rois is not None:
         roi_dims = roi_dims[np.in1d(roi_dims[:, 0], rois)]
@@ -203,13 +202,13 @@ def check_tile_reg2ref(
         window (int, optional): Size of the window to plot around the center of the
             image. Full image if None. Defaults to None.
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     target_folder = processed_path / "figures" / "registration" / f"{reg_prefix}_to_ref"
     target_folder.mkdir(exist_ok=True, parents=True)
     ops = load_ops(data_path)
 
     # get stack registered between channel and rounds
-    roi_dims = iss.io.get_roi_dimensions(data_path, prefix=f"{reg_prefix}_1_1")
+    roi_dims = get_roi_dimensions(data_path, prefix=f"{reg_prefix}_1_1")
     if tile_coords is None:
         # check if ops has a ref tile
         if f"{reg_prefix.split('_')[0]}_ref_tiles" in ops:
@@ -231,13 +230,13 @@ def check_tile_reg2ref(
 
     for tile in tile_coords:
         # get the data with default correction for within prefix registration
-        ref_all_channels, _ = iss.pipeline.load_and_register_tile(
+        ref_all_channels, _ = load_and_register_tile(
             data_path=data_path,
             tile_coors=tile,
             prefix=ref_prefix,
             filter_r=False,
         )
-        reg_all_channels, _ = iss.pipeline.load_and_register_tile(
+        reg_all_channels, _ = load_and_register_tile(
             data_path=data_path, tile_coors=tile, prefix=reg_prefix, filter_r=False
         )
 
@@ -275,13 +274,13 @@ def check_tile_reg2ref(
         # add an rgb overlay
         vmins = [np.percentile(ref, 1), np.percentile(reg_t, 1)]
         vmaxs = [np.percentile(ref, 99.5), np.percentile(reg_t, 99.5)]
-        rgb = vis.to_rgb(
+        rgb = to_rgb(
             np.stack([ref, reg_t], axis=2),
             colors=([1, 0, 0], [0, 1, 0]),
             vmin=vmins,
             vmax=vmaxs,
         )
-        rgb_b = vis.to_rgb(
+        rgb_b = to_rgb(
             np.stack([ref_b, reg_bt], axis=2),
             colors=([1, 0, 0], [0, 1, 0]),
             vmin=[0, 0],
@@ -346,12 +345,12 @@ def check_reg2ref_using_stitched(
         plt.Figure: Figure
     """
 
-    save_folder = iss.io.get_processed_path(data_path) / "figures" / "registration"
+    save_folder = get_processed_path(data_path) / "figures" / "registration"
     save_folder /= f"{reg_prefix}_to_{ref_prefix}"
     save_folder.mkdir(parents=True, exist_ok=True)
     save_path = save_folder / f"{reg_prefix}_to_{ref_prefix}_roi_{roi}.png"
     st = np.dstack([stitched_stack_reference, stitched_stack_target])
-    rgb = vis.to_rgb(
+    rgb = to_rgb(
         st, colors=[(0, 1, 0), (1, 0, 1)], vmax=np.nanpercentile(st, 99, axis=(0, 1))
     )
     del st
@@ -392,7 +391,7 @@ def check_registration_to_reference(data_path, prefix, ref_prefix, tile_coords=N
     tile_coords = _get_some_tiles(
         data_path, prefix=roi_dim_prefix, tile_coords=tile_coords
     )
-    processed = iss.io.get_processed_path(data_path)
+    processed = get_processed_path(data_path)
     target_folder = processed / "figures" / "registration" / f"{prefix}_to_ref"
     target_folder.mkdir(exist_ok=True, parents=True)
     round_labels = [
@@ -403,11 +402,11 @@ def check_registration_to_reference(data_path, prefix, ref_prefix, tile_coords=N
     ]
     for tile in tile_coords:
         # get the reference tile
-        ref_stack, _ = iss.pipeline.load_and_register_tile(
+        ref_stack, _ = load_and_register_tile(
             data_path, tile, ref_prefix, filter_r=False
         )
         # get the tile to register
-        reg_stack, _ = iss.pipeline.load_and_register_tile(
+        reg_stack, _ = load_and_register_tile(
             data_path, tile, full_prefix, filter_r=False
         )
         # concatenate the stacks
@@ -472,7 +471,7 @@ def check_rolonies_registration(
     spots.reset_index(inplace=True)
     nrounds = ops[f"{prefix}s"]
     # get stack registered between channel and rounds
-    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+    reg_stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         filter_r=ops["filter_r"],
         correct_channels=True,
