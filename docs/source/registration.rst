@@ -19,6 +19,14 @@ that will force the script to re-run all steps, even if the output files already
 The script will perform different steps depending on the type of acquisition. See
 details for `sequencing` and `fluorescent` acquisitions.
 
+To check that everything worked, look in `figures/registration/prefix` for diagnostic
+plots. If there is no motion on the `mp4` files for sequencing acquisitions, you're
+good. For fluorescent acquisitions, you should see that the spots are aligned across
+channels on the `png`.
+
+If it looks bad, see the relevant `Troubleshooting` section below.
+
+
 Register Sequencing acquisitions
 --------------------------------
 
@@ -27,31 +35,61 @@ These are acquisitions that have multiple rounds, namely `genes_round` and
 
 .. mermaid::
 
-    graph TD;
-        start[Start] --> regref[run_register_reference_tile];
+    flowchart TD
+    start[Start] --> regref[run_register_reference_tile];
+        batch_est(((register_tile)));
 
-        subgraph Register reference
+        subgraph register_reference_tile
             regref --> diag_ref([check_ref_tile_registration]);
         end
 
-        subgraph Estimate shifts
-            regref --> batch_est(((register_tile)));
-        end
 
-        subgraph Correct shifts
-            corr[correct_shifts_roi];
-            corr --> filt[filter_ransac_shifts];
-            filt --> csc([check_shift_correction]);
-            filt --> ctr([check_tile_registration]);
-        end
 
+        regref --> batch_est;
         batch_est --> corr;
+        subgraph correct_shifts
+            subgraph run_correct_shifts
+                corr[run_correct_shifts];
+                corr --> filt[filter_ransac_shifts];
+            end
+
+            subgraph check_tile_shifts
+                filt --> ctr([check_tile_registration]);
+            end
+            subgraph check_shift_correction
+                filt --> csc([check_shift_correction]);
+            end
+            subgraph check_tile_registration
+                ctr --> diag_tile([check_tile_registration]);
+            end
+        end
+
+Troubleshooting
+~~~~~~~~~~~~~~~
+
+If the registration looks bad, we need to find which step failed.
+
+- Is the reference tile registered properly?
+
+In the `figures/registration` folder, look at the files starting with
+`registration_reference_tile`. If there is no or little signal: pick a better
+tile (change the `'ref_tile'` parameter in the `ops.yml` file). If there is signal and
+it still looks bad, double check the `figures/registration/PREFIX` folder, look at the
+`affine_debug_PREFIX...` png file. You might not have enough signal for affine
+registration. If that's the case, you will have to try similarity transform (not
+supported anymore, but might still work).
+
+- Are most shifts estimated correctly?
+
+Parameters you can tweak: `ops["ransac_max_shift"]`, `ops["ransac_min_tiles"]`, and
+`ops["ransac_residual_threshold"]`.
 
 
 
 Registering sequencing rounds
 -----------------------------
-We need to register the channels and rounds together and the tiles with their neighbours.
+We need to register the channels and rounds together and the tiles with their
+neighbours.
 
 Short version:
 ~~~~~~~~~~~~~~
