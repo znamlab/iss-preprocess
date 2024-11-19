@@ -425,10 +425,9 @@ def plot_registration_correlograms(
     figure_name,
     debug_dict,
 ):
-    target_folder = get_processed_path(data_path) / "figures" / prefix
+    target_folder = get_processed_path(data_path) / "figures" / "registration" / prefix
     print(f"Creating figures in {target_folder}")
-    if not target_folder.exists():
-        target_folder.mkdir()
+    target_folder.mkdir(exist_ok=True, parents=True)
     ops = load_ops(data_path)
     mshift = ops["rounds_max_shift"]
     for what, data in debug_dict.items():
