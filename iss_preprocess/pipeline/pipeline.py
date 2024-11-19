@@ -33,7 +33,6 @@ from .hybridisation import (
 )
 from .project import check_projection, check_roi_dims, project_round, reproject_failed
 from .register import (
-    correct_hyb_shifts,
     run_correct_shifts,
     run_register_reference_tile,
 )
@@ -708,16 +707,19 @@ def overview_for_ara_registration(
 
 
 def setup_channel_correction(
-    data_path, use_slurm=True, prefix_to_do=None, force_redo=False
+    data_path,
+    prefix_to_do=None,
+    force_redo=False,
+    use_slurm=True,
 ):
     """Setup channel correction for barcode, genes and hybridisation rounds
 
     Args:
         data_path (str): Relative path to the data folder
-        use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
-            True.
         prefix_to_do (list, optional): Prefixes to process. Defaults to None.
         force_redo (bool, optional): Redo all processing steps? Defaults to False.
+        use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
+            True.
 
     Returns:
         list: List of job IDs for the slurm jobs created
@@ -766,29 +768,75 @@ def setup_channel_correction(
     return job_ids
 
 
-def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
-    """Master method to run spot calling. Must be run after `iss estimate-shifts`,
-    `iss estimate-hyb-shifts`, `iss setup-channel-correction`,
+def call_spots(
+    data_path,
+    genes=True,
+    barcodes=True,
+    hybridisation=True,
+    force_redo=False,
+    use_slurm=True,
+):
+    """Master method to run spot calling.
+
+    Must be run after `iss project-and-average` and `iss register`.
 
     Args:
         data_path (str): Relative path to the data folder
         genes (bool, optional): Run genes spot calling. Defaults to True.
         barcodes (bool, optional): Run barcode calling. Defaults to True.
         hybridisation (bool, optional): Run hybridisation spot calling. Defaults to True
+        force_redo (bool, optional): Redo all processing steps? Defaults to False.
+        use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
+            True.
 
     """
+    if use_slurm:
+        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+
     if genes:
-        correct_shifts(data_path, prefix="genes_round")
-        setup_omp(data_path)
-        batch_process_tiles(data_path, "extract_tile")
+        print("Running genes spot calling")
+        jobs = setup_channel_correction(
+            data_path,
+            prefix_to_do=["genes_round"],
+            use_slurm=use_slurm,
+            force_redo=force_redo,
+        )
+        job = setup_omp(
+            data_path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=jobs if use_slurm else None,
+        )
+        batch_process_tiles(
+            data_path,
+            "extract_tile",
+            job_dependency=job if use_slurm else None,
+            verbose=False,
+        )
 
     if barcodes:
-        correct_shifts(data_path, prefix="barcode_round")
-        setup_barcode_calling(data_path)
-        batch_process_tiles(data_path, "basecall_tile")
+        print("Running barcode spot calling")
+        jobs = setup_channel_correction(
+            data_path,
+            prefix_to_do=["barcode_round"],
+            use_slurm=use_slurm,
+            force_redo=force_redo,
+        )
+        job = setup_barcode_calling(
+            data_path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=jobs if use_slurm else None,
+        )
+        batch_process_tiles(
+            data_path, "basecall_tile", job_dependency=job if use_slurm else None
+        )
 
     if hybridisation:
-        correct_hyb_shifts(data_path)
+        print("Running hybridisation spot calling")
         setup_hyb_spot_calling(data_path)
         extract_hyb_spots_all(data_path)
 
