@@ -707,47 +707,68 @@ def overview_for_ara_registration(
         )
 
 
-def setup_channel_correction(data_path, use_slurm=True):
+def setup_channel_correction(
+    data_path, use_slurm=True, prefix_to_do=None, force_redo=False
+):
     """Setup channel correction for barcode, genes and hybridisation rounds
 
     Args:
         data_path (str): Relative path to the data folder
         use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
             True.
+        prefix_to_do (list, optional): Prefixes to process. Defaults to None.
+        force_redo (bool, optional): Redo all processing steps? Defaults to False.
 
+    Returns:
+        list: List of job IDs for the slurm jobs created
     """
+    job_ids = []
     ops = load_ops(data_path)
     slurm_folder = Path.home() / "slurm_logs" / data_path
-    if ops["barcode_rounds"] > 0:
-        estimate_channel_correction(
-            data_path,
-            prefix="barcode_round",
-            nrounds=ops["barcode_rounds"],
-            fit_norm_factors=ops["fit_channel_correction"],
-            use_slurm=use_slurm,
-            slurm_folder=slurm_folder,
-            scripts_name="barcode_channel_correction",
-        )
-    if ops["genes_rounds"] > 0:
-        estimate_channel_correction(
-            data_path,
-            prefix="genes_round",
-            nrounds=ops["genes_rounds"],
-            fit_norm_factors=ops["fit_channel_correction"],
-            use_slurm=use_slurm,
-            slurm_folder=slurm_folder,
-            scripts_name="genes_channel_correction",
-        )
+    if prefix_to_do is None:
+        prefix_to_do = ["genes_round", "barcode_round", "hybridisation"]
+    if "hybridisation" in prefix_to_do:
+        prefix_to_do.remove("hybridisation")
+        metadata = load_metadata(data_path)
+        for hyb in metadata.get("hybridisation", {}):
+            prefix_to_do.append(hyb)
 
-    estimate_channel_correction_hybridisation(
-        data_path, use_slurm=use_slurm, slurm_folder=slurm_folder
-    )
+    for prefix in prefix_to_do:
+        target = get_processed_path(data_path) / f"correction_{prefix}.npz"
+        if not force_redo and target.exists():
+            print(f"{prefix} channel correction already exists, skipping")
+            continue
+        print(f"Setting up channel correction for {prefix}", flush=True)
+        if prefix in ("genes_round", "barcode_round"):
+            sprefix = prefix.split("_")[0].lower()
+            nrounds = ops[f"{sprefix}_rounds"]
+            if not nrounds:
+                print(f"0 rounds of {prefix}, skipping")
+            job_id = estimate_channel_correction(
+                data_path,
+                prefix=prefix,
+                nrounds=nrounds,
+                fit_norm_factors=ops["fit_channel_correction"],
+                use_slurm=use_slurm,
+                slurm_folder=slurm_folder,
+                scripts_name=f"{sprefix}_channel_correction",
+            )
+            job_ids.append(job_id)
+        else:
+            job_id = estimate_channel_correction_hybridisation(
+                data_path,
+                prefix=prefix,
+                slurm_folder=slurm_folder,
+                use_slurm=use_slurm,
+                scripts_name=f"{prefix}_channel_correction",
+            )
+            job_ids.append(job_id)
+    return job_ids
 
 
 def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
     """Master method to run spot calling. Must be run after `iss estimate-shifts`,
-    `iss estimate-hyb-shifts`, `iss setup-channel-correction`, and `iss
-    create-grand-averages`.
+    `iss estimate-hyb-shifts`, `iss setup-channel-correction`,
 
     Args:
         data_path (str): Relative path to the data folder
