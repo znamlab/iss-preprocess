@@ -82,8 +82,33 @@ def register(path, prefix, use_slurm=True, force_redo=False):
     )
 
 
-def call():
-    raise NotImplementedError("This function is not implemented yet.")
+@iss_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("--genes/--no-genes", default=True, help="Process genes.")
+@click.option("--barcodes/--no-barcodes", default=True, help="Process barcode.")
+@click.option(
+    "--hybridisation/--no-hybridisation",
+    default=True,
+    help="Process hybridisation.",
+)
+@click.option(
+    "-f",
+    "--force-redo",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Force redoing all steps.",
+)
+def call(path, genes=True, barcodes=True, hybridisation=True, force_redo=False):
+    from ..pipeline.pipeline import call_spots
+
+    call_spots(
+        data_path=path,
+        genes=genes,
+        barcodes=barcodes,
+        hybridisation=hybridisation,
+        force_redo=force_redo,
+    )
 
 
 @iss_cli.command()
