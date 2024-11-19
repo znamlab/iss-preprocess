@@ -12,6 +12,7 @@ from ..diagnostics.diag_register import (
     check_ref_tile_registration,
     check_shift_correction,
     check_tile_registration,
+    check_tile_shifts,
 )
 from ..diagnostics.diag_stitching import plot_overview_images
 from ..image import tilestats_and_mean_image
@@ -133,7 +134,7 @@ def project_and_average(data_path, force_redo=False):
             if (processed_path / prefix / "missing_tiles.txt").exists():
                 print(f"{prefix} is already projected, continuing", flush=True)
                 continue
-        tileproj_job_ids, _ = project_round(data_path, prefix, overview=False)
+        tileproj_job_ids, _ = project_round(data_path, prefix)
         pr_job_ids.extend(tileproj_job_ids)
     pr_job_ids = pr_job_ids if pr_job_ids else None
 
@@ -367,6 +368,14 @@ def correct_shifts(path, prefix, use_slurm=True, job_dependency=None):
         slurm_folder=slurm_folder,
         scripts_name=f"correct_shifts_{prefix}",
         job_dependency=job_dependency,
+    )
+    check_tile_shifts(
+        path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_shifts_{prefix}",
+        job_dependency=job_id if use_slurm else None,
     )
     check_corr_id = check_shift_correction(
         path,

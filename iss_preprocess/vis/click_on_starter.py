@@ -3,7 +3,7 @@ import napari
 import numpy as np
 import pandas as pd
 
-from iss_preprocess.io import get_processed_path, load_ops, load_stack
+from ..io import get_processed_path, load_ops, load_stack
 
 
 def load_roi(

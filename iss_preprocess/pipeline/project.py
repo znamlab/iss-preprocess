@@ -9,7 +9,6 @@ import numpy as np
 from znamutils import slurm_it
 
 from ..decorators import updates_flexilims
-from ..diagnostics.diag_stitching import plot_overview_images
 from ..image import fstack_channels
 from ..io import (
     get_processed_path,
@@ -151,7 +150,7 @@ def reproject_failed(
 
 
 @updates_flexilims(name_source="prefix")  # type: ignore
-def project_round(data_path, prefix, overwrite=False, overview=True):
+def project_round(data_path, prefix, overwrite=False):
     """Start SLURM jobs to z-project all tiles from a single imaging round.
     Also, copy one of the MicroManager metadata files from raw to processed directory.
 
@@ -200,16 +199,8 @@ def project_round(data_path, prefix, overwrite=False, overview=True):
             raw_path / prefix / metadata_fname,
             target_path / metadata_fname,
         )
-    if overview:
-        overview_job_ids = plot_overview_images(
-            data_path=data_path,
-            prefix=prefix,
-            dependency=tileproj_job_ids,
-        )
-    else:
-        overview_job_ids = []
 
-    return tileproj_job_ids, overview_job_ids
+    return tileproj_job_ids
 
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):

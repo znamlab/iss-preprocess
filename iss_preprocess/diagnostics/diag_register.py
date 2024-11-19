@@ -9,13 +9,10 @@ from ..io import (
     get_processed_path,
     get_roi_dimensions,
     load_ops,
+    load_sequencing_rounds,
     load_tile_by_coors,
 )
-from ..pipeline import sequencing
-from ..pipeline.sequencing import (
-    load_and_register_sequencing_tile,
-    load_sequencing_rounds,
-)
+from ..pipeline.register import load_and_register_sequencing_tile
 from ..reg import correct_by_block, get_channel_reference_images
 from ..vis import animate_sequencing_rounds
 from ..vis.diagnostics import (
@@ -94,7 +91,7 @@ def check_tile_registration(
 
     for tile in tile_coords:
         for correction in corrections:
-            reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+            reg_stack, bad_pixels = load_and_register_sequencing_tile(
                 data_path,
                 filter_r=False,
                 correct_channels=False,
@@ -315,7 +312,7 @@ def check_sequencing_tile_registration(data_path, tile_coords, prefix="genes_rou
     nrounds = ops[f"{prefix}s"]
 
     # get stack registered between channel and rounds
-    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
+    reg_stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         filter_r=False,
         correct_channels=False,
@@ -465,6 +462,7 @@ def check_affine_channel_registration(
     return tile_coors, matrices, debug_info
 
 
+@slurm_it(conda_env="iss-preprocess")
 def check_tile_shifts(
     data_path, prefix, rois=None, roi_dimension_prefix="genes_round_1_1"
 ):
@@ -482,7 +480,6 @@ def check_tile_shifts(
 
     """
     processed_path = get_processed_path(data_path)
-    reg_dir = processed_path / "reg"
     figure_folder = processed_path / "figures" / "registration" / prefix
     figure_folder.mkdir(exist_ok=True, parents=True)
     roi_dims = get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
@@ -493,7 +490,9 @@ def check_tile_shifts(
         roi_dims = roi_dims[np.in1d(roi_dims[:, 0], ops["use_rois"])]
     roi_dims[:, 1:] = roi_dims[:, 1:] + 1
     figs = {}
-    data = np.load(reg_dir / f"tforms_{prefix}_{roi_dims[0,0]}_0_0.npz")
+    data = get_channel_round_transforms(
+        data_path, prefix, tile_coors=(roi_dims[0, 0], 0, 0), shifts_type="single_tile"
+    )
     nchannels = data["shifts_within_channels"].shape[0]
     nrounds = data["shifts_within_channels"].shape[1]
     for roi, *ntiles in roi_dims:
@@ -505,7 +504,9 @@ def check_tile_shifts(
         for ix in range(ntiles[0]):
             for iy in range(ntiles[1]):
                 try:
-                    data = np.load(reg_dir / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz")
+                    data = get_channel_round_transforms(
+                        data_path, prefix, (roi, ix, iy), shifts_type="single_tile"
+                    )
                     shifts_within_channels_raw[:, :, :, ix, iy] = data[
                         "shifts_within_channels"
                     ]
@@ -514,8 +515,8 @@ def check_tile_shifts(
                     ][:, :2, 2]
                 except FileNotFoundError:
                     pass
-                data = np.load(
-                    reg_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
+                data = get_channel_round_transforms(
+                    data_path, prefix, (roi, ix, iy), shifts_type="corrected"
                 )
                 shifts_within_channels_corrected[:, :, :, ix, iy] = data[
                     "shifts_within_channels"

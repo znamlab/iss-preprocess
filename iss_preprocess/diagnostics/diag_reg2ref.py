@@ -12,8 +12,10 @@ from znamutils import slurm_it
 
 from ..diagnostics import _get_some_tiles
 from ..io import get_processed_path, get_roi_dimensions, load_ops
-from ..pipeline.register import load_and_register_tile
-from ..pipeline.sequencing import load_and_register_sequencing_tile
+from ..pipeline.register import (
+    load_and_register_sequencing_tile,
+    load_and_register_tile,
+)
 from ..vis import add_bases_legend, round_to_rgb, to_rgb
 from ..vis.diagnostics import plot_round_registration_diagnostics
 from ..vis.utils import plot_matrix_difference, plot_matrix_with_colorbar

@@ -2,7 +2,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from skimage.morphology import binary_dilation
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import OneHotEncoder
 from znamutils import slurm_it
@@ -20,62 +19,12 @@ from ..call.spot_shape import (
     get_spot_shape,
 )
 from ..image import (
-    apply_illumination_correction,
     compute_distribution,
     filter_stack,
 )
-from ..io import (
-    get_channel_round_transforms,
-    get_processed_path,
-    load_ops,
-    load_tile_by_coors,
-    write_stack,
-)
-from ..reg import (
-    align_channels_and_rounds,
-    generate_channel_round_transforms,
-)
+from ..io import get_processed_path, load_ops, load_sequencing_rounds, write_stack
 from ..segment import detect_isolated_spots
-
-
-def load_sequencing_rounds(
-    data_path,
-    tile_coors=(1, 0, 0),
-    nrounds=7,
-    suffix="max",
-    prefix="genes_round",
-    specific_rounds=None,
-):
-    """Load processed tile images across rounds
-
-    Args:
-        data_path (str): relative path to dataset.
-        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
-            Defaults to (1,0,0).
-        nrounds (int, optional): Number of rounds to load. Used only if
-            `specific_rounds` is None. Defaults to 7.
-        suffix (str, optional): File name suffix. Defaults to 'fstack'.
-        prefix (str, optional): the folder name prefix, before round number. Defaults
-            to "genes_round"
-        specific_round (list, optional): if not None, specify which rounds must be
-            loaded and ignores `nrounds`. Defaults to None
-
-    Returns:
-        numpy.ndarray: X x Y x channels x rounds stack.
-
-    """
-    if specific_rounds is None:
-        specific_rounds = np.arange(nrounds) + 1
-
-    ims = []
-    for iround in specific_rounds:
-        dirname = f"{prefix}_{iround}_1"
-        ims.append(
-            load_tile_by_coors(
-                data_path, tile_coors=tile_coors, suffix=suffix, prefix=dirname
-            )
-        )
-    return np.stack(ims, axis=3)
+from .register import load_and_register_sequencing_tile
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -386,107 +335,6 @@ def estimate_channel_correction(
         norm_factors_raw=norm_factors_raw,
     )
     return pixel_dist, norm_factors_fit, norm_factors_raw
-
-
-def load_and_register_sequencing_tile(
-    data_path,
-    tile_coors=(1, 0, 0),
-    prefix="genes_round",
-    suffix="max",
-    filter_r=(2, 4),
-    correct_channels=False,
-    corrected_shifts="best",
-    correct_illumination=False,
-    nrounds=7,
-    specific_rounds=None,
-):
-    """Load sequencing tile and align channels. Optionally, filter, correct
-    illumination and channel brightness.
-
-    Args:
-        data_path (str): Relative path to data.
-        tile_coors (tuple, options): Coordinates of tile to load: ROI, Xpos, Ypos.
-            Defaults to (1, 0, 0).
-        prefix (str, optional): Prefix of the sequencing round.
-            Defaults to "genes_round".
-        suffix (str, optional): Filename suffix corresponding to the z-projection
-            to use. Defaults to "fstack".
-        filter_r (tuple, optional): Inner and out radius for the hanning filter.
-            If `False`, stack is not filtered. Defaults to (2, 4).
-        correct_channels (bool or str, optional): Whether to normalize channel
-            brightness. If 'round1_only', normalise by round 1 correction factor,
-            otherwise, if True use all norm_factors. Defaults to False.
-        corrected_shifts (str, optional): Which shift to use. One of `reference`,
-            `single_tile`, `ransac`, or `best`. Defaults to 'best'.
-        correct_illumination (bool, optional): Whether to correct vignetting.
-            Defaults to False.
-        nrounds (int, optional): Number of sequencing rounds to load. Used only if
-            specific_rounds is None. Defaults to 7.
-        specific_rounds (list, optional): if not None, specifies which rounds must be
-            loaded and ignores `nrounds`. Defaults to None
-
-    Returns:
-        numpy.ndarray: X x Y x Nch x len(specific_rounds) or Nrounds image stack.
-        numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not
-            imaged for all channels and rounds (due to registration offsets) and should
-            be discarded during analysis.
-
-    """
-    if specific_rounds is None:
-        specific_rounds = np.arange(nrounds) + 1
-    elif isinstance(specific_rounds, int):
-        specific_rounds = [specific_rounds]
-    # ensure we have an array
-    specific_rounds = np.asarray(specific_rounds, dtype=int)
-    assert specific_rounds.min() > 0, "rounds must be strictly positive integers"
-    valid_shifts = ["reference", "single_tile", "ransac", "best"]
-    assert corrected_shifts in valid_shifts, (
-        f"unknown shift correction method, must be one of {valid_shifts}",
-    )
-
-    processed_path = get_processed_path(data_path)
-    stack = load_sequencing_rounds(
-        data_path,
-        tile_coors,
-        suffix=suffix,
-        prefix=prefix,
-        nrounds=nrounds,
-        specific_rounds=specific_rounds,
-    )
-    if correct_illumination:
-        stack = apply_illumination_correction(data_path, stack, prefix)
-
-    ops = load_ops(data_path)
-    tforms = get_channel_round_transforms(
-        data_path, prefix, tile_coors, corrected_shifts
-    )
-    tforms = generate_channel_round_transforms(
-        tforms["angles_within_channels"],
-        tforms["shifts_within_channels"],
-        tforms["matrix_between_channels"],
-        stack.shape[:2],
-        align_channels=ops["align_channels"],
-        ref_ch=ops["ref_ch"],
-    )
-    tforms = tforms[:, specific_rounds - 1]
-    stack = align_channels_and_rounds(stack, tforms)
-
-    bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
-    stack = np.nan_to_num(stack)
-
-    if filter_r:
-        stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
-        mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
-        bad_pixels = binary_dilation(bad_pixels, mask)
-    if correct_channels:
-        correction_path = processed_path / f"correction_{prefix}.npz"
-        norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
-        if correct_channels == "round1_only":
-            stack = stack / norm_factors[np.newaxis, np.newaxis, :, 0, np.newaxis]
-        else:
-            stack = stack / norm_factors[np.newaxis, np.newaxis, :, specific_rounds - 1]
-
-    return stack, bad_pixels
 
 
 def compute_spot_sign_image(data_path, prefix="genes_round"):

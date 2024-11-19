@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from tifffile import TiffWriter
 
+__all__ = ["write_stack", "save_ome_tiff_pyramid"]
+
 
 def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress=False):
     """

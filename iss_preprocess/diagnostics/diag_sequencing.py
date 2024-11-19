@@ -9,9 +9,9 @@ from ..call import BASES
 from ..call.omp import run_omp
 from ..call.spot_shape import find_gene_spots
 from ..io import get_processed_path, load_ops
+from ..pipeline.register import load_and_register_sequencing_tile
 from ..pipeline.sequencing import (
     basecall_tile,
-    load_and_register_sequencing_tile,
     load_spot_sign_image,
 )
 from ..vis import (

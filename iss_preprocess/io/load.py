@@ -10,6 +10,28 @@ import yaml
 from flexiznam.config import PARAMETERS
 from tifffile import TiffFile
 
+__all__ = [
+    "get_raw_path",
+    "get_processed_path",
+    "get_raw_filename",
+    "load_hyb_probes_metadata",
+    "load_ops",
+    "load_metadata",
+    "get_pixel_size",
+    "get_z_step",
+    "load_micromanager_metadata",
+    "load_section_position",
+    "load_tile_by_coors",
+    "load_stack",
+    "get_zprofile",
+    "get_tile_ome",
+    "get_roi_dimensions",
+    "load_mask_by_coors",
+    "find_roi_position_on_cryostat",
+    "get_channel_round_transforms",
+    "load_sequencing_rounds",
+]
+
 
 def get_raw_path(data_path):
     """Return the path to the raw data.
@@ -616,3 +638,43 @@ def get_channel_round_transforms(
         return filename
     tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
     return tforms
+
+
+def load_sequencing_rounds(
+    data_path,
+    tile_coors=(1, 0, 0),
+    nrounds=7,
+    suffix="max",
+    prefix="genes_round",
+    specific_rounds=None,
+):
+    """Load processed tile images across rounds
+
+    Args:
+        data_path (str): relative path to dataset.
+        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
+            Defaults to (1,0,0).
+        nrounds (int, optional): Number of rounds to load. Used only if
+            `specific_rounds` is None. Defaults to 7.
+        suffix (str, optional): File name suffix. Defaults to 'fstack'.
+        prefix (str, optional): the folder name prefix, before round number. Defaults
+            to "genes_round"
+        specific_round (list, optional): if not None, specify which rounds must be
+            loaded and ignores `nrounds`. Defaults to None
+
+    Returns:
+        numpy.ndarray: X x Y x channels x rounds stack.
+
+    """
+    if specific_rounds is None:
+        specific_rounds = np.arange(nrounds) + 1
+
+    ims = []
+    for iround in specific_rounds:
+        dirname = f"{prefix}_{iround}_1"
+        ims.append(
+            load_tile_by_coors(
+                data_path, tile_coors=tile_coors, suffix=suffix, prefix=dirname
+            )
+        )
+    return np.stack(ims, axis=3)

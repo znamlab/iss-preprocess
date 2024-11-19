@@ -4,13 +4,12 @@ from warnings import warn
 import numpy as np
 from image_tools.similarity_transforms import make_transform
 from scipy.ndimage import median_filter
-from skimage.morphology import disk
+from skimage.morphology import binary_dilation, disk
 from skimage.transform import SimilarityTransform
 from sklearn.linear_model import RANSACRegressor
 from znamutils import slurm_it
 
-from ..diagnostics.diag_register import check_tile_shifts
-from ..image.correction import apply_illumination_correction
+from ..image.correction import apply_illumination_correction, filter_stack
 from ..io import (
     get_channel_round_transforms,
     get_processed_path,
@@ -20,18 +19,20 @@ from ..io import (
     get_tile_ome,
     load_metadata,
     load_ops,
+    load_sequencing_rounds,
     load_tile_by_coors,
 )
 from ..reg import (
+    align_channels_and_rounds,
     apply_corrections,
     estimate_affine_for_tile,
     estimate_shifts_and_angles_for_tile,
     estimate_shifts_for_tile,
+    generate_channel_round_transforms,
     register_channels_and_rounds,
 )
 from ..vis.diagnostics import plot_registration_correlograms
 from .hybridisation import get_channel_shifts, load_and_register_hyb_tile
-from .sequencing import load_and_register_sequencing_tile, load_sequencing_rounds
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
@@ -518,7 +519,6 @@ def run_correct_shifts(data_path, prefix):
         filter_ransac_shifts(
             data_path, prefix, roi_dim, max_residuals=ops["ransac_residual_threshold"]
         )
-    check_tile_shifts(data_path, prefix)
 
 
 def correct_shifts_roi(
@@ -989,6 +989,107 @@ def correct_shifts_single_round_roi(
                 **to_save,
             )
             itile += 1
+
+
+def load_and_register_sequencing_tile(
+    data_path,
+    tile_coors=(1, 0, 0),
+    prefix="genes_round",
+    suffix="max",
+    filter_r=(2, 4),
+    correct_channels=False,
+    corrected_shifts="best",
+    correct_illumination=False,
+    nrounds=7,
+    specific_rounds=None,
+):
+    """Load sequencing tile and align channels. Optionally, filter, correct
+    illumination and channel brightness.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple, options): Coordinates of tile to load: ROI, Xpos, Ypos.
+            Defaults to (1, 0, 0).
+        prefix (str, optional): Prefix of the sequencing round.
+            Defaults to "genes_round".
+        suffix (str, optional): Filename suffix corresponding to the z-projection
+            to use. Defaults to "fstack".
+        filter_r (tuple, optional): Inner and out radius for the hanning filter.
+            If `False`, stack is not filtered. Defaults to (2, 4).
+        correct_channels (bool or str, optional): Whether to normalize channel
+            brightness. If 'round1_only', normalise by round 1 correction factor,
+            otherwise, if True use all norm_factors. Defaults to False.
+        corrected_shifts (str, optional): Which shift to use. One of `reference`,
+            `single_tile`, `ransac`, or `best`. Defaults to 'best'.
+        correct_illumination (bool, optional): Whether to correct vignetting.
+            Defaults to False.
+        nrounds (int, optional): Number of sequencing rounds to load. Used only if
+            specific_rounds is None. Defaults to 7.
+        specific_rounds (list, optional): if not None, specifies which rounds must be
+            loaded and ignores `nrounds`. Defaults to None
+
+    Returns:
+        numpy.ndarray: X x Y x Nch x len(specific_rounds) or Nrounds image stack.
+        numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not
+            imaged for all channels and rounds (due to registration offsets) and should
+            be discarded during analysis.
+
+    """
+    if specific_rounds is None:
+        specific_rounds = np.arange(nrounds) + 1
+    elif isinstance(specific_rounds, int):
+        specific_rounds = [specific_rounds]
+    # ensure we have an array
+    specific_rounds = np.asarray(specific_rounds, dtype=int)
+    assert specific_rounds.min() > 0, "rounds must be strictly positive integers"
+    valid_shifts = ["reference", "single_tile", "ransac", "best"]
+    assert corrected_shifts in valid_shifts, (
+        f"unknown shift correction method, must be one of {valid_shifts}",
+    )
+
+    processed_path = get_processed_path(data_path)
+    stack = load_sequencing_rounds(
+        data_path,
+        tile_coors,
+        suffix=suffix,
+        prefix=prefix,
+        nrounds=nrounds,
+        specific_rounds=specific_rounds,
+    )
+    if correct_illumination:
+        stack = apply_illumination_correction(data_path, stack, prefix)
+
+    ops = load_ops(data_path)
+    tforms = get_channel_round_transforms(
+        data_path, prefix, tile_coors, corrected_shifts
+    )
+    tforms = generate_channel_round_transforms(
+        tforms["angles_within_channels"],
+        tforms["shifts_within_channels"],
+        tforms["matrix_between_channels"],
+        stack.shape[:2],
+        align_channels=ops["align_channels"],
+        ref_ch=ops["ref_ch"],
+    )
+    tforms = tforms[:, specific_rounds - 1]
+    stack = align_channels_and_rounds(stack, tforms)
+
+    bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
+    stack = np.nan_to_num(stack)
+
+    if filter_r:
+        stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
+        mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
+        bad_pixels = binary_dilation(bad_pixels, mask)
+    if correct_channels:
+        correction_path = processed_path / f"correction_{prefix}.npz"
+        norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
+        if correct_channels == "round1_only":
+            stack = stack / norm_factors[np.newaxis, np.newaxis, :, 0, np.newaxis]
+        else:
+            stack = stack / norm_factors[np.newaxis, np.newaxis, :, specific_rounds - 1]
+
+    return stack, bad_pixels
 
 
 def load_and_register_tile(

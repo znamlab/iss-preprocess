@@ -177,6 +177,7 @@ def plot_single_overview(
     return fig
 
 
+@slurm_it(conda_env="iss-preprocess")
 def plot_overview_images(
     data_path,
     prefix,
@@ -185,7 +186,6 @@ def plot_overview_images(
     save_raw=True,
     dependency=None,
     group_channels=True,
-    use_slurm=True,
     vmin=None,
     vmax=None,
 ):
@@ -201,8 +201,6 @@ def plot_overview_images(
             True.
         dependency (str, optional): Dependency for the generates slurm scripts
         group_channels (bool, optional): Whether to group channels together. Defaults to
-            True.
-        use_slurm (bool, optional): Whether to use slurm to run the jobs. Defaults to
             True.
         vmin (list, optional): vmin for each channel. Default to None
         vmax (list, optional): vmax for each channel. Default to None
@@ -245,7 +243,7 @@ def plot_overview_images(
                     correct_illumination=correct_illumination,
                     vmin=vmin,
                     vmax=vmax,
-                    use_slurm=use_slurm,
+                    use_slurm=True,
                     slurm_folder=slurm_folder,
                     scripts_name=scripts_name,
                     dependency_type="afterany",
