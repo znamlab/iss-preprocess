@@ -374,7 +374,7 @@ def correct_shifts(path, prefix, use_slurm=True, job_dependency=None):
         prefix,
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
-        scripts_name=f"correct_shifts_{prefix}",
+        scripts_name=f"check_tile_shifts_{prefix}",
         job_dependency=job_id if use_slurm else None,
     )
     check_corr_id = check_shift_correction(
