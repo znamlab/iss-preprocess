@@ -158,14 +158,15 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     return stack, spot_sign_image, spots
 
 
-@slurm_it(conda_env="iss-preprocess")
-def setup_omp(data_path):
+@slurm_it(conda_env="iss-preprocess", slurm_options={"time": "1:00:00", "mem": "8GB"})
+def setup_omp(data_path, force_redo=False):
     """Prepare variables required to run the OMP algorithm. Finds isolated spots using
     STD across rounds and channels. Detected spots are then used to determine the
     bleedthrough matrix using scaled k-means.
 
     Args:
         data_path (str): Relative path to data.
+        force_redo (bool, optional): Whether to redo the setup. Defaults to False.
 
     Returns:
         numpy.ndarray: N x M dictionary, where N = R * C and M is the
@@ -174,9 +175,18 @@ def setup_omp(data_path):
         float: norm shift for the OMP algorithm, estimated as median norm of all pixels.
 
     """
-    # TODO: move most of this to a pipeline.py function
+    # TODO: move most of this to a pipeline.py function?
+    print("setting up OMP")
     ops = load_ops(data_path)
     processed_path = get_processed_path(data_path)
+    targets = [
+        processed_path / "reference_gene_spots.npz",
+        processed_path / "gene_dict.npz",
+    ]
+    if all([target.exists() for target in targets]) and not force_redo:
+        print("Gene dictionary already exists. Skipping setup.")
+        return
+    print("detecting reference gene spots")
     all_spots, norm_shifts = get_reference_spots(data_path, prefix="genes")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
         all_spots,
@@ -188,7 +198,7 @@ def setup_omp(data_path):
         spot_colors=spot_colors,
         cluster_inds=cluster_inds,
     )
-
+    print(f'Saved cluster means to {processed_path / "reference_gene_spots.npz"}')
     codebook = pd.read_csv(
         Path(__file__).parent.parent / "call" / ops["codebook"],
         header=None,
@@ -203,6 +213,7 @@ def setup_omp(data_path):
         norm_shift=norm_shift,
         cluster_means=cluster_means,
     )
+    print(f'Saved gene dictionary to {processed_path / "gene_dict.npz"}')
     # check_omp_setup(data_path)
     return gene_dict, gene_names, norm_shift
 
