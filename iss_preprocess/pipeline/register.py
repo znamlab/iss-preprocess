@@ -528,7 +528,8 @@ def correct_shifts_roi(
     """Use robust regression to correct shifts across tiles for a single ROI.
 
     RANSAC regression is applied to shifts within and across channels using
-    tile X and Y position as predictors.
+    tile X and Y position as predictors. This will load the `single_tile` shifts and
+    create the `corrected` shifts.
 
     Args:
         data_path (str): Relative path to data.
@@ -542,7 +543,6 @@ def correct_shifts_roi(
             otherwise median is used.
 
     """
-    processed_path = get_processed_path(data_path)
     roi = roi_dims[0]
     nx = roi_dims[1] + 1
     ny = roi_dims[2] + 1
@@ -551,8 +551,8 @@ def correct_shifts_roi(
     shifts_between_channels = []
     for iy in range(ny):
         for ix in range(nx):
-            tforms = np.load(
-                processed_path / "reg" / prefix / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+            tforms = get_channel_round_transforms(
+                data_path, prefix, tile_coors=(roi, ix, iy), shifts_type="single_tile"
             )
             shifts_within_channels.append(tforms["shifts_within_channels"])
             matrix_between_channels = tforms["matrix_between_channels"]
@@ -568,6 +568,7 @@ def correct_shifts_roi(
     training = np.stack([ys.flatten(), xs.flatten(), np.ones(nx * ny)], axis=1)
     ntiles = nx * ny
     if ntiles < min_tiles:
+        print("Not enough tiles for RANSAC, using median")
         shifts_within_channels_corrected = np.tile(
             np.median(shifts_within_channels, axis=3)[:, :, :, np.newaxis],
             (1, 1, 1, ntiles),
@@ -607,28 +608,34 @@ def correct_shifts_roi(
                 )
                 shifts_between_channels_corrected[ich, idim, :] = reg.predict(training)
 
-    save_dir = processed_path / "reg" / prefix
-    save_dir.mkdir(parents=True, exist_ok=True)
     itile = 0
     matrix = matrix_between_channels.copy()
     for iy in range(ny):
         for ix in range(nx):
             matrix[:, :2, 2] = shifts_between_channels_corrected[:, :, itile]
-            target = f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz"
+            target = get_channel_round_transforms(
+                data_path,
+                prefix,
+                (roi, ix, iy),
+                shifts_type="corrected",
+                load_file=False,
+            )
             np.savez(
-                save_dir / target,
+                target,
                 angles_within_channels=tforms["angles_within_channels"],
                 shifts_within_channels=shifts_within_channels_corrected[:, :, :, itile],
                 matrix_between_channels=matrix,
                 allow_pickle=True,
             )
-            print(f"Saved tforms to {save_dir / target}")
+            print(f"Saved tforms to {target}")
             # TODO: perhaps save in a cleaner way
             itile += 1
 
 
 def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
     """Filter shifts to use RANSAC shifts only if the initial shifts are off
+
+    This will load the `single_tile` and `corrected` shifts and create the `best` shifts
 
     Args:
         data_path (str): Relative path to data.
@@ -644,7 +651,7 @@ def filter_ransac_shifts(data_path, prefix, roi_dims, max_residuals=10):
     for iy in range(ny):
         for ix in range(nx):
             tforms_init = get_channel_round_transforms(
-                data_path, prefix, (roi, ix, iy), shifts_type="reference"
+                data_path, prefix, (roi, ix, iy), shifts_type="single_tile"
             )
             tforms_corrected = get_channel_round_transforms(
                 data_path, prefix, (roi, ix, iy), shifts_type="corrected"
