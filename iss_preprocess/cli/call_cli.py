@@ -1,7 +1,5 @@
 import click
 
-from iss_preprocess.cli.iss import iss_cli
-
 
 @click.group()
 def call_cli():
@@ -73,7 +71,7 @@ def basecall(path):
 @click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
 def check_omp(path, roi, tilex, tiley, use_slurm=True):
     """Compute average spot image."""
-    from iss_preprocess.pipeline.pipeline import check_omp_thresholds
+    from iss_preprocess.diagnostics.diag_sequencing import check_omp_thresholds
 
     if use_slurm:
         from pathlib import Path
@@ -107,7 +105,7 @@ def check_omp(path, roi, tilex, tiley, use_slurm=True):
 @click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
 def check_omp_alpha(path, roi, tilex, tiley, use_slurm=True):
     """Compute average spot image."""
-    from iss_preprocess.pipeline.pipeline import check_omp_alpha_thresholds
+    from iss_preprocess.diagnostics.diag_sequencing import check_omp_alpha_thresholds
 
     if use_slurm:
         from pathlib import Path
@@ -140,12 +138,12 @@ def check_omp_alpha(path, roi, tilex, tiley, use_slurm=True):
 )
 def spot_sign_image(path, prefix="genes_round"):
     """Compute average spot image."""
-    from iss_preprocess.pipeline.pipeline import compute_spot_sign_image
+    from iss_preprocess.pipeline.sequencing import compute_spot_sign_image
 
     compute_spot_sign_image(path, prefix)
 
 
-@iss_cli.command()
+@call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
@@ -161,13 +159,13 @@ def spot_sign_image(path, prefix="genes_round"):
 )
 def extract_tile(path, roi=1, x=0, y=0, save=False):
     """Run OMP and a single tile and detect gene spots."""
-    from iss_preprocess.pipeline.pipeline import detect_genes_on_tile
+    from iss_preprocess.pipeline.sequencing import detect_genes_on_tile
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
     detect_genes_on_tile(path, (roi, x, y), save_stack=save)
 
 
-@iss_cli.command()
+@call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
@@ -176,20 +174,20 @@ def extract_tile(path, roi=1, x=0, y=0, save=False):
 @click.option("-y", default=0, help="Tile Y position.")
 def basecall_tile(path, roi=1, x=0, y=0):
     """Run basecalling for barcodes on a single tile."""
-    from iss_preprocess.pipeline.pipeline import basecall_tile
+    from iss_preprocess.pipeline.sequencing import basecall_tile
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
     basecall_tile(path, (roi, x, y))
 
 
-@iss_cli.command()
+@call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from pathlib import Path
 
-    from iss_preprocess.pipeline.pipeline import setup_omp
+    from iss_preprocess.pipeline.sequencing import setup_omp
 
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -198,14 +196,14 @@ def setup_omp(path, use_slurm=True):
     )
 
 
-@iss_cli.command()
+@call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 def setup_barcodes(path, use_slurm=True):
     """Estimate bleedthrough matrices for barcode calling."""
     from pathlib import Path
 
-    from iss_preprocess.pipeline.pipeline import setup_barcode_calling
+    from iss_preprocess.pipeline.sequencing import setup_barcode_calling
 
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -217,7 +215,7 @@ def setup_barcodes(path, use_slurm=True):
     )
 
 
-@iss_cli.command()
+@call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-n",
@@ -231,7 +229,7 @@ def setup_barcodes(path, use_slurm=True):
 )
 def setup_hybridisation(path, prefix=None, use_slurm=True):
     """Estimate bleedthrough matrices for hybridisation spots."""
-    from iss_preprocess.pipeline.pipeline import setup_hyb_spot_calling
+    from iss_preprocess.pipeline.hybridisation import setup_hyb_spot_calling
 
     if use_slurm:
         from pathlib import Path
@@ -243,16 +241,16 @@ def setup_hybridisation(path, prefix=None, use_slurm=True):
     setup_hyb_spot_calling(path, prefix, use_slurm=use_slurm, slurm_folder=slurm_folder)
 
 
-@iss_cli.command()
+@call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def hyb_spots(path):
     """Detect hybridisation in all ROIs / hybridisation rounds"""
-    from iss_preprocess.pipeline.pipeline import extract_hyb_spots_all
+    from iss_preprocess.pipeline.hybridisation import extract_hyb_spots_all
 
     extract_hyb_spots_all(path)
 
 
-@iss_cli.command()
+@call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix for spot detection")
 @click.option("-r", "--roi", default=None, help="Number of the ROI..")
@@ -272,7 +270,7 @@ def extract_hyb_spots(path, prefix, roi, tilex, tiley):
         extract_hyb_spots_roi(path, prefix, roi)
 
 
-@iss_cli.command()
+@call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--genes", is_flag=True, help="Whether to call spots for genes.")
 @click.option("--barcodes", is_flag=True, help="Whether to call spots for barcodes.")
