@@ -287,7 +287,13 @@ def estimate_channel_correction(
         projection = ops["genes_projection"]
     else:
         projection = ops["barcode_projection"]
-    for tile in ops["correction_tiles"]:
+    corr_tiles = ops.get("correction_tiles", None)
+    if corr_tiles is None:
+        print("No correction tiles specified - using ref tiles")
+        corr_tiles = ops[f"{prefix.split('_')[0]}_ref_tiles"]
+        assert corr_tiles is not None, "No ref tiles specified"
+
+    for tile in corr_tiles:
         print(f"counting pixel values for roi {tile[0]}, tile {tile[1]}, {tile[2]}")
         stack = filter_stack(
             load_sequencing_rounds(
@@ -334,6 +340,7 @@ def estimate_channel_correction(
         norm_factors=norm_factors_fit,
         norm_factors_raw=norm_factors_raw,
     )
+    print(f"Saved pixel distribution and normalisation factors to {save_path}")
     return pixel_dist, norm_factors_fit, norm_factors_raw
 
 
