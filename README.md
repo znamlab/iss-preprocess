@@ -23,18 +23,27 @@ pip install -e .
 The main workflow is as follows:
 
 ```mermaid
-graph TD;
-    start[Collect data] --> A[project-and-average];
-    A[project-and-average] --> B[register];
-    A --> C[normalise-channel-and-rounds];
-    B --> E[detect-hyb-spots];
-    C --> F[genes OMP];
-    B --> F;
-    C --> G[barcode base calling];
-    B --> G;
-    F --> H[register-to-ref];
-    G --> H;
-    E --> H;
+
+---
+config:
+  look: handDrawn
+  layout: elk
+---
+flowchart TD
+ subgraph s1["Call spots"]
+        F["call genes (OMP)"]
+        G["call barcodes (base calling)"]
+        E["call hybridisation (spot detection)"]
+  end
+    start["Collect data"] --> A["project-and-average"]
+    A --> B["register"]
+    B --> E & F & G & S["segment"]
+    F --> H["register-to-ref"]
+    G --> H
+    E --> H
+    S --> H
+    start@{ shape: paper-tape}
+
 ```
 
 For more information on the individual steps, see the [documentation](https://iss-preprocess.znamlab.org/).
