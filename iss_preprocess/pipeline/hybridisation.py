@@ -134,7 +134,7 @@ def get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts):
 
 
 @slurm_it(conda_env="iss-preprocess")
-def estimate_channel_correction_hybridisation(data_path):
+def estimate_channel_correction_hybridisation(data_path, prefix=None):
     """Compute grayscale value distribution and normalisation factors for
     all hybridisation rounds.
 
@@ -145,6 +145,8 @@ def estimate_channel_correction_hybridisation(data_path):
 
     Args:
         data_path (str or Path): Relative path to the data folder
+        prefix (list, optional): List of prefix of hybridisation rounds to process. If
+            None, all hybridisation rounds are processed. Defaults to None.
 
     Returns:
         pixel_dist (np.array): A 65536 x Nch x Nrounds distribution of grayscale values
@@ -152,41 +154,57 @@ def estimate_channel_correction_hybridisation(data_path):
         norm_factors (np.array) A Nch x Nround array of normalisation factors
 
     """
-    metadata = load_metadata(data_path)
-    if "hybridisation" not in metadata.keys():
-        return
+    if prefix is None:
+        metadata = load_metadata(data_path)
+        if "hybridisation" not in metadata.keys():
+            return
+        for prefix in metadata["hybridisation"].keys():
+            estimate_channel_correction_hybridisation(data_path, prefix)
+            return
+
     processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     nch = len(ops["black_level"])
     max_val = 65535
     pixel_dist = np.zeros((max_val + 1, nch))
-    for hyb_round in metadata["hybridisation"].keys():
-        for tile in ops["correction_tiles"]:
-            roi_name = f"roi {tile[0]}, tile {tile[1]}, {tile[2]}"
-            print(f"counting pixel values for {hyb_round}, roi {roi_name}")
-            stack = filter_stack(
-                load_tile_by_coors(
-                    data_path,
-                    tile_coors=tile,
-                    suffix=ops["hybridisation_projection"],
-                    prefix=hyb_round,
-                ),
-                r1=ops["filter_r"][0],
-                r2=ops["filter_r"][1],
-            )
-            stack[stack < 0] = 0
-            pixel_dist += compute_distribution(stack, max_value=max_val)
+    corr_tiles = ops.get("correction_tiles", None)
+    if corr_tiles is None:
+        # If it exists, use the genes_ref_tiles, otherwise use the ref_tile
+        corr_tiles = ops.get("genes_ref_tiles", None)
+        if corr_tiles is not None:
+            txt = "genes_ref_tiles"
+        else:
+            txt = "ref_tile"
+            corr_tiles = ops[txt]
+        print(f"No correction tiles specified, using {txt}")
 
-        cumulative_pixel_dist = np.cumsum(pixel_dist, axis=0)
-        cumulative_pixel_dist = cumulative_pixel_dist / cumulative_pixel_dist[-1, :]
-        norm_factors = np.zeros(nch)
-        for ich in range(nch):
-            norm_factors[ich] = np.argmax(
-                cumulative_pixel_dist[:, ich] > ops["correction_quantile"]
-            )
+    for tile in corr_tiles:
+        roi_name = f"roi {tile[0]}, tile {tile[1]}, {tile[2]}"
+        print(f"counting pixel values for {prefix}, roi {roi_name}")
+        stack = filter_stack(
+            load_tile_by_coors(
+                data_path,
+                tile_coors=tile,
+                suffix=ops["hybridisation_projection"],
+                prefix=prefix,
+            ),
+            r1=ops["filter_r"][0],
+            r2=ops["filter_r"][1],
+        )
+        stack[stack < 0] = 0
+        pixel_dist += compute_distribution(stack, max_value=max_val)
 
-        save_path = processed_path / f"correction_{hyb_round}.npz"
-        np.savez(save_path, pixel_dist=pixel_dist, norm_factors=norm_factors)
+    cumulative_pixel_dist = np.cumsum(pixel_dist, axis=0)
+    cumulative_pixel_dist = cumulative_pixel_dist / cumulative_pixel_dist[-1, :]
+    norm_factors = np.zeros(nch)
+    for ich in range(nch):
+        norm_factors[ich] = np.argmax(
+            cumulative_pixel_dist[:, ich] > ops["correction_quantile"]
+        )
+
+    save_path = processed_path / f"correction_{prefix}.npz"
+    np.savez(save_path, pixel_dist=pixel_dist, norm_factors=norm_factors)
+    print(f"saved correction factors for {prefix} to {save_path}")
 
 
 @slurm_it(conda_env="iss-preprocess")
