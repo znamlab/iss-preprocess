@@ -392,8 +392,13 @@ def get_tile_ome(fname, fmetadata=None, use_indexmap=None):
         xpix = stack.pages[0].tags["ImageWidth"].value
         ypix = stack.pages[0].tags["ImageLength"].value
         im = np.zeros((ypix, xpix, nch, nz), dtype=stack.pages[0].dtype)
-        for ip, page in enumerate(stack.pages):
-            im[:, :, channels[ip], zs[ip]] = page.asarray()
+        expected_pages = nz * nch
+        for ip, page in enumerate(stack.pages[:expected_pages]):
+            page_array = page.asarray()
+            if page_array.shape != (ypix, xpix):
+                print(f"Skipping page {ip} due to shape mismatch: {page_array.shape}")
+                continue
+            im[:, :, channels[ip], zs[ip]] = page_array
     return im
 
 
