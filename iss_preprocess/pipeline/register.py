@@ -56,9 +56,6 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
         diag (bool, optional): Whether to save diagnostic plots.
 
     """
-    if diag:
-        diag_plot_dir = get_processed_path(data_path) / "figures" / "ref_tile"
-        diag_plot_dir.mkdir(parents=True, exist_ok=True)
     ops = load_ops(data_path)
     print(f"Registering reference tile for {prefix} from {data_path}")
     ref_tile = ops["ref_tile"]
