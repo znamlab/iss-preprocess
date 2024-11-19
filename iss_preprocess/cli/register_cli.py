@@ -18,7 +18,7 @@ def register_cli():
 @click.option("-f/", "--force-redo/--no-force-redo", default=False, help="Force redo.")
 def register_ref_tile(path, prefix, diag, force_redo):
     """Run registration across channels and rounds for the reference tile."""
-    from iss_preprocess.pipeline import register_reference_tile
+    from iss_preprocess.pipeline.pipeline import register_reference_tile
 
     register_reference_tile(path, prefix, diag, force_redo)
 
@@ -51,7 +51,7 @@ def register_tile(path, prefix, roi, tilex, tiley, suffix="max"):
 def correct_shifts(path, prefix, use_slurm=False):
     """Correct X-Y shifts using robust regression across tiles."""
     # import with different name to not get confused with the cli function name
-    from iss_preprocess.pipeline import correct_shifts as corr_shifts
+    from iss_preprocess.pipeline.pipeline import correct_shifts as corr_shifts
 
     corr_shifts(path, prefix, use_slurm=use_slurm, job_dependency=None)
 
@@ -66,7 +66,7 @@ def correct_shifts(path, prefix, use_slurm=False):
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 def register_hyb_tile(path, prefix, roi, tilex, tiley):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
-    from iss_preprocess.pipeline import register_fluorescent_tile
+    from iss_preprocess.pipeline.pipeline import register_fluorescent_tile
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}/{prefix}")
     register_fluorescent_tile(

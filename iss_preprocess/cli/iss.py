@@ -27,7 +27,7 @@ def project_and_average(path, force_redo=False, use_slurm=True):
     from datetime import datetime
     from pathlib import Path
 
-    from iss_preprocess.pipeline import project_and_average
+    from iss_preprocess.pipeline.pipeline import project_and_average
 
     time = str(datetime.now().strftime("%Y-%m-%d_%H-%M"))
     slurm_folder = Path.home() / "slurm_logs" / path
@@ -64,7 +64,7 @@ def register(path, prefix, use_slurm=True, force_redo=False):
     from datetime import datetime
     from pathlib import Path
 
-    from iss_preprocess.pipeline import register_acquisition
+    from iss_preprocess.pipeline.pipeline import register_acquisition
 
     time = str(datetime.now().strftime("%Y-%m-%d_%H-%M"))
     slurm_folder = Path.home() / "slurm_logs" / path
@@ -98,7 +98,7 @@ def register(path, prefix, use_slurm=True, force_redo=False):
 )
 def extract_tile(path, roi=1, x=0, y=0, save=False):
     """Run OMP and a single tile and detect gene spots."""
-    from iss_preprocess.pipeline import detect_genes_on_tile
+    from iss_preprocess.pipeline.pipeline import detect_genes_on_tile
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
     detect_genes_on_tile(path, (roi, x, y), save_stack=save)
@@ -113,7 +113,7 @@ def extract_tile(path, roi=1, x=0, y=0, save=False):
 @click.option("-y", default=0, help="Tile Y position.")
 def basecall_tile(path, roi=1, x=0, y=0):
     """Run basecalling for barcodes on a single tile."""
-    from iss_preprocess.pipeline import basecall_tile
+    from iss_preprocess.pipeline.pipeline import basecall_tile
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
     basecall_tile(path, (roi, x, y))
@@ -126,7 +126,7 @@ def setup_omp(path, use_slurm=True):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from pathlib import Path
 
-    from iss_preprocess.pipeline import setup_omp
+    from iss_preprocess.pipeline.pipeline import setup_omp
 
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -142,7 +142,7 @@ def setup_barcodes(path, use_slurm=True):
     """Estimate bleedthrough matrices for barcode calling."""
     from pathlib import Path
 
-    from iss_preprocess.pipeline import setup_barcode_calling
+    from iss_preprocess.pipeline.pipeline import setup_barcode_calling
 
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
@@ -168,7 +168,7 @@ def setup_barcodes(path, use_slurm=True):
 )
 def setup_hybridisation(path, prefix=None, use_slurm=True):
     """Estimate bleedthrough matrices for hybridisation spots."""
-    from iss_preprocess.pipeline import setup_hyb_spot_calling
+    from iss_preprocess.pipeline.pipeline import setup_hyb_spot_calling
 
     if use_slurm:
         from pathlib import Path
@@ -288,7 +288,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
 )
 def spot_sign_image(path, prefix="genes_round"):
     """Compute average spot image."""
-    from iss_preprocess.pipeline import compute_spot_sign_image
+    from iss_preprocess.pipeline.pipeline import compute_spot_sign_image
 
     compute_spot_sign_image(path, prefix)
 
@@ -301,7 +301,7 @@ def spot_sign_image(path, prefix="genes_round"):
 @click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
 def check_omp(path, roi, tilex, tiley, use_slurm=True):
     """Compute average spot image."""
-    from iss_preprocess.pipeline import check_omp_thresholds
+    from iss_preprocess.pipeline.pipeline import check_omp_thresholds
 
     if use_slurm:
         from pathlib import Path
@@ -335,7 +335,7 @@ def check_omp(path, roi, tilex, tiley, use_slurm=True):
 @click.option("--use-slurm", is_flag=True, default=True, help="Whether to use slurm")
 def check_omp_alpha(path, roi, tilex, tiley, use_slurm=True):
     """Compute average spot image."""
-    from iss_preprocess.pipeline import check_omp_alpha_thresholds
+    from iss_preprocess.pipeline.pipeline import check_omp_alpha_thresholds
 
     if use_slurm:
         from pathlib import Path
@@ -435,7 +435,7 @@ def extract(path):
     help="Whether to use the GPU",
 )
 def segment(path, prefix, roi=1, use_gpu=False):
-    from iss_preprocess.pipeline import segment_roi
+    from iss_preprocess.pipeline.pipeline import segment_roi
 
     segment_roi(path, roi, prefix, use_gpu=use_gpu)
 
@@ -456,7 +456,7 @@ def segment(path, prefix, roi=1, use_gpu=False):
     help="Whether to use the GPU",
 )
 def segment_all(path, prefix, use_gpu=False):
-    from iss_preprocess.pipeline import segment_all_rois
+    from iss_preprocess.pipeline.pipeline import segment_all_rois
 
     segment_all_rois(path, prefix, use_gpu=use_gpu)
 
@@ -617,7 +617,7 @@ def align_spots_roi(
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 def hyb_spots(path):
     """Detect hybridisation in all ROIs / hybridisation rounds"""
-    from iss_preprocess.pipeline import extract_hyb_spots_all
+    from iss_preprocess.pipeline.pipeline import extract_hyb_spots_all
 
     extract_hyb_spots_all(path)
 
@@ -699,7 +699,7 @@ def overview_for_ara_registration(
 def setup_channel_correction(path, use_slurm=True):
     """Setup channel correction for barcode, genes and hybridisation rounds"""
 
-    from iss_preprocess.pipeline import setup_channel_correction as scc
+    from iss_preprocess.pipeline.pipeline import setup_channel_correction as scc
 
     scc(path, use_slurm=use_slurm)
     click.echo("Channel correction setup complete.")
@@ -714,7 +714,7 @@ def setup_channel_correction(path, use_slurm=True):
 )
 def call_spots(path, genes, barcodes, hybridisation):
     """Call spots for genes, barcodes and hybridisation rounds"""
-    from iss_preprocess.pipeline import call_spots
+    from iss_preprocess.pipeline.pipeline import call_spots
 
     called = []
     for spot_type in ["genes", "barcodes", "hybridisation"]:
@@ -819,7 +819,7 @@ def segment_all_mcherry(path, prefix="mCherry_1"):
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 def segment_mcherry_tile(path, prefix, roi, tilex, tiley):
     """Segment mCherry channel for a single tile."""
-    from iss_preprocess.pipeline import segment_mcherry_tile
+    from iss_preprocess.pipeline.pipeline import segment_mcherry_tile
 
     # TODO: move out of main CLI
     segment_mcherry_tile(
@@ -864,7 +864,7 @@ def filter_mcherry_masks(path, prefix):
     """Find mCherry cells using a GMM to cluster masks based on their
     morphological features. Then remove non-cell masks from each tile.
     """
-    from iss_preprocess.pipeline import _gmm_cluster_mcherry_cells
+    from iss_preprocess.pipeline.pipeline import _gmm_cluster_mcherry_cells
 
     # TODO: move out of main CLI
     _gmm_cluster_mcherry_cells(path, prefix)
