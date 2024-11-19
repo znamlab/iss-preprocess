@@ -23,4 +23,4 @@ source activate base
 
 conda activate iss-preprocess
 
-iss extract-tile -p $DATAPATH -r $ROI -x $TILEX -y $TILEY
+iss-call extract-tile -p $DATAPATH -r $ROI -x $TILEX -y $TILEY
