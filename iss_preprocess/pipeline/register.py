@@ -60,10 +60,14 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
         diag_plot_dir = get_processed_path(data_path) / "figures" / "ref_tile"
         diag_plot_dir.mkdir(parents=True, exist_ok=True)
     ops = load_ops(data_path)
+    print(f"Registering reference tile for {prefix} from {data_path}")
+    ref_tile = ops["ref_tile"]
+    print(f"Reference tile: {ref_tile}")
     nrounds = ops[prefix + "s"]
     projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
+    print("Projection used for registration:", projection)
     stack = load_sequencing_rounds(
-        data_path, ops["ref_tile"], prefix=prefix, suffix=projection, nrounds=nrounds
+        data_path, ref_tile, prefix=prefix, suffix=projection, nrounds=nrounds
     )
     if ops["align_method"] == "affine":
         affine_by_block = True

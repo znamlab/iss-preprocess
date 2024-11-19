@@ -290,7 +290,7 @@ def register_acquisition(data_path, prefix, force_redo=False):
             additional_args=additional_args,
             job_dependency=job_id,
         )
-        print(f"Final job id: {rerun_id}")
+        print(f"Re-run job id: {rerun_id}")
         jid = correct_shifts(data_path, prefix, use_slurm=True, job_dependency=rerun_id)
         print(f"Correct shifts job id: {jid}")
 
