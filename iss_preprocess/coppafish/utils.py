@@ -9,7 +9,9 @@ def ftrans2(b, t=None) -> np.ndarray:
     """
     Produces a 2D convolve kernel that corresponds to the 1D convolve kernel, `b`,
     using the transform, `t`.
-    Copied from [MATLAB `ftrans2`](https://www.mathworks.com/help/images/ref/ftrans2.html).
+    Copied from [MATLAB
+    `ftrans2`](https://www.mathworks.com/help/images/ref/ftrans2.html).
+
     Args:
         b: `float [Q]`.
             1D convolve kernel.
@@ -82,7 +84,8 @@ def annulus(r0, r_xy) -> np.ndarray:
     Args:
         r0: Inner radius within which values are all zero.
         r_xy: Outer radius in xy direction.
-            Can be float not integer because all values with `radius < r_xy1` and `> r0` will be set to `1`.
+            Can be float not integer because all values with `radius < r_xy1` and `> r0`
+            will be set to `1`.
         r_z: Outer radius in z direction. Size in z-pixels.
             None means 2D annulus returned.
     Returns:
@@ -111,17 +114,19 @@ def scaled_k_means(
     n_iter=100,
 ):
     """
-    Does a clustering that minimizes the norm of ```x[i] - g[i] * cluster_mean[cluster_ind[i]]```
-    for each data point ```i``` in ```x```, where ```g``` is the gain which is not explicitly computed.
+    Does a clustering that minimizes the norm of ```x[i] - g[i] *
+    cluster_mean[cluster_ind[i]]``` for each data point ```i``` in ```x```, where
+    ```g``` is the gain which is not explicitly computed.
+
     Args:
         x: ```float [n_points x n_dims]```.
             Data set of vectors to build cluster means from.
         initial_cluster_mean: ```float [n_clusters x n_dims]```.
             Starting point of mean cluster vectors.
-        score_thresh: `float` or give different score for each cluster as `float [n_clusters]`
-            Scalar between ```0``` and ```1```.
-            Points in ```x``` with dot product to a cluster mean vector greater than this
-            contribute to new estimate of mean vector.
+        score_thresh: `float` or give different score for each cluster as `float
+            [n_clusters]` Scalar between ```0``` and ```1```.
+            Points in ```x``` with dot product to a cluster mean vector greater than
+            this contribute to new estimate of mean vector.
         min_cluster_size: If less than this many points assigned to a cluster,
             that cluster mean vector will be set to ```0```.
         n_iter: Maximum number of iterations performed.
@@ -131,14 +136,17 @@ def scaled_k_means(
         - cluster_eig_value - ```float [n_clusters]```.
             First eigenvalue of outer product matrix for each cluster.
         - cluster_ind - ```int [n_points]```.
-            Index of cluster each point was assigned to. ```-1``` means fell below score_thresh and not assigned.
+            Index of cluster each point was assigned to. ```-1``` means fell below
+            score_thresh and not assigned.
         - top_score - ```float [n_points]```.
-            `top_score[i]` is the dot product score between `x[i]` and `norm_cluster_mean[cluster_ind[i]]`.
+            `top_score[i]` is the dot product score between `x[i]` and
+            `norm_cluster_mean[cluster_ind[i]]`.
         - cluster_ind0 - ```int [n_points]```.
             Index of cluster each point was assigned to on first iteration.
             ```-1``` means fell below score_thresh and not assigned.
         - top_score0 - ```float [n_points]```.
-            `top_score0[i]` is the dot product score between `x[i]` and `initial_cluster_mean[cluster_ind0[i]]`.
+            `top_score0[i]` is the dot product score between `x[i]` and
+            `initial_cluster_mean[cluster_ind0[i]]`.
     """
     # normalise starting points and original data
     norm_cluster_mean = initial_cluster_mean / np.linalg.norm(
@@ -186,7 +194,8 @@ def scaled_k_means(
                 norm_cluster_mean[c] = 0
                 warnings.warn(
                     f"Cluster c only had {n_my_points} vectors assigned to it.\n "
-                    f"This is less than min_cluster_size = {min_cluster_size} so setting this cluster to 0."
+                    f"This is less than min_cluster_size = {min_cluster_size} so "
+                    "setting this cluster to 0."
                 )
                 continue
             eig_vals, eigs = np.linalg.eig(
