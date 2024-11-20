@@ -29,30 +29,7 @@ from ..vis.utils import (
 from . import _get_some_tiles
 
 
-def check_barcode_calling(data_path):
-    """Plot the barcode cluster scatter plots and cluster means and save them in the
-    figures folder
-
-    Args:
-        data_path (str): Relative path to data folder
-
-    """
-    processed_path = get_processed_path(data_path)
-    figure_folder = processed_path / "figures" / "barcode_round"
-    figure_folder.mkdir(exist_ok=True)
-    reference_barcode_spots = np.load(
-        processed_path / "reference_barcode_spots.npz", allow_pickle=True
-    )
-    cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
-    figs = plot_clusters(
-        cluster_means,
-        reference_barcode_spots["spot_colors"],
-        reference_barcode_spots["cluster_inds"],
-    )
-    for fig in figs:
-        fig.savefig(figure_folder / f"barcode_{fig.get_label()}.png")
-
-
+@slurm_it(conda_env="iss-preprocess")
 def check_omp_setup(data_path):
     """Plot the OMP setup, including clustering of reference gene spots and
     gene templates, and save them in the figures folder
@@ -62,7 +39,7 @@ def check_omp_setup(data_path):
 
     """
     processed_path = get_processed_path(data_path)
-    figure_folder = processed_path / "figures"
+    figure_folder = processed_path / "figures" / "sequencing"
     figure_folder.mkdir(exist_ok=True)
     reference_gene_spots = np.load(
         processed_path / "reference_gene_spots.npz", allow_pickle=True
@@ -98,6 +75,9 @@ def check_omp_alpha_thresholds(
     ops = load_ops(data_path)
     if tile_coors is None:
         tile_coors = ops["ref_tile"]
+    fig_folder = processed_path / "figures" / "sequencing"
+    fig_folder.mkdir(exist_ok=True)
+
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
@@ -171,7 +151,7 @@ def check_omp_alpha_thresholds(
                 )
         plt.tight_layout()
         plt.savefig(
-            processed_path / "figures" / f"omp_spot_score_thresholds_alpha_{alpha}.png",
+            fig_folder / f"omp_spot_score_thresholds_alpha_{alpha}.png",
             dpi=300,
         )
 
@@ -180,9 +160,7 @@ def check_omp_alpha_thresholds(
     plt.colorbar()
     plt.axis("off")
     plt.tight_layout()
-    plt.savefig(
-        processed_path / "figures" / "omp_spot_score_thresholds_image.png", dpi=300
-    )
+    plt.savefig(fig_folder / "omp_spot_score_thresholds_image.png", dpi=300)
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -197,6 +175,9 @@ def check_omp_thresholds(
     ops = load_ops(data_path)
     if tile_coors is None:
         tile_coors = ops["ref_tile"]
+    fig_folder = processed_path / "figures" / "sequencing"
+    fig_folder.mkdir(exist_ok=True)
+
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
@@ -264,7 +245,7 @@ def check_omp_thresholds(
                 )
         plt.tight_layout()
         plt.savefig(
-            processed_path / "figures" / f"omp_spot_score_thresholds_rho_{rho}.png",
+            fig_folder / f"omp_spot_score_thresholds_rho_{rho}.png",
             dpi=300,
         )
 
@@ -273,9 +254,7 @@ def check_omp_thresholds(
     plt.colorbar()
     plt.axis("off")
     plt.tight_layout()
-    plt.savefig(
-        processed_path / "figures" / "omp_spot_score_thresholds_image.png", dpi=300
-    )
+    plt.savefig(fig_folder / "omp_spot_score_thresholds_image.png", dpi=300)
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -418,3 +397,27 @@ def check_barcode_basecall(
     if savefig:
         fig.savefig(figure_folder / f"barcode_basecall_example_tile_{tc}.png")
     return fig
+
+
+def check_barcode_calling(data_path):
+    """Plot the barcode cluster scatter plots and cluster means and save them in the
+    figures folder
+
+    Args:
+        data_path (str): Relative path to data folder
+
+    """
+    processed_path = get_processed_path(data_path)
+    figure_folder = processed_path / "figures" / "barcode_round"
+    figure_folder.mkdir(exist_ok=True)
+    reference_barcode_spots = np.load(
+        processed_path / "reference_barcode_spots.npz", allow_pickle=True
+    )
+    cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
+    figs = plot_clusters(
+        cluster_means,
+        reference_barcode_spots["spot_colors"],
+        reference_barcode_spots["cluster_inds"],
+    )
+    for fig in figs:
+        fig.savefig(figure_folder / f"barcode_{fig.get_label()}.png")

@@ -14,6 +14,11 @@ from ..diagnostics.diag_register import (
     check_tile_registration,
     check_tile_shifts,
 )
+from ..diagnostics.diag_sequencing import (
+    check_omp_alpha_thresholds,
+    check_omp_setup,
+    check_omp_thresholds,
+)
 from ..diagnostics.diag_stitching import plot_overview_images
 from ..image import tilestats_and_mean_image
 from ..io import (
@@ -774,6 +779,7 @@ def call_spots(
     barcodes=True,
     hybridisation=True,
     force_redo=False,
+    setup_only=False,
     use_slurm=True,
 ):
     """Master method to run spot calling.
@@ -786,6 +792,7 @@ def call_spots(
         barcodes (bool, optional): Run barcode calling. Defaults to True.
         hybridisation (bool, optional): Run hybridisation spot calling. Defaults to True
         force_redo (bool, optional): Redo all processing steps? Defaults to False.
+        setup_only (bool, optional): Only setup the spot calling, do not run it.
         use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
             True.
 
@@ -810,12 +817,31 @@ def call_spots(
             slurm_folder=slurm_folder,
             job_dependency=jobs if use_slurm else None,
         )
-        batch_process_tiles(
+        check_omp_setup(
             data_path,
-            "extract_tile",
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
             job_dependency=job if use_slurm else None,
-            verbose=False,
         )
+        check_omp_thresholds(
+            data_path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=job if use_slurm else None,
+        )
+        check_omp_alpha_thresholds(
+            data_path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=job if use_slurm else None,
+        )
+        if not setup_only:
+            batch_process_tiles(
+                data_path,
+                "extract_tile",
+                job_dependency=job if use_slurm else None,
+                verbose=False,
+            )
 
     if barcodes:
         print("Running barcode spot calling")
@@ -831,14 +857,16 @@ def call_spots(
             slurm_folder=slurm_folder,
             job_dependency=jobs if use_slurm else None,
         )
-        batch_process_tiles(
-            data_path, "basecall_tile", job_dependency=job if use_slurm else None
-        )
+        if not setup_only:
+            batch_process_tiles(
+                data_path, "basecall_tile", job_dependency=job if use_slurm else None
+            )
 
     if hybridisation:
         print("Running hybridisation spot calling")
         setup_hyb_spot_calling(data_path)
-        extract_hyb_spots_all(data_path)
+        if not setup_only:
+            extract_hyb_spots_all(data_path)
 
 
 def segment_and_stitch_mcherry_cells(

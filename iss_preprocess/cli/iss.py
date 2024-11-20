@@ -99,7 +99,20 @@ def register(path, prefix, use_slurm=True, force_redo=False):
     default=False,
     help="Force redoing all steps.",
 )
-def call(path, genes=True, barcodes=True, hybridisation=True, force_redo=False):
+@click.option(
+    "--setup-only/",
+    is_flag=True,
+    default=False,
+    help="Only setup the channel correction, do NOT run on all tiles.",
+)
+def call(
+    path,
+    genes=True,
+    barcodes=True,
+    hybridisation=True,
+    force_redo=False,
+    setup_only=False,
+):
     from ..pipeline.pipeline import call_spots
 
     call_spots(
@@ -108,6 +121,7 @@ def call(path, genes=True, barcodes=True, hybridisation=True, force_redo=False):
         barcodes=barcodes,
         hybridisation=hybridisation,
         force_redo=force_redo,
+        setup_only=setup_only,
     )
 
 
