@@ -46,11 +46,13 @@ def check_omp_setup(data_path):
     )
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
     nrounds = reference_gene_spots["spot_colors"].shape[0]
+    print("Plotting clusters")
     figs = plot_clusters(
         omp_stat["cluster_means"],
         reference_gene_spots["spot_colors"],
         reference_gene_spots["cluster_inds"],
     )
+    print("Plotting gene templates")
     figs.append(
         plot_gene_templates(
             omp_stat["gene_dict"],
@@ -61,6 +63,7 @@ def check_omp_setup(data_path):
     )
     for fig in figs:
         fig.savefig(figure_folder / f"omp_{fig.get_label()}.png")
+    print(f"Saved figures in {figure_folder}")
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -77,7 +80,7 @@ def check_omp_alpha_thresholds(
         tile_coors = ops["ref_tile"]
     fig_folder = processed_path / "figures" / "sequencing"
     fig_folder.mkdir(exist_ok=True)
-
+    print("Loading and registering tile")
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
@@ -94,6 +97,7 @@ def check_omp_alpha_thresholds(
     all_gene_spots = []
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
 
+    print("Running all alpha/OMP threshold combinations")
     for alpha in alphas:
         temp_gene_spots = []
         for omp_threshold in omp_thresholds:
@@ -123,6 +127,7 @@ def check_omp_alpha_thresholds(
             temp_gene_spots.append(gene_spots)
         all_gene_spots.append(temp_gene_spots)
 
+    print("Plotting results")
     im = np.std(stack, axis=(2, 3))
     vmax = np.percentile(im, 99.99)
     neg_max = np.sum(np.sign(spot_sign_image) == -1)
@@ -161,6 +166,7 @@ def check_omp_alpha_thresholds(
     plt.axis("off")
     plt.tight_layout()
     plt.savefig(fig_folder / "omp_spot_score_thresholds_image.png", dpi=300)
+    print(f"Saved figures in {fig_folder}")
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -178,6 +184,7 @@ def check_omp_thresholds(
     fig_folder = processed_path / "figures" / "sequencing"
     fig_folder.mkdir(exist_ok=True)
 
+    print("Loading and registering tile")
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
         tile_coors,
@@ -193,6 +200,7 @@ def check_omp_thresholds(
 
     all_gene_spots = []
     omp_stat = np.load(processed_path / "gene_dict.npz", allow_pickle=True)
+    print("Running all OMP thresholds")
     for omp_threshold in omp_thresholds:
         g, _, _ = run_omp(
             stack,
@@ -217,6 +225,7 @@ def check_omp_thresholds(
             df["gene"] = gene
         all_gene_spots.append(gene_spots)
 
+    print("Plotting results")
     im = np.std(stack, axis=(2, 3))
     vmax = np.percentile(im, 99.99)
     neg_max = np.sum(np.sign(spot_sign_image) == -1)
@@ -255,6 +264,7 @@ def check_omp_thresholds(
     plt.axis("off")
     plt.tight_layout()
     plt.savefig(fig_folder / "omp_spot_score_thresholds_image.png", dpi=300)
+    print(f"Saved figures in {fig_folder}")
 
 
 @slurm_it(conda_env="iss-preprocess")
