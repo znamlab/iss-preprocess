@@ -9,6 +9,7 @@ from ..coppafish import scaled_k_means
 from ..diagnostics.diag_hybridisation import check_hybridisation_setup
 from ..image import apply_illumination_correction, compute_distribution, filter_stack
 from ..io import (
+    get_channel_round_transforms,
     get_processed_path,
     get_roi_dimensions,
     load_hyb_probes_metadata,
@@ -63,7 +64,9 @@ def load_and_register_hyb_tile(
     assert corrected_shifts in valid_shifts, (
         f"unknown shift correction method, must be one of {valid_shifts}",
     )
-    tforms = get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts)
+    tforms = get_channel_round_transforms(
+        data_path, prefix, tile_coors, corrected_shifts
+    )
     stack = load_tile_by_coors(
         data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
     )
@@ -97,40 +100,6 @@ def load_and_register_hyb_tile(
         norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
         stack = stack / norm_factors[np.newaxis, np.newaxis, :]
     return stack, bad_pixels
-
-
-def get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts):
-    """Load the channel shifts for a given tile and sequencing acquisition.
-
-    Args:
-        data_path (str): Relative path to data.
-        prefix (str): Prefix of the sequencing round.
-        tile_coors (tuple): Coordinates of the tile to process.
-        corrected_shifts (str): Which shift to use. One of `reference`, `single_tile`,
-            `ransac`, or `best`.
-
-    Returns:
-        np.ndarray: Array of channel and round shifts.
-
-    """
-    processed_path = get_processed_path(data_path)
-    tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
-    if corrected_shifts == "reference":
-        tforms_fname = f"tforms_{prefix}.npz"
-        tforms_path = processed_path
-    elif corrected_shifts == "single_tile":
-        tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
-        tforms_path = processed_path / "reg"
-    elif corrected_shifts == "ransac":
-        tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
-        tforms_path = processed_path / "reg"
-    elif corrected_shifts == "best":
-        tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
-        tforms_path = processed_path / "reg"
-    else:
-        raise ValueError(f"unknown shift correction method: {corrected_shifts}")
-    tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
-    return tforms
 
 
 @slurm_it(conda_env="iss-preprocess")

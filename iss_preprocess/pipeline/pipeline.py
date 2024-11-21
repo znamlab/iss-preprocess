@@ -23,6 +23,7 @@ from ..diagnostics.diag_stitching import plot_overview_images
 from ..image import tilestats_and_mean_image
 from ..io import (
     find_roi_position_on_cryostat,
+    get_channel_round_transforms,
     get_processed_path,
     get_raw_path,
     load_metadata,
@@ -325,8 +326,9 @@ def register_reference_tile(
         slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
         slurm_folder = None
-    target_file = get_processed_path(data_path) / "reg" / prefix
-    target_file /= f"ref_tile_tforms_{prefix}.npz"
+    target_file = get_channel_round_transforms(
+        data_path, prefix, shifts_type="reference", load_file=False
+    )
     if target_file.exists() and not force_redo:
         print(f"{prefix} reference tile already registered, skipping")
         return None, None

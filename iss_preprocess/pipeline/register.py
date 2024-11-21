@@ -32,7 +32,7 @@ from ..reg import (
     register_channels_and_rounds,
 )
 from ..vis.diagnostics import plot_registration_correlograms
-from .hybridisation import get_channel_shifts, load_and_register_hyb_tile
+from .hybridisation import load_and_register_hyb_tile
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
@@ -72,7 +72,7 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
         affine_by_block = False
     else:
         raise ValueError(f"Align method {ops['align_method']} not recognised")
-
+    print(f"Using {ops['align_method']} registration")
     out = register_channels_and_rounds(
         stack,
         ref_ch=ops["ref_ch"],
@@ -161,8 +161,9 @@ def register_fluorescent_tile(
     projection = ops.get(f"{ops_prefix}_reg_projection", projection)
     print("Projection used for registration:", projection)
     if reference_prefix is not None:
-        tforms_path = processed_path / f"tforms_{reference_prefix}.npz"
-        reference_tforms = np.load(tforms_path, allow_pickle=True)
+        reference_tforms = get_channel_round_transforms(
+            data_path, reference_prefix, shifts_type="reference"
+        )
     else:
         reference_tforms = None
 
@@ -221,9 +222,11 @@ def register_fluorescent_tile(
     if save_output:
         save_dir = processed_path / "reg" / prefix
         save_dir.mkdir(parents=True, exist_ok=True)
-        target = f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+        target = get_channel_round_transforms(
+            data_path, prefix, tile_coors, "single_tile", load_file=False
+        )
         np.savez(
-            save_dir / target,
+            target,
             allow_pickle=True,
             **to_save,
         )
@@ -473,11 +476,17 @@ def estimate_shifts_by_coors(
 
     median_filter_size = ops["reg_median_filter"]
     nrounds = ops[prefix + "s"]
-    tforms_path = processed_path / "reg" / prefix / f"ref_tile_tforms_{prefix}.npz"
     stack = load_sequencing_rounds(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
     )
-    reference_tforms = np.load(tforms_path, allow_pickle=True)
+    reference_tforms = get_channel_round_transforms(
+        data_path, prefix, shifts_type="reference"
+    )
+    if any(np.isnan(reference_tforms["angles_within_channels"])) or any(
+        np.isnan(reference_tforms["scales_between_channels"])
+    ):  # pragma: no cover
+        raise ValueError("Reference tforms contain NaNs")
+
     (_, shifts_within_channels, matrix_between_channels) = estimate_shifts_for_tile(
         stack,
         reference_tforms["angles_within_channels"],
@@ -490,9 +499,12 @@ def estimate_shifts_by_coors(
     )
     save_dir = processed_path / "reg" / prefix
     save_dir.mkdir(parents=True, exist_ok=True)
-    target = f"tforms_{prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+
+    target = get_channel_round_transforms(
+        data_path, prefix, tile_coors, "single_tile", load_file=False
+    )
     np.savez(
-        save_dir / target,
+        target,
         angles_within_channels=reference_tforms["angles_within_channels"],
         shifts_within_channels=shifts_within_channels,
         matrix_between_channels=matrix_between_channels,
@@ -1210,7 +1222,9 @@ def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=
     assert corrected_shifts in valid_shifts, (
         f"unknown shift correction method, must be one of {valid_shifts}",
     )
-    tforms = get_channel_shifts(data_path, prefix, tile_coors, corrected_shifts)
+    tforms = get_channel_round_transforms(
+        data_path, prefix, tile_coors, corrected_shifts
+    )
     fname = get_raw_filename(data_path, prefix, tile_coors)
     tile_path = str(Path(data_path) / prefix / fname)
 
