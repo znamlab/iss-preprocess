@@ -104,6 +104,13 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
             matrix_between_channels,
         ) = out
 
+    if (
+        any(np.isnan(angles_within_channels))
+        or any(np.isnan(matrix_between_channels))
+        or any(np.isnan(shifts_within_channels))
+    ):
+        raise ValueError("Reference tforms contain NaNs")
+
     save_path = get_channel_round_transforms(
         data_path, prefix, tile_coors=None, shifts_type="reference", load_file=False
     )
