@@ -25,11 +25,10 @@ from ..io import (
 from ..reg import (
     align_channels_and_rounds,
     apply_corrections,
-    estimate_affine_for_tile,
-    estimate_shifts_and_angles_for_tile,
     estimate_shifts_for_tile,
     generate_channel_round_transforms,
     register_channels_and_rounds,
+    register_image_channels,
 )
 from ..vis.diagnostics import plot_registration_correlograms
 from .hybridisation import load_and_register_hyb_tile
@@ -193,16 +192,22 @@ def register_fluorescent_tile(
     channel_grouping = ops.get(f"{ops_prefix}_reg_channel_grouping", None)
     if channel_grouping is None:
         print("Registering all channels together")
-        out = _reg_chans(
-            ops,
-            ops_prefix,
-            stack,
-            reference_prefix,
-            binarise_quantile,
-            reference_tforms,
-            ref_ch,
-            debug,
+        out = register_image_channels(
+            align_method=ops["align_method"],
+            stack=stack,
+            ref_ch=ref_ch,
+            binarise_quantile=binarise_quantile,
+            rounds_max_shift=ops["rounds_max_shift"],
+            reference_tforms=reference_tforms,
+            reg_block_size=ops.get(f"{ops_prefix}_reg_block_size", 256),
+            reg_block_overlap=ops.get(f"{ops_prefix}_reg_block_overlap", 0.5),
+            correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
+            max_residual=ops.get(f"{ops_prefix}_max_residual", 2),
+            median_filter_size=None,
+            debug=True,
+            verbose=True,
         )
+
     else:
         print(f"Registering channels by pairs: {channel_grouping}")
         out = register_channels_by_pairs(
@@ -277,16 +282,22 @@ def register_channels_by_pairs(
         db_info = {"first_round": {}}
     for group in channel_grouping:
         assert all(isinstance(ch, int) for ch in group), "Only integers are allowed"
-        tform = _reg_chans(
-            ops,
-            ops_prefix,
-            stack[..., group],
-            reference_prefix,
-            binarise_quantile,
-            reference_tforms,
+        tform = register_image_channels(
+            align_method=ops["align_method"],
+            stack=stack[..., group],
             ref_ch=0,  # always 0 as channels are reordered
-            debug=False,
+            binarise_quantile=binarise_quantile,
+            rounds_max_shift=ops["rounds_max_shift"],
+            reference_tforms=reference_tforms,
+            reg_block_size=ops.get(f"{ops_prefix}_reg_block_size", 256),
+            reg_block_overlap=ops.get(f"{ops_prefix}_reg_block_overlap", 0.5),
+            correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
+            max_residual=ops.get(f"{ops_prefix}_max_residual", 2),
+            median_filter_size=None,
+            debug=debug,
+            verbose=False,
         )
+
         if debug:
             db_info["first_round"][tuple(group)] = tform
         if "matrix_between_channels" in tform.keys():
@@ -304,15 +315,20 @@ def register_channels_by_pairs(
             initial_tforms[ch] = tform_matrix[i]
     # now we need to merge the tforms
     second_round = [g[0] for g in channel_grouping]
-    tform = _reg_chans(
-        ops,
-        ops_prefix,
-        stack[..., second_round],
-        reference_prefix,
-        binarise_quantile,
-        reference_tforms,
-        ref_ch=0,
-        debug=False,
+    tform = register_image_channels(
+        align_method=ops["align_method"],
+        stack=stack[..., second_round],
+        ref_ch=0,  # always 0 as channels are reordered
+        binarise_quantile=binarise_quantile,
+        rounds_max_shift=ops["rounds_max_shift"],
+        reference_tforms=reference_tforms,
+        reg_block_size=ops.get(f"{ops_prefix}_reg_block_size", 256),
+        reg_block_overlap=ops.get(f"{ops_prefix}_reg_block_overlap", 0.5),
+        correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
+        max_residual=ops.get(f"{ops_prefix}_max_residual", 2),
+        median_filter_size=None,
+        debug=debug,
+        verbose=False,
     )
     if debug:
         db_info["second_round"] = tform
@@ -359,101 +375,6 @@ def register_channels_by_pairs(
     if debug:
         return output, db_info
     return output
-
-
-def _reg_chans(
-    ops,
-    ops_prefix,
-    stack,
-    reference_prefix,
-    binarise_quantile,
-    reference_tforms,
-    ref_ch,
-    debug,
-):
-    """Register channels for a single tile
-
-    Inner function running the relevant phase correlation on channels of one stack
-
-    Args:
-        ops (dict): Experiment metadata.
-        ops_prefix (str): Prefix to use for ops, e.g. "genes".
-        stack (np.array): Image stack to register.
-        reference_prefix (str): Prefix to load scale or initial matrix from.
-        binarise_quantile (float): Quantile to binarise images before registration.
-        reference_tforms (dict): Reference transformation parameters.
-        ref_ch (int): Reference channel.
-        debug (bool): Return debug information.
-
-    Returns:
-        dict: Transformation parameters.
-        dict: Debug information, only if debug is True
-    """
-
-    if ops["align_method"] == "similarity":
-        if reference_prefix is None:
-            raise ValueError(
-                "Reference prefix must be provided for similarity transform"
-            )
-        # binarise if needed
-        nch = stack.shape[2]
-        if binarise_quantile is not None:
-            for ich in range(nch):
-                ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
-                stack[:, :, ich] = stack[:, :, ich] > ref_thresh
-
-        out = estimate_shifts_and_angles_for_tile(
-            stack,
-            scales=reference_tforms["scales_between_channels"],
-            ref_ch=ref_ch,
-            max_shift=ops["rounds_max_shift"],
-            debug=debug,
-        )
-        if debug:
-            angles, shifts, db_info = out
-        else:
-            angles, shifts = out
-        to_save = dict(
-            angles=angles,
-            shifts=shifts,
-            scales=reference_tforms["scales_between_channels"],
-        )
-    elif ops["align_method"] == "affine":
-        block_size = ops.get(f"{ops_prefix}_reg_block_size", 256)
-        overlap = ops.get(f"{ops_prefix}_reg_block_overlap", 0.5)
-        correlation_threshold = ops.get(f"{ops_prefix}_correlation_threshold", None)
-        max_residual = ops.get(f"{ops_prefix}_max_residual", 2)
-        print("Registration parameters:")
-        print(f"    block size {block_size}\n    overlap {overlap}")
-        print(f"    correlation threshold {correlation_threshold}")
-        print(f"    binarise quantile {binarise_quantile}")
-        print(f"    max residual {max_residual}")
-        print(f"    ref channel {ref_ch}")
-        print(f"    max shift {ops['rounds_max_shift']}")
-        if reference_prefix is None:
-            tform_matrix = None
-        else:
-            tform_matrix = reference_tforms["matrix_between_channels"]
-        matrix = estimate_affine_for_tile(
-            stack,
-            tform_matrix=tform_matrix,
-            ref_ch=ref_ch,
-            max_shift=ops["rounds_max_shift"],
-            max_residual=max_residual,
-            debug=debug,
-            block_size=block_size,
-            overlap=overlap,
-            correlation_threshold=correlation_threshold,
-            binarise_quantile=binarise_quantile,
-        )
-        if debug:
-            matrix, db_info = matrix
-        to_save = dict(matrix_between_channels=matrix)
-    else:
-        raise ValueError(f"Align method {ops['align_method']} not recognised")
-    if debug:
-        return to_save, db_info
-    return to_save
 
 
 def estimate_shifts_by_coors(

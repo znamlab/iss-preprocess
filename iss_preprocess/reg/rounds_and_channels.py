@@ -28,6 +28,7 @@ __all__ = [
     "estimate_rotation_angle",
     "estimate_rotation_translation",
     "phase_correlation_by_block",
+    "register_image_channels",
 ]
 
 
@@ -1153,3 +1154,134 @@ def phase_correlation_by_block(
         row += int((1 - overlap) * block_size)
         col = 0
     return shifts
+
+
+def register_image_channels(
+    align_method,
+    stack,
+    ref_ch,
+    binarise_quantile,
+    rounds_max_shift,
+    reference_tforms=None,
+    reg_block_size=256,
+    reg_block_overlap=0.5,
+    correlation_threshold=0.01,
+    max_residual=2,
+    median_filter_size=None,
+    debug=False,
+    verbose=True,
+):
+    """Register channels for a single tile
+
+    Run the relevant phase correlation on channels of one stack depending on the
+    alignment method.
+
+    If align_method is "similarity", parameters used are:
+    - binarise_quantile
+    - rounds_max_shift
+    - reference_tforms (mandatory)
+
+    If align_method is "affine", parameters used are:
+    - binarise_quantile
+    - rounds_max_shift
+    - reference_tforms (optional)
+    - reg_block_size
+    - reg_block_overlap
+    - correlation_threshold
+    - max_residual
+    - median_filter_size
+
+    Args:
+        align_method (str): Alignment method to use. One of "similarity" or "affine".
+        stack (np.array): Image stack to register.
+        ref_ch (int): Reference channel.
+        binarise_quantile (float): Quantile to binarise images before registration.
+        rounds_max_shift (int): Maximum shift to avoid spurious cross-correlations.
+        reference_tforms (dict, optional): Reference transformation parameters. 
+            Default: None
+        reg_block_size (int, optional): Size of the block to use for registration.
+            Default: 256
+        reg_block_overlap (float, optional): Overlap between blocks. Default: 0.5
+        correlation_threshold (float, optional): Threshold for correlation to use for
+            fitting affine transformations. Default: 0.01
+        max_residual (int, optional): Maximum residual to include shift in the final
+            fit in affine_by_block. Default: 2
+        median_filter_size (int, optional): Size of median filter to apply to the stack.
+            Default: None
+        debug (bool, optional): Return debug information. Default to False
+        verbose (bool, optional): Print registration parameters. Default to True
+
+    Returns:
+        dict: Transformation parameters.
+        dict: Debug information, only if debug is True
+    """
+
+    if align_method == "similarity":
+        if reference_tforms is None:
+            raise ValueError(
+                "Reference tforms must be provided for similarity transform"
+            )
+        if verbose: 
+            print("Registration parameters:")
+            print(f"    binarise quantile {binarise_quantile}")
+            print(f"    ref channel {ref_ch}")
+            print(f"    max shift {rounds_max_shift}")
+        # binarise if needed
+        nch = stack.shape[2]
+        if binarise_quantile is not None:
+            for ich in range(nch):
+                ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
+                stack[:, :, ich] = stack[:, :, ich] > ref_thresh
+
+        out = estimate_shifts_and_angles_for_tile(
+            stack,
+            scales=reference_tforms["scales_between_channels"],
+            ref_ch=ref_ch,
+            max_shift=rounds_max_shift,
+            debug=debug,
+        )
+        if debug:
+            angles, shifts, db_info = out
+        else:
+            angles, shifts = out
+        to_save = dict(
+            angles=angles,
+            shifts=shifts,
+            scales=reference_tforms["scales_between_channels"],
+        )
+    elif align_method == "affine":
+        if verbose:
+            print("Registration parameters:")
+            print(f"    block size {reg_block_size}\n    overlap {reg_block_overlap}")
+            print(f"    correlation threshold {correlation_threshold}")
+            print(f"    binarise quantile {binarise_quantile}")
+            print(f"    max residual {max_residual}")
+            print(f"    ref channel {ref_ch}")
+            print(f"    max shift {rounds_max_shift}")
+            print(f"    median filter size {median_filter_size}")
+        if reference_tforms is None:
+            tform_matrix = None
+        else:
+            tform_matrix = reference_tforms["matrix_between_channels"]
+        matrix = estimate_affine_for_tile(
+            stack,
+            tform_matrix=tform_matrix,
+            ref_ch=ref_ch,
+            max_shift=rounds_max_shift,
+            max_residual=max_residual,
+            debug=debug,
+            block_size=reg_block_size,
+            overlap=reg_block_overlap,
+            correlation_threshold=correlation_threshold,
+            binarise_quantile=binarise_quantile,
+            median_filter_size=median_filter_size,
+        )
+
+        if debug:
+            matrix, db_info = matrix
+        to_save = dict(matrix_between_channels=matrix)
+    else:
+        raise ValueError(f"Align method {align_method} not recognised")
+    if debug:
+        return to_save, db_info
+    return to_save
