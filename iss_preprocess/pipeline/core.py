@@ -106,7 +106,8 @@ def batch_process_tiles(
     failed_command += f"--dependency=afterany:{':'.join(job_ids)} "
     failed_command += f"--output={log_dir}/handle_failed_{script}.out "
     failed_command += f"{handle_failed_script_path} "
-    print(failed_command)
+    if verbose:
+        print(failed_command)
     process = subprocess.Popen(
         shlex.split(failed_command),
         stdout=subprocess.PIPE,
