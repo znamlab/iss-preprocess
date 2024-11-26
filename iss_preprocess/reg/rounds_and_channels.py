@@ -39,9 +39,15 @@ def register_channels_and_rounds(
     median_filter=None,
     min_shift=None,
     max_shift=None,
-    debug=False,
     use_masked_correlation=False,
-    affine_by_block=True,
+    align_method="affine",
+    binarise_quantile=None,
+    reg_block_size=512,
+    reg_block_overlap=0.6,
+    correlation_threshold=0.01,
+    max_residual=2,
+    debug=False,
+    verbose=True,
 ):
     """
     Estimate transformation matrices for alignment across channels and rounds.
@@ -54,10 +60,19 @@ def register_channels_and_rounds(
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
-        debug (bool): whether to return debug info, default: False
         use_masked_correlation (bool): whether to use masked phase correlation
-        affine_by_block (bool): whether to use affine by block registration instead of
-            similarity transforms for channel alignment. Default: True
+        align_method (str): method to use for alignment, either `affine` or
+            `similarity`. Default: `affine`
+        binarise_quantile (float): quantile to use for binarisation of each block
+        reg_block_size (int): size of the block to use for registration. Default: 512
+        reg_block_overlap (float): overlap between blocks, default: 0.6
+        correlation_threshold (float): threshold for correlation to use for fitting
+            affine transformations, default: 0.01
+        max_residual (int): maximum residual to include shift in the final fit in
+            affine_by_block, defaults to 2
+        debug (bool): whether to return debug info, default: False
+        verbose (bool): whether to print progress of registration. Default: True
+
 
     Returns:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
@@ -90,38 +105,30 @@ def register_channels_and_rounds(
     std_stack, mean_stack = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
-    if affine_by_block:
-        out_across = list(
-            correct_by_block(
-                std_stack,
-                ch_to_align=ref_ch,
-                median_filter_size=median_filter,
-                debug=debug,
-            )
-        )
-        if debug:
-            matrix_across, db_info = out_across
+    out_across = register_image_channels(
+        align_method,
+        std_stack,
+        ref_ch,
+        binarise_quantile,
+        max_shift,
+        reference_tforms=None,
+        reg_block_size=reg_block_size,
+        reg_block_overlap=reg_block_overlap,
+        correlation_threshold=correlation_threshold,
+        max_residual=max_residual,
+        median_filter_size=None,
+        debug=debug,
+        verbose=verbose,
+    )
+    if debug:
+        matrix_across, db_info = out_across
+        if align_method == "affine":
             debug_info["correct_by_block"] = db_info
         else:
-            matrix_across = out_across
-
-    else:
-        out_across = list(
-            estimate_correction(
-                std_stack,
-                ch_to_align=ref_ch,
-                upsample=5,
-                max_shift=max_shift,
-                median_filter_size=median_filter,
-                use_masked_correlation=use_masked_correlation,
-                debug=debug,
-            )
-        )
-        if debug:
-            matrix_across, db_info = out_across
             debug_info["estimate_correction"] = db_info
-        else:
-            matrix_across = out_across
+    else:
+        matrix_across = out_across
+
     output = [angles_within_channels, shifts_within_channels, matrix_across]
 
     if debug:
@@ -1197,7 +1204,7 @@ def register_image_channels(
         ref_ch (int): Reference channel.
         binarise_quantile (float): Quantile to binarise images before registration.
         rounds_max_shift (int): Maximum shift to avoid spurious cross-correlations.
-        reference_tforms (dict, optional): Reference transformation parameters. 
+        reference_tforms (dict, optional): Reference transformation parameters.
             Default: None
         reg_block_size (int, optional): Size of the block to use for registration.
             Default: 256
@@ -1221,7 +1228,7 @@ def register_image_channels(
             raise ValueError(
                 "Reference tforms must be provided for similarity transform"
             )
-        if verbose: 
+        if verbose:
             print("Registration parameters:")
             print(f"    binarise quantile {binarise_quantile}")
             print(f"    ref channel {ref_ch}")
@@ -1274,7 +1281,6 @@ def register_image_channels(
             overlap=reg_block_overlap,
             correlation_threshold=correlation_threshold,
             binarise_quantile=binarise_quantile,
-            median_filter_size=median_filter_size,
         )
 
         if debug:

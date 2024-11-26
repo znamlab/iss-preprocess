@@ -65,13 +65,9 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
     stack = load_sequencing_rounds(
         data_path, ref_tile, prefix=prefix, suffix=projection, nrounds=nrounds
     )
-    if ops["align_method"] == "affine":
-        affine_by_block = True
-    elif ops["align_method"] == "similarity":
-        affine_by_block = False
-    else:
-        raise ValueError(f"Align method {ops['align_method']} not recognised")
+
     print(f"Using {ops['align_method']} registration")
+    ops_prefix = prefix.split("_")[0].lower()
     out = register_channels_and_rounds(
         stack,
         ref_ch=ops["ref_ch"],
@@ -79,9 +75,13 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
         median_filter=ops["reg_median_filter"],
         max_shift=ops["rounds_max_shift"],
         min_shift=ops["rounds_min_shift"],
+        align_method=ops["align_method"],
         debug=diag,
         use_masked_correlation=ops["use_masked_correlation"],
-        affine_by_block=affine_by_block,
+        reg_block_size=ops.get(f"{ops_prefix}_reg_block_size", 256),
+        reg_block_overlap=ops.get(f"{ops_prefix}_reg_block_overlap", 0.5),
+        correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
+        max_residual=ops.get(f"{ops_prefix}_max_residual", 2),
     )
     if diag:
         (
