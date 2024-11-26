@@ -66,7 +66,7 @@ def correct_shifts(path, prefix, use_slurm=False):
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 def register_hyb_tile(path, prefix, roi, tilex, tiley):
     """Estimate X-Y shifts across rounds and channels for a single tile."""
-    from iss_preprocess.pipeline.pipeline import register_fluorescent_tile
+    from iss_preprocess.pipeline.register import register_fluorescent_tile
 
     click.echo(f"Registering ROI {roi}, tile {tilex}, {tiley} from {path}/{prefix}")
     register_fluorescent_tile(
