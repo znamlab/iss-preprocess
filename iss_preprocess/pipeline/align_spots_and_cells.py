@@ -223,7 +223,7 @@ def merge_and_align_spots_all_rois(
     roi_dims = get_roi_dimensions(data_path)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
     for roi in roi_dims[use_rois, 0]:
         slurm_folder = Path.home() / "slurm_logs" / data_path / "align_spots"
         slurm_folder.mkdir(exist_ok=True, parents=True)

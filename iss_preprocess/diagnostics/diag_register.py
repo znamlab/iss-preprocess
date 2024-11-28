@@ -140,7 +140,7 @@ def check_shift_correction(
     ndims = get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = load_ops(data_path)
     if "use_rois" in ops:
-        ndims = ndims[np.in1d(ndims[:, 0], ops["use_rois"])]
+        ndims = ndims[np.isin(ndims[:, 0], ops["use_rois"])]
     nc = len(ops["camera_order"])
     nr = ops.get(f"{prefix}s", 1)
 
@@ -485,9 +485,9 @@ def check_tile_shifts(
     roi_dims = get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = load_ops(data_path)
     if rois is not None:
-        roi_dims = roi_dims[np.in1d(roi_dims[:, 0], rois)]
+        roi_dims = roi_dims[np.isin(roi_dims[:, 0], rois)]
     elif "use_rois" in ops:
-        roi_dims = roi_dims[np.in1d(roi_dims[:, 0], ops["use_rois"])]
+        roi_dims = roi_dims[np.isin(roi_dims[:, 0], ops["use_rois"])]
     roi_dims[:, 1:] = roi_dims[:, 1:] + 1
     figs = {}
     data = get_channel_round_transforms(

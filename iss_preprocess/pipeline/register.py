@@ -448,7 +448,7 @@ def run_correct_shifts(data_path, prefix):
     ops = load_ops(data_path)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
     for roi_dim in roi_dims[use_rois, :]:
         correct_shifts_roi(
             data_path,
@@ -652,7 +652,7 @@ def correct_hyb_shifts(data_path, prefix=None):
         ops = load_ops(data_path)
         if "use_rois" not in ops.keys():
             ops["use_rois"] = roi_dims[:, 0]
-        use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+        use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
 
         use_median = ops.get(
             f"{hyb_round.split('_')[0]}_use_median_channel_registration", False
@@ -701,7 +701,7 @@ def correct_shifts_to_ref(data_path, prefix, max_shift=None, fit_angle=False):
         ops["use_rois"] = roi_dims[:, 0]
     if max_shift is None:
         max_shift = ops["max_shift2ref"]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
     prefix_to_reg = f"to_ref_{prefix}"
     for roi_dim in roi_dims[use_rois, :]:
         print(f"correcting shifts for ROI {roi_dim}, {prefix_to_reg} from {data_path}")
@@ -739,7 +739,7 @@ def merge_shifts(data_path, prefix, n_chans=4):
     roi_dims = get_roi_dimensions(data_path, prefix)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
     align_method = ops["align_method"]
 
     shifts = []

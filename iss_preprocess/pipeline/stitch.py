@@ -257,7 +257,7 @@ def register_all_rois_within(
     roi_dims = get_roi_dimensions(data_path)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
     if use_slurm:
         if slurm_folder is None:
             slurm_folder = Path.home() / "slurm_logs" / data_path / "register_within"

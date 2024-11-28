@@ -50,7 +50,7 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
     ops = load_ops(data_path)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
     not_projected = []
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1

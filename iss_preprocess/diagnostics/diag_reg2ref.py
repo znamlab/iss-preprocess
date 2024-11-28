@@ -121,9 +121,9 @@ def check_reg_to_ref_correction(
     roi_dims = get_roi_dimensions(data_path, prefix=roi_dimension_prefix)
     ops = load_ops(data_path)
     if rois is not None:
-        roi_dims = roi_dims[np.in1d(roi_dims[:, 0], rois)]
+        roi_dims = roi_dims[np.isin(roi_dims[:, 0], rois)]
     elif "use_rois" in ops:
-        roi_dims = roi_dims[np.in1d(roi_dims[:, 0], ops["use_rois"])]
+        roi_dims = roi_dims[np.isin(roi_dims[:, 0], ops["use_rois"])]
     figs = {}
     roi_dims[:, 1:] = roi_dims[:, 1:] + 1
     for roi, *ntiles in roi_dims:

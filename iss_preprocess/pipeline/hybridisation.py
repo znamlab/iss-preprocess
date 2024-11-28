@@ -292,7 +292,7 @@ def extract_hyb_spots_all(data_path):
     ops = load_ops(data_path)
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
     metadata = load_metadata(data_path)
     for hyb_round in metadata["hybridisation"].keys():
         for roi in roi_dims[use_rois, :]:
