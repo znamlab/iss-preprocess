@@ -102,10 +102,9 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
             shifts_within_channels,
             matrix_between_channels,
         ) = out
-
     if (
         np.any(np.isnan(angles_within_channels))
-        or np.any(np.isnan(matrix_between_channels))
+        or np.any([np.isnan(val) for val in matrix_between_channels.values()])
         or np.any(np.isnan(shifts_within_channels))
     ):
         raise ValueError("Reference tforms contain NaNs")
