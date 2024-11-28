@@ -31,19 +31,25 @@ config:
 ---
 flowchart TD
  subgraph s1["Call spots"]
-        F["call genes (OMP)"]
-        G["call barcodes (base calling)"]
-        E["call hybridisation (spot detection)"]
+        F["iss call --genes"]
+        G["iss call --barcodes"]
+        E["iss call --hybridisation"]
   end
-    start["Collect data"] --> A["project-and-average"]
-    A --> B["register"]
-    B --> E & F & G & S["segment"]
-    F --> H["register-to-ref"]
+    start["Collect data"] --> A["iss project-and-average"]
+    A --> B["iss register"]
+    B --> E & F & G & S["iss segment"]
+    F --> H["iss register-to-ref"]
     G --> H
     E --> H
     S --> H
-    start@{ shape: paper-tape}
-
+style A fill:#424242,stroke:#616161,color:#00C853
+style B fill:#424242,stroke:#616161,color:#00C853
+style S fill:#424242,stroke:#616161,color:#00C853
+style E fill:#424242,stroke:#616161,color:#00C853
+style F fill:#424242,stroke:#616161,color:#00C853
+style G fill:#424242,stroke:#616161,color:#00C853
+style H fill:#424242,stroke:#616161,color:#00C853
+style s1 fill:#757575,color:#C8E6C9
 ```
 
 For more information on the individual steps, see the [documentation](https://iss-preprocess.znamlab.org/).

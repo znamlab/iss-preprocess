@@ -35,18 +35,27 @@ The script will perform the following steps:
                 reprj --> prj;
             end
 
+            style find fill:#C8E6C9,stroke:#000000
+            style prj fill:#E1BEE7,stroke:#424242
+            style reprj stroke:#000000,fill:#E1BEE7
+            style check stroke:#000000,fill:#E1BEE7
+
             subgraph Averaging
                 s_av[create_all_single_averages];
                 s_av --> g_av[create_grand_averages];
             end
+            style s_av stroke:#000000,fill:#E1BEE7
+            style g_av stroke:#000000,fill:#E1BEE7
 
             prj --> s_av;
 
             subgraph ROI overview
                 ovw([plot_overview_images]);
             end
+            style ovw stroke:#000000,fill:#E1BEE7
 
             g_av --> ovw;
+
         end
 
 Finding acquisitions:
