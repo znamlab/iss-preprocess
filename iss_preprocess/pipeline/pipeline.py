@@ -348,7 +348,7 @@ def register_reference_tile(
     job2 = check_ref_tile_registration(
         data_path,
         prefix,
-        use_slurm=True,
+        use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         job_dependency=job_id if use_slurm else None,
         scripts_name=scripts_name,
