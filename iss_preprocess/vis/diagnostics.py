@@ -430,12 +430,17 @@ def plot_registration_correlograms(
     target_folder.mkdir(exist_ok=True, parents=True)
     ops = load_ops(data_path)
     mshift = ops["rounds_max_shift"]
+    figs = {}
     for what, data in debug_dict.items():
         print(f"Plotting {what}", flush=True)
         if what == "align_within_channels":
-            _plot_within_channel_correlogram(data, target_folder, figure_name, mshift)
+            fig = _plot_within_channel_correlogram(
+                data, target_folder, figure_name, mshift
+            )
         elif what == "estimate_correction":
-            _plot_between_channels_correlogram(data, target_folder, figure_name, mshift)
+            fig = _plot_between_channels_correlogram(
+                data, target_folder, figure_name, mshift
+            )
         elif what == "correct_by_block":
             tile_coors = ops["ref_tile"]
             fig = plt.figure(figsize=(2 * 7, 1.5 * 3))
@@ -445,8 +450,10 @@ def plot_registration_correlograms(
             fig.savefig(target_folder / f"affine_debug_{prefix}_{tile_name}.png")
         else:
             raise NotImplementedError(f"Unknown correlogram output: {what}")
+        figs[what] = fig
     plt.close("all")
     print(f"Saved figures to {target_folder}")
+    return figs
 
 
 def _plot_between_channels_correlogram(data, target_folder, figure_name, max_shift=100):
@@ -460,6 +467,7 @@ def _plot_between_channels_correlogram(data, target_folder, figure_name, max_shi
     for ich, ch_data in enumerate(data):
         if not ch_data:
             continue
+        fig.clear()
         for irow, row_name in enumerate(rows):
             for icol, col_name in enumerate(columns):
                 ax = fig.add_subplot(
@@ -486,7 +494,8 @@ def _plot_between_channels_correlogram(data, target_folder, figure_name, max_shi
             dpi=300,
             transparent=True,
         )
-        fig.clear()
+
+    return fig
 
 
 def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift=100):
@@ -496,6 +505,7 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
     ncol = nrounds
     fig = plt.figure()
     for ch in range(nchannels):
+        fig.clear()
         for rnd in range(nrounds):
             rnd_data = data[(ch, rnd)]
             nrow = len(rnd_data)
@@ -529,7 +539,8 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
         fig.savefig(
             target_folder / f"{figure_name}_shifts_channel_{ch}.pdf", transparent=True
         )
-        fig.clear()
+
+    return fig
 
 
 def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax):
