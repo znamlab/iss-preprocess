@@ -83,28 +83,18 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
         correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
         max_residual=ops.get(f"{ops_prefix}_max_residual", 2),
     )
+    angles_within_channels, shifts_within_channels, matrix_between_channels = out[:3]
     if diag:
-        (
-            angles_within_channels,
-            shifts_within_channels,
-            matrix_between_channels,
-            debug_dict,
-        ) = out
+        debug_dict = out[3]
         plot_registration_correlograms(
             data_path,
             prefix,
             "register_reference_tile",
             debug_dict,
         )
-    else:
-        (
-            angles_within_channels,
-            shifts_within_channels,
-            matrix_between_channels,
-        ) = out
     if (
         np.any(np.isnan(angles_within_channels))
-        or np.any([np.isnan(val) for val in matrix_between_channels.values()])
+        or np.any(np.isnan(matrix_between_channels))
         or np.any(np.isnan(shifts_within_channels))
     ):
         raise ValueError("Reference tforms contain NaNs")

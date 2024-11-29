@@ -105,7 +105,7 @@ def register_channels_and_rounds(
     std_stack, mean_stack = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
-    out_across = register_image_channels(
+    out_between = register_image_channels(
         align_method,
         std_stack,
         ref_ch,
@@ -121,15 +121,25 @@ def register_channels_and_rounds(
         verbose=verbose,
     )
     if debug:
-        matrix_across, db_info = out_across
+        dict_between, db_info = out_between
         if align_method == "affine":
             debug_info["correct_by_block"] = db_info
         else:
             debug_info["estimate_correction"] = db_info
     else:
-        matrix_across = out_across
-
-    output = [angles_within_channels, shifts_within_channels, matrix_across]
+        dict_between = out_between
+    # We want the matrix, rather than the scale/angle/shift, so if we used similarity
+    # we need to convert it
+    if align_method == "similarity":
+        matrix_between = [
+            make_transform(scale, angle, shift, stack.shape[:2])
+            for scale, angle, shift in zip(
+                [dict_between[k] for k in ("scales", "angles", "shifts")],
+            )
+        ]
+    else:
+        matrix_between = dict_between["matrix_between_channels"]
+    output = [angles_within_channels, shifts_within_channels, matrix_between]
 
     if debug:
         output.append(debug_info)
