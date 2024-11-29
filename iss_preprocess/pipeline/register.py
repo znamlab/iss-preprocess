@@ -392,8 +392,8 @@ def estimate_shifts_by_coors(
     reference_tforms = get_channel_round_transforms(
         data_path, prefix, shifts_type="reference"
     )
-    if any(np.isnan(reference_tforms["angles_within_channels"])) or any(
-        np.isnan(reference_tforms["scales_between_channels"])
+    if np.any(np.isnan(reference_tforms["angles_within_channels"])) or np.any(
+        np.isnan(reference_tforms["matrix_between_channels"])
     ):  # pragma: no cover
         raise ValueError("Reference tforms contain NaNs")
 
