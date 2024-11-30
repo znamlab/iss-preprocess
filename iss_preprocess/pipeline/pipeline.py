@@ -358,17 +358,17 @@ def register_reference_tile(
     return job_id, job2
 
 
-def correct_shifts(path, prefix, use_slurm=True, job_dependency=None):
+def correct_shifts(data_path, prefix, use_slurm=True, job_dependency=None):
     """Correct X-Y shifts using robust regression across tiles."""
     # import with different name to not get confused with the cli function name
 
     if use_slurm:
-        slurm_folder = Path.home() / "slurm_logs" / path
+        slurm_folder = Path.home() / "slurm_logs" / data_path
         slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
         slurm_folder = None
     job_id = run_correct_shifts(
-        path,
+        data_path,
         prefix,
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
@@ -376,7 +376,7 @@ def correct_shifts(path, prefix, use_slurm=True, job_dependency=None):
         job_dependency=job_dependency,
     )
     check_tile_shifts(
-        path,
+        data_path,
         prefix,
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
@@ -384,7 +384,7 @@ def correct_shifts(path, prefix, use_slurm=True, job_dependency=None):
         job_dependency=job_id if use_slurm else None,
     )
     check_corr_id = check_shift_correction(
-        path,
+        data_path,
         prefix,
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
@@ -392,7 +392,7 @@ def correct_shifts(path, prefix, use_slurm=True, job_dependency=None):
         scripts_name=f"check_shift_correction_{prefix}",
     )
     check_reg_id = check_tile_registration(
-        path,
+        data_path,
         prefix,
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
