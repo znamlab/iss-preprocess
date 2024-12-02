@@ -129,56 +129,6 @@ def call(
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
 @click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
-def correct_hyb_shifts(path, prefix=None, use_slurm=False):
-    """
-    Correct X-Y shifts for hybridisation rounds using robust regression
-    across tiles.
-    """
-    from ..diagnostics.diag_register import check_shift_correction
-    from ..pipeline import correct_hyb_shifts
-
-    if prefix is None:
-        from ..io import load_metadata
-
-        metadata = load_metadata(path)
-        prefixes = metadata["hybridisation"].keys()
-    else:
-        prefixes = [prefix]
-    for prefix in prefixes:
-        print(f"Correcting shifts for {prefix}")
-        if use_slurm:
-            from pathlib import Path
-
-            slurm_folder = Path.home() / "slurm_logs" / path
-            slurm_folder.mkdir(parents=True, exist_ok=True)
-        else:
-            slurm_folder = None
-
-        job_id = correct_hyb_shifts(
-            path,
-            prefix,
-            use_slurm=use_slurm,
-            slurm_folder=slurm_folder,
-            scripts_name=f"correct_hyb_shifts_{prefix}",
-        )
-        job2 = check_shift_correction(
-            path,
-            prefix,
-            roi_dimension_prefix=prefix,
-            use_slurm=use_slurm,
-            slurm_folder=slurm_folder,
-            job_dependency=job_id if use_slurm else None,
-            scripts_name=f"check_shift_correction_{prefix}",
-            within=False,
-        )
-        if use_slurm:
-            print(f"Started 2 jobs: {job_id}, {job2}")
-
-
-@iss_cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", default=None, help="Directory prefix to process.")
-@click.option("--use-slurm", is_flag=True, default=False, help="Whether to use slurm")
 def correct_ref_shifts(path, prefix=None, use_slurm=False):
     """
     Correct X-Y shifts for registration to reference using robust regression

@@ -39,6 +39,7 @@ from .hybridisation import (
 )
 from .project import check_projection, check_roi_dims, project_round, reproject_failed
 from .register import (
+    correct_hyb_shifts,
     run_correct_shifts,
     run_register_reference_tile,
 )
@@ -300,8 +301,14 @@ def register_acquisition(data_path, prefix, force_redo=False):
         print(f"Correct shifts job id: {jid}")
 
     else:
-        # Register a single round fluorescence acquisition
-        raise NotImplementedError("Single round registration not yet implemented")
+        if prefix in ("fluorescence", "hybridisation"):
+            metadata = load_metadata(data_path)
+            hyb_rounds = metadata[prefix].keys()
+        else:
+            hyb_rounds = [prefix]
+
+        for hyb_round in hyb_rounds:
+            register_fluo_acq(data_path, hyb_round, use_slurm=True)
 
 
 def register_reference_tile(
@@ -356,6 +363,42 @@ def register_reference_tile(
     if use_slurm:
         print(f"Started 2 jobs: {job_id}, {job2}")
     return job_id, job2
+
+
+def register_fluo_acq(data_path, prefix, use_slurm=True):
+    print(f"Correcting shifts for {prefix}")
+    if use_slurm:
+        from pathlib import Path
+
+        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+    additional_args = f",PREFIX={prefix}"
+    batch_id, rerun_id = batch_process_tiles(
+        data_path, script="register_hyb_tile", additional_args=additional_args
+    )
+
+    job_id = correct_hyb_shifts(
+        data_path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_hyb_shifts_{prefix}",
+        job_dependency=rerun_id if use_slurm else None,
+    )
+    job2 = check_shift_correction(
+        data_path,
+        prefix,
+        roi_dimension_prefix=prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_shift_correction_{prefix}",
+        within=False,
+    )
+    if use_slurm:
+        print(f"Started 2 jobs: {job_id}, {job2}")
 
 
 def correct_shifts(data_path, prefix, use_slurm=True, job_dependency=None):
