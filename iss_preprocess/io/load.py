@@ -1,14 +1,36 @@
 import json
 import re
+import shutil
 import warnings
 from pathlib import Path
-import shutil
 
 import numpy as np
 import pandas as pd
 import yaml
 from flexiznam.config import PARAMETERS
 from tifffile import TiffFile
+
+__all__ = [
+    "get_raw_path",
+    "get_processed_path",
+    "get_raw_filename",
+    "load_hyb_probes_metadata",
+    "load_ops",
+    "load_metadata",
+    "get_pixel_size",
+    "get_z_step",
+    "load_micromanager_metadata",
+    "load_section_position",
+    "load_tile_by_coors",
+    "load_stack",
+    "get_zprofile",
+    "get_tile_ome",
+    "get_roi_dimensions",
+    "load_mask_by_coors",
+    "find_roi_position_on_cryostat",
+    "get_channel_round_transforms",
+    "load_sequencing_rounds",
+]
 
 
 def get_raw_path(data_path):
@@ -64,8 +86,9 @@ def get_raw_filename(data_path, prefix, tile_coors):
     data_dir = get_raw_path(data_path) / prefix
 
     # Define the patterns
-    pattern1 = f"{prefix}_MMStack_{tile_coors[0]}-Pos{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
-    pattern2 = f"{prefix}_MMStack_Pos-{tile_coors[0]}-{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
+    tile_name = f"{str(tile_coors[1]).zfill(3)}_{str(tile_coors[2]).zfill(3)}"
+    pattern1 = f"{prefix}_MMStack_{tile_coors[0]}-Pos{tile_name}"
+    pattern2 = f"{prefix}_MMStack_Pos-{tile_coors[0]}-{tile_name}"
     # Search for files matching either pattern
     for p in data_dir.glob("*.tif"):
         if p.name.startswith(pattern1 + ".ome.tif"):
@@ -73,7 +96,8 @@ def get_raw_filename(data_path, prefix, tile_coors):
         elif p.name.startswith(pattern2 + ".ome.tif"):
             return pattern2
     raise ValueError(
-        f"Could not find any files matching the patterns {pattern1} or {pattern2} in {data_dir}"
+        f"Could not find any files matching the patterns {pattern1} or {pattern2} "
+        + f"in {data_dir}"
     )
 
 
@@ -162,7 +186,7 @@ def load_ops(data_path):
 def load_metadata(data_path):
     """Load the metadata.yml file
 
-    This is the user generated file containing ROI and rounds informations
+    This is the user generated file containing ROI and rounds information
 
     Args:
         data_path (str): Relative path to data
@@ -405,8 +429,8 @@ def get_tile_ome(fname, fmetadata=None, use_indexmap=None):
 def get_roi_dimensions(data_path, prefix=None, save=True):
     """Find imaging ROIs and determine their dimensions.
 
-    The output is the maximum index of the file names, which are 0 based. It is therefore
-    the number of tiles in each dimension minus 1.
+    The output is the maximum index of the file names, which are 0 based. It is
+    therefore the number of tiles in each dimension minus 1.
 
     Create and/or load f"{prefix}_roi_dims.npy". The default (None for
     ops['reference_prefix']) should be used for all acquisitions that have the same ROI
@@ -419,7 +443,8 @@ def get_roi_dimensions(data_path, prefix=None, save=True):
             on disk. Default to True
 
     Returns:
-        numpy.ndarray: Nroi x 3 array of containing (roi_id, NtilesX, NtilesY) for each roi
+        numpy.ndarray: Nroi x 3 array of containing (roi_id, NtilesX, NtilesY) for each
+            roi
 
     """
     processed_path = get_processed_path(data_path)
@@ -440,6 +465,11 @@ def get_roi_dimensions(data_path, prefix=None, save=True):
         ops = load_ops(data_path)
         data_dir = processed_path / prefix
         fnames = [p.name for p in data_dir.glob("*.tif")]
+        if not fnames:
+            raise FileNotFoundError(
+                f"Cannot get roi dimension for {data_path} "
+                + f"using {prefix}. No file found in raw or processed data"
+            )
         proj = ops["genes_projection"]
         if proj == "max-median":
             proj = "max"
@@ -519,3 +549,137 @@ def load_mask_by_coors(
         return masks
     else:
         raise FileNotFoundError(f"Could not find mask file {folder / fname}")
+
+
+def find_roi_position_on_cryostat(data_path):
+    """Find the A/P position of each ROI relative to the first collected slice
+
+    The section order is guess from the sign of `section_thickness_um`, positive for
+    antero-posterior slicing (starting from the olfactory bulb), negative for opposite.
+
+    Args:
+        data_path (str): Relative path to the data
+
+    Returns:
+        roi_slice_pos_um (dict): For each ROI, the slice depth in um relative to the
+            first collected slice
+        min_step (float): Minimum thickness between two slices
+
+    """
+    metadata = load_metadata(data_path)
+    rois = metadata["ROI"].keys()
+
+    section_info = load_section_position(data_path)
+    section_info.sort_values(by="absolute_section", inplace=True)
+    constant_thickness = np.sum(np.diff(section_info.section_thickness_um)) == 0
+    if any(np.diff(section_info.absolute_section) > 1):
+        if not constant_thickness:
+            raise IOError(
+                "I need to know the thickness of all the slices.\n"
+                + "Please add missing sections to `section_position.csv`"
+            )
+        # pos_um = section_info.absolute_section * section_info.section_thickness_um
+    else:
+        # we have all the slices in the csv, we can deal with variable thickness
+        increase = section_info.section_thickness_um.values
+        section_info["section_position"] = increase.cumsum()
+
+    # find where is each slice of the chamber in the section order of the whole brain
+    # the chamber folder should be called chamber_XX
+    chamber = int(Path(data_path).name.split("_")[1])
+    chamber_pos2section_order = {
+        s.chamber_position: s.section_position
+        for _, s in section_info[section_info.chamber == chamber].iterrows()
+    }
+    # find where is each roi in the chamber
+    roi_id2chamber_pos = {roi: metadata["ROI"][roi]["chamber_position"] for roi in rois}
+    # combine both to find for each ROI the distance sliced since the first
+    roi_slice_pos_um = {
+        roi: chamber_pos2section_order[roi_id2chamber_pos[roi]] for roi in rois
+    }
+
+    return roi_slice_pos_um, section_info.section_thickness_um.min()
+
+
+def get_channel_round_transforms(
+    data_path, prefix, tile_coors=None, shifts_type="best", load_file=True
+):
+    """Load the channel and round shifts for a given tile and sequencing acquisition.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Prefix of the sequencing round.
+        tile_coors (tuple, optional): Coordinates of the tile to process. Required if
+            `shifts_type` is not `reference`. Defaults to None.
+        corrected_shifts (str, optional): Which shift to use. One of `reference`,
+            `single_tile`, `ransac`, or `best`. Defaults to `best`.
+        load_file (bool, optional): Whether to load the shifts from file or just return
+            the file name. Defaults to True.
+
+
+    Returns:
+        np.ndarray | Path: Array of channel and round shifts if load_file, else the path
+
+    """
+
+    tforms_path = get_processed_path(data_path) / "reg" / prefix
+    if tile_coors is not None:
+        tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
+    elif shifts_type != "reference":
+        raise ValueError("tile_coors must be provided for non-reference shifts")
+
+    if shifts_type == "reference":
+        tforms_fname = f"ref_tile_tforms_{prefix}.npz"
+    elif shifts_type == "single_tile":
+        tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
+    elif (shifts_type == "ransac") or (shifts_type == "corrected"):
+        tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
+    elif shifts_type == "best":
+        tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
+    else:
+        raise ValueError(f"unknown shift correction method: {shifts_type}")
+    filename = tforms_path / tforms_fname
+    if not load_file:
+        return filename
+    tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
+    return tforms
+
+
+def load_sequencing_rounds(
+    data_path,
+    tile_coors=(1, 0, 0),
+    nrounds=7,
+    suffix="max",
+    prefix="genes_round",
+    specific_rounds=None,
+):
+    """Load processed tile images across rounds
+
+    Args:
+        data_path (str): relative path to dataset.
+        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
+            Defaults to (1,0,0).
+        nrounds (int, optional): Number of rounds to load. Used only if
+            `specific_rounds` is None. Defaults to 7.
+        suffix (str, optional): File name suffix. Defaults to 'fstack'.
+        prefix (str, optional): the folder name prefix, before round number. Defaults
+            to "genes_round"
+        specific_round (list, optional): if not None, specify which rounds must be
+            loaded and ignores `nrounds`. Defaults to None
+
+    Returns:
+        numpy.ndarray: X x Y x channels x rounds stack.
+
+    """
+    if specific_rounds is None:
+        specific_rounds = np.arange(nrounds) + 1
+
+    ims = []
+    for iround in specific_rounds:
+        dirname = f"{prefix}_{iround}_1"
+        ims.append(
+            load_tile_by_coors(
+                data_path, tile_coors=tile_coors, suffix=suffix, prefix=dirname
+            )
+        )
+    return np.stack(ims, axis=3)

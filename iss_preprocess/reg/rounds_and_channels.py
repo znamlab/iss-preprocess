@@ -12,6 +12,25 @@ from skimage.morphology import disk
 from skimage.registration import phase_cross_correlation
 from skimage.transform import AffineTransform, warp
 
+__all__ = [
+    "register_channels_and_rounds",
+    "generate_channel_round_transforms",
+    "align_channels_and_rounds",
+    "align_within_channels",
+    "estimate_affine_for_tile",
+    "estimate_shifts_and_angles_for_tile",
+    "estimate_shifts_for_tile",
+    "get_channel_reference_images",
+    "apply_corrections",
+    "correct_by_block",
+    "estimate_correction",
+    "estimate_scale_rotation_translation",
+    "estimate_rotation_angle",
+    "estimate_rotation_translation",
+    "phase_correlation_by_block",
+    "register_image_channels",
+]
+
 
 def register_channels_and_rounds(
     stack,
@@ -20,9 +39,15 @@ def register_channels_and_rounds(
     median_filter=None,
     min_shift=None,
     max_shift=None,
-    debug=False,
     use_masked_correlation=False,
-    affine_by_block=True,
+    align_method="affine",
+    binarise_quantile=None,
+    reg_block_size=512,
+    reg_block_overlap=0.6,
+    correlation_threshold=0.01,
+    max_residual=2,
+    debug=False,
+    verbose=True,
 ):
     """
     Estimate transformation matrices for alignment across channels and rounds.
@@ -35,10 +60,19 @@ def register_channels_and_rounds(
         min_shift (int): minimum shift. Necessary to avoid spurious cross-correlations
             for images acquired from the same camera
         max_shift (int): maximum shift. Necessary to avoid spurious cross-correlations
-        debug (bool): whether to return debug info, default: False
         use_masked_correlation (bool): whether to use masked phase correlation
-        affine_by_block (bool): whether to use affine by block registration instead of
-            similarity transforms for channel alignment. Default: True
+        align_method (str): method to use for alignment, either `affine` or
+            `similarity`. Default: `affine`
+        binarise_quantile (float): quantile to use for binarisation of each block
+        reg_block_size (int): size of the block to use for registration. Default: 512
+        reg_block_overlap (float): overlap between blocks, default: 0.6
+        correlation_threshold (float): threshold for correlation to use for fitting
+            affine transformations, default: 0.01
+        max_residual (int): maximum residual to include shift in the final fit in
+            affine_by_block, defaults to 2
+        debug (bool): whether to return debug info, default: False
+        verbose (bool): whether to print progress of registration. Default: True
+
 
     Returns:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
@@ -71,32 +105,41 @@ def register_channels_and_rounds(
     std_stack, mean_stack = get_channel_reference_images(
         stack, angles_within_channels, shifts_within_channels
     )
-    if affine_by_block:
-        out_across = list(
-            correct_by_block(
-                std_stack,
-                ch_to_align=ref_ch,
-                median_filter_size=median_filter,
-                debug=debug,
-            )
-        )
-        if debug:
-            debug_info["correct_by_block"] = out_across.pop(-1)
+    out_between = register_image_channels(
+        align_method,
+        std_stack,
+        ref_ch,
+        binarise_quantile,
+        max_shift,
+        reference_tforms=None,
+        reg_block_size=reg_block_size,
+        reg_block_overlap=reg_block_overlap,
+        correlation_threshold=correlation_threshold,
+        max_residual=max_residual,
+        median_filter_size=None,
+        debug=debug,
+        verbose=verbose,
+    )
+    if debug:
+        dict_between, db_info = out_between
+        if align_method == "affine":
+            debug_info["correct_by_block"] = db_info
+        else:
+            debug_info["estimate_correction"] = db_info
     else:
-        out_across = list(
-            estimate_correction(
-                std_stack,
-                ch_to_align=ref_ch,
-                upsample=5,
-                max_shift=max_shift,
-                median_filter_size=median_filter,
-                use_masked_correlation=use_masked_correlation,
-                debug=debug,
+        dict_between = out_between
+    # We want the matrix, rather than the scale/angle/shift, so if we used similarity
+    # we need to convert it
+    if align_method == "similarity":
+        matrix_between = [
+            make_transform(scale, angle, shift, stack.shape[:2])
+            for scale, angle, shift in zip(
+                [dict_between[k] for k in ("scales", "angles", "shifts")],
             )
-        )
-        if debug:
-            debug_info["estimate_correction"] = out_across.pop(-1)
-    output = [angles_within_channels, shifts_within_channels] + [out_across]
+        ]
+    else:
+        matrix_between = dict_between["matrix_between_channels"]
+    output = [angles_within_channels, shifts_within_channels, matrix_between]
 
     if debug:
         output.append(debug_info)
@@ -116,7 +159,7 @@ def generate_channel_round_transforms(
     Args:
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
         shifts_within_channels (np.array): Nchannels x Nrounds x 2 array of shifts
-        matrix_between_channels (list): Nchannels list of affine transformations matrices
+        matrix_between_channels (list): Nchannels list of affine transformation matrices
         stack_shape (tuple): shape of the stack
         align_channels (bool): whether to register channels to each other
 
@@ -188,8 +231,8 @@ def align_within_channels(
 
     Args:
         stack (np.array): X x Y x Nchannels x Nrounds images stack
-        upsample (bool, or int): whether to use subpixel registration, and if so, how much
-            to upsample
+        upsample (bool, or int): whether to use subpixel registration, and if so, how
+            much to upsample
         ref_round (int): round to align to
         angle_range (float): range of angles to search for each round
         niter (int): number of iterations to run
@@ -446,7 +489,7 @@ def estimate_shifts_for_tile(
     Args:
         stack (np.array): X x Y x Nchannels x Nrounds images stack
         angles_within_channels (np.array): Nchannels x Nrounds array of angles
-        matrix_between_channels (list): Nchannels list of affine transformations matrices
+        matrix_between_channels (list): Nchannels list of affine transformation matrices
         ref_ch (int): reference channel
         ref_round (int): reference round
         max_shift (int): maximum shift to avoid spurious cross-correlations
@@ -516,7 +559,7 @@ def estimate_shifts_for_tile(
 
 
 def get_channel_reference_images(stack, angles_channels, shifts_channels):
-    """Get reference images for each channel from STD or mean projection after registration.
+    """Get registered reference images for each channel from STD or mean projection.
 
     Args:
         stack (np.array): X x Y x Nchannels x Nrounds images stack
@@ -593,20 +636,21 @@ def correct_by_block(
     max_residual=2,
     debug=False,
 ):
-    """Estimate affine transformations by block for each channel of a multichannel image.
+    """Estimate affine transformations by block for each channel of a multichannel image
 
     Args:
         im (np.array): X x Y x Nchannels image
         ch_to_align (int): channel to align to
         median_filter_size (int, optional): size of median filter to apply to the stack.
-        block_size (int, optional): size of the block to use for registration. Default: 256
+        block_size (int, optional): size of the block to use for registration. Default
+            to 256
         overlap (float, optional): overlap between blocks. Default: 0.5
         max_shift (int, optional): maximum shift to avoid spurious cross-correlations.
             Default: None
-        correlation_threshold (float, optional): threshold for correlation to use for fitting
-            affine transformations. None to keep all values. Default: None
+        correlation_threshold (float, optional): threshold for correlation to use for
+            fitting affine transformations. None to keep all values. Default to None
         binarise_quantile (float, optional): quantile to use for binarisation of
-            each block. Default: None
+            each block. Default to None
         max_residual (int, optional): maximum residual to include shift in the final
             fit in affine_by_block. defaults to 2
         debug (bool, optional): whether to return debug info, default: False
@@ -685,7 +729,7 @@ def estimate_correction(
     use_masked_correlation=False,
 ):
     """
-    Estimate scale, rotation and translation corrections for each channel of a multichannel image.
+    Estimate scale, rotation and translation for each channel of a multichannel image.
 
     Args:
         im (np.array): X x Y x Nchannels image
@@ -804,9 +848,9 @@ def estimate_scale_rotation_translation(
     use_masked_correlation=False,
 ):
     """
-    Estimate rotation and translation that maximizes phase correlation between the target and the
-    reference image. Search for the best angle is performed iteratively by gradually
-    searching over small and smaller angle range.
+    Estimate rotation and translation that maximizes phase correlation between the
+    target and the reference image. Search for the best angle is performed iteratively
+    by gradually searching over small and smaller angle range.
 
     Args:
         reference (numpy.ndarray): X x Y reference image
@@ -817,7 +861,8 @@ def estimate_scale_rotation_translation(
         niter (int): number of iterations to refine rotation angle
         nangles (int): number of angles to try on each iteration
         verbose (bool): whether to print progress of registration
-        upsample (bool, or int): whether to upsample the image, and if so but what factor
+        upsample (bool, or int): whether to upsample the image, and if so but what
+            factor. Default: False
         max_shift (int): maximum shift to avoid spurious cross-correlations
         debug (bool): whether to return debug info. Default: False
         use_masked_correlation (bool): whether to use masked phase correlation
@@ -932,12 +977,12 @@ def estimate_rotation_angle(
         max_shift (int): maximum shift to avoid spurious cross-correlations
         min_shift (int): minimum shift to avoid spurious cross-correlations
         debug (bool): whether to return debug info
-        reference_mask_fft (numpy.ndarray): Binary mask for reference image. If not None,
-            will compute masked phase correlation. Default: None
+        reference_mask_fft (numpy.ndarray): Binary mask for reference image. If not
+            None, will compute masked phase correlation. Default: None
         target_mask (numpy.ndarray): Binary mask for target image. If not None,
             will compute masked phase correlation. Default: None
-        reference_squared_fft (numpy.ndarray): FFT of the squared reference image. Required
-            for masked phase correlation. Default: None
+        reference_squared_fft (numpy.ndarray): FFT of the squared reference image.
+            Required for masked phase correlation. Default: None
 
 
     Returns:
@@ -1000,9 +1045,9 @@ def estimate_rotation_translation(
     debug=False,
 ):
     """
-    Estimate rotation and translation that maximizes phase correlation between the target and the
-    reference image. Search for the best angle is performed iteratively by decreasing the gradually
-    searching over small and smaller angle range.
+    Estimate rotation and translation that maximizes phase correlation between the
+    target and the reference image. Search for the best angle is performed iteratively
+    by decreasing the gradually searching over small and smaller angle range.
 
     Args:
         reference (numpy.ndarray): X x Y reference image
@@ -1096,8 +1141,8 @@ def estimate_rotation_translation(
 def phase_correlation_by_block(
     reference, target, block_size=256, overlap=0.1, upsample_factor=1
 ):
-    """Estimate translation between two images by dividing them into blocks and estimating
-    translation for each block.
+    """Estimate translation between two images by dividing them into blocks and
+    estimating translation for each block.
 
     Args:
         reference (np.array): reference image
@@ -1126,3 +1171,133 @@ def phase_correlation_by_block(
         row += int((1 - overlap) * block_size)
         col = 0
     return shifts
+
+
+def register_image_channels(
+    align_method,
+    stack,
+    ref_ch,
+    binarise_quantile,
+    rounds_max_shift,
+    reference_tforms=None,
+    reg_block_size=256,
+    reg_block_overlap=0.5,
+    correlation_threshold=0.01,
+    max_residual=2,
+    median_filter_size=None,
+    debug=False,
+    verbose=True,
+):
+    """Register channels for a single tile
+
+    Run the relevant phase correlation on channels of one stack depending on the
+    alignment method.
+
+    If align_method is "similarity", parameters used are:
+    - binarise_quantile
+    - rounds_max_shift
+    - reference_tforms (mandatory)
+
+    If align_method is "affine", parameters used are:
+    - binarise_quantile
+    - rounds_max_shift
+    - reference_tforms (optional)
+    - reg_block_size
+    - reg_block_overlap
+    - correlation_threshold
+    - max_residual
+    - median_filter_size
+
+    Args:
+        align_method (str): Alignment method to use. One of "similarity" or "affine".
+        stack (np.array): Image stack to register.
+        ref_ch (int): Reference channel.
+        binarise_quantile (float): Quantile to binarise images before registration.
+        rounds_max_shift (int): Maximum shift to avoid spurious cross-correlations.
+        reference_tforms (dict, optional): Reference transformation parameters.
+            Default: None
+        reg_block_size (int, optional): Size of the block to use for registration.
+            Default: 256
+        reg_block_overlap (float, optional): Overlap between blocks. Default: 0.5
+        correlation_threshold (float, optional): Threshold for correlation to use for
+            fitting affine transformations. Default: 0.01
+        max_residual (int, optional): Maximum residual to include shift in the final
+            fit in affine_by_block. Default: 2
+        median_filter_size (int, optional): Size of median filter to apply to the stack.
+            Default: None
+        debug (bool, optional): Return debug information. Default to False
+        verbose (bool, optional): Print registration parameters. Default to True
+
+    Returns:
+        dict: Transformation parameters.
+        dict: Debug information, only if debug is True
+    """
+
+    if align_method == "similarity":
+        if reference_tforms is None:
+            raise ValueError(
+                "Reference tforms must be provided for similarity transform"
+            )
+        if verbose:
+            print("Registration parameters:")
+            print(f"    binarise quantile {binarise_quantile}")
+            print(f"    ref channel {ref_ch}")
+            print(f"    max shift {rounds_max_shift}")
+        # binarise if needed
+        nch = stack.shape[2]
+        if binarise_quantile is not None:
+            for ich in range(nch):
+                ref_thresh = np.quantile(stack[:, :, ich], binarise_quantile)
+                stack[:, :, ich] = stack[:, :, ich] > ref_thresh
+
+        out = estimate_shifts_and_angles_for_tile(
+            stack,
+            scales=reference_tforms["scales_between_channels"],
+            ref_ch=ref_ch,
+            max_shift=rounds_max_shift,
+            debug=debug,
+        )
+        if debug:
+            angles, shifts, db_info = out
+        else:
+            angles, shifts = out
+        to_save = dict(
+            angles=angles,
+            shifts=shifts,
+            scales=reference_tforms["scales_between_channels"],
+        )
+    elif align_method == "affine":
+        if verbose:
+            print("Registration parameters:")
+            print(f"    block size {reg_block_size}\n    overlap {reg_block_overlap}")
+            print(f"    correlation threshold {correlation_threshold}")
+            print(f"    binarise quantile {binarise_quantile}")
+            print(f"    max residual {max_residual}")
+            print(f"    ref channel {ref_ch}")
+            print(f"    max shift {rounds_max_shift}")
+            print(f"    median filter size {median_filter_size}")
+        if reference_tforms is None:
+            tform_matrix = None
+        else:
+            tform_matrix = reference_tforms["matrix_between_channels"]
+        matrix = estimate_affine_for_tile(
+            stack,
+            tform_matrix=tform_matrix,
+            ref_ch=ref_ch,
+            max_shift=rounds_max_shift,
+            max_residual=max_residual,
+            debug=debug,
+            block_size=reg_block_size,
+            overlap=reg_block_overlap,
+            correlation_threshold=correlation_threshold,
+            binarise_quantile=binarise_quantile,
+        )
+
+        if debug:
+            matrix, db_info = matrix
+        to_save = dict(matrix_between_channels=matrix)
+    else:
+        raise ValueError(f"Align method {align_method} not recognised")
+    if debug:
+        return to_save, db_info
+    return to_save

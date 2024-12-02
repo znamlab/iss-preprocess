@@ -23,6 +23,7 @@ Welcome to iss-preprocess's documentation!
    :caption: API reference:
 
    iss_preprocess
+   flowchart_legends
 
 
 .. mdinclude:: ../../README.md

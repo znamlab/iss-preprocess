@@ -2,26 +2,68 @@ import shlex
 import subprocess
 import warnings
 from pathlib import Path
-import re
-import pandas as pd
 
-import flexiznam as flz
 import numpy as np
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
 from ..decorators import updates_flexilims
-from ..image import apply_illumination_correction
+from ..diagnostics import check_illumination_correction
+from ..diagnostics.diag_register import (
+    check_ref_tile_registration,
+    check_shift_correction,
+    check_tile_registration,
+    check_tile_shifts,
+)
+from ..diagnostics.diag_sequencing import (
+    check_omp_alpha_thresholds,
+    check_omp_setup,
+    check_omp_thresholds,
+)
+from ..diagnostics.diag_stitching import plot_overview_images
+from ..image import tilestats_and_mean_image
 from ..io import (
-    get_roi_dimensions,
+    find_roi_position_on_cryostat,
+    get_channel_round_transforms,
+    get_processed_path,
+    get_raw_path,
     load_metadata,
     load_ops,
-    load_tile_by_coors,
+    write_stack,
 )
-from . import ara_registration
-from .hybridisation import load_and_register_hyb_tile
-from .sequencing import load_and_register_sequencing_tile
+from .align_spots_and_cells import stitch_cell_dataframes
+from .core import batch_process_tiles, setup_flexilims
+from .hybridisation import (
+    estimate_channel_correction_hybridisation,
+    extract_hyb_spots_all,
+    setup_hyb_spot_calling,
+)
+from .project import check_projection, check_roi_dims, project_round, reproject_failed
+from .register import (
+    correct_hyb_shifts,
+    run_correct_shifts,
+    run_register_reference_tile,
+)
+from .segment import (
+    filter_mcherry_cells,
+    remove_all_duplicate_masks,
+    save_unmixing_coefficients,
+)
+from .sequencing import estimate_channel_correction, setup_barcode_calling, setup_omp
+from .stitch import register_all_rois_within
+
+__all__ = [
+    "project_and_average",
+    "register_acquisition",
+    "register_reference_tile",
+    "correct_shifts",
+    "create_single_average",
+    "create_all_single_averages",
+    "create_grand_averages",
+    "overview_for_ara_registration",
+    "setup_channel_correction",
+    "call_spots",
+    "segment_and_stitch_mcherry_cells",
+]
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -42,11 +84,11 @@ def project_and_average(data_path, force_redo=False):
         po_job_ids (list): A list of job IDs for the slurm jobs created.
     """
 
-    processed_path = iss.io.get_processed_path(data_path)
-    metadata = iss.io.load_metadata(data_path)
+    processed_path = get_processed_path(data_path)
+    metadata = load_metadata(data_path)
     slurm_folder = processed_path / "slurm_scripts"
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     # First, set up flexilims, adding chamber
     if ops["use_flexilims"]:
         setup_flexilims(data_path)
@@ -77,7 +119,7 @@ def project_and_average(data_path, force_redo=False):
     print(data_by_kind, flush=True)
 
     # Check for expected folders in raw_data and check acquisition types for completion
-    raw_path = iss.io.get_raw_path(data_path)
+    raw_path = get_raw_path(data_path)
     to_process = []
     print(f"\nChecking for expected folders in {raw_path}", flush=True)
     for kind in todo:
@@ -92,23 +134,19 @@ def project_and_average(data_path, force_redo=False):
     # Run projection on unprojected data
     pr_job_ids = []
     proj, mouse, chamber = Path(data_path).parts
-    if ops["use_flexilims"]:
-        flm_sess = flz.get_flexilims_session(project_id=proj)
     print(f"\nto_process: {to_process}")
     for prefix in to_process:
         if not force_redo:
             if (processed_path / prefix / "missing_tiles.txt").exists():
                 print(f"{prefix} is already projected, continuing", flush=True)
                 continue
-        tileproj_job_ids, _ = iss.pipeline.project_round(
-            data_path, prefix, overview=False
-        )
+        tileproj_job_ids, _ = project_round(data_path, prefix)
         pr_job_ids.extend(tileproj_job_ids)
     pr_job_ids = pr_job_ids if pr_job_ids else None
 
     # Now check that all roi_dims are the same, can sometimes be truncated
     # if project_round occurs during data transfer
-    roi_dim_job_ids = iss.pipeline.check_roi_dims(
+    roi_dim_job_ids = check_roi_dims(
         data_path,
         use_slurm=True,
         slurm_folder=slurm_folder,
@@ -124,7 +162,7 @@ def project_and_average(data_path, force_redo=False):
     for prefix in to_process:
         slurm_folder = Path.home() / "slurm_logs" / data_path
         slurm_folder.mkdir(parents=True, exist_ok=True)
-        check_proj_job_ids = iss.pipeline.check_projection(
+        check_proj_job_ids = check_projection(
             data_path,
             prefix,
             use_slurm=True,
@@ -137,11 +175,11 @@ def project_and_average(data_path, force_redo=False):
     all_check_proj_job_ids = all_check_proj_job_ids if all_check_proj_job_ids else None
     print(f"check_projection job ids: {all_check_proj_job_ids}", flush=True)
 
-    # Then run iss.pipeline.reproject_failed() which opens txt files from check
+    # Then run reproject_failed() which opens txt files from check
     # projection and reprojects failed tiles, collecting job_ids for each tile
     slurm_folder = Path.home() / "slurm_logs" / data_path
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    reproj_job_ids = iss.pipeline.reproject_failed(
+    reproj_job_ids = reproject_failed(
         data_path,
         use_slurm=True,
         slurm_folder=slurm_folder,
@@ -157,7 +195,7 @@ def project_and_average(data_path, force_redo=False):
     for prefix in to_process:
         slurm_folder = Path.home() / "slurm_logs" / data_path
         slurm_folder.mkdir(parents=True, exist_ok=True)
-        check_proj_job_ids = iss.pipeline.check_projection(
+        check_proj_job_ids = check_projection(
             data_path,
             prefix,
             use_slurm=True,
@@ -171,7 +209,7 @@ def project_and_average(data_path, force_redo=False):
     print(f"check_projection job ids: {all_check_proj_job_ids}", flush=True)
 
     # Then create averages of projections
-    csa_job_ids = iss.pipeline.create_all_single_averages(
+    csa_job_ids = create_all_single_averages(
         data_path,
         n_batch=1,
         to_average=to_process,
@@ -189,7 +227,7 @@ def project_and_average(data_path, force_redo=False):
         prefix_todo.append("")
 
     if prefix_todo:
-        cga_job_ids = iss.pipeline.create_grand_averages(
+        cga_job_ids = create_grand_averages(
             data_path,
             dependency=csa_job_ids if csa_job_ids else None,
             force_redo=force_redo,
@@ -207,7 +245,7 @@ def project_and_average(data_path, force_redo=False):
     if cga_job_ids and plot_job_ids:
         plot_job_ids.extend(cga_job_ids)
 
-    # TODO: When plotting overview, check whether grand average has occured if it is a
+    # TODO: When plotting overview, check whether grand average has occurred if it is a
     # 'round' type, use it if so, otherwise use single average.
     po_job_ids = []
     for prefix in to_process:
@@ -220,7 +258,7 @@ def project_and_average(data_path, force_redo=False):
             ).exists():
                 print(f"{prefix} is already plotted, continuing", flush=True)
                 continue
-        job_id = iss.vis.plot_overview_images(
+        job_id = plot_overview_images(
             data_path,
             prefix,
             plot_grid=True,
@@ -234,302 +272,177 @@ def project_and_average(data_path, force_redo=False):
 
 
 @slurm_it(conda_env="iss-preprocess")
-def register_acquisition(data_path, prefix):
+def register_acquisition(data_path, prefix, force_redo=False):
     """Register an acquisition across all rounds and channels
 
     Args:
         path (str): Path to the data folder
         prefix (str): Prefix of the acquisition to register
+        force_redo (bool, optional): Redo if files exist. Defaults to False.
 
     """
-    ops = iss.io.load_ops(data_path)
-    metadata = iss.io.load_metadata(data_path)
+    ops = load_ops(data_path)
+    sprefix = prefix.split("_")[0]  # short prefix, e.g. 'genes'
     if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
         # Register a sequencing acquisition
-        raise NotImplementedError("Sequencing registration not yet implemented")
+        job_id, diag_job = register_reference_tile(
+            data_path, prefix, diag=True, use_slurm=True, force_redo=force_redo
+        )
+        suffix = ops[f"{sprefix}_projection"]
+        additional_args = f",PREFIX={prefix},SUFFIX={suffix}"
+        batch_id, rerun_id = batch_process_tiles(
+            data_path,
+            script="register_tile",
+            additional_args=additional_args,
+            job_dependency=job_id,
+        )
+        print(f"Re-run job id: {rerun_id}")
+        jid = correct_shifts(data_path, prefix, use_slurm=True, job_dependency=rerun_id)
+        print(f"Correct shifts job id: {jid}")
+
     else:
-        # Register a single round fluorescence acquisition
-        raise NotImplementedError("Single round registration not yet implemented")
-
-
-def load_and_register_tile(
-    data_path,
-    tile_coors,
-    prefix,
-    filter_r=True,
-    projection=None,
-    zero_bad_pixels=False,
-    correct_illumination=True,
-):
-    """Load one single tile
-
-    Load a tile of `prefix` with channels/rounds registered, apply illumination
-    correction and filtering.
-
-    Args:
-        data_path (str): Relative path to data
-        tile_coors (tuple): (Roi, tileX, tileY) tuple
-        prefix (str): Acquisition to load. If `genes_round` or `barcode_round` will load
-            all the rounds.
-        filter_r (bool, optional): Apply filter on rounds data? Parameters will be read
-            from `ops`. Default to True
-        projection (str, optional): Projection to use. If None, will read from `ops`.
-            Defaults to None
-        zero_bad_pixels (bool, optional): Set bad pixels to zero. Defaults to False
-        correct_illumination (bool, optional): Apply illumination correction. Defaults
-            to True
-
-    Returns:
-        numpy.ndarray: A (X x Y x Nchannels x Nrounds) registered stack
-        numpy.ndarray: X x Y boolean mask of bad pixels where data is missing after
-            registration
-
-    """
-    ops = load_ops(data_path)
-    if projection is None:
-        projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
-    if filter_r and isinstance(filter_r, bool):
-        filter_r = ops["filter_r"]
-    if prefix.startswith("genes_round") or prefix.startswith("barcode_round"):
-        parts = prefix.split("_")
-        if len(parts) > 2:
-            acq_type = "_".join(parts[:2])
-            rounds = np.array([int(parts[2])])
+        if prefix in ("fluorescence", "hybridisation"):
+            metadata = load_metadata(data_path)
+            hyb_rounds = metadata[prefix].keys()
         else:
-            acq_type = prefix
-            rounds = np.arange(ops[f"{acq_type}s"]) + 1
+            hyb_rounds = [prefix]
 
-        stack, bad_pixels = load_and_register_sequencing_tile(
-            data_path,
-            tile_coors=tile_coors,
-            suffix=projection,
-            prefix=acq_type,
-            filter_r=filter_r,
-            correct_channels=True,
-            correct_illumination=correct_illumination,
-            corrected_shifts=ops["corrected_shifts"],
-            specific_rounds=rounds,
-        )
-        # the transforms for all rounds are the same and saved with round 1
-        prefix = acq_type + "_1_1"
-    else:
-        stack, bad_pixels = load_and_register_hyb_tile(
-            data_path,
-            tile_coors=tile_coors,
-            prefix=prefix,
-            suffix=projection,
-            filter_r=filter_r,
-            correct_illumination=correct_illumination,
-            correct_channels=False,
-            corrected_shifts=ops["corrected_shifts"],
-        )
-
-    # ensure we have 4d to match acquisitions with rounds
-    if stack.ndim == 3:
-        stack = stack[..., np.newaxis]
-
-    if zero_bad_pixels:
-        stack[bad_pixels] = 0
-
-    return stack, bad_pixels
+        for hyb_round in hyb_rounds:
+            register_fluo_acq(data_path, hyb_round, use_slurm=True)
 
 
-def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=None):
-    """Load a raw stack and apply illumination correction and channel registration.
-
-    Args:
-        data_path (str): Relative path to data.
-        prefix (str): Acquisition to load.
-        tile_coors (tuple): (Roi, tileX, tileY) tuple
-        corrected_shifts (str, optional): Shift correction method. Defaults to None.
-
-    Returns:
-        numpy.ndarray: A (X x Y x Nchannels) registered stack
-
-    """
-
-    if corrected_shifts is None:
-        ops = iss.io.load_ops(data_path)
-        corrected_shifts = ops["corrected_shifts"]
-    valid_shifts = ["reference", "single_tile", "ransac", "best"]
-    assert corrected_shifts in valid_shifts, (
-        f"unknown shift correction method, must be one of {valid_shifts}",
-    )
-    tforms = iss.pipeline.hybridisation.get_channel_shifts(
-        data_path, prefix, tile_coors, corrected_shifts
-    )
-    fname = iss.io.get_raw_filename(data_path, prefix, tile_coors)
-    tile_path = str(Path(data_path) / prefix / fname)
-
-    fmetadata = iss.io.get_raw_path(tile_path + "_metadata.txt")
-    if fmetadata.exists():
-        stack = iss.io.load.get_tile_ome(
-            iss.io.get_raw_path(tile_path + ".ome.tif"),
-            fmetadata,
-        )
-    else:
-        stack = iss.io.load.get_tile_ome(
-            iss.io.get_raw_path(tile_path + ".ome.tif"),
-            None,
-            use_indexmap=True,
-        )
-    stack = iss.image.correction.apply_illumination_correction(data_path, stack, prefix)
-    c_stack = np.zeros_like(stack)
-    for z in np.arange(stack.shape[-1]):
-        c_stack[..., z] = iss.reg.rounds_and_channels.apply_corrections(
-            stack[..., z], matrix=tforms["matrix_between_channels"], cval=np.nan
-        )
-
-    return c_stack
-
-
-def batch_process_tiles(
-    data_path,
-    script,
-    roi_dims=None,
-    additional_args="",
-    dependency_type="afterok",
-    job_dependency=None,
-    verbose=False,
+def register_reference_tile(
+    data_path, prefix="genes_round", diag=False, use_slurm=True, force_redo=False
 ):
-    """Start sbatch scripts for all tiles across all rois.
+    """Register the reference tile across channels and rounds
+
+    This function estimates the shifts and rotations between rounds and
+    channels using the reference tile and generates diagnostic plots if
+    requested.
 
     Args:
         data_path (str): Relative path to data.
-        script (str): Filename stem of the sbatch script, e.g. `extract_tile`.
-        roi_dims (numpy.array, optional): Nx3 array of roi dimensions. If None, will
-            load `genes_round_1_1` dimensions
-        additional_args (str, optional): Additional environment variable to export
-            to pass to the sbatch job. Should start with a leading comma.
-            Defaults to ""
-        dependency_type (str, optional): Type of dependency. Defaults to "afterok".
-        job_dependency (list, optional): List of job IDs to wait for before starting the
-            batch jobs. Defaults to None.
-        verbose (bool, optional): Print the sbatch command. Defaults to False.
-
-    Returns:
-        list: List of job IDs for the slurm jobs created.
-
+        prefix (str, optional): Directory prefix to use, e.g. 'genes_round'.
+            Defaults to 'genes_round'.
+        diag (bool, optional): Save diagnostic plots. Defaults to False.
+        use_slurm (bool, optional): Submit job to slurm. Defaults to True.
+        redo (bool, optional): Redo if files exist. Defaults to False.
     """
-    if job_dependency is not None:
-        dep = f"--dependency={dependency_type}:{job_dependency} "
+    if use_slurm:
+        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
     else:
-        dep = ""
-
-    if roi_dims is None:
-        roi_dims = get_roi_dimensions(data_path)
-    script_path = str(Path(__file__).parent.parent.parent / "scripts" / f"{script}.sh")
-    ops = load_ops(data_path)
-    if "use_rois" not in ops.keys():
-        ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
-
-    job_ids = []  # Store job IDs
-    arg_list = []
-    for roi in roi_dims[use_rois, :]:
-        nx = roi[1] + 1
-        ny = roi[2] + 1
-        for iy in range(ny):
-            for ix in range(nx):
-                args = (
-                    f"--export=DATAPATH={data_path},ROI={roi[0]},TILEX={ix},TILEY={iy}"
-                )
-                args = args + additional_args
-
-                # Regular expression to find prefix
-                pattern = r",PREFIX=([^,]+)"
-                match = re.search(pattern, additional_args)
-                prefix = match.group(1) if match else None
-                if prefix:
-                    log_fname = f"{prefix}_iss_{script}_{roi[0]}_{ix}_{iy}_%j"
-                else:
-                    log_fname = f"iss_{script}_{roi[0]}_{ix}_{iy}_%j"
-                log_dir = Path.home() / "slurm_logs" / data_path / script
-                log_dir.mkdir(parents=True, exist_ok=True)
-                args = args + f" --output={log_dir}/{log_fname}.out"
-                command = f"sbatch --parsable {dep}{args} {script_path}"
-                arg_list.append(command)
-                if verbose:
-                    print(command)
-                process = subprocess.Popen(
-                    shlex.split(command),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-                stdout, _ = process.communicate()
-                job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
-                job_ids.append(job_id)
-    # save job ids and args to a csv file
-    job_info_path = str(log_dir / f"{script}_jobs_info.csv")
-
-    pd.DataFrame({"job_ids": job_ids, "arg_list": arg_list}).to_csv(
-        job_info_path, index=False
+        slurm_folder = None
+    target_file = get_channel_round_transforms(
+        data_path, prefix, shifts_type="reference", load_file=False
     )
-    args = f"--export=JOBSINFO={job_info_path}"
-    # Create a job to handle and retry failed jobs. This only runs if a job fails
-    handle_failed_script_path = str(
-        Path(__file__).parent.parent.parent / "scripts" / "handle_failed.sh"
+    if target_file.exists() and not force_redo:
+        print(f"{prefix} reference tile already registered, skipping")
+        return None, None
+
+    scripts_name = f"register_ref_tile_{prefix}"
+    slurm_options = {"mem": "128G"} if diag else None
+    job_id = run_register_reference_tile(
+        data_path,
+        prefix=prefix,
+        diag=diag,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        slurm_options=slurm_options,
+        scripts_name=scripts_name,
     )
-    failed_command = f"sbatch --parsable {args} --dependency=afterany:{':'.join(job_ids)} --output={log_dir}/handle_failed_{script}.out {handle_failed_script_path} "
-    print(failed_command)
-    process = subprocess.Popen(
-        shlex.split(failed_command),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    scripts_name = f"check_ref_tile_registration_{prefix}"
+    job2 = check_ref_tile_registration(
+        data_path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=scripts_name,
     )
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        print(f"Error submitting handle_failed job: {stderr.decode().strip()}")
-    failed_job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
-    return job_ids, failed_job_id
+    if use_slurm:
+        print(f"Started 2 jobs: {job_id}, {job2}")
+    return job_id, job2
 
 
-def handle_failed_jobs(job_info_path):
-    """Create a job to handle failed jobs for a given script.
+def register_fluo_acq(data_path, prefix, use_slurm=True):
+    print(f"Correcting shifts for {prefix}")
+    if use_slurm:
+        from pathlib import Path
 
-    Args:
-        job_ids (list): List of job IDs for the slurm jobs created.
-        arg_list (list): List of arguments for the slurm jobs created.
+        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+    additional_args = f",PREFIX={prefix}"
+    batch_id, rerun_id = batch_process_tiles(
+        data_path, script="register_hyb_tile", additional_args=additional_args
+    )
 
-    Returns:
-        retry_job_ids (list): List of job IDs for the slurm jobs created.
-    """
-    import pandas as pd
+    job_id = correct_hyb_shifts(
+        data_path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_hyb_shifts_{prefix}",
+        job_dependency=rerun_id if use_slurm else None,
+    )
+    job2 = check_shift_correction(
+        data_path,
+        prefix,
+        roi_dimension_prefix=prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_shift_correction_{prefix}",
+        within=False,
+    )
+    if use_slurm:
+        print(f"Started 2 jobs: {job_id}, {job2}")
 
-    failed_params = []
-    unique_nodes = set()
-    df_job_info = pd.read_csv(job_info_path)
-    for job_id in df_job_info["job_ids"]:
-        job_info = subprocess.check_output(
-            f"sacct -j {job_id} --format=State,NodeList", shell=True
-        ).decode("utf-8")
-        if "TIMEOUT" in job_info or "FAILED" in job_info or "CANCELLED" in job_info:
-            failed_params.append(
-                df_job_info[df_job_info["job_ids"] == job_id]["arg_list"].values[0]
-            )
-            lines = job_info.strip().split("\n")
-            for line in lines[2:]:
-                columns = line.split()
-                unique_nodes.update(columns[1].split(","))
-    excluded_nodes = ",".join(list(unique_nodes))
-    retry_job_ids = []
-    if len(failed_params) == 0:
-        print("No failed jobs to retry")
-        return retry_job_ids
 
-    for args in failed_params:
-        args = args + f" --exclude={excluded_nodes}"
-        print(f"Retrying failed job with args: {args}")
-        process = subprocess.Popen(
-            shlex.split(args),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout, _ = process.communicate()
-        job_id = stdout.decode().strip().split(";")[0]
-        retry_job_ids.append(job_id)
+def correct_shifts(data_path, prefix, use_slurm=True, job_dependency=None):
+    """Correct X-Y shifts using robust regression across tiles."""
+    # import with different name to not get confused with the cli function name
 
-    return retry_job_ids
+    if use_slurm:
+        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+    job_id = run_correct_shifts(
+        data_path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"correct_shifts_{prefix}",
+        job_dependency=job_dependency,
+    )
+    check_tile_shifts(
+        data_path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"check_tile_shifts_{prefix}",
+        job_dependency=job_id if use_slurm else None,
+    )
+    check_corr_id = check_shift_correction(
+        data_path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_shift_correction_{prefix}",
+    )
+    check_reg_id = check_tile_registration(
+        data_path,
+        prefix,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        job_dependency=job_id if use_slurm else None,
+        scripts_name=f"check_tile_registration_{prefix}",
+    )
+    return job_id, check_corr_id, check_reg_id
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -592,7 +505,7 @@ def create_single_average(
         print(f"    {ops_values}={ops[ops_values]}")
     print("", flush=True)
 
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
 
     if prefix_filter:
         target_file = f"{prefix_filter}_average.tif"
@@ -606,7 +519,7 @@ def create_single_average(
 
     black_level = ops["black_level"] if subtract_black else 0
 
-    av_image, tilestats = iss.image.tilestats_and_mean_image(
+    av_image, tilestats = tilestats_and_mean_image(
         processed_path / subfolder,
         prefix=prefix_filter,
         black_level=black_level,
@@ -620,7 +533,7 @@ def create_single_average(
         combine_tilestats=combine_tilestats,
         exclude_tiffs=exclude_tiffs,
     )
-    iss.io.write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
+    write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
     np.save(target_stats, tilestats)
     print(f"Average saved to {target_file}, tilestats to {target_stats}", flush=True)
     return av_image, tilestats
@@ -651,9 +564,9 @@ def create_all_single_averages(
         force_redo (bool, optional): Redo if the average already exists. Defaults to
             False.
     """
-    processed_path = iss.io.get_processed_path(data_path)
-    ops = iss.io.load_ops(data_path)
-    metadata = iss.io.load_metadata(data_path)
+    processed_path = get_processed_path(data_path)
+    ops = load_ops(data_path)
+    metadata = load_metadata(data_path)
     # Collect all folder names
     if to_average is None:
         to_average = []
@@ -681,7 +594,7 @@ def create_all_single_averages(
             print(f"{folder} average already exists. Skipping")
             continue
         print(f"Creating single average {folder}", flush=True)
-        projection = ops[f"averaging_projection"]
+        projection = ops["averaging_projection"]
         slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
         slurm_folder.mkdir(parents=True, exist_ok=True)
         job_ids.append(
@@ -736,10 +649,10 @@ def create_grand_averages(
     job_ids = []
     slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    target_folder = iss.io.get_processed_path(data_path) / subfolder
+    target_folder = get_processed_path(data_path) / subfolder
     for kind in prefix_todo:
         if kind:
-            target_file = target_folder / f"averages_average.tif"
+            target_file = target_folder / "averages_average.tif"
         else:
             target_file = target_folder / "grand_average.tif"
         if (not force_redo) and target_file.exists():
@@ -764,7 +677,7 @@ def create_grand_averages(
             )
         )
 
-    iss.pipeline.diagnostics.check_illumination_correction(
+    check_illumination_correction(
         data_path,
         grand_averages=prefix_todo[:-1],
         plot_tilestats=True,
@@ -800,7 +713,7 @@ def overview_for_ara_registration(
             `genes_round`
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     registration_folder = processed_path / "register_to_ara"
     registration_folder.mkdir(exist_ok=True)
     # also make sure that the relevant subfolders are created
@@ -810,9 +723,7 @@ def overview_for_ara_registration(
     metadata = load_metadata(data_path)
     if rois_to_do is None:
         rois_to_do = metadata["ROI"].keys()
-    roi_slice_pos_um, min_step = ara_registration.find_roi_position_on_cryostat(
-        data_path=data_path
-    )
+    roi_slice_pos_um, min_step = find_roi_position_on_cryostat(data_path=data_path)
     roi2section_order = {
         roi: int(pos / min_step) for roi, pos in roi_slice_pos_um.items()
     }
@@ -845,102 +756,162 @@ def overview_for_ara_registration(
         )
 
 
-def setup_channel_correction(data_path, use_slurm=True):
+def setup_channel_correction(
+    data_path,
+    prefix_to_do=None,
+    force_redo=False,
+    use_slurm=True,
+):
     """Setup channel correction for barcode, genes and hybridisation rounds
 
     Args:
         data_path (str): Relative path to the data folder
+        prefix_to_do (list, optional): Prefixes to process. Defaults to None.
+        force_redo (bool, optional): Redo all processing steps? Defaults to False.
         use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
             True.
 
+    Returns:
+        list: List of job IDs for the slurm jobs created
     """
+    job_ids = []
     ops = load_ops(data_path)
     slurm_folder = Path.home() / "slurm_logs" / data_path
-    if ops["barcode_rounds"] > 0:
-        iss.pipeline.estimate_channel_correction(
-            data_path,
-            prefix="barcode_round",
-            nrounds=ops["barcode_rounds"],
-            fit_norm_factors=ops["fit_channel_correction"],
-            use_slurm=use_slurm,
-            slurm_folder=slurm_folder,
-            scripts_name="barcode_channel_correction",
-        )
-    if ops["genes_rounds"] > 0:
-        iss.pipeline.estimate_channel_correction(
-            data_path,
-            prefix="genes_round",
-            nrounds=ops["genes_rounds"],
-            fit_norm_factors=ops["fit_channel_correction"],
-            use_slurm=use_slurm,
-            slurm_folder=slurm_folder,
-            scripts_name="genes_channel_correction",
-        )
+    if prefix_to_do is None:
+        prefix_to_do = ["genes_round", "barcode_round", "hybridisation"]
+    if "hybridisation" in prefix_to_do:
+        prefix_to_do.remove("hybridisation")
+        metadata = load_metadata(data_path)
+        for hyb in metadata.get("hybridisation", {}):
+            prefix_to_do.append(hyb)
 
-    iss.pipeline.estimate_channel_correction_hybridisation(
-        data_path, use_slurm=use_slurm, slurm_folder=slurm_folder
-    )
+    for prefix in prefix_to_do:
+        target = get_processed_path(data_path) / f"correction_{prefix}.npz"
+        if not force_redo and target.exists():
+            print(f"{prefix} channel correction already exists, skipping")
+            continue
+        print(f"Setting up channel correction for {prefix}", flush=True)
+        if prefix in ("genes_round", "barcode_round"):
+            sprefix = prefix.split("_")[0].lower()
+            nrounds = ops[f"{sprefix}_rounds"]
+            if not nrounds:
+                print(f"0 rounds of {prefix}, skipping")
+            job_id = estimate_channel_correction(
+                data_path,
+                prefix=prefix,
+                nrounds=nrounds,
+                fit_norm_factors=ops["fit_channel_correction"],
+                use_slurm=use_slurm,
+                slurm_folder=slurm_folder,
+                scripts_name=f"{sprefix}_channel_correction",
+            )
+            job_ids.append(job_id)
+        else:
+            job_id = estimate_channel_correction_hybridisation(
+                data_path,
+                prefix=prefix,
+                slurm_folder=slurm_folder,
+                use_slurm=use_slurm,
+                scripts_name=f"{prefix}_channel_correction",
+            )
+            job_ids.append(job_id)
+    return job_ids
 
 
-def call_spots(data_path, genes=True, barcodes=True, hybridisation=True):
-    """Master method to run spot calling. Must be run after `iss estimate-shifts`,
-    `iss estimate-hyb-shifts`, `iss setup-channel-correction`, and `iss
-    create-grand-averages`.
+def call_spots(
+    data_path,
+    genes=True,
+    barcodes=True,
+    hybridisation=True,
+    force_redo=False,
+    setup_only=False,
+    use_slurm=True,
+):
+    """Master method to run spot calling.
+
+    Must be run after `iss project-and-average` and `iss register`.
 
     Args:
         data_path (str): Relative path to the data folder
         genes (bool, optional): Run genes spot calling. Defaults to True.
         barcodes (bool, optional): Run barcode calling. Defaults to True.
         hybridisation (bool, optional): Run hybridisation spot calling. Defaults to True
+        force_redo (bool, optional): Redo all processing steps? Defaults to False.
+        setup_only (bool, optional): Only setup the spot calling, do not run it.
+        use_slurm (bool, optional): Whether to use SLURM to run the jobs. Defaults to
+            True.
 
     """
+    if use_slurm:
+        slurm_folder = Path.home() / "slurm_logs" / data_path
+        slurm_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        slurm_folder = None
+
     if genes:
-        iss.pipeline.correct_shifts(data_path, prefix="genes_round")
-        iss.pipeline.setup_omp(data_path)
-        batch_process_tiles(data_path, "extract_tile")
+        print("Running genes spot calling")
+        jobs = setup_channel_correction(
+            data_path,
+            prefix_to_do=["genes_round"],
+            use_slurm=use_slurm,
+            force_redo=force_redo,
+        )
+        job = setup_omp(
+            data_path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=jobs if use_slurm else None,
+        )
+        check_omp_setup(
+            data_path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=job if use_slurm else None,
+        )
+        check_omp_thresholds(
+            data_path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=job if use_slurm else None,
+        )
+        check_omp_alpha_thresholds(
+            data_path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=job if use_slurm else None,
+        )
+        if not setup_only:
+            batch_process_tiles(
+                data_path,
+                "extract_tile",
+                job_dependency=job if use_slurm else None,
+                verbose=False,
+            )
 
     if barcodes:
-        iss.pipeline.correct_shifts(data_path, prefix="barcode_round")
-        iss.pipeline.setup_barcode_calling(data_path)
-        batch_process_tiles(data_path, "basecall_tile")
+        print("Running barcode spot calling")
+        jobs = setup_channel_correction(
+            data_path,
+            prefix_to_do=["barcode_round"],
+            use_slurm=use_slurm,
+            force_redo=force_redo,
+        )
+        job = setup_barcode_calling(
+            data_path,
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=jobs if use_slurm else None,
+        )
+        if not setup_only:
+            batch_process_tiles(
+                data_path, "basecall_tile", job_dependency=job if use_slurm else None
+            )
 
     if hybridisation:
-        iss.pipeline.correct_hyb_shifts(data_path)
-        iss.pipeline.setup_hyb_spot_calling(data_path)
-        iss.pipeline.extract_hyb_spots_all(data_path)
-
-
-def setup_flexilims(path):
-    data_path = Path(path)
-    flm_session = flz.get_flexilims_session(project_id=data_path.parts[0])
-    # first level, which is the mouse, must exist
-    mouse = flz.get_entity(
-        name=data_path.parts[1], datatype="mouse", flexilims_session=flm_session
-    )
-    if mouse is None:
-        raise ValueError(f"Mouse {data_path.parts[1]} does not exist in flexilims")
-    else:
-        if "genealogy" or "path" not in mouse:
-            flz.update_entity(
-                datatype="mouse",
-                flexilims_session=flm_session,
-                id=mouse["id"],
-                mode="update",
-                attributes=dict(
-                    genealogy=[mouse["name"]], path="/".join(data_path.parts[:2])
-                ),
-            )
-    parent_id = mouse["id"]
-    for sample_name in data_path.parts[2:]:
-        sample = flz.add_sample(
-            parent_id,
-            attributes=None,
-            sample_name=sample_name,
-            conflicts="skip",
-            other_relations=None,
-            flexilims_session=flm_session,
-        )
-        parent_id = sample["id"]
+        print("Running hybridisation spot calling")
+        setup_hyb_spot_calling(data_path)
+        if not setup_only:
+            extract_hyb_spots_all(data_path)
 
 
 def segment_and_stitch_mcherry_cells(
@@ -964,12 +935,12 @@ def segment_and_stitch_mcherry_cells(
         job_dependency (list, optional): List of job IDs to wait for before starting the
     """
 
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     if slurm_folder is None:
         slurm_folder = Path.home() / "slurm_logs" / data_path / f"segment_{prefix}"
     slurm_folder.mkdir(parents=True, exist_ok=True)
 
-    job_coef = iss.pipeline.segment.save_unmixing_coefficients(
+    job_coef = save_unmixing_coefficients(
         data_path,
         prefix,
         use_slurm=use_slurm,
@@ -989,7 +960,7 @@ def segment_and_stitch_mcherry_cells(
 
     spref = prefix.split("_")[0].lower()
     # ensure the "within" registration ran
-    reg_jobs = iss.pipeline.stitch.register_all_rois_within(
+    reg_jobs = register_all_rois_within(
         data_path,
         prefix=prefix,
         ref_ch=None,
@@ -1005,7 +976,7 @@ def segment_and_stitch_mcherry_cells(
         job_dependency=failed_job,
     )
     # remove duplicate masks
-    dupl_job = iss.pipeline.segment.remove_all_duplicate_masks(
+    dupl_job = remove_all_duplicate_masks(
         data_path,
         prefix,
         use_slurm=True,
@@ -1015,7 +986,7 @@ def segment_and_stitch_mcherry_cells(
     )
 
     # stitch the masks dataframes
-    stitch_job = iss.pipeline.stitch.stitch_cell_dataframes(
+    stitch_job = stitch_cell_dataframes(
         data_path,
         prefix,
         use_slurm=True,
@@ -1023,12 +994,18 @@ def segment_and_stitch_mcherry_cells(
         job_dependency=dupl_job,
         scripts_name=f"stitch_{prefix}",
     )
-
+    out = (
+        reg_jobs,
+        dupl_job,
+        stitch_job,
+    )
     if ops.get(f"{spref}_gmm_filter_masks", False):
-        filt_job = iss.pipeline.segment.filter_mcherry_cells(
+        filt_job = filter_mcherry_cells(
             data_path,
             prefix,
             use_slurm=True,
             slurm_folder=slurm_folder,
             job_dependency=stitch_job,
         )
+        out += (filt_job,)
+    return out

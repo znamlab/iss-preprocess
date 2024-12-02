@@ -3,7 +3,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-import iss_preprocess as iss
+from ..io import load_stack, write_stack
 
 
 def flip_channels(im, channels_to_flip, flip_vertical=False, flip_horizontal=False):
@@ -78,11 +78,11 @@ def flip_all_tiffs(
         if target.exists() and not overwrite:
             print(f"File already exists. Skipping {target}.")
 
-        img = iss.io.load_stack(fname)
+        img = load_stack(fname)
         flipped = flip_channels(
             img,
             channels_to_flip=channels_to_flip,
             flip_horizontal=flip_horizontal,
             flip_vertical=flip_vertical,
         )
-        iss.io.write_stack(flipped, target)
+        write_stack(flipped, target)

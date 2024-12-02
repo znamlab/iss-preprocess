@@ -16,8 +16,8 @@ def segment_spot_image(
         debug (bool, optional): Return intermediate results if True. Defaults to False.
 
     Returns:
-        numpy.ndarray or dict: Segmented image. Background is 0, borders -1, other numbers
-            label individual cells. If debug is True, return a dictionary with
+        numpy.ndarray or dict: Segmented image. Background is 0, borders -1, other
+            numbers label individual cells. If debug is True, return a dictionary with
             intermediate results
 
     """

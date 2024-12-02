@@ -28,4 +28,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss basecall-tile -p $DATAPATH -r $ROI -x $TILEX -y $TILEY
+iss-call basecall-tile -p $DATAPATH -r $ROI -x $TILEX -y $TILEY

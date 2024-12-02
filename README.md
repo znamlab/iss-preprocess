@@ -23,19 +23,33 @@ pip install -e .
 The main workflow is as follows:
 
 ```mermaid
-graph TD;
-    start[Collect data] --> A[project-and-average];
-    A[project-and-average] --> B[register-sequencing-rounds];
-    A --> C[normalise-channel-and-rounds];
-    A --> D[register-hybridisation];
-    D --> E[detect-hyb-spots];
-    C --> F[genes OMP];
-    B --> F;
-    C --> G[barcode base calling];
-    B --> G;
-    F --> H[register-to-ref];
-    G --> H;
-    E --> H;
+
+---
+config:
+  look: handDrawn
+  layout: elk
+---
+flowchart TD
+ subgraph s1["Call spots"]
+        F["iss call --genes"]
+        G["iss call --barcodes"]
+        E["iss call --hybridisation"]
+  end
+    start["Collect data"] --> A["iss project-and-average"]
+    A --> B["iss register"]
+    B --> E & F & G & S["iss segment"]
+    F --> H["iss register-to-ref"]
+    G --> H
+    E --> H
+    S --> H
+style A fill:#424242,stroke:#616161,color:#00C853
+style B fill:#424242,stroke:#616161,color:#00C853
+style S fill:#424242,stroke:#616161,color:#00C853
+style E fill:#424242,stroke:#616161,color:#00C853
+style F fill:#424242,stroke:#616161,color:#00C853
+style G fill:#424242,stroke:#616161,color:#00C853
+style H fill:#424242,stroke:#616161,color:#00C853
+style s1 fill:#757575,color:#C8E6C9
 ```
 
 For more information on the individual steps, see the [documentation](https://iss-preprocess.znamlab.org/).
@@ -46,12 +60,22 @@ For more information on the individual steps, see the [documentation](https://is
 
 ### Building the documentation
 
-To build the documentation you also need to install
+To build the documentation you need to install extra dependencies, either by running:
+
 ```
-Sphinx
-furo
-m2r2
-sphinxcontrib-mermaid
+pip install -e .[dev]
+```
+
+or using the requirement file:
+
+```
+pip install -r docs/requirements.txt
+```
+
+Then you can build the documentation locally by running:
+
+```
+sphinx-build docs/source docs/build
 ```
 
 ### Atlas cache

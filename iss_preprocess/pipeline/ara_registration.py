@@ -1,14 +1,15 @@
-from pathlib import Path
 import gc
+from pathlib import Path
 from warnings import warn
+
 import brainglobe_atlasapi as bga
 import cv2
 import numpy as np
 import yaml
+from image_tools.registration.phase_correlation import phase_correlation
+from image_tools.similarity_transforms import transform_image
 from scipy.ndimage import gaussian_filter
 from skimage.transform import downscale_local_mean
-from image_tools.similarity_transforms import transform_image
-from image_tools.registration.phase_correlation import phase_correlation
 from znamutils import slurm_it
 
 from ..io import (
@@ -22,7 +23,7 @@ from ..io import (
     save_ome_tiff_pyramid,
     write_stack,
 )
-from . import stitch
+from .stitch import get_tile_corners, stitch_registered, stitch_tiles
 
 
 def find_roi_position_on_cryostat(data_path):
@@ -52,7 +53,7 @@ def find_roi_position_on_cryostat(data_path):
                 "I need to know the thickness of all the slices.\n"
                 + "Please add missing sections to `section_position.csv`"
             )
-        pos_um = section_info.absolute_section * section_info.section_thickness_um
+        # pos_um = section_info.absolute_section * section_info.section_thickness_um
     else:
         # we have all the slices in the csv, we can deal with variable thickness
         increase = section_info.section_thickness_um.values
@@ -242,7 +243,7 @@ def make_area_image(
     )
     coord = np.round(coord * 1000 / atlas_size, 0).astype("uint16")
 
-    atlas_name = "allen_mouse_%dum" % atlas_size
+    atlas_name = "allen_mouse_%dum" % atlas_size  # codespell:ignore dum
     bg_atlas = bga.bg_atlas.BrainGlobeAtlas(atlas_name)
     for axis, max_val in enumerate(bg_atlas.shape):
         coord[:, :, axis] = np.clip(coord[:, :, axis], 0, max_val - 1)
@@ -340,7 +341,7 @@ def spots_ara_infos(
     if acronyms:
         if verbose:
             print("Finding area acronyms", flush=True)
-        atlas_name = "allen_mouse_%dum" % atlas_size
+        atlas_name = "allen_mouse_%dum" % atlas_size  # codespell:ignore dum
         bg_atlas = bga.bg_atlas.BrainGlobeAtlas(atlas_name)
         labels = bg_atlas.lookup_df.set_index("id")
         spots_filtered["area_acronym"] = "outside"
@@ -380,17 +381,19 @@ def overview_single_roi(
         roi (int): Number of the ROI
         slice_id (int): Slice number to stitch
         prefix (str, optional): Prefix of the acquisition to plot.
-        chan2use (tuple, optional): Channels to use for stitching. Defaults to (0, 1, 2, 3).
+        chan2use (tuple, optional): Channels to use for stitching. Defaults to
+            (0, 1, 2, 3).
         sigma_blur (int, optional): Sigma for gaussian blur. Defaults to 10.
         agg_func (function, optional): Aggregation function to apply across channels.
             Defaults to np.nanmean. Unused if `non_similar_overview` is True.
         ref_prefix (str, optional): Prefix of the reference image. Defaults to
             "genes_round".
         subresolutions (int, optional): Number of subresolutions to save. Defaults to 5.
-        max_pixel_size (int, optional): Maximum pixel size for the pyramid. Defaults to 2.
+        max_pixel_size (int, optional): Maximum pixel size for the pyramid. Defaults to
+            2.
         non_similar_overview (bool, optional): If True, stitch the overview tiles with
-        the stitch_tiles function rather than stitch_registered which requires tile by tile
-        registration to the reference. Defaults to False.
+        the stitch_tiles function rather than stitch_registered which requires tile by
+            tile registration to the reference. Defaults to False.
 
     """
     print(f"Data path: {data_path}")
@@ -420,7 +423,7 @@ def overview_single_roi(
 
     if non_similar_overview:
         print("Stitching ROI")
-        stitched_stack = stitch.stitch_tiles(
+        stitched_stack = stitch_tiles(
             data_path=data_path,
             prefix=prefix,
             roi=roi,
@@ -430,7 +433,7 @@ def overview_single_roi(
         )
     else:
         print("Stitching ROI")
-        stitched_stack = stitch.stitch_registered(
+        stitched_stack = stitch_registered(
             data_path=data_path,
             prefix=prefix,
             roi=roi,
@@ -523,9 +526,7 @@ def crop_overview_registration(data_path, rois=None, overview_prefix="DAPI_1_1")
 
         # Crop to the same size as the reference
         ops = load_ops(data_path)
-        corners = stitch.get_tile_corners(
-            data_path, prefix=ops["reference_prefix"], roi=roi
-        )
+        corners = get_tile_corners(data_path, prefix=ops["reference_prefix"], roi=roi)
         top_right_corner = np.nanmax(corners, axis=(0, 1, 3)) / ara_downsample_rate
         top_right_corner = np.round(top_right_corner).astype(int) + 1
         cropped_image = target_shifted[: top_right_corner[0], : top_right_corner[1]]
@@ -573,7 +574,7 @@ def register_overview_to_reference(data_path, roi, channel, overview_prefix="DAP
     stitched_moving = load_registration_reference(data_path, roi)[..., 0]
 
     # Stitched reference image
-    stitched_fixed = stitch.stitch_tiles(
+    stitched_fixed = stitch_tiles(
         data_path,
         reference_prefix,
         suffix=projection,
@@ -582,9 +583,7 @@ def register_overview_to_reference(data_path, roi, channel, overview_prefix="DAP
         shifts_prefix=reference_prefix,
         correct_illumination=True,
         allow_quick_estimate=False,
-    ).astype(
-        np.single
-    )  # to save memory
+    ).astype(np.single)  # to save memory
     # downsample to match the version used for the manual registration
     metadata = load_registration_reference_metadata(data_path, roi)
     ara_downsample_ratio = metadata["downsample_ratio"]
@@ -636,7 +635,7 @@ def register_overview_to_reference(data_path, roi, channel, overview_prefix="DAP
         scale=scale,
         stitched_stack_shape=final_shape,
     )
-    print(f"DONE")
+    print("DONE")
     return shift, final_shape, stitched_fixed, stitched_moving
 
 
@@ -660,7 +659,7 @@ def check_reg(data_path, save_folder, rois=None):
 
         print(f"roi {roi}")
         ax = fig.add_subplot(nrows, ncols, roi)
-        anchor_ref = stitch.stitch_registered(
+        anchor_ref = stitch_registered(
             data_path,
             prefix=ops["reference_prefix"],
             roi=roi,

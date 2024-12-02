@@ -73,19 +73,12 @@ def project_row(path, prefix, roi=1, x=0, max_col=0, overwrite=False):
     default=False,
     help="Whether to overwrite tiles if already projected.",
 )
-@click.option(
-    "--overview",
-    is_flag=True,
-    show_default=True,
-    default=True,
-    help="Whether to create overview images after projection.",
-)
-def project_round(path, prefix, overwrite=False, overview=True):
+def project_round(path, prefix, overwrite=False):
     """Calculate Z-projection for all tiles in a single sequencing round."""
-    from iss_preprocess.pipeline.project import project_round
+    from iss_preprocess.pipeline.project import project_round as proj_round_func
 
     click.echo(f"Projecting ROI {prefix} from {path}")
-    project_round(path, prefix, overwrite=overwrite, overview=overview)
+    proj_round_func(path, prefix, overwrite=overwrite)
 
 
 @sync_and_crunch_cli.command()
@@ -103,7 +96,7 @@ def check_projection(path, prefix):
 # TODO: expose prefix_to_do
 def create_grand_averages(path):
     """Create grand average for illumination correction"""
-    from iss_preprocess.pipeline import create_grand_averages
+    from iss_preprocess.pipeline.pipeline import create_grand_averages
 
     create_grand_averages(path, prefix_todo=None)
 
@@ -117,7 +110,7 @@ def create_grand_averages(path):
 )
 def create_all_single_averages(path, n_batch):
     """Average all tiffs in all acquisition folders"""
-    from iss_preprocess.pipeline import create_all_single_averages
+    from iss_preprocess.pipeline.pipeline import create_all_single_averages
 
     create_all_single_averages(path, n_batch=n_batch)
 
@@ -154,7 +147,7 @@ def create_single_average(
     path, subtract_black, subfolder, prefix_filter, suffix, combine_stats, n_batch
 ):
     """Average all tiffs in an acquisition folder"""
-    from iss_preprocess.pipeline import create_single_average
+    from iss_preprocess.pipeline.pipeline import create_single_average
 
     create_single_average(
         path,

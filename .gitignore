@@ -9,9 +9,6 @@ __pycache__
 *.npy
 *.tif
 *.tiff
-*.png
-*.jpg
-*.pdf
 pkgs
 envs
 .tmp/*
