@@ -453,6 +453,7 @@ def create_single_average(
     n_batch,
     prefix_filter=None,
     suffix=None,
+    target_fname=None,
     combine_tilestats=False,
     exclude_tiffs=None,
 ):
@@ -474,6 +475,8 @@ def create_single_average(
         prefix_filter (str, optional): prefix name to filter tifs. Only file starting
             with `prefix` will be averaged. Defaults to None.
         suffix (str, optional): suffix to filter tifs. Defaults to None
+        target_fname (str, optional): Target file name to save the average. Defaults to
+            None
         combine_tilestats (bool, optional): Compute new tilestats distribution of
             averaged images if True, combine pre-existing tilestats into one otherwise.
             Defaults to False
@@ -506,16 +509,17 @@ def create_single_average(
     print("", flush=True)
 
     processed_path = get_processed_path(data_path)
-
-    if prefix_filter:
-        target_file = f"{prefix_filter}_average.tif"
-    else:
-        target_file = f"{subfolder}_average.tif"
-    target_stats = target_file.replace("_average.tif", "_tilestats.npy")
-    target_file = processed_path / "averages" / target_file
+    suffix_name = f"{suffix}_" if suffix else ""
+    if target_fname is None:
+        if prefix_filter:
+            target_fname = f"{prefix_filter}_{suffix_name}average.tif"
+        else:
+            target_fname = f"{subfolder}_{suffix_name}average.tif"
+    target_stats = target_fname.replace("_average.tif", "_tilestats.npy")
+    target_fname = processed_path / "averages" / target_fname
     target_stats = processed_path / "averages" / target_stats
     # ensure the directory exists for first average.
-    target_file.parent.mkdir(exist_ok=True)
+    target_fname.parent.mkdir(exist_ok=True)
 
     black_level = ops["black_level"] if subtract_black else 0
 
@@ -533,9 +537,9 @@ def create_single_average(
         combine_tilestats=combine_tilestats,
         exclude_tiffs=exclude_tiffs,
     )
-    write_stack(av_image, target_file, bigtiff=False, dtype="float", clip=False)
+    write_stack(av_image, target_fname, bigtiff=False, dtype="float", clip=False)
     np.save(target_stats, tilestats)
-    print(f"Average saved to {target_file}, tilestats to {target_stats}", flush=True)
+    print(f"Average saved to {target_fname}, tilestats to {target_stats}", flush=True)
     return av_image, tilestats
 
 
@@ -546,6 +550,7 @@ def create_all_single_averages(
     todo=("genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"),
     to_average=None,
     dependency=None,
+    use_slurm=True,
     force_redo=False,
 ):
     """Average all tiffs in each folder and then all folders by acquisition type
@@ -561,11 +566,11 @@ def create_all_single_averages(
             all folders listed in metadata. Defaults to None.
         dependency (list, optional): List of job IDs to wait for before starting the
             current job. Defaults to None.
+        use_slurm (bool, optional): Submit jobs to slurm. Defaults to True.
         force_redo (bool, optional): Redo if the average already exists. Defaults to
             False.
     """
     processed_path = get_processed_path(data_path)
-    ops = load_ops(data_path)
     metadata = load_metadata(data_path)
     # Collect all folder names
     if to_average is None:
@@ -594,24 +599,25 @@ def create_all_single_averages(
             print(f"{folder} average already exists. Skipping")
             continue
         print(f"Creating single average {folder}", flush=True)
-        projection = ops["averaging_projection"]
+        projections = ["max", "median"]
         slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
         slurm_folder.mkdir(parents=True, exist_ok=True)
-        job_ids.append(
-            create_single_average(
-                data_path,
-                folder,
-                n_batch=n_batch,
-                subtract_black=True,
-                prefix_filter=None,
-                suffix=projection,
-                use_slurm=True,
-                slurm_folder=slurm_folder,
-                scripts_name=f"create_single_average_{folder}",
-                dependency_type="afterany",
-                job_dependency=dependency if dependency else None,
+        for projection in projections:
+            job_ids.append(
+                create_single_average(
+                    data_path,
+                    folder,
+                    n_batch=n_batch,
+                    subtract_black=True,
+                    prefix_filter=None,
+                    suffix=projection,
+                    use_slurm=use_slurm,
+                    slurm_folder=slurm_folder,
+                    scripts_name=f"create_single_average_{folder}_{projection}",
+                    dependency_type="afterany",
+                    job_dependency=dependency if dependency else None,
+                )
             )
-        )
     return job_ids
 
 
@@ -619,19 +625,27 @@ def create_all_single_averages(
 def create_grand_averages(
     data_path,
     prefix_todo=("genes_round", "barcode_round", ""),
+    suffix_todo=("max", "median"),
     n_batch=None,
     dependency=None,
+    use_slurm=True,
     force_redo=False,
 ):
     """Average single acquisition averages into grand average
 
     Args:
         data_path (str): Path to the folder, relative to `projects` folder
+        suffix (str): Projection suffix to filter tifs. Defaults to None.
         prefix_todo (tuple, optional): List of str, names of the tifs to average. An
             empty string will average all tifs. Defaults to ("genes_round",
-                "barcode_round", "").
+            "barcode_round", "").
+        suffix_todo (list, optional): List of str, suffixes to filter tifs. Defaults to
+            ('max', 'median').
         n_batch (int, optional): Number of batch to average before taking their median.
             If None, will do as many batches as images. Defaults to None.
+        dependency (list, optional): List of job IDs to wait for before starting the
+            current job. Defaults to None.
+        use_slurm (bool, optional): Submit jobs to slurm. Defaults to True.
         force_redo (bool, optional): Redo if the average already exists. Defaults to
             False.
 
@@ -651,31 +665,33 @@ def create_grand_averages(
     slurm_folder.mkdir(parents=True, exist_ok=True)
     target_folder = get_processed_path(data_path) / subfolder
     for kind in prefix_todo:
-        if kind:
-            target_file = target_folder / "averages_average.tif"
-        else:
-            target_file = target_folder / "grand_average.tif"
-        if (not force_redo) and target_file.exists():
-            print(f"{kind} grand average already exists. Skipping")
-            continue
+        for suffix in suffix_todo:
+            if kind:
+                target_file = target_folder / f"{kind}_{suffix}_average.tif"
+            else:
+                target_file = target_folder / f"grand_{suffix}_average.tif"
+            if (not force_redo) and target_file.exists():
+                print(f"{kind} grand average already exists. Skipping")
+                continue
 
-        print(f"Creating grand average {kind}", flush=True)
-        job_ids.append(
-            create_single_average(
-                data_path,
-                subfolder,
-                n_batch=n_batch,
-                subtract_black=False,
-                prefix_filter=kind,
-                combine_tilestats=True,
-                suffix="_1_average",
-                use_slurm=True,
-                slurm_folder=slurm_folder,
-                scripts_name=f"create_grand_average_{kind}",
-                dependency_type="afterany",
-                job_dependency=dependency if dependency else None,
+            print(f"Creating grand average {kind}", flush=True)
+            job_ids.append(
+                create_single_average(
+                    data_path,
+                    subfolder,
+                    n_batch=n_batch,
+                    subtract_black=False,
+                    prefix_filter=kind,
+                    combine_tilestats=True,
+                    suffix=f"_1_{suffix}_average",
+                    target_fname=target_file.name,
+                    use_slurm=use_slurm,
+                    slurm_folder=slurm_folder,
+                    scripts_name=f"create_grand_average_{kind}_{suffix}",
+                    dependency_type="afterany",
+                    job_dependency=dependency if dependency else None,
+                )
             )
-        )
 
     check_illumination_correction(
         data_path,
