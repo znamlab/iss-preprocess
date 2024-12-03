@@ -9,7 +9,7 @@ from skimage.transform import SimilarityTransform
 from sklearn.linear_model import RANSACRegressor
 from znamutils import slurm_it
 
-from ..image.correction import apply_illumination_correction, filter_stack
+from ..image.correction import filter_stack
 from ..io import (
     get_channel_round_transforms,
     get_processed_path,
@@ -154,16 +154,19 @@ def register_fluorescent_tile(
         )
     else:
         reference_tforms = None
-
-    stack = load_tile_by_coors(
-        data_path, tile_coors=tile_coors, suffix=projection, prefix=prefix
-    )
     correct_illumination = ops.get(f"{ops_prefix}_reg_correct_illumination", False)
     if correct_illumination:
         print("Correcting illumination")
-        stack = apply_illumination_correction(data_path, stack, prefix)
     else:
         print("Not correcting illumination")
+
+    stack = load_tile_by_coors(
+        data_path,
+        tile_coors=tile_coors,
+        suffix=projection,
+        prefix=prefix,
+        correct_illumination=correct_illumination,
+    )
 
     # median filter if needed
     median_filter_size = ops["reg_median_filter"]
@@ -992,9 +995,8 @@ def load_and_register_sequencing_tile(
         prefix=prefix,
         nrounds=nrounds,
         specific_rounds=specific_rounds,
+        correct_illumination=correct_illumination,
     )
-    if correct_illumination:
-        stack = apply_illumination_correction(data_path, stack, prefix)
 
     ops = load_ops(data_path)
     tforms = get_channel_round_transforms(
@@ -1112,7 +1114,7 @@ def load_and_register_tile(
 
 
 def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=None):
-    """Load a raw stack and apply illumination correction and channel registration.
+    """Load a raw stack and apply channel registration.
 
     Args:
         data_path (str): Relative path to data.
@@ -1150,7 +1152,6 @@ def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=
             None,
             use_indexmap=True,
         )
-    stack = apply_illumination_correction(data_path, stack, prefix)
     c_stack = np.zeros_like(stack)
     for z in np.arange(stack.shape[-1]):
         c_stack[..., z] = apply_corrections(

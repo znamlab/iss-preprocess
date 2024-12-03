@@ -7,7 +7,7 @@ from znamutils import slurm_it
 from ..call import extract_spots
 from ..coppafish import scaled_k_means
 from ..diagnostics.diag_hybridisation import check_hybridisation_setup
-from ..image import apply_illumination_correction, compute_distribution, filter_stack
+from ..image import compute_distribution, filter_stack
 from ..io import (
     get_channel_round_transforms,
     get_processed_path,
@@ -68,10 +68,12 @@ def load_and_register_hyb_tile(
         data_path, prefix, tile_coors, corrected_shifts
     )
     stack = load_tile_by_coors(
-        data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
+        data_path,
+        tile_coors=tile_coors,
+        suffix=suffix,
+        prefix=prefix,
+        correct_illumination=correct_illumination,
     )
-    if correct_illumination:
-        stack = apply_illumination_correction(data_path, stack, prefix)
     if "matrix_between_channels" not in tforms.keys():
         stack = apply_corrections(
             stack,

@@ -3,7 +3,6 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from znamutils import slurm_it
 
-from ..image.correction import apply_illumination_correction
 from ..io import (
     get_channel_round_transforms,
     get_processed_path,
@@ -419,8 +418,14 @@ def check_affine_channel_registration(
         if multi_rounds:
             nrounds = ops[prefix + "s"]
             stack = load_sequencing_rounds(
-                data_path, tile_coors, prefix=prefix, suffix=projection, nrounds=nrounds
+                data_path,
+                tile_coors,
+                prefix=prefix,
+                suffix=projection,
+                nrounds=nrounds,
+                correct_illumination=correct_illumination,
             )
+
             # load corrections
             tforms = get_channel_round_transforms(
                 data_path, prefix, tile_coors, ops["corrected_shifts"]
@@ -439,10 +444,8 @@ def check_affine_channel_registration(
                 tile_coors=tile_coors,
                 prefix=prefix,
                 suffix=projection,
+                correct_illumination=correct_illumination,
             )
-
-        if correct_illumination:
-            std_stack = apply_illumination_correction(data_path, std_stack, prefix)
 
         matrices, debug_info = correct_by_block(
             std_stack,

@@ -1,17 +1,19 @@
+from functools import partial
 from pathlib import Path
 
 import cv2
 import numpy as np
-from functools import partial
-from scipy.ndimage import median_filter, gaussian_filter
+from scipy.ndimage import gaussian_filter, median_filter
 from skimage.morphology import disk
 from sklearn.linear_model import LinearRegression
 
 from ..coppafish import hanning_diff
-from ..io import get_processed_path, load_ops, load_stack, write_stack
+from ..io import get_processed_path, load_ops, load_stack
 
 
-def apply_illumination_correction(data_path, stack, prefix, dtype=float):
+def apply_illumination_correction(
+    data_path, stack, prefix, projection=None, dtype=float
+):
     """Apply illumination correction
 
     Use precomputed normalised and filtered averages to correct for inhomogeneous
@@ -22,18 +24,24 @@ def apply_illumination_correction(data_path, stack, prefix, dtype=float):
         stack (np.array): A 3 or 4D array with X x Y x Nchannels as first 3 dimensions
         prefix (str): Prefix name of the average, e.g. "barcode_round" for grand average
             or "barcode_round_1" for single round average.
-        dtype (str or type, optional): data type of the ouput. Division is always
+        projection (str, optional): Name of the projection to use. If None, will try to
+            get it from ops. Defaults to None.
+        dtype (str or type, optional): data type of the output. Division is always
             performed as float
 
     Returns:
         stack (np.array): Normalised stack. Same shape as input.
 
     """
+    raise DeprecationWarning(
+        "This function is deprecated. Correction is done in load_tile_by_coors instead"
+    )
     processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     fname = ops.get(f"{prefix}_average_for_correction", f"{prefix}_average.tif")
     average_image_fname = processed_path / "averages" / fname
     avg_image = load_stack(average_image_fname).astype(float)
+
     # find rounds that do not have data
     no_data = np.logical_not(np.any(stack, axis=(0, 1, 2)))
     if stack.ndim == 4:
@@ -158,11 +166,8 @@ def calculate_unmixing_coefficient(
         )
 
         predicted_background = predicted_background_flat.reshape(background_image.shape)
-
-        # Subtract the predicted background from the mixed signal to get the signal image
-        pure_signal_image = signal_image - (
-            predicted_background * background_coef
-        )  # TODO: Remove fudge factor
+        # TODO: Remove `background_coef`, the fudge factor
+        pure_signal_image = signal_image - (predicted_background * background_coef)
         pure_signal_image = np.clip(pure_signal_image, 0, None)
         print(
             f"Image unmixed with coefficient: {model.coef_[0]:.2f},"
@@ -337,7 +342,7 @@ def _mean_tiffs(
     normalise,
     combine_tilestats,
 ):
-    """Inner funtion of tilestats_and_mean_image. See parent functions for docstring"""
+    """Inner function of tilestats_and_mean_image. See parent functions for docstring"""
     data = load_stack(tiff_list[0])
     assert data.ndim == 3
     if combine_tilestats:

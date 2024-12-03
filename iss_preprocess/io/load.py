@@ -22,6 +22,7 @@ __all__ = [
     "load_micromanager_metadata",
     "load_section_position",
     "load_tile_by_coors",
+    "load_correction_image",
     "load_stack",
     "get_zprofile",
     "get_tile_ome",
@@ -292,7 +293,11 @@ def load_section_position(data_path):
 
 
 def load_tile_by_coors(
-    data_path, tile_coors=(1, 0, 0), suffix="max", prefix="genes_round_1_1"
+    data_path,
+    tile_coors=(1, 0, 0),
+    suffix="max",
+    prefix="genes_round_1_1",
+    correct_illumination=False,
 ):
     """Load processed tile images
 
@@ -303,37 +308,89 @@ def load_tile_by_coors(
         suffix (str, optional): File name suffix. Defaults to "fstack".
         prefix (str, optional): Full folder name prefix, including round number.
             Defaults to "genes_round_1_1"
+        correct_illumination (bool, optional): Whether to correct for illumination
+            Defaults to False.
 
     Returns:
-        numpy.ndarray: X x Y x channels stack.
+        numpy.ndarray: X x Y x channels stack. uint16 if not corrected, float otherwise.
 
     """
     tile_roi, tile_x, tile_y = tile_coors
+
+    processed_path = get_processed_path(data_path)
+
     if suffix != "max-median":
         fname = (
             f"{prefix}_MMStack_{tile_roi}-"
             + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
         )
-        stack = load_stack(get_processed_path(data_path) / prefix / fname)
+        stack = load_stack(processed_path / prefix / fname)
+
+        if correct_illumination:
+            ops = load_ops(data_path)
+            stack = stack.astype(float)
+            correction_image = load_correction_image(data_path, suffix, prefix)
+            # special case for missing data, where we don't want to do anything
+            no_data = np.logical_not(np.any(stack, axis=(0, 1, 2)))
+            if stack.ndim == 4:
+                stack = (
+                    stack - ops["black_level"][np.newaxis, np.newaxis, :, np.newaxis]
+                ) / correction_image[:, :, :, np.newaxis]
+                # blank rounds with no data
+                stack[..., no_data] *= 0
+            elif no_data:
+                # do nothing, the stack is empty
+                pass
+            else:
+                stack = (
+                    stack - ops["black_level"][np.newaxis, np.newaxis, :]
+                ) / correction_image
     else:
-        fname = (
-            f"{prefix}_MMStack_{tile_roi}-"
-            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_max.tif"
+        stack = load_tile_by_coors(
+            data_path, tile_coors, "max", prefix, correct_illumination
         )
-        stack = load_stack(get_processed_path(data_path) / prefix / fname)
-        fname = (
-            f"{prefix}_MMStack_{tile_roi}-"
-            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_median.tif"
+        # by definition max is above median, won't underflow or clip
+        stack -= load_tile_by_coors(
+            data_path, tile_coors, "median", prefix, correct_illumination
         )
-        stack -= load_stack(get_processed_path(data_path) / prefix / fname)
-        # add back black level
-        ops = load_ops(data_path)
-        if np.any(stack):  # don't change corrupted stacks
-            stack += ops["black_level"][None, None, :].astype(stack.dtype)
     return stack
 
 
-# TODO: add shape check? What if pages are not 2D (rgb, weird tiffs)
+def load_correction_image(data_path, projection, prefix, corr_prefix=None):
+    """Load the image for illumination correction
+
+    By default, find the appropriate correction image from the ops file. This can be
+    overridden by providing a corr_prefix.
+
+    Args:
+        data_path (str): Relative path to dataset.
+        projection (str): Projection to use, one of `max`, `median`.
+        prefix (str): Prefix to correct, this is the image you want to correct, not
+            the one you use for the correction.
+        corr_prefix (str, optional): Prefix of the image to use for correction. If
+            provided, this is used instead of the prefix. Defaults to None.
+
+    Returns:
+        numpy.ndarray: X x Y x channels stack.
+
+    """
+    ops = load_ops(data_path)
+    if corr_prefix is None:
+        if f"{prefix}_average_for_correction" in ops:
+            # see if it has been specified in the ops file
+            corr_prefix = ops[f"{prefix}_average_for_correction"]
+        elif "round" in prefix:
+            # if not and it's a round acquisition, use the "all_rounds" average
+            corr_prefix = prefix.split("_round")[0] + "_round"
+        else:
+            # otherwise, just use the single prefix
+            corr_prefix = prefix
+
+    fname = f"{corr_prefix}_{projection}_average.tif"
+    stack = load_stack(get_processed_path(data_path) / "averages" / fname)
+    return stack
+
+
 def load_stack(fname):
     """
     Load TIFF stack.
@@ -652,6 +709,7 @@ def load_sequencing_rounds(
     suffix="max",
     prefix="genes_round",
     specific_rounds=None,
+    correct_illumination=False,
 ):
     """Load processed tile images across rounds
 
@@ -666,6 +724,8 @@ def load_sequencing_rounds(
             to "genes_round"
         specific_round (list, optional): if not None, specify which rounds must be
             loaded and ignores `nrounds`. Defaults to None
+        correct_illumination (bool, optional): Whether to correct for illumination
+            Defaults to False.
 
     Returns:
         numpy.ndarray: X x Y x channels x rounds stack.
@@ -679,7 +739,11 @@ def load_sequencing_rounds(
         dirname = f"{prefix}_{iround}_1"
         ims.append(
             load_tile_by_coors(
-                data_path, tile_coors=tile_coors, suffix=suffix, prefix=dirname
+                data_path,
+                tile_coors=tile_coors,
+                suffix=suffix,
+                prefix=dirname,
+                correct_illumination=correct_illumination,
             )
         )
     return np.stack(ims, axis=3)

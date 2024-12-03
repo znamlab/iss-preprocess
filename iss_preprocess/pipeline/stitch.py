@@ -13,7 +13,6 @@ from skimage.transform import AffineTransform, warp
 from tqdm import tqdm
 from znamutils import slurm_it
 
-from ..image.correction import apply_illumination_correction
 from ..io import (
     get_processed_path,
     get_raw_path,
@@ -506,8 +505,6 @@ def register_adjacent_tiles(
 
     # small helper to prepare the stack
     def prep_stack(stack):
-        if correct_illumination:
-            stack = apply_illumination_correction(data_path, stack, prefix)
         if ops["reg_median_filter"]:
             msize = ops["reg_median_filter"]
             assert isinstance(msize, int), "reg_median_filter must be an integer"
@@ -515,7 +512,11 @@ def register_adjacent_tiles(
         return stack
 
     tile_ref = load_tile_by_coors(
-        data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
+        data_path,
+        tile_coors=ref_coors,
+        suffix=suffix,
+        prefix=prefix,
+        correct_illumination=correct_illumination,
     )
     tile_ref = prep_stack(tile_ref)
 
@@ -538,7 +539,11 @@ def register_adjacent_tiles(
         corr_right = np.nan
     else:
         tile_right = load_tile_by_coors(
-            data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
+            data_path,
+            tile_coors=right_coors,
+            suffix=suffix,
+            prefix=prefix,
+            correct_illumination=correct_illumination,
         )
         tile_right = prep_stack(tile_right)
         fixed_part = tile_ref[:, -reg_pix_x * 2 :, ref_ch]
@@ -577,7 +582,11 @@ def register_adjacent_tiles(
         corr_down = np.nan
     else:
         tile_down = load_tile_by_coors(
-            data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
+            data_path,
+            tile_coors=down_coors,
+            suffix=suffix,
+            prefix=prefix,
+            correct_illumination=correct_illumination,
         )
         tile_down = prep_stack(tile_down)
         fixed_part = tile_ref[: reg_pix_y * 2 :, :, ref_ch]
