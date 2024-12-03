@@ -177,11 +177,12 @@ def register_fluorescent_tile(
         ), "reg_median_filter must be an integer"
         stack = median_filter(stack, footprint=disk(median_filter_size), axes=(0, 1))
 
-    binarise_quantile = ops[prefix.split("_")[0].lower() + "_binarise_quantile"]
+    binarise_quantile = ops[ops_prefix + "_binarise_quantile"]
     ref_ch = ops["ref_ch"]
-    ref_ch = ops.get(f"{prefix.split('_')[0].lower()}_ref_ch", ref_ch)
+    ref_ch = ops.get(f"{ops_prefix}_ref_ch", ref_ch)
 
     channel_grouping = ops.get(f"{ops_prefix}_reg_channel_grouping", None)
+    channel_grouping = ops.get(f"{prefix}_reg_channel_grouping", channel_grouping)
     if channel_grouping is None:
         print("Registering all channels together")
         out = register_image_channels(
@@ -196,7 +197,7 @@ def register_fluorescent_tile(
             correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
             max_residual=ops.get(f"{ops_prefix}_max_residual", 2),
             median_filter_size=None,
-            debug=True,
+            debug=debug,
             verbose=True,
         )
 
