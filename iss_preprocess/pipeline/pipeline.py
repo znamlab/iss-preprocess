@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import yaml
+from tqdm import tqdm
 from znamutils import slurm_it
 
 from ..decorators import updates_flexilims
@@ -39,7 +40,13 @@ from .hybridisation import (
     extract_hyb_spots_all,
     setup_hyb_spot_calling,
 )
-from .project import check_projection, check_roi_dims, project_round, reproject_failed
+from .project import (
+    check_projection,
+    check_roi_dims,
+    project_round,
+    project_tile,
+    reproject_failed,
+)
 from .register import (
     correct_hyb_shifts,
     run_correct_shifts,
@@ -98,50 +105,83 @@ def sync_and_crunch(data_path, source_folder=None, destination_folder=None):
         crunch_pos_file(data_path, pos_file, destination_folder)
 
 
-def crunch_pos_file(data_path, pos_file, destination_folder):
+def crunch_pos_file(data_path, pos_file, destination_folder=None):
     """Crunch a single position file
 
     Args:
         data_path (str): Relative path to the data folder
         pos_file (str): Full Path to the position file
-        destination_folder (str): Path to the destination folder
+        destination_folder (str, optional): Path to the destination folder. If None,
+            will use the processed folder. Defaults to None.
     """
     pos_file = Path(pos_file)
     assert pos_file.exists(), f"{pos_file} does not exist"
     assert pos_file.suffix == ".pos", f"{pos_file} is not a .pos file"
     source_folder = pos_file.parent
-
+    ops = load_ops(data_path)
     print(f"Crunching {pos_file}", flush=True)
     # Position files are name like `CHAMBERID_PREFIX_NPOS_positions.pos`
     # but micromanager adds a _1 or _2 at the end of the prefix later
     prefix = "_".join(pos_file.name.split("_")[1:-2])
     print(f"Prefix: {prefix}", flush=True)
     # Find the prefix folder
-    prefix_folder = []
-    while not prefix_folder:
-        prefix_folders = source_folder.glob(f"{prefix}_*")
+    prefix_folders = []
+    while not prefix_folders:
+        prefix_folders = list(source_folder.glob(f"{prefix}_*"))
         if not prefix_folders:
             print(f"No folder found for {prefix}, waiting 20s", flush=True)
             time.sleep(20)
 
     for prefix_folder in prefix_folders:
+        # To avoid checking multiple times the same folder, make a "done" file
+        done_file = prefix_folder / "DONE"
+        if done_file.exists():
+            print(f"{prefix_folder} already processed, skipping", flush=True)
+            continue
+
+        target_pref_folder = destination_folder / prefix_folder.name
+        if not target_pref_folder.exists():
+            target_pref_folder.mkdir()
         print(f"Looking at {prefix_folder.name}", flush=True)
+        # First build a list of position that should be acquired
+        position_list = []
+        to_project = []
+        with open(pos_file, "r") as f:
+            positions = yaml.safe_load(f)
+        positions = positions["map"]["StagePositions"]["array"]
+        for pos in positions:
+            pos_label = pos["Label"]["scalar"]
+            position_list.append(pos_label)
+            projected_file = f"{target_pref_folder.name}_MMStack_{pos_label}_max.tif"
+            if not (target_pref_folder / projected_file).exists():
+                to_project.append(pos_label)
+        if not to_project:
+            print(f"{prefix_folder} already projected, skipping", flush=True)
+            done_file.touch()
+            continue
 
-    # First build a list of position that should be acquired
-    position_list = []
-    with open(pos_file, "r") as f:
-        positions = yaml.safe_load(f)
-    positions = positions["map"]["StagePositions"]["array"]
-    for pos in positions:
-        pos_label = pos["Label"]["scalar"]
-        position_list.append(pos_label)
-    print(f"Found {len(position_list)} positions", flush=True)
+        print(f"{len(to_project)}/{len(positions)} positions to project", flush=True)
 
-    while True:
-        # Find unprocessed positions
-        for pos in position_list:
-            if not (destination_folder / f"{pos}.ome.tif").exists():
-                break
+        # Now project the missing positions
+        # Initialize the progress bar
+        pbar = tqdm(total=len(to_project))
+        while len(to_project):
+            pbar.set_description("projecting ...")
+            # check if any new position has been added
+            for pos in to_project:
+                raw_file = f"{prefix_folder.name}_MMStack_{pos}"
+                raw_file = list(source_folder.glob(f"{raw_file}_*"))
+                if len(raw_file):
+                    assert len(raw_file) == 1, f"Multiple files found for {raw_file}"
+                    raw_file = raw_file[0]
+                    fname = raw_file.name
+                    project_tile(fname, ops, overwrite=False, sth=13, target_name=None)
+                    to_project.remove(pos)
+                    pbar.update(1)
+            if len(to_project):
+                pbar.set_description("waiting for new positions...")
+                time.sleep(1)
+        pbar.close()
 
 
 @slurm_it(conda_env="iss-preprocess")
