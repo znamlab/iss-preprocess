@@ -924,11 +924,14 @@ def correct_shifts_single_round_roi(
                     angles=angles_corrected[:, itile],
                     scales=scales,
                 )
-            np.savez(
-                save_dir / f"tforms_corrected_{prefix}_{roi}_{ix}_{iy}.npz",
-                allow_pickle=True,
-                **to_save,
+            target = get_channel_round_transforms(
+                data_path,
+                prefix,
+                (roi, ix, iy),
+                shifts_type="corrected",
+                load_file=False,
             )
+            np.savez(target, allow_pickle=True, **to_save)
             itile += 1
 
 
