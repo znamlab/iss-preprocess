@@ -8,6 +8,15 @@ def iss_cli():
 
 @iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def live_crunch(path):
+    """Project data during acquisition."""
+    from iss_preprocess.pipeline.pipeline import sync_and_crunch
+
+    sync_and_crunch(path)
+
+
+@iss_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option(
     "-f",
     "--force-redo",
