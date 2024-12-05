@@ -27,9 +27,11 @@ def project_and_average(path, force_redo=False, use_slurm=True):
     from datetime import datetime
     from pathlib import Path
 
+    click.echo("Importing")
     from iss_preprocess.pipeline.pipeline import project_and_average
 
     time = str(datetime.now().strftime("%Y-%m-%d_%H-%M"))
+    click.echo(f"Home: {Path.home()}")
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     click.echo(f"Processing {path}")

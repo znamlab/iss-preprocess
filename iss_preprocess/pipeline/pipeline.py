@@ -1,9 +1,11 @@
 import shlex
 import subprocess
+import time
 import warnings
 from pathlib import Path
 
 import numpy as np
+import yaml
 from znamutils import slurm_it
 
 from ..decorators import updates_flexilims
@@ -64,6 +66,82 @@ __all__ = [
     "call_spots",
     "segment_and_stitch_mcherry_cells",
 ]
+
+
+def sync_and_crunch(data_path, source_folder=None, destination_folder=None):
+    """Sync and crunch data from source to destination folder
+
+    Args:
+        data_path (str): Relative path to the data folder
+        source_folder (str, optional): Source folder. Defaults to None.
+        destination_folder (str, optional): Destination folder. Defaults to None.
+    """
+
+    if source_folder is None:
+        source_folder = get_raw_path(data_path)
+    source_folder = Path(source_folder)
+    assert source_folder.exists(), f"{source_folder} does not exist"
+    if destination_folder is None:
+        destination_folder = get_processed_path(data_path)
+    destination_folder = Path(destination_folder)
+    if not destination_folder.exists():
+        destination_folder.mkdir(parents=True)
+        print(f"Created {destination_folder}")
+
+    # Find the position files
+    position_files = list(source_folder.glob("*positions.pos"))
+    if not position_files:
+        raise IOError(f"No position files found in {source_folder}")
+    # sort files by creation date
+    position_files = sorted(position_files, key=lambda x: x.stat().st_ctime)
+    for pos_file in position_files:
+        crunch_pos_file(data_path, pos_file, destination_folder)
+
+
+def crunch_pos_file(data_path, pos_file, destination_folder):
+    """Crunch a single position file
+
+    Args:
+        data_path (str): Relative path to the data folder
+        pos_file (str): Full Path to the position file
+        destination_folder (str): Path to the destination folder
+    """
+    pos_file = Path(pos_file)
+    assert pos_file.exists(), f"{pos_file} does not exist"
+    assert pos_file.suffix == ".pos", f"{pos_file} is not a .pos file"
+    source_folder = pos_file.parent
+
+    print(f"Crunching {pos_file}", flush=True)
+    # Position files are name like `CHAMBERID_PREFIX_NPOS_positions.pos`
+    # but micromanager adds a _1 or _2 at the end of the prefix later
+    prefix = "_".join(pos_file.name.split("_")[1:-2])
+    print(f"Prefix: {prefix}", flush=True)
+    # Find the prefix folder
+    prefix_folder = []
+    while not prefix_folder:
+        prefix_folders = source_folder.glob(f"{prefix}_*")
+        if not prefix_folders:
+            print(f"No folder found for {prefix}, waiting 20s", flush=True)
+            time.sleep(20)
+
+    for prefix_folder in prefix_folders:
+        print(f"Looking at {prefix_folder.name}", flush=True)
+
+    # First build a list of position that should be acquired
+    position_list = []
+    with open(pos_file, "r") as f:
+        positions = yaml.safe_load(f)
+    positions = positions["map"]["StagePositions"]["array"]
+    for pos in positions:
+        pos_label = pos["Label"]["scalar"]
+        position_list.append(pos_label)
+    print(f"Found {len(position_list)} positions", flush=True)
+
+    while True:
+        # Find unprocessed positions
+        for pos in position_list:
+            if not (destination_folder / f"{pos}.ome.tif").exists():
+                break
 
 
 @slurm_it(conda_env="iss-preprocess")
