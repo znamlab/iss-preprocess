@@ -379,7 +379,7 @@ def load_correction_image(data_path, projection, prefix, corr_prefix=None):
         if f"{prefix}_average_for_correction" in ops:
             # see if it has been specified in the ops file
             corr_prefix = ops[f"{prefix}_average_for_correction"]
-        elif "round" in prefix:
+        elif ("genes" in prefix) or ("barcode" in prefix):
             # if not and it's a round acquisition, use the "all_rounds" average
             corr_prefix = prefix.split("_round")[0] + "_round"
         else:
