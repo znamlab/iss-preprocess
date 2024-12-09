@@ -816,7 +816,7 @@ def create_grand_averages(
             if kind:
                 target_file = target_folder / f"{kind}_{suffix}_average.tif"
             else:
-                target_file = target_folder / f"grand_{suffix}_average.tif"
+                target_file = target_folder / f"all_acquisitions_{suffix}_average.tif"
             if (not force_redo) and target_file.exists():
                 print(f"{kind} grand average already exists. Skipping")
                 continue

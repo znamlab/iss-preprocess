@@ -29,7 +29,7 @@ image_correction:
   fit_channel_correction: true
   # Specific channel correction for individual acquisitions
   # The default is to load f"{prefix}_average.tif" but that can be changed here
-  mCherry_1_average_for_correction: averages_average.tif
+  mCherry_1_average_for_correction: all_acquisitions
 
 # Parameters for registration across rounds and channels
 registration:
