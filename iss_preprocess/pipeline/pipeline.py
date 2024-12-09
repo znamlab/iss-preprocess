@@ -129,7 +129,12 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
     while not prefix_folders:
         prefix_folders = list(source_folder.glob(f"{prefix}_*"))
         if not prefix_folders:
-            print(f"No folder found for {prefix}, waiting 20s", flush=True)
+            print(f"No folder found for {prefix}", flush=True)
+            # If the processed folder exists, skip, otherwise wait
+            if (destination_folder / prefix).exists():
+                print(f"{prefix} already processed, skipping", flush=True)
+                return
+            print("Sleeping 20s", flush=True)
             time.sleep(20)
 
     for prefix_folder in prefix_folders:
@@ -182,6 +187,26 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
                 pbar.set_description("waiting for new positions...")
                 time.sleep(1)
         pbar.close()
+        print(f"Done projecting {prefix_folder}", flush=True)
+
+        # Plot diagnostic Z-stacks
+        print(f"Plotting diagnostic Z-stacks for {prefix_folder}", flush=True)
+        
+
+        # Plot overview images
+        print(f"Plotting overview images for {prefix_folder}", flush=True)
+        plot_overview_images(
+            data_path,
+            prefix_folder.name,
+            plot_grid=True,
+            downsample_factor=25,
+            save_raw=False,
+            dependency=None,
+        )
+        
+        # Save the done file
+        done_file.touch()
+        print(f"Done processing {prefix_folder}", flush=True)
 
 
 @slurm_it(conda_env="iss-preprocess")
