@@ -161,7 +161,7 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
             if not (target_pref_folder / projected_file).exists():
                 to_project.append(pos_label)
         if not to_project:
-            print(f"{prefix_folder} already projected, skipping", flush=True)
+            print(f"{prefix_folder.name} already projected, skipping", flush=True)
             done_file.touch()
             continue
 
@@ -173,6 +173,7 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
         while len(to_project):
             pbar.set_description("projecting ...")
             # check if any new position has been added
+            processed= []
             for pos in to_project:
                 raw_file = f"{prefix_folder.name}_MMStack_{pos}"
                 raw_file = list(source_folder.glob(f"{raw_file}_*"))
@@ -181,20 +182,23 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
                     raw_file = raw_file[0]
                     fname = raw_file.name
                     project_tile(fname, ops, overwrite=False, sth=13, target_name=None)
-                    to_project.remove(pos)
+                    processed.append(pos)
                     pbar.update(1)
+            # Remove processed positions from the list out of the loop
+            for done in processed:
+                to_project.remove(done)
             if len(to_project):
                 pbar.set_description("waiting for new positions...")
                 time.sleep(1)
         pbar.close()
-        print(f"Done projecting {prefix_folder}", flush=True)
+        print(f"Done projecting {prefix_folder.name}", flush=True)
 
         # Plot diagnostic Z-stacks
-        print(f"Plotting diagnostic Z-stacks for {prefix_folder}", flush=True)
+        print(f"Plotting diagnostic Z-stacks for {prefix_folder.name}", flush=True)
         
 
         # Plot overview images
-        print(f"Plotting overview images for {prefix_folder}", flush=True)
+        print(f"Plotting overview images for {prefix_folder.name}", flush=True)
         plot_overview_images(
             data_path,
             prefix_folder.name,
