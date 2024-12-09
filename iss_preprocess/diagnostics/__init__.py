@@ -7,7 +7,7 @@ but that are not required per se to run it."""
 import matplotlib.pyplot as plt
 from znamutils import slurm_it
 from ..vis.diagnostics import plot_correction_images, plot_tilestats_distributions, plot_spot_sign_image
-from ..io import load_ops, load_stack, get_roi_dimensions, get_processed_path
+from ..io import load_ops, load_stack, get_roi_dimensions, get_processed_path, get_zprofile
 
 
 import numpy as np
@@ -110,3 +110,46 @@ def check_illumination_correction(
         plot_tilestats_distributions(
             data_path, distributions, grand_averages, figure_folder
         )
+
+
+def plot_zfocus(data_path, prefix, rois=None, verbose=True):
+    """Plot the z-focus of a ROI
+
+    Args:
+        data_path (str): Relative path to data folder
+        prefix (str): Prefix of the images to load.
+        rois (int | list, optional): ROI to plot. If None, will plot all ROIs. Defaults 
+        to None.
+        verbose (bool, optional): Print info about progress. Defaults to True.
+        
+
+    """
+    roi_dims = get_roi_dimensions(data_path, prefix=prefix)
+    if rois is None:
+        rois = roi_dims[:, 0]
+    elif isinstance(rois, int):
+        rois = [rois]
+
+    # collect all data    
+    for roi in rois:
+        if verbose:
+            print(f"Plotting ROI {roi}")
+        nx, ny = roi_dims[roi_dims[:, 0] == roi, 1:][0]
+        zfocus = np.zeros((nx, ny, 4))
+        zprofiles = None
+        for tile_x in range(nx):
+            for tile_y in range(ny):
+                zprof = get_zprofile(data_path, prefix, (roi, tile_x, tile_y))
+                # use std proj, max was too noisy
+                zprof = zprof["std"]
+                if zprofiles is None:
+                    zprofiles = np.zeros((nx, ny, *zprof.shape))
+                zprofiles[tile_x, tile_y, :] = zprof
+                zfocus[tile_x, tile_y, :] = np.argmax(zprof, axis=1)
+        
+    # find out of focus tiles
+    nz = zfocus.shape[-1]
+    correct = (zfocus > 4) & (zfocus < nz - 4)
+    
+    aspect = nx / ny
+    fig, axs = plt.subplots(nx, ny, figsize=(12, 12 * aspect))
