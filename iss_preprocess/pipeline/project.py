@@ -224,50 +224,60 @@ def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
     project_tile(tile_path, ops, overwrite=overwrite, target_name=target)
 
 
-def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
+def project_tile(fname, ops, overwrite=False, sth=13, target_name=None, verbose=True):
     """Calculates projections for a single tile.
 
     Args:
         fname (str): path to tile *without* `'.ome.tif'` extension.
         ops (dict): dictionary of values from the ops file.
-        overwrite (bool): whether to repeat if already completed
-        sth (int): size of the structuring element for the fstack projection.
-        target_name (str): name of the target file. If None, it will be the same as the
-            input file.
+        overwrite (bool, optional): whether to repeat if already completed. Defaults to 
+            False.
+        sth (int, optional): size of the structuring element for the fstack projection.
+            Used only if `make_fstack` is True. Defaults to 13.
+        target_name (str, optional): name of the target file. If None, it will be the 
+            same as the input file. Defaults to None.
+        verbose (bool, optional): print progress. Defaults to True.
 
     """
     if target_name is None:
         target_name = fname
-    print(f"Target name: {target_name}")
+    if verbose:
+        print(f"Target name: {target_name}")
     save_path_fstack = get_processed_path(target_name + "_fstack.tif")
     save_path_max = get_processed_path(target_name + "_max.tif")
     save_path_median = get_processed_path(target_name + "_median.tif")
     if not overwrite and (
         save_path_fstack.exists() or save_path_max.exists() or save_path_median.exists()
     ):
-        print(f"{fname} already projected...\n")
+        if verbose:
+            print(f"{fname} already projected...\n")
         return
-    print(f"loading {fname}\n")
+    if verbose:
+        print(f"loading {fname}\n")
     im = get_tile_ome(
         get_raw_path(fname + ".ome.tif"),
         get_raw_path(fname + "_metadata.txt"),  # note that this won't be used
         # if use_indexmap is True
         use_indexmap=True,
     )
-    print("computing projection\n")
+    if verbose:
+        print("computing projection\n")
     get_processed_path(fname).parent.mkdir(parents=True, exist_ok=True)
     if ops["make_fstack"]:
-        print("making fstack projection\n")
+        if verbose:
+            print("making fstack projection\n")
         im_fstack = fstack_channels(
             im.astype(float), sth=sth
         )  # TODO check if float is useful here
         write_stack(im_fstack, save_path_fstack, bigtiff=True)
     if ops["make_median"]:
-        print("making median projection\n")
+        if verbose:
+            print("making median projection\n")
         im_median = np.median(im, axis=3)
         write_stack(im_median, save_path_median, bigtiff=True)
     if ops["make_max"]:
-        print("making max projection\n")
+        if verbose:
+            print("making max projection\n")
         im_max = np.max(im, axis=3)
         write_stack(im_max, save_path_max, bigtiff=True)
     # To check if the focus was correct, we also save a small projectiong along Z
@@ -275,6 +285,8 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None):
     perc_z = np.percentile(im, 99.9, axis=(0, 1))
     np_z_profile = get_processed_path(target_name + "_zprofile.npz")
     np.savez(np_z_profile, std=std_z, top_1permille=perc_z)
+    if verbose:
+        print(f"Done projecting {fname}\n")
 
 
 def project_tile_row(data_path, prefix, tile_roi, tile_row, max_col, overwrite=False):
