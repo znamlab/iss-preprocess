@@ -119,7 +119,7 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
     assert pos_file.suffix == ".pos", f"{pos_file} is not a .pos file"
     source_folder = pos_file.parent
     ops = load_ops(data_path)
-    print(f"Crunching {pos_file}", flush=True)
+    print(f"Crunching {pos_file.name}", flush=True)
     # Position files are name like `CHAMBERID_PREFIX_NPOS_positions.pos`
     # but micromanager adds a _1 or _2 at the end of the prefix later
     prefix = "_".join(pos_file.name.split("_")[1:-2])
@@ -139,14 +139,16 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
 
     for prefix_folder in prefix_folders:
         # To avoid checking multiple times the same folder, make a "done" file
-        done_file = prefix_folder / "DONE"
-        if done_file.exists():
-            print(f"{prefix_folder} already processed, skipping", flush=True)
-            continue
-
         target_pref_folder = destination_folder / prefix_folder.name
         if not target_pref_folder.exists():
-            target_pref_folder.mkdir()
+            target_pref_folder.mkdir(parents=True)
+
+        done_file = target_pref_folder / "DONE"
+        if done_file.exists():
+            print(f"{prefix_folder.name} already processed, skipping", flush=True)
+            continue
+
+        
         print(f"Looking at {prefix_folder.name}", flush=True)
         # First build a list of position that should be acquired
         position_list = []
@@ -167,6 +169,8 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
 
         print(f"{len(to_project)}/{len(positions)} positions to project", flush=True)
 
+        # Find the raw folder
+        raw_root = get_raw_path('test').parent
         # Now project the missing positions
         # Initialize the progress bar
         pbar = tqdm(total=len(to_project))
@@ -176,11 +180,11 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
             processed= []
             for pos in to_project:
                 raw_file = f"{prefix_folder.name}_MMStack_{pos}"
-                raw_file = list(source_folder.glob(f"{raw_file}_*"))
+                raw_file = list(prefix_folder.glob(f"{raw_file}*.tif"))
                 if len(raw_file):
                     assert len(raw_file) == 1, f"Multiple files found for {raw_file}"
                     raw_file = raw_file[0]
-                    fname = raw_file.name
+                    fname =str(raw_file.relative_to(raw_root)).replace('.ome.tif', '')
                     project_tile(fname, ops, overwrite=False, sth=13, target_name=None)
                     processed.append(pos)
                     pbar.update(1)
