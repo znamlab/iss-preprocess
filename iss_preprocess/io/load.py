@@ -158,11 +158,14 @@ def load_ops(data_path):
     if black_level_fname.exists():
         ops["black_level"] = np.load(black_level_fname)
     else:
-        print("black level not found, computing from dark frame")
-        dark_fname = get_processed_path(ops["dark_frame_path"])
-        dark_frames = load_stack(dark_fname)
-        ops["black_level"] = dark_frames.mean(axis=(0, 1))
-        np.save(black_level_fname, ops["black_level"])
+        if ops["dark_frame_path"] is None:
+            ops["black_level"] = np.nan
+        else:
+            print("black level not found, computing from dark frame")
+            dark_fname = get_processed_path(ops["dark_frame_path"])
+            dark_frames = load_stack(dark_fname)
+            ops["black_level"] = dark_frames.mean(axis=(0, 1))
+            np.save(black_level_fname, ops["black_level"])
 
     try:
         metadata = load_metadata(data_path)
