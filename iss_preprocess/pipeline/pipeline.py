@@ -148,7 +148,6 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
             print(f"{prefix_folder.name} already processed, skipping", flush=True)
             continue
 
-        
         print(f"Looking at {prefix_folder.name}", flush=True)
         # First build a list of position that should be acquired
         position_list = []
@@ -170,21 +169,21 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
         print(f"{len(to_project)}/{len(positions)} positions to project", flush=True)
 
         # Find the raw folder
-        raw_root = get_raw_path('test').parent
+        raw_root = get_raw_path("test").parent
         # Now project the missing positions
         # Initialize the progress bar
         pbar = tqdm(total=len(to_project))
         while len(to_project):
             pbar.set_description("projecting ...")
             # check if any new position has been added
-            processed= []
+            processed = []
             for pos in to_project:
                 raw_file = f"{prefix_folder.name}_MMStack_{pos}"
                 raw_file = list(prefix_folder.glob(f"{raw_file}*.tif"))
                 if len(raw_file):
                     assert len(raw_file) == 1, f"Multiple files found for {raw_file}"
                     raw_file = raw_file[0]
-                    fname =str(raw_file.relative_to(raw_root)).replace('.ome.tif', '')
+                    fname = str(raw_file.relative_to(raw_root)).replace(".ome.tif", "")
                     project_tile(fname, ops, overwrite=False, sth=13, target_name=None)
                     processed.append(pos)
                     pbar.update(1)
@@ -199,7 +198,6 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
 
         # Plot diagnostic Z-stacks
         print(f"Plotting diagnostic Z-stacks for {prefix_folder.name}", flush=True)
-        
 
         # Plot overview images
         print(f"Plotting overview images for {prefix_folder.name}", flush=True)
@@ -211,7 +209,7 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None):
             save_raw=False,
             dependency=None,
         )
-        
+
         # Save the done file
         done_file.touch()
         print(f"Done processing {prefix_folder}", flush=True)

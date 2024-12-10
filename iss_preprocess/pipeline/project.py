@@ -230,11 +230,11 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None, verbose=
     Args:
         fname (str): path to tile *without* `'.ome.tif'` extension.
         ops (dict): dictionary of values from the ops file.
-        overwrite (bool, optional): whether to repeat if already completed. Defaults to 
+        overwrite (bool, optional): whether to repeat if already completed. Defaults to
             False.
         sth (int, optional): size of the structuring element for the fstack projection.
             Used only if `make_fstack` is True. Defaults to 13.
-        target_name (str, optional): name of the target file. If None, it will be the 
+        target_name (str, optional): name of the target file. If None, it will be the
             same as the input file. Defaults to None.
         verbose (bool, optional): print progress. Defaults to True.
 
