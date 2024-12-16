@@ -16,3 +16,4 @@ docs/build/*
 build/*
 scratch.py
 .vscode/*
+.coverage
