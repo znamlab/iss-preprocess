@@ -115,7 +115,7 @@ def load_hyb_probes_metadata():
     return hyb_probes
 
 
-def load_ops(data_path):
+def load_ops(data_path, warn_missing=True):
     """Load the ops.yaml file.
 
     This must be manually generated first. If it is not found, the default
@@ -123,6 +123,8 @@ def load_ops(data_path):
 
     Args:
         data_path (str): Relative path to data
+        warn_missing (bool, optional): Whether to warn if the ops or metadata files are
+            not found. Defaults to True.
 
     Returns:
         dict: Options, see config/defaults_ops.yaml for description
@@ -146,7 +148,8 @@ def load_ops(data_path):
     with open(default_ops_fname, "r") as f:
         default_ops = flatten_dict(yaml.safe_load(f))
     if not ops_fname.exists():
-        print("ops.yml not found, using defaults")
+        if warn_missing:
+            print("ops.yml not found, using defaults")
         ops = default_ops
     else:
         with open(ops_fname, "r") as f:
@@ -175,7 +178,8 @@ def load_ops(data_path):
             "genes_rounds": 7,
             "barcode_rounds": 10,
         }
-        warnings.warn(f"Metadata file not found, using {metadata}.")
+        if warn_missing:
+            warnings.warn(f"Metadata file not found, using {metadata}.")
     ops.update(
         {
             "camera_order": metadata["camera_order"],
