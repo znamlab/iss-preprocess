@@ -149,7 +149,7 @@ def load_ops(data_path, warn_missing=True):
         default_ops = flatten_dict(yaml.safe_load(f))
     if not ops_fname.exists():
         if warn_missing:
-            print("ops.yml not found, using defaults")
+            print(f"{ops_fname} not found, using defaults")
         ops = default_ops
     else:
         with open(ops_fname, "r") as f:
