@@ -290,14 +290,18 @@ def estimate_channel_correction(
 
     """
     ops = load_ops(data_path)
-    nch = len(ops["black_level"])
+    nch = len(ops["camera_order"])
+    if nrounds is None:
+        nrounds = ops[f"{prefix.split('_')[0]}_rounds"]
 
     max_val = 65535
     pixel_dist = np.zeros((max_val + 1, nch, nrounds))
     if prefix == "genes_round":
         projection = ops["genes_projection"]
-    else:
+    elif prefix == "barcode_round":
         projection = ops["barcode_projection"]
+    else:
+        raise ValueError("prefix must be 'genes_round' or 'barcode_round'")
     corr_tiles = ops.get("correction_tiles", None)
     if corr_tiles is None:
         print("No correction tiles specified - using ref tiles")
