@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import yaml
+from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from ..diagnostics.diag_stitching import plot_overview_images
@@ -10,7 +11,9 @@ from ..io import get_processed_path, get_raw_path, get_tile_ome, load_ops
 from .project import project_tile
 
 
-def crunch_pos_file(data_path, pos_file, destination_folder=None, project=False):
+def crunch_pos_file(
+    data_path, pos_file, destination_folder=None, project=False, nproc=4
+):
     """Crunch a single position file
 
     Args:
@@ -85,29 +88,34 @@ def crunch_pos_file(data_path, pos_file, destination_folder=None, project=False)
         # Now project the missing positions
         # Initialize the progress bar
         pbar = tqdm(total=len(to_project))
+
+        def process_position(pos):
+            raw_file = f"{prefix_folder.name}_MMStack_{pos}"
+            raw_file = list(prefix_folder.glob(f"{raw_file}*.tif"))
+            if len(raw_file):
+                assert len(raw_file) == 1, f"Multiple files found for {raw_file}"
+            else:
+                return None
+            raw_file = raw_file[0]
+            fname = str(raw_file.relative_to(raw_root)).replace(".ome.tif", "")
+            if project:
+                project_tile(fname, ops, overwrite=False)
+            else:
+                quick_std(fname, overwrite=False, window_size=500)
+            return pos
+
         while len(to_project):
             pbar.set_description("projecting ...")
-            # check if any new position has been added
-            processed = []
-            for pos in to_project:
-                raw_file = f"{prefix_folder.name}_MMStack_{pos}"
-                raw_file = list(prefix_folder.glob(f"{raw_file}*.tif"))
-                if len(raw_file):
-                    assert len(raw_file) == 1, f"Multiple files found for {raw_file}"
-                    raw_file = raw_file[0]
-                    fname = str(raw_file.relative_to(raw_root)).replace(".ome.tif", "")
-                    if project:
-                        project_tile(fname, ops, overwrite=False)
-                    else:
-                        quick_std(fname, overwrite=False, window_size=500)
-                    processed.append(pos)
-                    pbar.update(1)
-            # Remove processed positions from the list out of the loop
+            processed = Parallel(n_jobs=nproc)(
+                delayed(process_position)(pos) for pos in to_project
+            )
+            processed = [pos for pos in processed if pos is not None]
             for done in processed:
                 to_project.remove(done)
+                pbar.update(1)
             if len(to_project):
                 pbar.set_description("waiting for new positions...")
-                time.sleep(1)
+            time.sleep(1)
         pbar.close()
         print(f"Done projecting {prefix_folder.name}", flush=True)
 

@@ -8,11 +8,13 @@ def iss_cli():
 
 @iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-def live_crunch(path):
+@click.option("--project/--no-project", default=False, help="Project the data. Slow.")
+@click.option("--nproc", default=4, help="Number of processes to use.")
+def live_crunch(path, project, nproc):
     """Project data during acquisition."""
     from iss_preprocess.pipeline.pipeline import sync_and_crunch
 
-    sync_and_crunch(path)
+    sync_and_crunch(path, project=project, nproc=nproc)
 
 
 @iss_cli.command()

@@ -74,7 +74,7 @@ __all__ = [
 
 
 def sync_and_crunch(
-    data_path, source_folder=None, destination_folder=None, project=False
+    data_path, source_folder=None, destination_folder=None, project=False, nproc=4
 ):
     """Sync and crunch data from source to destination folder
 
@@ -102,7 +102,9 @@ def sync_and_crunch(
     # sort files by creation date
     position_files = sorted(position_files, key=lambda x: x.stat().st_ctime)
     for pos_file in position_files:
-        crunch_pos_file(data_path, pos_file, destination_folder, project=project)
+        crunch_pos_file(
+            data_path, pos_file, destination_folder, project=project, nproc=nproc
+        )
 
 
 @slurm_it(conda_env="iss-preprocess")
