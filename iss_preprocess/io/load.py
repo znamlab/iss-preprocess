@@ -433,7 +433,7 @@ def get_zprofile(data_path, prefix, tile_coords):
     return dict(zprofile)
 
 
-def get_tile_ome(fname, fmetadata=None, use_indexmap=None):
+def get_tile_ome(fname, fmetadata=None, use_indexmap=True):
     """
     Load OME TIFF tile.
 
@@ -442,7 +442,7 @@ def get_tile_ome(fname, fmetadata=None, use_indexmap=None):
         fmetadata (str, optional): path to OME metadata file. Required if use_indexmap
             is False or None. Defaults to None.
         use_indexmap (bool, optional): Whether to use the indexmap from micromanager
-            metadata. If True, the metadata file is not required. Defaults to None.
+            metadata. If True, the metadata file is not required. Defaults to True.
 
     Returns:
         numpy.ndarray: X x Y x C x Z z-stack.
