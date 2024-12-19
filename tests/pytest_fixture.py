@@ -2,6 +2,7 @@ import os
 import zipfile
 
 import pytest
+from flexiznam import config
 
 RAW_DATA_DIR = "/Users/blota/Data/example_barseq/"
 
@@ -37,6 +38,22 @@ def processed_dir(tmp_path_factory):
         f.write("    filter: 'ZT594'\n")
         f.write("  hybridisation_round_2_1:\n")
         f.write("    probes: ['PAB0029', PAB0030']\n")
+
+    root = processed.parent.parent
+    relative_path = processed.relative_to(root)
+    project = relative_path.parts[0]
+    # add the path to flexiznam config
+    config.update_config(
+        add_all_projects=False,
+        skip_checks=False,
+        project_ids={project: "000000000000000000000000"},
+        project_paths={
+            project: dict(processed=str(root), raw=str(root)),
+        },
+    )
+    # reload params
+    assert project in config.params["project_paths"].keys()
+    # processed_path = config.params["project_paths"][project]["processed"]
 
     return processed
 
