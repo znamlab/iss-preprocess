@@ -1,4 +1,5 @@
 import time
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -6,6 +7,7 @@ import yaml
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
+from ..diagnostics import plot_zfocus
 from ..diagnostics.diag_stitching import plot_overview_images
 from ..io import get_processed_path, get_raw_path, get_tile_ome, load_ops
 from .project import project_tile
@@ -26,12 +28,13 @@ def crunch_pos_file(
     assert pos_file.exists(), f"{pos_file} does not exist"
     assert pos_file.suffix == ".pos", f"{pos_file} is not a .pos file"
     source_folder = pos_file.parent
-    ops = load_ops(data_path)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=UserWarning)
+        ops = load_ops(data_path)
     print(f"Crunching {pos_file.name}", flush=True)
     # Position files are name like `CHAMBERID_PREFIX_NPOS_positions.pos`
     # but micromanager adds a _1 or _2 at the end of the prefix later
     prefix = "_".join(pos_file.name.split("_")[1:-2])
-    print(f"Prefix: {prefix}", flush=True)
     # Find the prefix folder
     prefix_folders = []
     while not prefix_folders:
@@ -53,10 +56,10 @@ def crunch_pos_file(
 
         done_file = target_pref_folder / "DONE"
         if done_file.exists():
-            print(f"{prefix_folder.name} already processed, skipping", flush=True)
+            print(f"  {prefix_folder.name} already processed, skipping", flush=True)
             continue
 
-        print(f"Looking at {prefix_folder.name}", flush=True)
+        print(f"  Looking at {prefix_folder.name}", flush=True)
         # First build a list of position that should be acquired
         position_list = []
         to_project = []
@@ -79,9 +82,10 @@ def crunch_pos_file(
         if not to_project:
             print(f"{prefix_folder.name} already projected, skipping", flush=True)
             done_file.touch()
-            continue
 
-        print(f"{len(to_project)}/{len(positions)} positions to project", flush=True)
+        print(
+            f"    {len(to_project)}/{len(positions)} positions to project", flush=True
+        )
 
         # Find the raw folder
         raw_root = get_raw_path("test").parent
@@ -121,7 +125,7 @@ def crunch_pos_file(
 
         # Plot diagnostic Z-stacks
         print(f"Plotting diagnostic Z-stacks for {prefix_folder.name}", flush=True)
-        print("TODO!!!!!!!!!!!!!!!!!!!!!!!!")
+        plot_zfocus(data_path, prefix_folder.name, rois=None, verbose=True)
 
         if project:
             # Plot overview images

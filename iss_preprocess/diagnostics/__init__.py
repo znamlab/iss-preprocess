@@ -146,53 +146,52 @@ def plot_zfocus(data_path, prefix, rois=None, verbose=True):
                 zprofiles[tile_x, tile_y, :] = zprof
                 zfocus[tile_x, tile_y, :] = np.argmax(zprof, axis=1)
 
-    # find out of focus tiles
-    nz = zprofiles.shape[-1]
-    correct = (zfocus > 4) & (zfocus < nz - 4)
+        # find out of focus tiles
+        nz = zprofiles.shape[-1]
+        correct = (zfocus > 4) & (zfocus < nz - 4)
 
-    # normalise for plots
-    channel_max = np.max(zprofiles, axis=(0, 1, 3))
-    channel_min = np.min(zprofiles, axis=(0, 1, 3))
-    zprofiles = (zprofiles - channel_min[None,None,:,None]) / (channel_max - channel_min)[None,None,:,None]
-    center = nz // 2
-    aspect = nx / ny
-    fig, axs = plt.subplots(nx, ny, figsize=(12, 12 * aspect), sharex=True, sharey=True)
-    for i in range(nx):
-        for j in range(ny):
-            axs[i, j].plot(np.arange(nz)-center, zprofiles[i, j].T)
-            if not np.all(correct[i, j]):
-                axs[i, j].set_title("Out of focus")
-                # also make the border of the axis red
-                for spine in axs[i, j].spines.values():
-                    spine.set_edgecolor("red")
-                    spine.set_linewidth(2)
-    fig.suptitle(f"Z-profiles for {prefix} in ROI {roi}")
-    fig.tight_layout()
-
-    target_folder = get_processed_path(data_path) / "figures" / prefix
-    target_folder.mkdir(exist_ok=True, parents=True)
-    fig.savefig(target_folder / f"zprofile_roi{roi}.png")
-    plt.close(fig)
-
-    # Plot a z focus matrix per channel
-    fig, axs = plt.subplots(2, 2, figsize=(10, 10 * aspect))
-    for i_chan, ax in enumerate(axs.flatten()):
-        plot_matrix_with_colorbar(zfocus[..., i_chan] - center, ax, cmap="coolwarm", vmin=-center, vmax=center)
-        ax.set_title(f"Channel {i_chan}")
-        # Plot a square around each tile which is black if the tile is in focus, red
-        # otherwise and whose width is proportional to amplitude of the z-profile
+        # normalise for plots
+        channel_max = np.max(zprofiles, axis=(0, 1, 3))
+        channel_min = np.min(zprofiles, axis=(0, 1, 3))
+        zprofiles = (zprofiles - channel_min[None,None,:,None]) / (channel_max - channel_min)[None,None,:,None]
+        center = nz // 2
+        aspect = nx / ny
+        fig, axs = plt.subplots(nx, ny, figsize=(12, 12 * aspect), sharex=True, sharey=True)
         for i in range(nx):
             for j in range(ny):
-                if correct[i, j, i_chan]:
-                    color = "black"
-                else:
-                    color = "red"
-                ampl = np.max(zprofiles[i, j, :, i_chan]) - np.min(zprofiles[i, j, :, i_chan])
-                rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, edgecolor=color, linewidth=0.5 + 2 * ampl, facecolor="White",
-                                     alpha=max(0.5-ampl,0))
-                ax.add_patch(rect)
+                axs[i, j].plot(np.arange(nz)-center, zprofiles[i, j].T)
+                if not np.all(correct[i, j]):
+                    # make the border of the axis red
+                    for spine in axs[i, j].spines.values():
+                        spine.set_edgecolor("red")
+                        spine.set_linewidth(2)
+        fig.suptitle(f"Z-profiles for {prefix} in ROI {roi}")
+        fig.tight_layout()
 
-    fig.suptitle(f"Z-focus for {prefix} in ROI {roi}")
-    fig.tight_layout()
-    fig.savefig(target_folder / f"zfocus_roi{roi}.png")
-    plt.close(fig)
+        target_folder = get_processed_path(data_path) / "figures" / prefix
+        target_folder.mkdir(exist_ok=True, parents=True)
+        fig.savefig(target_folder / f"zprofile_roi{roi}.png")
+        plt.close(fig)
+
+        # Plot a z focus matrix per channel
+        fig, axs = plt.subplots(2, 2, figsize=(10, 10 * aspect))
+        for i_chan, ax in enumerate(axs.flatten()):
+            plot_matrix_with_colorbar(zfocus[..., i_chan] - center, ax, cmap="coolwarm", vmin=-center, vmax=center)
+            ax.set_title(f"Channel {i_chan}")
+            # Plot a square around each tile which is black if the tile is in focus, red
+            # otherwise and whose width is proportional to amplitude of the z-profile
+            for i in range(nx):
+                for j in range(ny):
+                    if correct[i, j, i_chan]:
+                        color = "black"
+                    else:
+                        color = "red"
+                    ampl = np.max(zprofiles[i, j, :, i_chan]) - np.min(zprofiles[i, j, :, i_chan])
+                    rect = plt.Rectangle((j - 0.5, i - 0.5), 1, 1, edgecolor=color, linewidth=0.5 + 2 * ampl, facecolor="White",
+                                        alpha=max(0.5-ampl,0))
+                    ax.add_patch(rect)
+
+        fig.suptitle(f"Z-focus for {prefix} in ROI {roi}")
+        fig.tight_layout()
+        fig.savefig(target_folder / f"zfocus_roi{roi}.png")
+        plt.close(fig)
