@@ -41,6 +41,7 @@ def batch_process_tiles(
 
     Returns:
         list: List of job IDs for the slurm jobs created.
+        str: Job ID for the handle_failed job.
 
     """
     if job_dependency is not None:
@@ -116,8 +117,8 @@ def batch_process_tiles(
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         print(f"Error submitting handle_failed job: {stderr.decode().strip()}")
-    failed_job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
-    return job_ids, failed_job_id
+    handlefailed_job_id = stdout.decode().strip().split(";")[0]  # Extract the job ID
+    return job_ids, handlefailed_job_id
 
 
 def handle_failed_jobs(job_info_path):

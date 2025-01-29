@@ -181,8 +181,8 @@ def project_and_average(data_path, force_redo=False):
             if (processed_path / prefix / "missing_tiles.txt").exists():
                 print(f"{prefix} is already projected, continuing", flush=True)
                 continue
-        tileproj_job_ids, _ = project_round(data_path, prefix)
-        pr_job_ids.extend(tileproj_job_ids)
+        tileproj_job_ids, handle_failed = project_round(data_path, prefix)
+        pr_job_ids.extend(handle_failed)
     pr_job_ids = pr_job_ids if pr_job_ids else None
 
     # Now check that all roi_dims are the same, can sometimes be truncated

@@ -185,7 +185,7 @@ def project_round(data_path, prefix, overwrite=False):
     additional_args = f",PREFIX={prefix}"
     if overwrite:
         additional_args += ",OVERWRITE=--overwrite"
-    tileproj_job_ids, failed_job = batch_process_tiles(
+    tileproj_job_ids, handlefailed_job = batch_process_tiles(
         data_path, "project_tile", roi_dims=roi_dims, additional_args=additional_args
     )
     # copy one of the tiff metadata files
@@ -200,7 +200,7 @@ def project_round(data_path, prefix, overwrite=False):
             target_path / metadata_fname,
         )
 
-    return tileproj_job_ids
+    return tileproj_job_ids, handlefailed_job
 
 
 def project_tile_by_coors(tile_coors, data_path, prefix, overwrite=False):
