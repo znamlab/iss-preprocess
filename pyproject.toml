@@ -41,6 +41,7 @@ iss-register = "iss_preprocess.cli.register_cli:register_cli"
 iss-sync-and-crunch = "iss_preprocess.cli.sync_and_crunch_cli:sync_and_crunch_cli"
 iss-core = "iss_preprocess.cli.core_cli:core_cli"
 iss-call = "iss_preprocess.cli.call_cli:call_cli"
+iss-reg2ref = "iss_preprocess.cli.reg2ref_cli:reg2ref_cli"
 
 [project.urls]
 "Homepage" = "https://github.com/znamlab/iss-preprocess"

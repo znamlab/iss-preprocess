@@ -253,4 +253,4 @@ and angle.
 
 This output is not saved for now.
 
-For spots, the same function is called by ``iss align-spots``
+For spots, the same function is called by ``iss-reg2ref align-spots``

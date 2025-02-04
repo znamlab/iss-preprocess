@@ -30,8 +30,8 @@ echo "Running python script"
 
 if $USE_MASK; then
     echo "Using mask"
-    iss register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY -m
+    iss-reg2ref register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY -m
 else
     echo "Not using mask"
-    iss register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY
+    iss-reg2ref register-to-reference -p $DATAPATH -n $REG_PREFIX -r $ROI -x $TILEX -y $TILEY
 fi
