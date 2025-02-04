@@ -441,20 +441,6 @@ def overview_for_ara_registration(
 
 
 @iss_cli.command()
-@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option(
-    "--use-slurm/--local", is_flag=True, default=True, help="Whether to use slurm"
-)
-def setup_channel_correction(path, use_slurm=True):
-    """Setup channel correction for barcode, genes and hybridisation rounds"""
-
-    from iss_preprocess.pipeline.pipeline import setup_channel_correction as scc
-
-    scc(path, use_slurm=use_slurm)
-    click.echo("Channel correction setup complete.")
-
-
-@iss_cli.command()
 @click.option(
     "--path", "-p", prompt="Enter data path", help="Data path.", required=True
 )
