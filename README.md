@@ -26,7 +26,6 @@ The main workflow is as follows:
 
 ---
 config:
-  look: handDrawn
   layout: elk
 ---
 flowchart TD
