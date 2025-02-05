@@ -25,38 +25,48 @@ The script will perform the following steps:
 
 .. mermaid::
 
-    graph TD;
-        start[Start] --> find[Find acquisitions];
-        subgraph Project and average
-            subgraph Projecting
-                find --> prj(((project_round)));
-                prj --> check[check_roi_dims];
-                check --> reprj[reproject_failed];
-                reprj --> prj;
-            end
+   ---
+    config:
+    look: classic
+    layout: dagre
+    ---
+    flowchart TD
+    subgraph Projecting["Projecting"]
+            prj((("project_round")))
+            find["Find acquisitions"]
+            check["check_roi_dims"]
+            reprj["reproject_failed"]
+    end
+    subgraph Averaging["Averaging"]
+            s_av["create_all_single_averages"]
+            g_av["create_grand_averages"]
+    end
+    subgraph subGraph2["ROI overview"]
+            ovw(["plot_overview_images"])
+    end
+    subgraph subGraph3["Project and average"]
+            Projecting
+            Averaging
+            subGraph2
+    end
+        start["Start"] --> find
+        find --> prj
+        prj --> check & s_av
+        check --> reprj
+        reprj --> prj
+        s_av --> g_av
+        g_av --> ovw
+        style prj fill:#E1BEE7,stroke:#424242
+        style find fill:#C8E6C9,stroke:#000000
+        style check stroke:#000000,fill:#E1BEE7
+        style reprj stroke:#000000,fill:#E1BEE7
+        style s_av stroke:#000000,fill:#E1BEE7
+        style g_av stroke:#000000,fill:#E1BEE7
+        style ovw fill:#BBDEFB,stroke:#616161,color:#000000
+        style Projecting fill:#EEEEEE
+        style Averaging fill:#EEEEEE
+        style subGraph3 fill:#AAAAAA
 
-            style find fill:#C8E6C9,stroke:#000000
-            style prj fill:#E1BEE7,stroke:#424242
-            style reprj stroke:#000000,fill:#E1BEE7
-            style check stroke:#000000,fill:#E1BEE7
-
-            subgraph Averaging
-                s_av[create_all_single_averages];
-                s_av --> g_av[create_grand_averages];
-            end
-            style s_av stroke:#000000,fill:#E1BEE7
-            style g_av stroke:#000000,fill:#E1BEE7
-
-            prj --> s_av;
-
-            subgraph ROI overview
-                ovw([plot_overview_images]);
-            end
-            style ovw stroke:#000000,fill:#E1BEE7
-
-            g_av --> ovw;
-
-        end
 
 Finding acquisitions:
 ~~~~~~~~~~~~~~~~~~~~~
