@@ -64,7 +64,7 @@ def project_and_average(path, force_redo=False, use_slurm=True):
 
 @iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 @click.option(
     "--use-slurm/--no-use-slurm",
     default=True,
