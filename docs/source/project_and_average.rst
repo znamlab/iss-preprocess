@@ -72,7 +72,7 @@ Finding acquisitions:
 ~~~~~~~~~~~~~~~~~~~~~
 
 To find the dataset, the script will parse the ``FOLDERNAME_metadata.yaml`` file in the
-data directory. See :ref:`_get_start` for more information.
+data directory. See :ref:`get-start` for more information.
 
 
 Project tiles:
