@@ -53,6 +53,11 @@ style s1 fill:#757575,color:#C8E6C9
 
 For more information on the individual steps, see the [documentation](https://iss-preprocess.znamlab.org/).
 
+## Getting started
+
+To get started see the flexiznam documentation at https://flexiznam.znamlab.org/, in particular the "initial configuration" section.
+
+Then refer to the [getting started page of the documentation](https://iss-preprocess.znamlab.org/) for more information.
 
 
 ## Development
