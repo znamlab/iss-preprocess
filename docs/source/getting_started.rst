@@ -6,7 +6,10 @@ Getting started
 Data organisation
 -----------------
 
+TODO
 
+Metadata file
+~~~~~~~~~~~~~
 
 The first step is to describe what data you have. This is done in the **metadata**
 file. This file should be in the root of the data directory and called
@@ -48,9 +51,13 @@ should look like this:
         hybridisation_round_3_1:
             probe: []  # Empty list means no probes
 
-This file will be loaded first and used to know what data should exists. Then you need
-to specify the options you want to use with an `ops.yml` file. This file should be in
-the main data directory. The full list of ops is available in the
+This file will be loaded first and used to know what data should exists.
+
+Option file
+~~~~~~~~~~~
+
+To specify the options you want to use, an `ops.yml` file is required. This file should
+be in the main data directory. The full list of ops is available in the
 iss_preprocess/config/default_ops.yml file. Any value not specified in the local ops
 file will be taken from the default ops file.
 
