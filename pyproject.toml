@@ -60,6 +60,11 @@ dev = [
   "ruff",
   "setuptools_scm",
   "imageio",
+  "docutils>=0.18.1,<0.21",
+  "furo",
+  "m2r2",
+  "sphinx",
+  "sphinxcontrib-mermaid",
 ]
 
 [build-system]
