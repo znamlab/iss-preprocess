@@ -63,9 +63,10 @@ The script will perform the following steps:
         style s_av stroke:#000000,fill:#E1BEE7
         style g_av stroke:#000000,fill:#E1BEE7
         style ovw fill:#BBDEFB,stroke:#616161,color:#000000
-        style Projecting fill:#EEEEEE
-        style Averaging fill:#EEEEEE
-        style subGraph3 fill:#AAAAAA
+        style Projecting fill:#EEEEEE, stroke:#424242
+        style Averaging fill:#EEEEEE, stroke:#424242
+        style subGraph2 fill:#EEEEEE, stroke:#424242
+        style subGraph3 fill:#AAAAAA, stroke:#424242
 
 
 Finding acquisitions:

@@ -64,6 +64,25 @@ These are acquisitions that have multiple rounds, namely `genes_round` and
             end
         end
 
+        style batch_est fill:#E1BEE7,stroke:#424242
+
+        style corr stroke:#000000,fill:#E1BEE7
+        style regref stroke:#000000,fill:#E1BEE7
+        style filt stroke:#000000,fill:#E1BEE7
+
+        style csc fill:#BBDEFB,stroke:#616161,color:#000000
+        style diag_ref fill:#BBDEFB,stroke:#616161,color:#000000
+        style diag_tile fill:#BBDEFB,stroke:#616161,color:#000000
+        style ctr fill:#BBDEFB,stroke:#616161,color:#000000
+
+        style run_correct_shifts fill:#EEEEEE, stroke:#424242
+        style check_tile_shifts fill:#EEEEEE, stroke:#424242
+        style check_shift_correction fill:#EEEEEE, stroke:#424242
+        style check_tile_registration fill:#EEEEEE, stroke:#424242
+
+        style correct_shifts fill:#AAAAAA, stroke:#424242
+        style register_reference_tile fill:#AAAAAA, stroke:#424242
+
 Troubleshooting
 ~~~~~~~~~~~~~~~
 
@@ -71,18 +90,18 @@ If the registration looks bad, we need to find which step failed.
 
 - Is the reference tile registered properly?
 
-In the `figures/registration` folder, look at the files starting with
-`registration_reference_tile`. If there is no or little signal: pick a better
-tile (change the `'ref_tile'` parameter in the `ops.yml` file). If there is signal and
-it still looks bad, double check the `figures/registration/PREFIX` folder, look at the
-`affine_debug_PREFIX...` png file. You might not have enough signal for affine
+In the ``figures/registration`` folder, look at the files starting with
+``registration_reference_tile``. If there is no or little signal: pick a better
+tile (change the ``'ref_tile'`` parameter in the ``ops.yml`` file). If there is signal and
+it still looks bad, double check the ``figures/registration/PREFIX`` folder, look at the
+``affine_debug_PREFIX...`` png file. You might not have enough signal for affine
 registration. If that's the case, you will have to try similarity transform (not
 supported anymore, but might still work).
 
 - Are most shifts estimated correctly?
 
-Parameters you can tweak: `ops["ransac_max_shift"]`, `ops["ransac_min_tiles"]`, and
-`ops["ransac_residual_threshold"]`.
+Parameters you can tweak: ``ops["ransac_max_shift"]``, ``ops["ransac_min_tiles"]``, and
+``ops["ransac_residual_threshold"]``.
 
 
 
