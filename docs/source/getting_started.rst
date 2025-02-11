@@ -6,7 +6,34 @@ Getting started
 Data organisation
 -----------------
 
-TODO
+Assuming your data belong a project ``project_name``, the raw/processed data are
+expected to be found respectively in:
+
+- ``RAWROOT/project_name/arbitrary/subfolders/``
+- ``PROCESSEDROOT/project_name/arbitrary/subfolders/``.
+
+``RAWROOT`` and ``PROCESSEDROOT`` must be as defined in flexiznam config (see `flexiznam
+documentation <https://flexiznam.znamlab.org/organization.html#directory-structure>`_)
+
+We call ``PROJECT_PATH`` the relative path to the data, i.e.
+``project_name/arbitrary/subfolders/`` in the example. It is usually
+``project_name/mouse_name/chamber_number`` in our case but can be as nested as one
+wants.
+
+The raw folder should contain a folder per acquisition, with a individual tif files for
+each tile (all channels and z-planes in 1 tiff). The name of the tiff is constrained an
+must be in the format ``"PREFIX_MMStack_R-PosXXX_YYY.ome.tif"`` where:
+
+- ``PREFIX`` is the acquisition name (e.g. ``"genes_round_1_1"``)
+- ``R`` denotes the ROI number
+- ``XXX`` is the x-coordinate of the tile, zero-padded to 3 digits
+- ``YYY`` is the y-coordinate of the tile, zero-padded to 3 digits
+
+The processed folder must contain an ``ops.yml`` file and a ``FOLDERNAME_metadata.yml``.
+The rest will be automatically generated when projecting the tiles.
+
+The metadata file will be loaded first and used to know what data should exist. The ops
+file will be used to specify the options you want to use (see below).
 
 Metadata file
 ~~~~~~~~~~~~~
