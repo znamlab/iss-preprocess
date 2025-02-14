@@ -59,6 +59,12 @@ def plot_bc_over_mask(
     mask_alpha=0.5,
     mask_centers=None,
     line2mask=None,
+    bg_marker_size=20,
+    too_far_marker_size=5,
+    assigned_marker_size=30,
+    mask_center_marker_size=2,
+    too_far_edge_width=0.2,
+    assigned_edge_width=0.2,
 ):
     # get the list of colors from tab20
     colors = matplotlib.cm.get_cmap("tab20", nc).colors
@@ -83,14 +89,14 @@ def plot_bc_over_mask(
         bc.y.values[too_far] - ylim[0],
         color="w",
         edgecolors="k",
-        linewidths=0.2,
-        s=5,
+        linewidths=too_far_edge_width,
+        s=too_far_marker_size,
         alpha=1,
     )
     if show_bg_barcodes:
         ec = [colors[i] for i in bc_color[background] % nc]
         alpha = 1
-        s = 20
+        s = bg_marker_size
     else:
         ec = "none"
         alpha = 0.5
@@ -112,7 +118,8 @@ def plot_bc_over_mask(
         bc.y.values[assigned] - ylim[0],
         facecolors=fc,
         edgecolors=ec,
-        s=30,
+        linewidths=assigned_edge_width,
+        s=assigned_marker_size,
         alpha=1,
         marker="o",
     )
@@ -125,6 +132,7 @@ def plot_bc_over_mask(
             marker="+",
             alpha=0.3,
             zorder=-50,
+            s=mask_center_marker_size,
         )
         for i, (sp_id, series) in enumerate(bc.iterrows()):
             target = mask_assignment[i]
