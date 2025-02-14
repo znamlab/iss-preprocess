@@ -5,7 +5,7 @@ from tifffile import TiffWriter
 __all__ = ["write_stack", "save_ome_tiff_pyramid"]
 
 
-def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress=False):
+def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress=True):
     """
     Write a stack to file as a multipage TIFF
 
@@ -16,7 +16,7 @@ def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress
         bigtiff (bool, optional): use bigtiff format. Default to False
         dtype (str, optional): datatype of the output image. Default to 'uint16'
         clip (bool, optional): clip negative values before conversion. Default to True
-        compress (bool, optional): compress the image using zlib, default to False
+        compress (bool, optional): compress the image using zlib, default to True
 
     """
     stack = stack.reshape((stack.shape[0], stack.shape[1], -1))
