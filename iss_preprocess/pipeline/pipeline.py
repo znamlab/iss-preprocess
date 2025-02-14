@@ -291,6 +291,8 @@ def project_and_average(data_path, force_redo=False):
     po_job_ids = []
     for prefix in to_process:
         if not force_redo:
+            # TODO: this assumes first ROI is called 01 and does not check all rois
+            # fixed it
             if (
                 processed_path
                 / "figures"
@@ -299,13 +301,14 @@ def project_and_average(data_path, force_redo=False):
             ).exists():
                 print(f"{prefix} is already plotted, continuing", flush=True)
                 continue
+        print(f"Plotting overview for {prefix}", flush=True)
         job_id = plot_overview_images(
             data_path,
             prefix,
             plot_grid=True,
             downsample_factor=25,
             save_raw=True,
-            dependency=plot_job_ids,
+            dependency=all_check_proj_job_ids,
         )
         po_job_ids.extend(job_id)
     print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
