@@ -501,9 +501,10 @@ def detect_genes_on_tile(data_path, tile_coors, save_stack=False, prefix="genes_
     )
 
     spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
-    gene_spots = find_gene_spots(
+    gene_spots, gene_coefficients = find_gene_spots(
         g,
         spot_sign_image,
+        gene_names=omp_stat["gene_names"],
         rho=ops["genes_spot_rho"],
         spot_score_threshold=ops["genes_spot_score_threshold"],
     )
@@ -514,4 +515,8 @@ def detect_genes_on_tile(data_path, tile_coors, save_stack=False, prefix="genes_
     save_dir.mkdir(parents=True, exist_ok=True)
     pd.concat(gene_spots).to_pickle(
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+    )
+    gene_coefficients.to_pickle(
+        save_dir
+        / f"{prefix}_coefficients_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
