@@ -356,7 +356,16 @@ def plot_tilestats_distributions(
 
 
 def plot_all_rounds(
-    stack, view=None, channel_colors=None, grid=True, round_labels=None
+    stack,
+    view=None,
+    channel_colors=None,
+    grid=True,
+    round_labels=None,
+    fig=None,
+    axes=None,
+    vmin=None,
+    vmax=None,
+    legend_kwargs=None,
 ):
     """Plot all rounds of a stack in a grid
 
@@ -368,6 +377,12 @@ def plot_all_rounds(
         grid (bool, optional): Whether to plot a grid. Defaults to True.
         round_labels (list, optional): List of round labels. Defaults to None, which
             will use "Round {iround}".
+        fig (plt.Figure, optional): Figure to plot into. Defaults to None, will create
+            a new figure.
+        axes (list, optional): List of axes to plot into. Defaults to None, will create
+            new axes.
+        vmin (float, optional): Minimum value for the colormap. Defaults to None.
+        vmax (float, optional): Maximum value for the colormap. Defaults to None.
 
     Returns:
         plt.Figure: Figure instance
@@ -379,17 +394,19 @@ def plot_all_rounds(
         view = np.array([[0, stack.shape[0]], [0, stack.shape[1]]])
     nrounds = stack.shape[3]
 
-    def round_image(iround):
-        vmax = np.percentile(
-            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
-            99.99,
-            axis=(0, 1),
-        )
-        vmin = np.percentile(
-            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
-            0.01,
-            axis=(0, 1),
-        )
+    def round_image(iround, vmin, vmax):
+        if vmax is None:
+            vmax = np.percentile(
+                stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+                99.99,
+                axis=(0, 1),
+            )
+        if vmin is None:
+            vmin = np.percentile(
+                stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+                0.01,
+                axis=(0, 1),
+            )
         return to_rgb(
             stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
             channel_colors,
@@ -400,13 +417,17 @@ def plot_all_rounds(
     # Make the smallest rectangle that contains `nrounds` axes
     nrows = int(np.sqrt(nrounds))
     ncols = int(np.ceil(nrounds / nrows))
-    fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
+    if fig is None:
+        fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
     rgb_stack = np.empty(np.diff(view, axis=1).ravel().tolist() + [3, nrounds])
     if round_labels is None:
         round_labels = [f"Round {iround}" for iround in range(nrounds)]
     for iround in range(nrounds):
-        ax = fig.add_subplot(nrows, ncols, iround + 1)
-        rgb = round_image(iround)
+        if axes is None:
+            ax = fig.add_subplot(nrows, ncols, iround + 1)
+        else:
+            ax = axes[iround]
+        rgb = round_image(iround, vmin=vmin, vmax=vmax)
         rgb_stack[..., iround] = rgb
         ax.imshow(rgb)
         ax.set_title(round_labels[iround])
@@ -415,7 +436,9 @@ def plot_all_rounds(
             ax.set_xticklabels([])
             ax.set_yticklabels([])
     fig.tight_layout()
-    add_bases_legend(channel_colors)
+    if legend_kwargs is None:
+        legend_kwargs = {}
+    add_bases_legend(channel_colors, **legend_kwargs)
     return fig, rgb_stack
 
 
