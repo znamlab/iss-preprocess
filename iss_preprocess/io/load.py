@@ -687,6 +687,7 @@ def get_channel_round_transforms(
     """
 
     tforms_path = get_processed_path(data_path) / "reg" / prefix
+    old_path = get_processed_path(data_path) / "reg"
     if tile_coors is not None:
         tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
     elif shifts_type != "reference":
@@ -705,7 +706,15 @@ def get_channel_round_transforms(
     filename = tforms_path / tforms_fname
     if not load_file:
         return filename
-    tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
+    try:
+        tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
+    except FileNotFoundError:
+        # try the old path
+        filename = old_path / tforms_fname
+        tforms = np.load(old_path / tforms_fname, allow_pickle=True)
+        warnings.warn(
+            f"{filename} not found. Loading from old path", DeprecationWarning
+        )
     return tforms
 
 
