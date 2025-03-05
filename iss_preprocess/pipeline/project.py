@@ -241,6 +241,7 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None, verbose=
     """
     if target_name is None:
         target_name = fname
+        warn("No target name provided, using input name.")
     if verbose:
         print(f"Target name: {target_name}")
     save_path_fstack = get_processed_path(target_name + "_fstack.tif")
