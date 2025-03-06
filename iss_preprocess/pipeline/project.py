@@ -247,8 +247,12 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None, verbose=
     save_path_fstack = get_processed_path(target_name + "_fstack.tif")
     save_path_max = get_processed_path(target_name + "_max.tif")
     save_path_median = get_processed_path(target_name + "_median.tif")
+    save_path_mean = get_processed_path(target_name + "_mean.tif")
     if not overwrite and (
-        save_path_fstack.exists() or save_path_max.exists() or save_path_median.exists()
+        save_path_fstack.exists()
+        or save_path_max.exists()
+        or save_path_median.exists()
+        or save_path_mean.exists()
     ):
         if verbose:
             print(f"{fname} already projected...\n")
@@ -276,13 +280,27 @@ def project_tile(fname, ops, overwrite=False, sth=13, target_name=None, verbose=
             print("making median projection\n")
         im_median = np.median(im, axis=3)
         write_stack(im_median, save_path_median, bigtiff=True)
+    if ops["make_mean"]:
+        if verbose:
+            print("making mean projection\n")
+        im_mean = np.mean(im, axis=3)
+        write_stack(im_mean, save_path_mean, bigtiff=True)
     if ops["make_max"]:
         if verbose:
             print("making max projection\n")
         im_max = np.max(im, axis=3)
         write_stack(im_max, save_path_max, bigtiff=True)
-    # To check if the focus was correct, we also save a small projectiong along Z
-    std_z = np.std(im, axis=(0, 1))
+    # To check if the focus was correct, we also save a small projection along Z
+    if ops.get("zprofile_window", None) is not None:
+        center = np.array(im.shape[:2]) // 2
+        window_size = ops["zprofile_window"]
+        im_std = im[
+            center[0] - window_size : center[0] + window_size,
+            center[1] - window_size : center[1] + window_size,
+        ]
+    else:
+        im_std = im
+    std_z = np.std(im_std, axis=(0, 1))
     perc_z = np.percentile(im, 99.9, axis=(0, 1))
     np_z_profile = get_processed_path(target_name + "_zprofile.npz")
     np.savez(np_z_profile, std=std_z, top_1permille=perc_z)

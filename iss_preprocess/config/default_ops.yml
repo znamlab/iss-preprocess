@@ -2,6 +2,10 @@ projection:
   make_fstack: false
   make_max: true
   make_median: true
+  make_mean: false
+  # we make a std projection along Z. This can be done on a smaller window at the center
+  # of the image to make it faster
+  zprofile_window: null
 
 # Parameters for illumination correction, channel brightness correction and filtering
 image_correction:
