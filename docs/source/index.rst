@@ -13,6 +13,7 @@ Welcome to iss-preprocess's documentation!
    getting_started
    project_and_average
    registration
+   call
    correction
    bleedthrough
    sequencing
