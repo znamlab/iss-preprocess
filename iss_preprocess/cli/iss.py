@@ -104,11 +104,11 @@ def register(path, prefix, use_slurm=True, force_redo=False):
 
 @iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("--genes/--no-genes", default=True, help="Process genes.")
-@click.option("--barcodes/--no-barcodes", default=True, help="Process barcode.")
+@click.option("--genes/--no-genes", default=False, help="Process genes.")
+@click.option("--barcodes/--no-barcodes", default=False, help="Process barcode.")
 @click.option(
     "--hybridisation/--no-hybridisation",
-    default=True,
+    default=False,
     help="Process hybridisation.",
 )
 @click.option(
@@ -127,14 +127,24 @@ def register(path, prefix, use_slurm=True, force_redo=False):
 )
 def call(
     path,
-    genes=True,
-    barcodes=True,
-    hybridisation=True,
+    genes=False,
+    barcodes=False,
+    hybridisation=False,
     force_redo=False,
     setup_only=False,
 ):
     from ..pipeline.pipeline import call_spots
 
+    txt = "Calling "
+    if genes:
+        txt += "genes "
+    if barcodes:
+        txt += "barcodes "
+    if hybridisation:
+        txt += "hybridisation "
+    click.echo(txt)
+    if setup_only:
+        click.echo("Setup only")
     call_spots(
         data_path=path,
         genes=genes,
@@ -142,7 +152,9 @@ def call(
         hybridisation=hybridisation,
         force_redo=force_redo,
         setup_only=setup_only,
+        use_slurm=True,
     )
+    click.echo("Job submitted")
 
 
 @iss_cli.command()
