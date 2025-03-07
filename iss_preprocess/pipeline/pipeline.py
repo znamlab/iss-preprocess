@@ -616,6 +616,8 @@ def create_all_single_averages(
     """
     processed_path = get_processed_path(data_path)
     metadata = load_metadata(data_path)
+    if isinstance(todo, str):
+        todo = [todo]
     # Collect all folder names
     if to_average is None:
         to_average = []
@@ -638,15 +640,18 @@ def create_all_single_averages(
         if not data_folder.is_dir():
             warnings.warn(f"{data_folder} projected data does not exist. Skipping")
             continue
-        average_image = processed_path / "averages" / f"{folder}_average.tif"
-        if (not force_redo) and average_image.exists():
-            print(f"{folder} average already exists. Skipping")
-            continue
         print(f"Creating single average {folder}", flush=True)
         projections = ["max", "median"]
         slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
         slurm_folder.mkdir(parents=True, exist_ok=True)
         for projection in projections:
+            average_image = (
+                processed_path / "averages" / f"{folder}_{projection}_average.tif"
+            )
+            if (not force_redo) and average_image.exists():
+                print(f"{folder} average already exists. Skipping")
+                continue
+
             job_ids.append(
                 create_single_average(
                     data_path,
