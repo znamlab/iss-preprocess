@@ -310,10 +310,16 @@ def estimate_channel_correction(
 
     for tile in corr_tiles:
         print(f"counting pixel values for roi {tile[0]}, tile {tile[1]}, {tile[2]}")
-        stack = filter_stack(
-            load_sequencing_rounds(
+        try:
+            stack = load_sequencing_rounds(
                 data_path, tile, suffix=projection, prefix=prefix, nrounds=nrounds
-            ),
+            )
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Tile {tile} not found. Is ops['correction_tiles'] correct?"
+            )
+        stack = filter_stack(
+            stack,
             r1=ops["filter_r"][0],
             r2=ops["filter_r"][1],
         )
