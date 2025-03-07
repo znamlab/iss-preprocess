@@ -181,8 +181,10 @@ def project_and_average(data_path, force_redo=False):
             if (processed_path / prefix / "missing_tiles.txt").exists():
                 print(f"{prefix} is already projected, continuing", flush=True)
                 continue
-        tileproj_job_ids, handle_failed = project_round(data_path, prefix)
-        pr_job_ids.extend(handle_failed)
+        tileproj_job_ids, handle_failed = project_round(
+            data_path, prefix, overwrite=force_redo
+        )
+        pr_job_ids.append(handle_failed)
     pr_job_ids = pr_job_ids if pr_job_ids else None
 
     # Now check that all roi_dims are the same, can sometimes be truncated
@@ -191,7 +193,7 @@ def project_and_average(data_path, force_redo=False):
         data_path,
         use_slurm=True,
         slurm_folder=slurm_folder,
-        scripts_name=f"check_roi_dims_{prefix}",
+        scripts_name=f"check_roi_dims_{mouse}_{chamber}",
         dependency_type="afterany",
         job_dependency=pr_job_ids,
     )
