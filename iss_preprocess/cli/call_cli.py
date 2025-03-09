@@ -183,7 +183,8 @@ def basecall_tile(path, roi=1, x=0, y=0):
 @call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
-def setup_omp(path, use_slurm=True):
+@click.option("--force-redo", is_flag=True, help="Whether to force redo")
+def setup_omp(path, use_slurm=True, force_redo=False):
     """Estimate bleedthrough matrices and construct gene dictionary for OMP."""
     from pathlib import Path
 
@@ -192,14 +193,19 @@ def setup_omp(path, use_slurm=True):
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
     setup_omp(
-        path, use_slurm=use_slurm, slurm_folder=slurm_folder, scripts_name="setup_omp"
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name="setup_omp",
+        force_redo=force_redo,
     )
 
 
 @call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
-def setup_barcodes(path, use_slurm=True):
+@click.option("--force-redo", is_flag=True, help="Whether to force redo")
+def setup_barcodes(path, use_slurm=True, force_redo=False):
     """Estimate bleedthrough matrices for barcode calling."""
     from pathlib import Path
 
@@ -212,6 +218,7 @@ def setup_barcodes(path, use_slurm=True):
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         scripts_name="setup_barcodes",
+        force_redo=force_redo,
     )
 
 

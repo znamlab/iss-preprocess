@@ -928,6 +928,7 @@ def call_spots(
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
             job_dependency=jobs if use_slurm else None,
+            force_redo=force_redo,
         )
         check_omp_setup(
             data_path,
