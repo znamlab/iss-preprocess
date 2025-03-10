@@ -773,6 +773,7 @@ def stitch_tiles(
     shifts_prefix=None,
     register_channels=True,
     allow_quick_estimate=False,
+    filter_r=False,
 ):
     """Load and stitch tile images using saved tile shifts.
 
@@ -862,7 +863,7 @@ def stitch_tiles(
                 data_path,
                 tile_coors,
                 prefix=prefix,
-                filter_r=False,
+                filter_r=filter_r,
                 projection=suffix,
                 correct_illumination=correct_illumination,
             )

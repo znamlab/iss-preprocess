@@ -30,6 +30,7 @@ def plot_single_overview(
     downsample_factor=25,
     save_raw=False,
     correct_illumination=True,
+    filter_r=False,
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
     vmin=None,
     vmax=None,
@@ -91,6 +92,7 @@ def plot_single_overview(
             correct_illumination=correct_illumination,
             register_channels=False,  # so that it can run before reg
             allow_quick_estimate=True,
+            filter_r=filter_r,
         )
         if downsample_factor > 1:
             small_stack = block_reduce(
@@ -125,6 +127,7 @@ def plot_single_overview(
             vmax = [np.percentile(stack[:, :, ic], 99.9) for ic in range(nch)]
             rgb = to_rgb(stack, channel_colors, vmax=vmax, vmin=vmin)
         else:
+            print("setting vmax")
             rgb = to_rgb(stack, channel_colors, vmax=vmax, vmin=vmin)
         plt.imshow(rgb)
     ax = plt.gca()
