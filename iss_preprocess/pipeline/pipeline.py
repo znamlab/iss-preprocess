@@ -74,7 +74,7 @@ __all__ = [
 
 
 def sync_and_crunch(
-    data_path, source_folder=None, destination_folder=None, project=False, nproc=4
+    data_path, source_folder=None, destination_folder=None, project=False, nproc=12
 ):
     """Sync and crunch data from source to destination folder
 
