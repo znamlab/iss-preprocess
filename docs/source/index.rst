@@ -19,7 +19,7 @@ Welcome to iss-preprocess's documentation!
    sequencing
    hybridisation
    segmentation
-   detect_starter
+   detect_mcherry
 
 .. toctree::
    :maxdepth: 3
