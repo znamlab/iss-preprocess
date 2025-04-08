@@ -104,11 +104,22 @@ def register(path, prefix, use_slurm=True, force_redo=False):
 
 @iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("--genes/--no-genes", default=False, help="Process genes.")
-@click.option("--barcodes/--no-barcodes", default=False, help="Process barcode.")
 @click.option(
-    "--hybridisation/--no-hybridisation",
+    "--genes/--no-genes",
     default=False,
+    help="Process genes.",
+    show_default=True,
+)
+@click.option(
+    "--barcodes/--no-barcodes",
+    default=False,
+    help="Process barcode.",
+    show_default=True,
+)
+@click.option(
+    "--hyb/--no-hyb",
+    default=False,
+    show_default=True,
     help="Process hybridisation.",
 )
 @click.option(
@@ -124,6 +135,7 @@ def register(path, prefix, use_slurm=True, force_redo=False):
     is_flag=True,
     default=False,
     help="Only setup the channel correction, do NOT run on all tiles.",
+    show_default=True,
 )
 def call(
     path,
@@ -133,6 +145,7 @@ def call(
     force_redo=False,
     setup_only=False,
 ):
+    """Call spots for genes, barcodes and/or hybridisation rounds"""
     from ..pipeline.pipeline import call_spots
 
     txt = "Calling "
