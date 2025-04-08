@@ -116,9 +116,10 @@ def check_omp_alpha_thresholds(
             spot_sign_image = load_spot_sign_image(
                 data_path, ops["spot_shape_threshold"]
             )
-            gene_spots = find_gene_spots(
+            gene_spots, _ = find_gene_spots(
                 g,
                 spot_sign_image,
+                gene_names=omp_stat["gene_names"],
                 rho=2,  # Set rho value to 2
                 spot_score_threshold=0.05,
             )
@@ -218,6 +219,7 @@ def check_omp_thresholds(
         gene_spots = find_gene_spots(
             g,
             spot_sign_image,
+            gene_names=omp_stat["gene_names"],
             rho=ops["genes_spot_rho"],
             spot_score_threshold=0.05,
         )
