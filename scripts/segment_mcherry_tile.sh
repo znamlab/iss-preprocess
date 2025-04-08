@@ -26,4 +26,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss segment-mcherry-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY
+iss-segment segment-mcherry-tile -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY

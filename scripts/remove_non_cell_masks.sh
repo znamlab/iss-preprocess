@@ -26,4 +26,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss remove-non-cell-masks -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY
+iss-segment remove-non-cell-masks -p $DATAPATH -n $PREFIX -r $ROI -x $TILEX -y $TILEY
