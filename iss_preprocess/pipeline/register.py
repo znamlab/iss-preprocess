@@ -894,10 +894,14 @@ def correct_shifts_single_round_roi(
     for ich in range(shifts.shape[0]):
         for idim in range(2):
             inliers = np.all(np.abs(shifts[ich, :, :]) < max_shift, axis=0)
-            reg = RANSACRegressor(random_state=0).fit(
-                training[inliers, :], shifts[ich, idim, inliers]
-            )
-            shifts_corrected[ich, idim, :] = reg.predict(training)
+            if inliers.sum() <= 3:
+                warn(f"Only {inliers.sum()} tiles for channel {ich}. Cannot ransac")
+                shifts_corrected[ich, idim, :] = np.nan
+            else:
+                reg = RANSACRegressor(random_state=0).fit(
+                    training[inliers, :], shifts[ich, idim, inliers]
+                )
+                shifts_corrected[ich, idim, :] = reg.predict(training)
         if fit_angle:
             if ops["align_method"] == "affine":
                 raise ValueError("Angle correction not implemented for affine")
