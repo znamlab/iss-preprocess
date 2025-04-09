@@ -801,7 +801,9 @@ def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
     scales = []
     for iy in range(ny):
         for ix in range(nx):
-            fname = processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+            fname = (
+                processed_path / "reg" / prefix / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+            )
             if not fname.exists():
                 print(f"No tforms for tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
@@ -814,9 +816,7 @@ def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
 
                 continue
             try:
-                tforms = np.load(
-                    processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
-                )
+                tforms = np.load(fname)
                 if align_method == "affine":
                     shifts.append(tforms["matrix_between_channels"][:, :2, 2])
                     angles.append(tforms["matrix_between_channels"][:, :2, :2])
@@ -906,7 +906,7 @@ def correct_shifts_single_round_roi(
         else:
             angles_corrected[ich, :] = np.nanmedian(angles[ich, :], axis=0)
 
-    save_dir = processed_path / "reg"
+    save_dir = processed_path / "reg" / prefix
     save_dir.mkdir(parents=True, exist_ok=True)
     itile = 0
     for iy in range(ny):
