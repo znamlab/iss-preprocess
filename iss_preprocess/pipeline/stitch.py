@@ -249,8 +249,10 @@ def register_all_rois_within(
     ops = load_ops(data_path)
     if prefix is None:
         prefix = ops["reference_prefix"]
+    sprefix = prefix.split("_")[0].lower()
 
-    min_corrcoef = ops.get(f"{prefix}_min_corrcoef", 0.3)
+    min_corrcoef = ops.get(f"{sprefix}_min_corrcoef", 0.3)
+    min_corrcoef = ops.get(f"{prefix}_min_corrcoef", min_corrcoef)
     max_delta_shift = ops.get(f"{prefix}_max_delta_shift", 20)
 
     roi_dims = get_roi_dimensions(data_path)
