@@ -20,10 +20,9 @@ def segment_cli():
 @click.option("-y", "--tiley", default=0, help="Tile Y position.")
 def segment_mcherry_tile(path, prefix, roi, tilex, tiley):
     """Segment mCherry channel for a single tile."""
-    from iss_preprocess.pipeline.pipeline import segment_mcherry_tile
+    from iss_preprocess.pipeline.segment import segment_mcherry_tile as smt
 
-    # TODO: move out of main CLI
-    segment_mcherry_tile(
+    smt(
         path,
         prefix,
         roi,
