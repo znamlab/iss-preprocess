@@ -150,7 +150,7 @@ def plot_affine_debug_images(debug_info, fig=None):
     if fig is None:
         fig = plt.figure(figsize=(2 * 7, 1.5 * len(debug_info)))
     nchans = len(debug_info)
-    axes = fig.subplots(nchans, 7)
+    axes = fig.subplots(nchans, 7, squeeze=False)
     labels = [
         "Correlation",
         "X Shift",
