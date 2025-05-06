@@ -4,6 +4,7 @@ This module contains functions that are useful for checking that the pipeline wo
 but that are not required per se to run it."""
 
 
+from warnings import warn
 import matplotlib.pyplot as plt
 from znamutils import slurm_it
 from ..vis.diagnostics import plot_correction_images, plot_tilestats_distributions, plot_spot_sign_image
@@ -35,12 +36,12 @@ def _get_some_tiles(data_path, prefix, tile_coords=None):
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     if tile_coords is None:
         # check if ops has a ref tile
-        if f"{prefix.split('_')[0]}_ref_tiles" in ops:
-            tile_coords = ops[f"{prefix.split('_')[0]}_ref_tiles"]
-            nrandom = 10 - len(tile_coords)
-        else:
+        ref_ops_name = f"{prefix.split('_')[0]}_ref_tiles"
+        tile_coords = ops.get(ref_ops_name, [])
+        if tile_coords is None:
+            warn(f'{ref_ops_name} is not defined in ops, analysis is likely to fail.')
             tile_coords = []
-            nrandom = 10
+        nrandom = 10 - len(tile_coords)
         # select random tiles
         if nrandom > 0:
             for i in range(nrandom):
