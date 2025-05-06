@@ -40,7 +40,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         path,
         prefix,
         rois=None,
-        roi_dimension_prefix="genes_round_1_1",
+        roi_dimension_prefix=None,
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         job_dependency=job_id if use_slurm else None,
