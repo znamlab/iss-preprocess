@@ -117,7 +117,7 @@ def register(path, prefix, use_slurm=True, force_redo=False):
     show_default=True,
 )
 @click.option(
-    "--hyb/--no-hyb",
+    "--hybridisation/--no-hybridisation",
     default=False,
     show_default=True,
     help="Process hybridisation.",
