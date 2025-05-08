@@ -17,6 +17,7 @@ from ..diagnostics.diag_register import (
     check_tile_shifts,
 )
 from ..diagnostics.diag_sequencing import (
+    check_barcode_calling,
     check_omp_alpha_thresholds,
     check_omp_setup,
     check_omp_thresholds,
@@ -969,6 +970,9 @@ def call_spots(
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
             job_dependency=jobs if use_slurm else None,
+        )
+        check_barcode_calling(
+            data_path, use_slurm=use_slurm, job_dependency=job if use_slurm else None
         )
         if not setup_only:
             batch_process_tiles(

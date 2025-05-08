@@ -411,6 +411,7 @@ def check_barcode_basecall(
     return fig
 
 
+@slurm_it(conda_env="iss-preprocess")
 def check_barcode_calling(data_path):
     """Plot the barcode cluster scatter plots and cluster means and save them in the
     figures folder
