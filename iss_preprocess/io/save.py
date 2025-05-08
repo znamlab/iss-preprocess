@@ -23,10 +23,12 @@ def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress
     if clip:
         stack = np.clip(stack, 0, None)
     if compress:
-        compression = ("zlib", 1)
+        compression = "zlib"
+        compressionargs = dict(level=1)
         contiguous = False
     else:
         compression = None
+        compressionargs = None
         contiguous = True
 
     with TiffWriter(fname, bigtiff=bigtiff) as tif:
@@ -35,6 +37,7 @@ def write_stack(stack, fname, bigtiff=False, dtype="uint16", clip=True, compress
                 stack[:, :, frame].astype(dtype),
                 contiguous=contiguous,
                 compression=compression,
+                compressionargs=compressionargs
             )
 
 

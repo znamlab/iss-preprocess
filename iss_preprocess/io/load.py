@@ -428,7 +428,7 @@ def get_zprofile(data_path, prefix, tile_coords):
     """
     folder = get_processed_path(data_path) / prefix
     r, x, y = tile_coords
-    fname = f"{prefix}_MMStack_Pos-{r}-{x:03}_{y:03}_zprofile.npz"
+    fname = f"{prefix}_MMStack_{r}-Pos{x:03}_{y:03}_zprofile.npz"
     zprofile = np.load(folder / fname)
     return dict(zprofile)
 

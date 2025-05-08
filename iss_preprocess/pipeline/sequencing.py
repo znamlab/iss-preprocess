@@ -252,7 +252,7 @@ def get_reference_spots(data_path, prefix="genes"):
         stack[bad_pixels, :, :] = 0
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
         spots = detect_isolated_spots(
-            np.mean(stack, axis=(2, 3)),
+            np.std(stack, axis=(2, 3)),
             detection_threshold=ops[f"{prefix}_detection_threshold"],
             isolation_threshold=ops[f"{prefix}_isolation_threshold"],
         )

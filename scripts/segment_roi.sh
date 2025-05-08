@@ -23,4 +23,4 @@ source activate base
 
 conda activate iss-preprocess
 
-iss segment -p $DATAPATH -n $PREFIX -r $ROI $USE_GPU
+iss-segment segment -p $DATAPATH -n $PREFIX -r $ROI $USE_GPU

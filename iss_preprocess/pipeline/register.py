@@ -801,7 +801,9 @@ def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
     scales = []
     for iy in range(ny):
         for ix in range(nx):
-            fname = processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+            fname = (
+                processed_path / "reg" / prefix / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+            )
             if not fname.exists():
                 print(f"No tforms for tile {roi} {ix} {iy}")
                 shifts.append(np.array([[np.nan, np.nan]]))
@@ -814,9 +816,7 @@ def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
 
                 continue
             try:
-                tforms = np.load(
-                    processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
-                )
+                tforms = np.load(fname)
                 if align_method == "affine":
                     shifts.append(tforms["matrix_between_channels"][:, :2, 2])
                     angles.append(tforms["matrix_between_channels"][:, :2, :2])
@@ -894,10 +894,14 @@ def correct_shifts_single_round_roi(
     for ich in range(shifts.shape[0]):
         for idim in range(2):
             inliers = np.all(np.abs(shifts[ich, :, :]) < max_shift, axis=0)
-            reg = RANSACRegressor(random_state=0).fit(
-                training[inliers, :], shifts[ich, idim, inliers]
-            )
-            shifts_corrected[ich, idim, :] = reg.predict(training)
+            if inliers.sum() <= 3:
+                warn(f"Only {inliers.sum()} tiles for channel {ich}. Cannot ransac")
+                shifts_corrected[ich, idim, :] = np.nan
+            else:
+                reg = RANSACRegressor(random_state=0).fit(
+                    training[inliers, :], shifts[ich, idim, inliers]
+                )
+                shifts_corrected[ich, idim, :] = reg.predict(training)
         if fit_angle:
             if ops["align_method"] == "affine":
                 raise ValueError("Angle correction not implemented for affine")
@@ -906,7 +910,7 @@ def correct_shifts_single_round_roi(
         else:
             angles_corrected[ich, :] = np.nanmedian(angles[ich, :], axis=0)
 
-    save_dir = processed_path / "reg"
+    save_dir = processed_path / "reg" / prefix
     save_dir.mkdir(parents=True, exist_ok=True)
     itile = 0
     for iy in range(ny):

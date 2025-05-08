@@ -249,8 +249,10 @@ def register_all_rois_within(
     ops = load_ops(data_path)
     if prefix is None:
         prefix = ops["reference_prefix"]
+    sprefix = prefix.split("_")[0].lower()
 
-    min_corrcoef = ops.get(f"{prefix}_min_corrcoef", 0.3)
+    min_corrcoef = ops.get(f"{sprefix}_min_corrcoef", 0.3)
+    min_corrcoef = ops.get(f"{prefix}_min_corrcoef", min_corrcoef)
     max_delta_shift = ops.get(f"{prefix}_max_delta_shift", 20)
 
     roi_dims = get_roi_dimensions(data_path)
@@ -773,6 +775,7 @@ def stitch_tiles(
     shifts_prefix=None,
     register_channels=True,
     allow_quick_estimate=False,
+    filter_r=False,
 ):
     """Load and stitch tile images using saved tile shifts.
 
@@ -862,7 +865,7 @@ def stitch_tiles(
                 data_path,
                 tile_coors,
                 prefix=prefix,
-                filter_r=False,
+                filter_r=filter_r,
                 projection=suffix,
                 correct_illumination=correct_illumination,
             )

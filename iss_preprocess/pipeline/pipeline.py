@@ -74,7 +74,7 @@ __all__ = [
 
 
 def sync_and_crunch(
-    data_path, source_folder=None, destination_folder=None, project=False, nproc=4
+    data_path, source_folder=None, destination_folder=None, project=False, nproc=12
 ):
     """Sync and crunch data from source to destination folder
 
@@ -928,6 +928,7 @@ def call_spots(
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
             job_dependency=jobs if use_slurm else None,
+            force_redo=force_redo,
         )
         check_omp_setup(
             data_path,

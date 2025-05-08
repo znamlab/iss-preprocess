@@ -112,7 +112,7 @@ def check_tile_registration(
 def check_shift_correction(
     data_path,
     prefix="genes_round",
-    roi_dimension_prefix="genes_round_1_1",
+    roi_dimension_prefix=None,
     within=True,
     between=True,
 ):
@@ -125,7 +125,7 @@ def check_shift_correction(
         data_path (str): Relative path to data folder
         prefix (str, optional): Prefix of the images to load. Defaults to "genes_round".
         roi_dimension_prefix (str, optional): Prefix of the roi dimensions. Defaults to
-            "genes_round_1_1".
+            None.
         within (bool, optional): Plot within channel shifts. Defaults to True.
         between (bool, optional): Plot between channel shifts. Defaults to True.
 
@@ -466,9 +466,7 @@ def check_affine_channel_registration(
 
 
 @slurm_it(conda_env="iss-preprocess")
-def check_tile_shifts(
-    data_path, prefix, rois=None, roi_dimension_prefix="genes_round_1_1"
-):
+def check_tile_shifts(data_path, prefix, rois=None, roi_dimension_prefix=None):
     """Plot estimation of shifts/angle for registration to ref
 
     Compare raw measures to ransac
@@ -479,7 +477,7 @@ def check_tile_shifts(
         rois (list): List of ROIs to process. If None, will either use ops["use_rois"]
             if it is defined, or all ROIs otherwise. Defaults to None
         roi_dimension_prefix (str, optional): prefix to load roi dimension. Defaults to
-            "genes_round_1_1"
+            None
 
     """
     processed_path = get_processed_path(data_path)
