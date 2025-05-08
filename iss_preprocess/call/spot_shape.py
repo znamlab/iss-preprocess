@@ -128,14 +128,16 @@ def find_gene_spots(
 
             # Get values from OMP output for all genes
             coefficients = g[
-                y - mask.shape[0] // 2 : y + mask.shape[0] // 2 + 1,
-                x - mask.shape[1] // 2 : x + mask.shape[1] // 2 + 1,
+                np.clip(y - mask.shape[0] // 2, 0, g.shape[0] - 1) : np.clip(
+                    y + mask.shape[0] // 2 + 1, 0, g.shape[0] - 1
+                ),
+                np.clip(x - mask.shape[1] // 2, 0, g.shape[1] - 1) : np.clip(
+                    x + mask.shape[1] // 2 + 1, 0, g.shape[1] - 1
+                ),
                 :,
             ]
-
             # Compute the mean coefficient value for each gene
             avg_coeffs = np.mean(coefficients, axis=(0, 1))
-
             spot_coeffs.append(avg_coeffs)
 
         # Create a DataFrame with spot x gene coefficients

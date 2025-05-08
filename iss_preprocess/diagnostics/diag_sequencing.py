@@ -216,7 +216,7 @@ def check_omp_thresholds(
             min_intensity=ops["omp_min_intensity"],
         )
         spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
-        gene_spots = find_gene_spots(
+        gene_spots, _ = find_gene_spots(
             g,
             spot_sign_image,
             gene_names=omp_stat["gene_names"],
