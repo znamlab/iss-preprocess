@@ -401,7 +401,7 @@ def register_within_acquisition(
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
                 out = np.nanmedian(tomed, axis=axis)
-            empty = np.isnan(med_by_row).any(axis=1)
+            empty = np.isnan(out).any(axis=1)
             if not empty.sum() > 1:
                 return out
             if raise_on_empty_line:
