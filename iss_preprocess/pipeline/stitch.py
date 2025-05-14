@@ -211,6 +211,7 @@ def register_all_rois_within(
     ref_ch=None,
     suffix="max-median",
     correct_illumination=True,
+    roi2use=None,
     reload=False,
     save_plot=True,
     dimension_prefix="genes_round_1_1",
@@ -232,6 +233,8 @@ def register_all_rois_within(
             'max-median'.
         correct_illumination (bool, optional): Correct illumination before registration.
             Defaults to True.
+        roi2use (list, optional): List of ROI to use. If None or empty, will process all
+            ROIs. Defaults to None
         reload (bool, optional): Reload saved shifts if True. Defaults to False.
         save_plot (bool, optional): Save diagnostic plot. Defaults to True.
         dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
@@ -256,9 +259,10 @@ def register_all_rois_within(
     max_delta_shift = ops.get(f"{prefix}_max_delta_shift", 20)
 
     roi_dims = get_roi_dimensions(data_path)
-    if "use_rois" not in ops.keys():
-        ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
+    if (roi2use is None) or (not len(roi2use)):
+        roi2use = ops.get("use_rois", roi_dims[:, 0])
+
+    use_rois = np.isin(roi_dims[:, 0], roi2use)
     if use_slurm:
         if slurm_folder is None:
             slurm_folder = Path.home() / "slurm_logs" / data_path / "register_within"
@@ -363,7 +367,7 @@ def register_within_acquisition(
         print("Reloading saved shifts")
         print(f"Shifts at {save_fname}")
         return np.load(save_fname)
-
+    print(f"Registering ROI {roi}, {prefix} using channel {ref_ch}")
     ndim = get_roi_dimensions(data_path, dimension_prefix)
     # roi_dims is read from file name (0-based), the actual number of tile needs +1
     ntiles = ndim[ndim[:, 0] == roi][0][1:] + 1
