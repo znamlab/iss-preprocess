@@ -317,7 +317,7 @@ def register_within_acquisition(
     min_corrcoef=0.6,
     max_delta_shift=20,
     verbose=2,
-    raise_on_empty_line=True,
+    raise_on_empty_line=False,
 ):
     """Estimate shifts between all adjacent tiles of an roi
 
@@ -409,8 +409,12 @@ def register_within_acquisition(
             if not empty.sum() > 1:
                 return out
             if raise_on_empty_line:
-                raise ValueError("Some rows have no valid shifts")
+                raise ValueError("Some line(s) have no valid shifts")
+            warnings.warn(
+                "Some line(s) have no valid shifts, replacing by global median"
+            )
             out[empty, :] = np.nanmedian(out, axis=0)
+            return out
 
         clean_down = shifts[..., 2:].copy()
         # Ignore shifts with low correlation
@@ -432,7 +436,7 @@ def register_within_acquisition(
         bad_right = xcorr_max[..., 0] < min_corrcoef
         clean_right[bad_right, :] = np.nan
 
-        med_by_col = _med_shift(clean_down, axis=1)
+        med_by_col = _med_shift(clean_right, axis=1)
         delta_shift = np.linalg.norm(clean_right - med_by_col[:, None, :], axis=2)
         bad_right = bad_right | (delta_shift > max_delta_shift)
         clean_right[bad_right, :] = med_by_col[np.where(bad_right)[0]]
