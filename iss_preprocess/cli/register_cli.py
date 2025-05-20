@@ -119,7 +119,7 @@ def estimate_hyb_shifts(path, prefix=None):
 
 @register_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
-@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'")
+@click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round_1_1'")
 def register_adjacent_tiles(path, prefix):
     """Register adjacent tiles for all ROIs within a single round."""
     from iss_preprocess.pipeline.stitch import register_all_rois_within
