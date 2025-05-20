@@ -211,6 +211,7 @@ def register_all_rois_within(
     ref_ch=None,
     suffix="max-median",
     correct_illumination=True,
+    roi2use=None,
     reload=False,
     save_plot=True,
     dimension_prefix="genes_round_1_1",
@@ -232,6 +233,8 @@ def register_all_rois_within(
             'max-median'.
         correct_illumination (bool, optional): Correct illumination before registration.
             Defaults to True.
+        roi2use (list, optional): List of ROI to use. If None or empty, will process all
+            ROIs. Defaults to None
         reload (bool, optional): Reload saved shifts if True. Defaults to False.
         save_plot (bool, optional): Save diagnostic plot. Defaults to True.
         dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
@@ -256,9 +259,10 @@ def register_all_rois_within(
     max_delta_shift = ops.get(f"{prefix}_max_delta_shift", 20)
 
     roi_dims = get_roi_dimensions(data_path)
-    if "use_rois" not in ops.keys():
-        ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
+    if (roi2use is None) or (not len(roi2use)):
+        roi2use = ops.get("use_rois", roi_dims[:, 0])
+
+    use_rois = np.isin(roi_dims[:, 0], roi2use)
     if use_slurm:
         if slurm_folder is None:
             slurm_folder = Path.home() / "slurm_logs" / data_path / "register_within"
@@ -313,6 +317,7 @@ def register_within_acquisition(
     min_corrcoef=0.6,
     max_delta_shift=20,
     verbose=2,
+    raise_on_empty_line=False,
 ):
     """Estimate shifts between all adjacent tiles of an roi
 
@@ -337,6 +342,9 @@ def register_within_acquisition(
         max_delta_shift (int, optional): Maximum shift, relative to median of the row or
             column, to consider a shift as valid. Defaults to 20.
         verbose (int, optional): Verbosity level. Defaults to 2.
+        raise_on_empty_line (bool, optional): Raise an error if a row or a column has no
+            valid shifts. If False, replace by the global median. Defaults to True
+
 
     Returns:
         dict: dictionary containing the shifts, tile shape and number of tiles
@@ -359,7 +367,7 @@ def register_within_acquisition(
         print("Reloading saved shifts")
         print(f"Shifts at {save_fname}")
         return np.load(save_fname)
-
+    print(f"Registering ROI {roi}, {prefix} using channel {ref_ch}")
     ndim = get_roi_dimensions(data_path, dimension_prefix)
     # roi_dims is read from file name (0-based), the actual number of tile needs +1
     ntiles = ndim[ndim[:, 0] == roi][0][1:] + 1
@@ -392,16 +400,29 @@ def register_within_acquisition(
                 xcorr_max[tilex, tiley] = [reg_out["corr_right"], reg_out["corr_down"]]
 
         pbar.set_description("Correcting shifts")
+
+        def _med_shift(tomed, axis):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                out = np.nanmedian(tomed, axis=axis)
+            empty = np.isnan(out).any(axis=1)
+            if not empty.sum() > 1:
+                return out
+            if raise_on_empty_line:
+                raise ValueError("Some line(s) have no valid shifts")
+            warnings.warn(
+                "Some line(s) have no valid shifts, replacing by global median"
+            )
+            out[empty, :] = np.nanmedian(out, axis=0)
+            return out
+
         clean_down = shifts[..., 2:].copy()
         # Ignore shifts with low correlation
         bad_down = xcorr_max[..., 1] < min_corrcoef
         clean_down[bad_down, :] = np.nan
         # Find the median of remain shift along each row
-        med_by_row = np.zeros((ntiles[1], 2)) + np.nan
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            med_by_row = np.nanmedian(clean_down, axis=0)
-        assert np.isnan(med_by_row).sum() <= 2, "Some rows have no valid shifts"
+        med_by_row = _med_shift(clean_down, axis=0)
+
         delta_shift = np.linalg.norm(shifts[..., 2:] - med_by_row[None, :, :], axis=2)
         # replace shifts that are either low corr or too far from median
         bad_down = bad_down | (delta_shift > max_delta_shift)
@@ -414,11 +435,8 @@ def register_within_acquisition(
         clean_right = shifts[..., :2].copy()
         bad_right = xcorr_max[..., 0] < min_corrcoef
         clean_right[bad_right, :] = np.nan
-        med_by_col = np.zeros((ntiles[0], 2)) + np.nan
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            med_by_col = np.nanmedian(clean_right, axis=1)
-        assert np.isnan(med_by_row).sum() <= 2, "Some rows have no valid shifts"
+
+        med_by_col = _med_shift(clean_right, axis=1)
         delta_shift = np.linalg.norm(clean_right - med_by_col[:, None, :], axis=2)
         bad_right = bad_right | (delta_shift > max_delta_shift)
         clean_right[bad_right, :] = med_by_col[np.where(bad_right)[0]]
