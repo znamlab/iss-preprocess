@@ -143,12 +143,14 @@ def register_to_reference(
     help="File name prefix for spot files (e.g. 'barcode_round').",
     show_default=True,
 )
+
 @click.option(
     "--reload/--no-reload",
     default=True,
     help="Whether to reload register_adjacent_tiles shifts.",
     show_default=True,
 )
+
 def align_spots(
     path,
     spots_prefix="barcode_round",
@@ -172,6 +174,7 @@ def align_spots(
         path,
         prefix=ref_prefix,
         reload=reload,
+        dimension_prefix=ref_prefix,
         save_plot=True,
         use_slurm=True,
     )
