@@ -64,6 +64,44 @@ def project_and_average(path, force_redo=False, use_slurm=True):
 
 @iss_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-f",
+    "--force-redo",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Force redoing all steps.",
+)
+@click.option(
+    "--use-slurm/--no-use-slurm",
+    default=True,
+    help="Whether to use slurm for the main pipeline job "
+    + "(subsequent steps always use slurm).",
+)
+def average(path, force_redo=False, use_slurm=True):
+    """Project and average all available data then create plots."""
+    from datetime import datetime
+    from pathlib import Path
+
+    click.echo("Importing")
+    from iss_preprocess.pipeline.pipeline import average
+
+    time = str(datetime.now().strftime("%Y-%m-%d_%H-%M"))
+    click.echo(f"Home: {Path.home()}")
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    click.echo(f"Processing {path}")
+    average(
+        path,
+        force_redo=force_redo,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name=f"average_{time}",
+    )
+
+
+@iss_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", help="Path prefix, e.g. 'genes_round'", required=True)
 @click.option(
     "--use-slurm/--no-use-slurm",

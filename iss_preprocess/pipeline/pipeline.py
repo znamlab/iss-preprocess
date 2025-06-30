@@ -317,6 +317,134 @@ def project_and_average(data_path, force_redo=False):
     print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
     print("All jobs submitted", flush=True)
 
+@slurm_it(conda_env="iss-preprocess")
+def average(data_path, force_redo=False):
+    """Project and average all available data then create plots.
+
+    Creates a list of expected acquisition folders from metadata
+    Checks for the existence of expected folders in the raw data
+    and determines the completion status of each acquisition type.
+    Runs projection on unprojected data and reprojects failed tiles.
+    Creates averages of projections and then plots overview images.
+
+    Args:
+        data_path (str): Relative path to data.
+        force_redo (bool, optional): Redo all processing steps? Defaults to False.
+
+    Returns:
+        po_job_ids (list): A list of job IDs for the slurm jobs created.
+    """
+
+    processed_path = get_processed_path(data_path)
+    metadata = load_metadata(data_path)
+    slurm_folder = processed_path / "slurm_scripts"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    ops = load_ops(data_path)
+    # First, set up flexilims, adding chamber
+    if ops["use_flexilims"]:
+        setup_flexilims(data_path)
+
+    todo = ["genes_rounds", "barcode_rounds", "fluorescence", "hybridisation"]
+    # Make a list of expected acquisition folders using metadata.yml
+    if metadata["genes_rounds"] == 0:
+        todo.remove("genes_rounds")
+    if metadata["barcode_rounds"] == 0:
+        todo.remove("barcode_rounds")
+    if ("fluorescence" not in metadata.keys()) or (len(metadata["fluorescence"]) == 0):
+        todo.remove("fluorescence")
+    if ("hybridisation" not in metadata.keys()) or (
+        len(metadata["hybridisation"]) == 0
+    ):
+        todo.remove("hybridisation")
+
+    data_by_kind = {kind: [] for kind in todo}
+    acquisition_complete = {kind: True for kind in todo}
+    for kind in todo:
+        if kind.endswith("rounds"):
+            data_by_kind[kind] = [
+                f"{kind[:-1]}_{acq + 1}_1" for acq in range(metadata[kind])
+            ]
+        elif kind in ("fluorescence", "hybridisation"):
+            data_by_kind[kind] = list(metadata[kind].keys())
+    print("Files expected:")
+    print(data_by_kind, flush=True)
+
+    # Check for expected folders in processed and check acquisition types for completion
+    to_process = []
+    print(f"\nChecking for expected folders in {processed_path}", flush=True)
+    for kind in todo:
+        for folder in data_by_kind[kind]:
+            if not (processed_path / folder).exists():
+                print(f"{folder} not found in processed, skipping", flush=True)
+                acquisition_complete[kind] = False
+                continue
+            print(f"{folder} found in processed", flush=True)
+            to_process.append(folder)
+
+
+    # Then create averages of projections
+    csa_job_ids = create_all_single_averages(
+        data_path,
+        n_batch=1,
+        to_average=to_process,
+        force_redo=force_redo,
+    )
+
+    # Create grand averages if all rounds of a certain type are projected
+    prefix_todo = []
+    if acquisition_complete.get("genes_rounds", False):
+        prefix_todo.append("genes_round")
+    if acquisition_complete.get("barcode_rounds", False):
+        prefix_todo.append("barcode_round")
+    if all(acquisition_complete.values()):
+        prefix_todo.append("")
+
+    if prefix_todo:
+        cga_job_ids = create_grand_averages(
+            data_path,
+            dependency=csa_job_ids if csa_job_ids else None,
+            force_redo=force_redo,
+            prefix_todo=prefix_todo,
+        )
+    else:
+        print(
+            "All rounds not yet acquired, skipping grand average creation", flush=True
+        )
+        cga_job_ids = None
+    print(f"create_single_average job ids: {csa_job_ids}", flush=True)
+    print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
+
+    plot_job_ids = csa_job_ids if csa_job_ids else None
+    if cga_job_ids and plot_job_ids:
+        plot_job_ids.extend(cga_job_ids)
+
+    # TODO: When plotting overview, check whether grand average has occurred if it is a
+    # 'round' type, use it if so, otherwise use single average.
+    po_job_ids = []
+    for prefix in to_process:
+        if not force_redo:
+            # TODO: this assumes first ROI is called 01 and does not check all rois
+            # fixed it
+            if (
+                processed_path
+                / "figures"
+                / "round_overviews"
+                / f"{Path(data_path).parts[2]}_roi_01_{prefix}_channels_0_1_2_3.png"
+            ).exists():
+                print(f"{prefix} is already plotted, continuing", flush=True)
+                continue
+        print(f"Plotting overview for {prefix}", flush=True)
+        job_id = plot_overview_images(
+            data_path,
+            prefix,
+            plot_grid=True,
+            downsample_factor=25,
+            save_raw=True,
+            dependency=plot_job_ids if plot_job_ids else None,
+        )
+        po_job_ids.extend(job_id)
+    print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
+    print("All jobs submitted", flush=True)
 
 @slurm_it(conda_env="iss-preprocess")
 def register_acquisition(data_path, prefix, force_redo=False):
