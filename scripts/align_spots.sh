@@ -28,4 +28,4 @@ echo "Checking iss command"
 which iss
 echo "Running python script"
 
-iss align-spots-roi -p $DATAPATH -r $ROI -g $REG_PREFIX -s $SPOTS_PREFIX -f $REF_PREFIX
+iss-reg2ref align-spots-roi -p $DATAPATH -r $ROI -g $REG_PREFIX -s $SPOTS_PREFIX -f $REF_PREFIX

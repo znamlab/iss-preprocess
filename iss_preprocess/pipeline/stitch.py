@@ -1,33 +1,34 @@
 import warnings
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import yaml
 from image_tools.registration import phase_correlation as mpc
 from image_tools.similarity_transforms import make_transform, transform_image
 from scipy.ndimage import median_filter
+from skimage import transform
 from skimage.morphology import disk
 from skimage.transform import AffineTransform, warp
-from skimage import transform
+from tqdm import tqdm
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
-from iss_preprocess import vis
-from iss_preprocess.image.correction import apply_illumination_correction
-from iss_preprocess.io import (
+from ..io import (
+    get_processed_path,
+    get_raw_path,
     get_roi_dimensions,
+    load_mask_by_coors,
+    load_metadata,
     load_ops,
     load_stack,
     load_tile_by_coors,
 )
-from iss_preprocess.reg import (
+from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
 )
-from iss_preprocess import pipeline
-from iss_preprocess.pipeline.register import align_spots, align_cell_dataframe
+from ..vis import diagnostics
+from .register import load_and_register_tile
 
 
 def load_tile_ref_coors(
@@ -62,14 +63,14 @@ def load_tile_ref_coors(
     """
     if "_masks" in prefix:
         # we have a mask, the load is different
-        stack = iss.io.load_mask_by_coors(data_path, prefix, tile_coors, projection)
+        stack = load_mask_by_coors(data_path, prefix, tile_coors, projection)
         prefix = prefix.replace("_masks", "")
         # make 3D to match the other load
         bad_pixels = np.zeros(stack.shape[:2], dtype=bool)
         stack = stack[:, :, np.newaxis]
         interpolation = 0
     else:
-        stack, bad_pixels = pipeline.load_and_register_tile(
+        stack, bad_pixels = load_and_register_tile(
             data_path,
             tile_coors,
             prefix,
@@ -197,7 +198,7 @@ def get_tform_to_ref(data_path, prefix, tile_coors, corrected_shifts=None):
     elif corrected_shifts == "best":
         correction_fname = "tforms_best_to_ref"
     reg2ref = np.load(
-        iss.io.get_processed_path(data_path)
+        get_processed_path(data_path)
         / "reg"
         / f"{correction_fname}_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
@@ -210,6 +211,7 @@ def register_all_rois_within(
     ref_ch=None,
     suffix="max-median",
     correct_illumination=True,
+    roi2use=None,
     reload=False,
     save_plot=True,
     dimension_prefix="genes_round_1_1",
@@ -231,6 +233,8 @@ def register_all_rois_within(
             'max-median'.
         correct_illumination (bool, optional): Correct illumination before registration.
             Defaults to True.
+        roi2use (list, optional): List of ROI to use. If None or empty, will process all
+            ROIs. Defaults to None
         reload (bool, optional): Reload saved shifts if True. Defaults to False.
         save_plot (bool, optional): Save diagnostic plot. Defaults to True.
         dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
@@ -248,14 +252,17 @@ def register_all_rois_within(
     ops = load_ops(data_path)
     if prefix is None:
         prefix = ops["reference_prefix"]
+    sprefix = prefix.split("_")[0].lower()
 
-    min_corrcoef = ops.get(f"{prefix}_min_corrcoef", 0.3)
+    min_corrcoef = ops.get(f"{sprefix}_min_corrcoef", 0.3)
+    min_corrcoef = ops.get(f"{prefix}_min_corrcoef", min_corrcoef)
     max_delta_shift = ops.get(f"{prefix}_max_delta_shift", 20)
 
     roi_dims = get_roi_dimensions(data_path)
-    if "use_rois" not in ops.keys():
-        ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
+    if (roi2use is None) or (not len(roi2use)):
+        roi2use = ops.get("use_rois", roi_dims[:, 0])
+
+    use_rois = np.isin(roi_dims[:, 0], roi2use)
     if use_slurm:
         if slurm_folder is None:
             slurm_folder = Path.home() / "slurm_logs" / data_path / "register_within"
@@ -310,6 +317,7 @@ def register_within_acquisition(
     min_corrcoef=0.6,
     max_delta_shift=20,
     verbose=2,
+    raise_on_empty_line=False,
 ):
     """Estimate shifts between all adjacent tiles of an roi
 
@@ -321,8 +329,9 @@ def register_within_acquisition(
         prefix (str, optional): Full name of the acquisition folder.
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         suffix (str, optional): File name suffix. Defaults to 'proj'.
-        correct_illumination (bool, optional): Remove black levels and correct illumination
-            before registration if True, return raw data otherwise. Default to False
+        correct_illumination (bool, optional): Remove black levels and correct
+            illumination before registration if True, return raw data otherwise. Default
+            to False
         reload (bool, optional): If target file already exists, reload instead of
             recomputing. Defaults to True
         save_plot (bool, optional): If True save diagnostic plot. Defaults to False
@@ -333,6 +342,9 @@ def register_within_acquisition(
         max_delta_shift (int, optional): Maximum shift, relative to median of the row or
             column, to consider a shift as valid. Defaults to 20.
         verbose (int, optional): Verbosity level. Defaults to 2.
+        raise_on_empty_line (bool, optional): Raise an error if a row or a column has no
+            valid shifts. If False, replace by the global median. Defaults to True
+
 
     Returns:
         dict: dictionary containing the shifts, tile shape and number of tiles
@@ -346,7 +358,7 @@ def register_within_acquisition(
 
     verbose = int(verbose)
     save_fname = (
-        iss.io.get_processed_path(data_path)
+        get_processed_path(data_path)
         / "reg"
         / f"{prefix}_within"
         / f"{prefix}_{roi}_shifts.npz"
@@ -355,7 +367,7 @@ def register_within_acquisition(
         print("Reloading saved shifts")
         print(f"Shifts at {save_fname}")
         return np.load(save_fname)
-
+    print(f"Registering ROI {roi}, {prefix} using channel {ref_ch}")
     ndim = get_roi_dimensions(data_path, dimension_prefix)
     # roi_dims is read from file name (0-based), the actual number of tile needs +1
     ntiles = ndim[ndim[:, 0] == roi][0][1:] + 1
@@ -387,17 +399,30 @@ def register_within_acquisition(
                 )
                 xcorr_max[tilex, tiley] = [reg_out["corr_right"], reg_out["corr_down"]]
 
-        pbar.set_description(f"Correcting shifts")
+        pbar.set_description("Correcting shifts")
+
+        def _med_shift(tomed, axis):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                out = np.nanmedian(tomed, axis=axis)
+            empty = np.isnan(out).any(axis=1)
+            if not empty.sum() > 1:
+                return out
+            if raise_on_empty_line:
+                raise ValueError("Some line(s) have no valid shifts")
+            warnings.warn(
+                "Some line(s) have no valid shifts, replacing by global median"
+            )
+            out[empty, :] = np.nanmedian(out, axis=0)
+            return out
+
         clean_down = shifts[..., 2:].copy()
         # Ignore shifts with low correlation
         bad_down = xcorr_max[..., 1] < min_corrcoef
         clean_down[bad_down, :] = np.nan
         # Find the median of remain shift along each row
-        med_by_row = np.zeros((ntiles[1], 2)) + np.nan
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            med_by_row = np.nanmedian(clean_down, axis=0)
-        assert np.isnan(med_by_row).sum() <= 2, "Some rows have no valid shifts"
+        med_by_row = _med_shift(clean_down, axis=0)
+
         delta_shift = np.linalg.norm(shifts[..., 2:] - med_by_row[None, :, :], axis=2)
         # replace shifts that are either low corr or too far from median
         bad_down = bad_down | (delta_shift > max_delta_shift)
@@ -410,11 +435,8 @@ def register_within_acquisition(
         clean_right = shifts[..., :2].copy()
         bad_right = xcorr_max[..., 0] < min_corrcoef
         clean_right[bad_right, :] = np.nan
-        med_by_col = np.zeros((ntiles[0], 2)) + np.nan
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            med_by_col = np.nanmedian(clean_right, axis=1)
-        assert np.isnan(med_by_row).sum() <= 2, "Some rows have no valid shifts"
+
+        med_by_col = _med_shift(clean_right, axis=1)
         delta_shift = np.linalg.norm(clean_right - med_by_col[:, None, :], axis=2)
         bad_right = bad_right | (delta_shift > max_delta_shift)
         clean_right[bad_right, :] = med_by_col[np.where(bad_right)[0]]
@@ -422,7 +444,7 @@ def register_within_acquisition(
             np.isnan(clean_right).any(axis=1).sum() <= 2
         ), "Some rows have no valid shifts"
 
-        pbar.set_description(f"Saving shifts")
+        pbar.set_description("Saving shifts")
         save_fname.parent.mkdir(exist_ok=True, parents=True)
         output = dict(
             raw_shift_right=shifts[..., :2],
@@ -439,8 +461,8 @@ def register_within_acquisition(
             **output,
         )
         if save_plot:
-            pbar.set_description(f"Saving plot")
-            vis.diagnostics.adjacent_tiles_registration(
+            pbar.set_description("Saving plot")
+            diagnostics.adjacent_tiles_registration(
                 data_path,
                 prefix,
                 roi=roi,
@@ -479,8 +501,9 @@ def register_adjacent_tiles(
         ref_ch (int, optional): reference channel used for registration. Defaults to 0.
         suffix (str, optional): File name suffix. Defaults to 'proj'.
         prefix (str, optional): Full name of the acquisition folder
-        correct_illumination (bool, optional): Remove black levels and correct illumination
-            before registration if True, return raw data otherwise. Default to False
+        correct_illumination (bool, optional): Remove black levels and correct
+            illumination before registration if True, return raw data otherwise. Default
+            to False
         overlap_ratio (float, optional): Minimum overlap between masks to consider the
             correlation results. Defaults to 0.01.
         verbose (bool, optional): If True, print warnings when shifts are large.
@@ -502,8 +525,6 @@ def register_adjacent_tiles(
 
     # small helper to prepare the stack
     def prep_stack(stack):
-        if correct_illumination:
-            stack = apply_illumination_correction(data_path, stack, prefix)
         if ops["reg_median_filter"]:
             msize = ops["reg_median_filter"]
             assert isinstance(msize, int), "reg_median_filter must be an integer"
@@ -511,7 +532,11 @@ def register_adjacent_tiles(
         return stack
 
     tile_ref = load_tile_by_coors(
-        data_path, tile_coors=ref_coors, suffix=suffix, prefix=prefix
+        data_path,
+        tile_coors=ref_coors,
+        suffix=suffix,
+        prefix=prefix,
+        correct_illumination=correct_illumination,
     )
     tile_ref = prep_stack(tile_ref)
 
@@ -534,7 +559,11 @@ def register_adjacent_tiles(
         corr_right = np.nan
     else:
         tile_right = load_tile_by_coors(
-            data_path, tile_coors=right_coors, suffix=suffix, prefix=prefix
+            data_path,
+            tile_coors=right_coors,
+            suffix=suffix,
+            prefix=prefix,
+            correct_illumination=correct_illumination,
         )
         tile_right = prep_stack(tile_right)
         fixed_part = tile_ref[:, -reg_pix_x * 2 :, ref_ch]
@@ -558,7 +587,8 @@ def register_adjacent_tiles(
         if verbose and (np.abs(shift_right[1]) >= reg_pix_x * 0.3):
             warnings.warn(
                 f"Shift to right tile ({right_coors}) is large: {shift_right}"
-                f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is fine."
+                f"({shift_right/reg_pix_x*100}% of overlap). Check that everything is "
+                "fine."
             )
         shift_right += [0, xpix - reg_pix_x]
         if ops["x_tile_direction"] != "left_to_right":
@@ -572,7 +602,11 @@ def register_adjacent_tiles(
         corr_down = np.nan
     else:
         tile_down = load_tile_by_coors(
-            data_path, tile_coors=down_coors, suffix=suffix, prefix=prefix
+            data_path,
+            tile_coors=down_coors,
+            suffix=suffix,
+            prefix=prefix,
+            correct_illumination=correct_illumination,
         )
         tile_down = prep_stack(tile_down)
         fixed_part = tile_ref[: reg_pix_y * 2 :, :, ref_ch]
@@ -598,7 +632,8 @@ def register_adjacent_tiles(
         if verbose and (np.abs(shift_down[0]) >= reg_pix_y * 0.3):
             warnings.warn(
                 f"Shift to down tile ({down_coors}) is large: {shift_down}"
-                f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is fine."
+                f"({shift_down/reg_pix_y*100}% of overlap). Check that everything is "
+                "fine."
             )
         shift_down -= [ypix - reg_pix_y, 0]
         if ops["y_tile_direction"] != "bottom_to_top":
@@ -646,7 +681,7 @@ def get_tile_corners(data_path, prefix, roi):
         # always use round 1
         prefix = f"{prefix}_1"
     shifts = np.load(
-        iss.io.get_processed_path(data_path)
+        get_processed_path(data_path)
         / "reg"
         / f"{prefix}_within"
         / f"{prefix}_{roi}_shifts.npz"
@@ -758,6 +793,7 @@ def stitch_tiles(
     shifts_prefix=None,
     register_channels=True,
     allow_quick_estimate=False,
+    filter_r=False,
 ):
     """Load and stitch tile images using saved tile shifts.
 
@@ -782,7 +818,7 @@ def stitch_tiles(
         numpy.ndarray: stitched image.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     roi_dims = get_roi_dimensions(data_path, prefix=prefix)
     ntiles = roi_dims[roi_dims[:, 0] == roi, 1:][0] + 1
     if not shifts_prefix:
@@ -800,7 +836,7 @@ def stitch_tiles(
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
 
         try:
-            metadata = iss.io.load_metadata(data_path)
+            metadata = load_metadata(data_path)
             ref_roi = list(metadata["ROI"].keys())[0]
         except FileNotFoundError:
             ref_roi = roi_dims[0, 0]
@@ -843,11 +879,11 @@ def stitch_tiles(
     if register_channels:
 
         def load_func(data_path, tile_coors, prefix):
-            stack, _ = iss.pipeline.load_and_register_tile(
+            stack, _ = load_and_register_tile(
                 data_path,
                 tile_coors,
                 prefix=prefix,
-                filter_r=False,
+                filter_r=filter_r,
                 projection=suffix,
                 correct_illumination=correct_illumination,
             )
@@ -918,7 +954,7 @@ def stitch_registered(
     if ref_prefix is None:
         ref_prefix = ops["reference_prefix"]
 
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     if ref_prefix == "genes_round":
         ref_prefix = f"{ref_prefix}_{ops['ref_round']}_1"
 
@@ -943,7 +979,7 @@ def stitch_registered(
     max_origin = np.max(tile_origins, axis=(0, 1))
     stitched_stack = np.zeros((*(max_origin + tile_shape), len(channels)))
     if "mask" in prefix:
-        # we will increament the mask IDs while we go through
+        # we will increment the mask IDs while we go through
         n_mask_id = 0
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
@@ -975,112 +1011,6 @@ def stitch_registered(
         dtype = np.uint16 if max_val < 2**16 else np.uint32
         stitched_stack = stitched_stack.astype(dtype)
     return stitched_stack
-
-
-def merge_roi_spots(
-    data_path, prefix, tile_origins, tile_centers, iroi=1, keep_all_spots=False
-):
-    """Load and combine spot locations across all tiles for an ROI.
-
-    To avoid duplicate spots from tile overlap, we determine which tile center
-    each spot is closest to. We then only keep the spots that are closest to
-    the center of the tile they were detected on. The tile_centers do not need to be the
-    center of the reference tile. For acquisition with a significant shift, it might be
-    better to use the center of the acquisition tile registered to the reference.
-    See merge_and_align_spots for an example.
-
-    Args:
-        data_path (str): path to pickle files containing spot locations for each tile.
-        prefix (str): prefix of the spots to load and register (e.g. barcode_round)
-        tile_origins (numpy.arry): origin of each tile
-        tile_centers (numpy array): center of each tile for ROI duplication detection.
-        iroi (int, optional): ID of ROI to load. Defaults to 1.
-        keep_all_spots (bool, optional): If True, keep all spots. Otherwise, keep only
-            spots which are closer to the tile_centers. Defaults to False.
-
-
-
-    Returns:
-        pandas.DataFrame: table containing spot locations across all tiles.
-
-    """
-    roi_dims = get_roi_dimensions(data_path)
-    all_spots = []
-    ntiles = roi_dims[roi_dims[:, 0] == iroi, 1:][0] + 1
-
-    for tx in range(ntiles[0]):
-        for ty in range(ntiles[1]):
-            try:
-                spots = align_spots(data_path, tile_coors=(iroi, tx, ty), prefix=prefix)
-                spots["x_in_tile"] = spots["x"].copy()
-                spots["y_in_tile"] = spots["y"].copy()
-                spots["tile"] = f"{iroi}_{tx}_{ty}"
-                spots["x"] = spots["x"] + tile_origins[tx, ty, 1]
-                spots["y"] = spots["y"] + tile_origins[tx, ty, 0]
-
-                if not keep_all_spots:
-                    # calculate distance to tile centers
-                    spot_dist = (
-                        spots["x"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 1]
-                    ) ** 2 + (
-                        spots["y"].to_numpy()[:, np.newaxis, np.newaxis]
-                        - tile_centers[np.newaxis, :, :, 0]
-                    ) ** 2
-                    home_tile_dist = (spot_dist[:, tx, ty]).copy()
-                    spot_dist[:, tx, ty] = np.inf
-                    min_spot_dist = np.min(spot_dist, axis=(1, 2))
-                    keep_spots = home_tile_dist < min_spot_dist
-                else:
-                    keep_spots = np.ones(spots.shape[0], dtype=bool)
-                all_spots.append(spots[keep_spots])
-            except FileNotFoundError:
-                print(f"could not load roi {iroi}, tile {tx}, {ty}")
-
-    spots = pd.concat(all_spots, ignore_index=True)
-    return spots
-
-
-@slurm_it(conda_env="iss-preprocess", slurm_options={"time": "1:00:00", "mem": "8G"})
-def stitch_cell_dataframes(data_path, prefix, ref_prefix=None):
-    """Stitch cell dataframes across all tiles and ROI.
-
-    Args:
-        data_path (str): path to data
-        prefix (str): prefix of the cell dataframe to load
-        ref_prefix (str, optional): prefix of the reference tiles to use for stitching.
-            Defaults to None.
-
-    Returns:
-        pandas.DataFrame: stitched cell dataframe
-    """
-
-    ops = load_ops(data_path)
-    if ref_prefix is None:
-        ref_prefix = ops["reference_prefix"]
-
-    stitched_df = align_cell_dataframe(data_path, prefix, ref_prefix=None).copy()
-    stitched_df["x_in_tile"] = stitched_df["x"].copy()
-    stitched_df["y_in_tile"] = stitched_df["y"].copy()
-    stitched_df["tile"] = "Not Processed"
-    stitched_df["x"] = np.nan
-    stitched_df["y"] = np.nan
-
-    for roi, df in stitched_df.groupby("roi"):
-        # find tile origin, final shape, and shifts in reference coordinates
-        ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
-        ref_origins = ref_corners[..., 0]
-        for (tx, ty), tdf in df.groupby(["tilex", "tiley"]):
-            stitched_df.loc[tdf.index, "tile"] = f"{roi}_{tx}_{ty}"
-            stitched_df.loc[tdf.index, "x"] = tdf["x_in_tile"] + ref_origins[tx, ty, 1]
-            stitched_df.loc[tdf.index, "y"] = tdf["y_in_tile"] + ref_origins[tx, ty, 0]
-
-    # save stitched dataframe
-    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
-    cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
-    stitched_df.to_pickle(cells_df)
-
-    return stitched_df
 
 
 def stitch_and_register(
@@ -1126,7 +1056,7 @@ def stitch_and_register(
             and reference images. Defaults to True.
         target_suffix (str, optional): Suffix to use for target stack. If None, will use
             the value from ops. Defaults to None.
-        use_masked_correlation (bool, optional): Use masked correlation for registration.
+        use_masked_correlation (bool, optional): Use masked correlation for registration
             Defaults to False.
         debug (bool, optional): If True, return full xcorr. Defaults to False.
 
@@ -1161,9 +1091,7 @@ def stitch_and_register(
             ich=ch,
             shifts_prefix=target_prefix,
             correct_illumination=True,
-        ).astype(
-            np.single
-        )  # to save memory
+        ).astype(np.single)  # to save memory
         if stitched_stack_target is None:
             stitched_stack_target = stitched
         else:
@@ -1258,7 +1186,7 @@ def stitch_and_register(
     fname = f"{target_prefix}_roi{roi}_tform_to_ref.npz"
     print(f"Saving {fname} in the reg folder")
     np.savez(
-        iss.io.get_processed_path(data_path) / "reg" / fname,
+        get_processed_path(data_path) / "reg" / fname,
         angle=angle,
         shift=shift,
         scale=scale,
@@ -1268,103 +1196,6 @@ def stitch_and_register(
     if debug:
         output.append(debug_dict)
     return tuple(output)
-
-
-@slurm_it(conda_env="iss-preprocess")
-def merge_and_align_spots(
-    data_path,
-    roi,
-    spots_prefix="barcode_round",
-    ref_prefix=None,
-    keep_all_spots=False,
-):
-    """Combine spots across tiles and align to reference coordinates for a single ROI.
-
-    For each tile, spots will be registered to the reference coordinates using
-    `iss.pipeline.register.align_spots`. The spots will then be merged together using
-    `merge_roi_spots`. To avoid duplicate spots, we define a set of tile centers and
-    keep only the spots that are closest to the center of the tile they were detected on.
-
-
-    Args:
-        data_path (str): Relative path to data.
-        roi (int): ROI ID to process (as specified in MicroManager).
-        spots_prefix (str, optional): Filename prefix of the spot files to combine.
-            Defaults to "barcode_round".
-        ref_prefix (str, optional): Acquisition prefix of the reference acquistion
-            to transform spot coordinates to. Defaults to "genes_round_1_1".
-        keep_all_spots (bool, optional): If True, keep all spots. Otherwise, keep only
-            spots which are closer to the tile_centers. Defaults to False.
-
-    Returns:
-        pandas.DataFrame: DataFrame containing all spots in reference coordinates.
-
-    """
-    print(f"Aligning spots for ROI {roi}")
-    ops = load_ops(data_path)
-    if ref_prefix is None:
-        ref_prefix = ops["reference_prefix"]
-    processed_path = iss.io.get_processed_path(data_path)
-
-    # find tile origin, final shape, and shifts in reference coordinates
-    ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
-    ref_centers = np.mean(ref_corners, axis=3)
-    ref_origins = ref_corners[..., 0]
-
-    # always use the center of the reference tile for spot merging
-    # we might have to change that
-    trans_centers = ref_centers
-    spots = merge_roi_spots(
-        data_path,
-        prefix=spots_prefix,
-        tile_centers=trans_centers,
-        tile_origins=ref_origins,
-        iroi=roi,
-        keep_all_spots=keep_all_spots,
-    )
-    fname = processed_path / f"{spots_prefix}_spots_{roi}.pkl"
-    spots.to_pickle(fname)
-    print(f"Saved spots for ROI in {fname}")
-    return spots
-
-
-def merge_and_align_spots_all_rois(
-    data_path,
-    spots_prefix="barcode_round",
-    ref_prefix="genes_round_1_1",
-    keep_all_spots=False,
-    dependency=None,
-):
-    """Start batch jobs to combine spots across tiles and align to reference coordinates
-    for all ROIs.
-
-     Args:
-        data_path (str): Relative path to data.
-        spots_prefix (str, optional): Filename prefix of the spot files to combine.
-            Defaults to "barcode_round".
-        ref_prefix (str, optional): Acquisition prefix to use as a reference for
-            registration. Defaults to "genes_round_1_1".
-
-    """
-    ops = load_ops(data_path)
-    roi_dims = get_roi_dimensions(data_path)
-    if "use_rois" not in ops.keys():
-        ops["use_rois"] = roi_dims[:, 0]
-    use_rois = np.in1d(roi_dims[:, 0], ops["use_rois"])
-    for roi in roi_dims[use_rois, 0]:
-        slurm_folder = Path.home() / "slurm_logs" / data_path / "align_spots"
-        slurm_folder.mkdir(exist_ok=True, parents=True)
-        merge_and_align_spots(
-            data_path,
-            roi,
-            spots_prefix=spots_prefix,
-            ref_prefix=ref_prefix,
-            keep_all_spots=keep_all_spots,
-            use_slurm=True,
-            slurm_folder=slurm_folder,
-            scripts_name=f"iss_align_spots_{spots_prefix}_{roi}",
-            job_dependency=dependency,
-        )
 
 
 def find_tile_order(
@@ -1392,7 +1223,7 @@ def find_tile_order(
         prefix = ops["reference_prefix"]
 
     # look for position file
-    pos_files = list(iss.io.get_raw_path(data_path).glob("*.pos"))
+    pos_files = list(get_raw_path(data_path).glob("*.pos"))
     pos_files = [f for f in pos_files if prefix in f.stem]
 
     if len(pos_files) == 0:

@@ -2,80 +2,29 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from skimage.morphology import binary_dilation
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import OneHotEncoder
 from znamutils import slurm_it
 
-import iss_preprocess as iss
-
 from ..call import (
     BASES,
-    apply_symmetry,
-    barcode_spots_dot_product,
-    detect_spots_by_shape,
     extract_spots,
-    find_gene_spots,
     get_cluster_means,
+)
+from ..call.omp import barcode_spots_dot_product, make_gene_templates, run_omp
+from ..call.spot_shape import (
+    apply_symmetry,
+    detect_spots_by_shape,
+    find_gene_spots,
     get_spot_shape,
-    make_gene_templates,
-    run_omp,
 )
 from ..image import (
-    apply_illumination_correction,
     compute_distribution,
     filter_stack,
 )
-from ..io import (
-    load_ops,
-    load_tile_by_coors,
-    write_stack,
-)
-from ..reg import (
-    align_channels_and_rounds,
-    generate_channel_round_transforms,
-)
+from ..io import get_processed_path, load_ops, load_sequencing_rounds, write_stack
 from ..segment import detect_isolated_spots
-
-
-def load_sequencing_rounds(
-    data_path,
-    tile_coors=(1, 0, 0),
-    nrounds=7,
-    suffix="max",
-    prefix="genes_round",
-    specific_rounds=None,
-):
-    """Load processed tile images across rounds
-
-    Args:
-        data_path (str): relative path to dataset.
-        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
-            Defaults to (1,0,0).
-        nrounds (int, optional): Number of rounds to load. Used only if
-            `specific_rounds` is None. Defaults to 7.
-        suffix (str, optional): File name suffix. Defaults to 'fstack'.
-        prefix (str, optional): the folder name prefix, before round number. Defaults
-            to "genes_round"
-        specific_round (list, optional): if not None, specify which rounds must be
-            loaded and ignores `nrounds`. Defaults to None
-
-    Returns:
-        numpy.ndarray: X x Y x channels x rounds stack.
-
-    """
-    if specific_rounds is None:
-        specific_rounds = np.arange(nrounds) + 1
-
-    ims = []
-    for iround in specific_rounds:
-        dirname = f"{prefix}_{iround}_1"
-        ims.append(
-            load_tile_by_coors(
-                data_path, tile_coors=tile_coors, suffix=suffix, prefix=dirname
-            )
-        )
-    return np.stack(ims, axis=3)
+from .register import load_and_register_sequencing_tile
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -92,6 +41,7 @@ def setup_barcode_calling(data_path):
         all_spots (pandas.DataFrame): All detected spots.
 
     """
+    # TODO: move most of this to a pipeline.py function
     ops = load_ops(data_path)
     print("detecting barcode spots")
     all_spots, _ = get_reference_spots(data_path, prefix="barcode")
@@ -100,14 +50,15 @@ def setup_barcode_calling(data_path):
         score_thresh=ops["barcode_cluster_score_thresh"],
         initial_cluster_mean=np.array(ops["initial_cluster_means"]),
     )
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     np.savez(
         processed_path / "reference_barcode_spots.npz",
         spot_colors=spot_colors,
         cluster_inds=cluster_inds,
     )
     np.save(processed_path / "barcode_cluster_means.npy", cluster_means)
-    iss.pipeline.check_barcode_calling(data_path)
+
+    # check_barcode_calling(data_path)
     print("barcode calling setup complete")
     return cluster_means, all_spots
 
@@ -122,7 +73,7 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
             without erasing during diagnostics. Defaults to True.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
 
@@ -207,14 +158,15 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     return stack, spot_sign_image, spots
 
 
-@slurm_it(conda_env="iss-preprocess")
-def setup_omp(data_path):
+@slurm_it(conda_env="iss-preprocess", slurm_options={"time": "1:00:00", "mem": "8GB"})
+def setup_omp(data_path, force_redo=False):
     """Prepare variables required to run the OMP algorithm. Finds isolated spots using
     STD across rounds and channels. Detected spots are then used to determine the
     bleedthrough matrix using scaled k-means.
 
     Args:
         data_path (str): Relative path to data.
+        force_redo (bool, optional): Whether to redo the setup. Defaults to False.
 
     Returns:
         numpy.ndarray: N x M dictionary, where N = R * C and M is the
@@ -223,8 +175,18 @@ def setup_omp(data_path):
         float: norm shift for the OMP algorithm, estimated as median norm of all pixels.
 
     """
+    # TODO: move most of this to a pipeline.py function?
+    print("setting up OMP")
     ops = load_ops(data_path)
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
+    targets = [
+        processed_path / "reference_gene_spots.npz",
+        processed_path / "gene_dict.npz",
+    ]
+    if all([target.exists() for target in targets]) and not force_redo:
+        print("Gene dictionary already exists. Skipping setup.")
+        return
+    print("detecting reference gene spots")
     all_spots, norm_shifts = get_reference_spots(data_path, prefix="genes")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
         all_spots,
@@ -236,7 +198,7 @@ def setup_omp(data_path):
         spot_colors=spot_colors,
         cluster_inds=cluster_inds,
     )
-
+    print(f'Saved cluster means to {processed_path / "reference_gene_spots.npz"}')
     codebook = pd.read_csv(
         Path(__file__).parent.parent / "call" / ops["codebook"],
         header=None,
@@ -251,7 +213,8 @@ def setup_omp(data_path):
         norm_shift=norm_shift,
         cluster_means=cluster_means,
     )
-    iss.pipeline.check_omp_setup(data_path)
+    print(f'Saved gene dictionary to {processed_path / "gene_dict.npz"}')
+    # check_omp_setup(data_path)
     return gene_dict, gene_names, norm_shift
 
 
@@ -289,7 +252,7 @@ def get_reference_spots(data_path, prefix="genes"):
         stack[bad_pixels, :, :] = 0
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
         spots = detect_isolated_spots(
-            np.mean(stack, axis=(2, 3)),
+            np.std(stack, axis=(2, 3)),
             detection_threshold=ops[f"{prefix}_detection_threshold"],
             isolation_threshold=ops[f"{prefix}_isolation_threshold"],
         )
@@ -327,20 +290,36 @@ def estimate_channel_correction(
 
     """
     ops = load_ops(data_path)
-    nch = len(ops["black_level"])
+    nch = len(ops["camera_order"])
+    if nrounds is None:
+        nrounds = ops[f"{prefix.split('_')[0]}_rounds"]
 
     max_val = 65535
     pixel_dist = np.zeros((max_val + 1, nch, nrounds))
     if prefix == "genes_round":
         projection = ops["genes_projection"]
-    else:
+    elif prefix == "barcode_round":
         projection = ops["barcode_projection"]
-    for tile in ops["correction_tiles"]:
+    else:
+        raise ValueError("prefix must be 'genes_round' or 'barcode_round'")
+    corr_tiles = ops.get("correction_tiles", None)
+    if corr_tiles is None:
+        print("No correction tiles specified - using ref tiles")
+        corr_tiles = ops[f"{prefix.split('_')[0]}_ref_tiles"]
+        assert corr_tiles is not None, "No ref tiles specified"
+
+    for tile in corr_tiles:
         print(f"counting pixel values for roi {tile[0]}, tile {tile[1]}, {tile[2]}")
-        stack = filter_stack(
-            load_sequencing_rounds(
+        try:
+            stack = load_sequencing_rounds(
                 data_path, tile, suffix=projection, prefix=prefix, nrounds=nrounds
-            ),
+            )
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Tile {tile} not found. Is ops['correction_tiles'] correct?"
+            )
+        stack = filter_stack(
+            stack,
             r1=ops["filter_r"][0],
             r2=ops["filter_r"][1],
         )
@@ -375,147 +354,15 @@ def estimate_channel_correction(
     else:
         norm_factors_fit = norm_factors_raw
 
-    save_path = iss.io.get_processed_path(data_path) / f"correction_{prefix}.npz"
+    save_path = get_processed_path(data_path) / f"correction_{prefix}.npz"
     np.savez(
         save_path,
         pixel_dist=pixel_dist,
         norm_factors=norm_factors_fit,
         norm_factors_raw=norm_factors_raw,
     )
+    print(f"Saved pixel distribution and normalisation factors to {save_path}")
     return pixel_dist, norm_factors_fit, norm_factors_raw
-
-
-def load_and_register_sequencing_tile(
-    data_path,
-    tile_coors=(1, 0, 0),
-    prefix="genes_round",
-    suffix="max",
-    filter_r=(2, 4),
-    correct_channels=False,
-    corrected_shifts="best",
-    correct_illumination=False,
-    nrounds=7,
-    specific_rounds=None,
-):
-    """Load sequencing tile and align channels. Optionally, filter, correct
-    illumination and channel brightness.
-
-    Args:
-        data_path (str): Relative path to data.
-        tile_coors (tuple, options): Coordinates of tile to load: ROI, Xpos, Ypos.
-            Defaults to (1, 0, 0).
-        prefix (str, optional): Prefix of the sequencing round.
-            Defaults to "genes_round".
-        suffix (str, optional): Filename suffix corresponding to the z-projection
-            to use. Defaults to "fstack".
-        filter_r (tuple, optional): Inner and out radius for the hanning filter.
-            If `False`, stack is not filtered. Defaults to (2, 4).
-        correct_channels (bool or str, optional): Whether to normalize channel
-            brightness. If 'round1_only', normalise by round 1 correction factor,
-            otherwise, if True use all norm_factors. Defaults to False.
-        corrected_shifts (str, optional): Which shift to use. One of `reference`,
-            `single_tile`, `ransac`, or `best`. Defaults to 'best'.
-        correct_illumination (bool, optional): Whether to correct vignetting.
-            Defaults to False.
-        nrounds (int, optional): Number of sequencing rounds to load. Used only if
-            specific_rounds is None. Defaults to 7.
-        specific_rounds (list, optional): if not None, specifies which rounds must be
-            loaded and ignores `nrounds`. Defaults to None
-
-    Returns:
-        numpy.ndarray: X x Y x Nch x len(specific_rounds) or Nrounds image stack.
-        numpy.ndarray: X x Y boolean mask, identifying bad pixels that we were not imaged
-            for all channels and rounds (due to registration offsets) and should be discarded
-            during analysis.
-
-    """
-    if specific_rounds is None:
-        specific_rounds = np.arange(nrounds) + 1
-    elif isinstance(specific_rounds, int):
-        specific_rounds = [specific_rounds]
-    # ensure we have an array
-    specific_rounds = np.asarray(specific_rounds, dtype=int)
-    assert specific_rounds.min() > 0, "rounds must be strictly positive integers"
-    valid_shifts = ["reference", "single_tile", "ransac", "best"]
-    assert corrected_shifts in valid_shifts, (
-        f"unknown shift correction method, must be one of {valid_shifts}",
-    )
-
-    processed_path = iss.io.get_processed_path(data_path)
-    stack = load_sequencing_rounds(
-        data_path,
-        tile_coors,
-        suffix=suffix,
-        prefix=prefix,
-        nrounds=nrounds,
-        specific_rounds=specific_rounds,
-    )
-    if correct_illumination:
-        stack = apply_illumination_correction(data_path, stack, prefix)
-
-    ops = iss.io.load_ops(data_path)
-    tforms = get_channel_round_shifts(data_path, prefix, tile_coors, corrected_shifts)
-    tforms = generate_channel_round_transforms(
-        tforms["angles_within_channels"],
-        tforms["shifts_within_channels"],
-        tforms["matrix_between_channels"],
-        stack.shape[:2],
-        align_channels=ops["align_channels"],
-        ref_ch=ops["ref_ch"],
-    )
-    tforms = tforms[:, specific_rounds - 1]
-    stack = align_channels_and_rounds(stack, tforms)
-
-    bad_pixels = np.any(np.isnan(stack), axis=(2, 3))
-    stack = np.nan_to_num(stack)
-
-    if filter_r:
-        stack = filter_stack(stack, r1=filter_r[0], r2=filter_r[1])
-        mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
-        bad_pixels = binary_dilation(bad_pixels, mask)
-    if correct_channels:
-        correction_path = processed_path / f"correction_{prefix}.npz"
-        norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
-        if correct_channels == "round1_only":
-            stack = stack / norm_factors[np.newaxis, np.newaxis, :, 0, np.newaxis]
-        else:
-            stack = stack / norm_factors[np.newaxis, np.newaxis, :, specific_rounds - 1]
-
-    return stack, bad_pixels
-
-
-def get_channel_round_shifts(data_path, prefix, tile_coors, corrected_shifts):
-    """Load the channel and round shifts for a given tile and sequencing acquisition.
-
-    Args:
-        data_path (str): Relative path to data.
-        prefix (str): Prefix of the sequencing round.
-        tile_coors (tuple): Coordinates of the tile to process.
-        corrected_shifts (str): Which shift to use. One of `reference`, `single_tile`,
-            `ransac`, or `best`.
-
-    Returns:
-        np.ndarray: Array of channel and round shifts.
-
-    """
-    processed_path = iss.io.get_processed_path(data_path)
-    tile_name = f"{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}"
-    if corrected_shifts == "reference":
-        tforms_fname = f"tforms_{prefix}.npz"
-        tforms_path = processed_path
-    elif corrected_shifts == "single_tile":
-        tforms_fname = f"tforms_{prefix}_{tile_name}.npz"
-        tforms_path = processed_path / "reg"
-    elif corrected_shifts == "ransac":
-        tforms_fname = f"tforms_corrected_{prefix}_{tile_name}.npz"
-        tforms_path = processed_path / "reg"
-    elif corrected_shifts == "best":
-        tforms_fname = f"tforms_best_{prefix}_{tile_name}.npz"
-        tforms_path = processed_path / "reg"
-    else:
-        raise ValueError(f"unknown shift correction method: {corrected_shifts}")
-    tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
-    return tforms
 
 
 def compute_spot_sign_image(data_path, prefix="genes_round"):
@@ -529,7 +376,7 @@ def compute_spot_sign_image(data_path, prefix="genes_round"):
 
     """
     ops = load_ops(data_path)
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     total_spots = 0
     images = []
     for tile in ops["genes_ref_tiles"]:
@@ -544,7 +391,8 @@ def compute_spot_sign_image(data_path, prefix="genes_round"):
     spot_sign_image = np.sum(np.stack(images, axis=2), axis=2) / total_spots
     spot_sign_image = apply_symmetry(spot_sign_image)
     np.save(processed_path / "spot_sign_image.npy", spot_sign_image)
-    iss.pipeline.check_spot_sign_image(data_path)
+    # TODO: move this call to a pipeline.py function
+    # check_spot_sign_image(data_path)
 
 
 def load_spot_sign_image(data_path, threshold, return_raw_image=False):
@@ -563,7 +411,7 @@ def load_spot_sign_image(data_path, threshold, return_raw_image=False):
         numpy.ndarray: Spot sign image after thresholding, containing -1, 0, or 1s.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     spot_image_path = processed_path / "spot_sign_image.npy"
     if spot_image_path.exists():
         spot_sign_image = np.load(spot_image_path)
@@ -597,7 +445,7 @@ def run_omp_on_tile(data_path, tile_coors, ops, save_stack=False, prefix="genes_
         dict: Dictionary of OMP parameters.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
 
     stack, bad_pixels = load_and_register_sequencing_tile(
         data_path,
@@ -659,17 +507,22 @@ def detect_genes_on_tile(data_path, tile_coors, save_stack=False, prefix="genes_
     )
 
     spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
-    gene_spots = find_gene_spots(
+    gene_spots, gene_coefficients = find_gene_spots(
         g,
         spot_sign_image,
+        gene_names=omp_stat["gene_names"],
         rho=ops["genes_spot_rho"],
         spot_score_threshold=ops["genes_spot_score_threshold"],
     )
 
     for df, gene in zip(gene_spots, omp_stat["gene_names"]):
         df["gene"] = gene
-    save_dir = iss.io.get_processed_path(data_path) / "spots"
+    save_dir = get_processed_path(data_path) / "spots"
     save_dir.mkdir(parents=True, exist_ok=True)
     pd.concat(gene_spots).to_pickle(
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+    )
+    gene_coefficients.to_pickle(
+        save_dir
+        / f"{prefix}_coefficients_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )

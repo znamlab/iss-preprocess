@@ -1,0 +1,58 @@
+# Example metadata file
+
+# First all ROI must be specified. The "chamber_position" is required only when
+# registering to the ARA, when we need to find the slice inder for each ROI
+ROI:
+1:
+  chamber_position: 1
+2:
+  chamber_position: 2
+3:
+  chamber_position: 3
+4:
+  chamber_position: 4
+5:
+  chamber_position: 5
+6:
+  chamber_position: 6
+7:
+  chamber_position: 7
+8:
+  chamber_position: 8
+9:
+  chamber_position: 9
+10:
+  chamber_position: 10
+
+# Rank order wavelength for each camera
+camera_order: [4, 3, 2, 1]
+
+# Folders for rounds are called: genes_round_X_1 or barcode_round_X_1
+#  with X as the round number
+genes_rounds: 7
+barcode_rounds: 14
+
+# To be able to read genes, a codebook is required.
+# It must have a corresponding csv in iss_preprocess/call
+gene_codebook: codebook_88_20230216.csv
+
+# The barcode set can also be provided but this is not used for now (16/12/2024)
+barcode_set: R2_BC2
+
+# Other acquisitions must be listed as being either hybridisation, is spots correspond
+# to a single gene, or fluorescence, if not spot calling is required
+
+hybridisation:
+  # For hybridisation, the list of probes must be provided. They must have an entry in
+  # iss_preprocess/call/hybridisation_probes.yml
+  hybridisation_round_1_1:
+    probes: ['PAB0026', 'PAB0027', 'PAB0025']
+
+fluorescence:
+  # For fluorescence, all fields are optional
+  DAPI_1_1:
+    filter_1: 'FF01-452/45'
+  mCherry_1:
+    filter: 'ZT594'
+  hybridisation_round_2_1:
+    probes: ['PAB0029', PAB0030']

@@ -1,39 +1,44 @@
 import warnings
-from tqdm import tqdm
-import glob
 from os import system
 from pathlib import Path
-from znamutils import slurm_it
+
+import cv2
 import numpy as np
 import pandas as pd
-import cv2
 from skimage import measure
-from sklearn.preprocessing import StandardScaler
-from sklearn.mixture import GaussianMixture
 from skimage.morphology import binary_closing
 from skimage.segmentation import expand_labels
+from sklearn.mixture import GaussianMixture
+from tqdm import tqdm
+from znamutils import slurm_it
 
-import iss_preprocess as iss
-
-from iss_preprocess.image.correction import calculate_unmixing_coefficient
-from iss_preprocess.segment.cells import label_image
-from iss_preprocess.io import (
+from ..diagnostics.diag_segmentation import (
+    check_segmentation,
+    plot_mcherry_gmm,
+    plot_unmixing_diagnostics,
+)
+from ..image.correction import calculate_unmixing_coefficient, unmix_images
+from ..io import (
     get_pixel_size,
+    get_processed_path,
     get_roi_dimensions,
+    load_mask_by_coors,
     load_metadata,
     load_ops,
-    get_processed_path,
+    load_stack,
     write_stack,
 )
 from ..segment import (
     cellpose_segmentation,
     count_spots,
-    spot_mask_value,
     project_mask,
+    spot_mask_value,
 )
-from . import ara_registration as ara_registration
-from . import diagnostics
-from .stitch import stitch_registered
+from ..segment.cells import label_image, remove_overlapping_labels
+from .ara_registration import spots_ara_infos
+from .core import batch_process_tiles
+from .register import load_and_register_raw_stack, load_and_register_tile
+from .stitch import find_tile_overlap, stitch_registered
 
 
 def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
@@ -99,7 +104,7 @@ def segment_all_tiles(
     if tile_list is None:
         roi_dims = get_roi_dimensions(data_path)
         if use_rois is None:
-            ops = iss.io.load_ops(data_path)
+            ops = load_ops(data_path)
             use_rois = ops.get("use_rois", roi_dims[:, 0])
         tile_list = []
         for r in use_rois:
@@ -113,8 +118,8 @@ def segment_all_tiles(
     slurm_folder = Path.home() / "slurm_logs" / data_path / "segmentation"
     slurm_folder.mkdir(exist_ok=True, parents=True)
 
-    ops = iss.io.load_ops(data_path)
-    target = iss.io.get_processed_path(data_path) / "cells"
+    ops = load_ops(data_path)
+    target = get_processed_path(data_path) / "cells"
     target.mkdir(exist_ok=True)
     if use_raw_stack:
         # save raw 3D masks
@@ -127,7 +132,6 @@ def segment_all_tiles(
         assert len(tile_coors) == 3, "Tile coordinates should be a tuple of 3 elements"
         tile_name = "_".join(map(str, tile_coors))
         fname = f"{prefix}_masks_{tile_name}.npy"
-        save_raw_masks = True
         if use_raw_stack and (not rerun_cellpose) and (raw_target / fname).exists():
             continue
         tile_2cellpose.append(tile_coors)
@@ -195,7 +199,7 @@ def run_cellpose_segmentation(
     data_path, prefix, roi=None, tx=None, ty=None, use_raw_stack=True, use_gpu=True
 ):
     tile_coors = (roi, tx, ty)
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     img = get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack)
     if use_raw_stack:
         stitch_threshold = 0.3
@@ -217,7 +221,7 @@ def run_cellpose_segmentation(
     print(f"segmenting {data_path} {tile_coors} {prefix}")
     pretrained_model = ops["cellpose_pretrained_model"]
     if pretrained_model is not None:
-        pretrained_model = iss.io.get_processed_path(pretrained_model)
+        pretrained_model = get_processed_path(pretrained_model)
     masks = cellpose_segmentation(
         img,
         z_axis=z_axis,
@@ -238,7 +242,7 @@ def run_cellpose_segmentation(
         do_3D=False,
         anisotropy=None,
     )
-    target = iss.io.get_processed_path(data_path) / "cells"
+    target = get_processed_path(data_path) / "cells"
     tile_name = "_".join(map(str, tile_coors))
     fname = f"{prefix}_masks_{tile_name}.npy"
 
@@ -262,12 +266,12 @@ def run_mask_projection(
 ):
     """Project masks to a single plane.
 
-    Wrapper around iss.segment.cell.project_mask to run on slurm.
+    Wrapper around iss_preprocess.segment.cell.project_mask to run on slurm.
 
     Args:
         data_path (str): Relative path to data.
         prefix (str): Acquisition prefix to use for segmentation.
-        roi (int): ROI ID to segment as specificied in MicroManager (i.e. 1-based).
+        roi (int): ROI ID to segment as specified in MicroManager (i.e. 1-based).
         tx (int): X coordinate of the tile.
         ty (int): Y coordinate of the tile.
 
@@ -279,9 +283,9 @@ def run_mask_projection(
         flush=True,
     )
     # if we project, that means we use raw masks
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     tile_coors = (roi, tx, ty)
-    target = iss.io.get_processed_path(data_path) / "cells"
+    target = get_processed_path(data_path) / "cells"
     tile_name = "_".join(map(str, tile_coors))
     fname = f"{prefix}_masks_{tile_name}.npy"
     raw_target = target / "raw_masks"
@@ -307,12 +311,10 @@ def get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack=True):
     Returns:
         numpy.ndarray: X x Y x channels (x Z) stack.
     """
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     channels = ops["cellpose_channels"]
     if use_raw_stack:
-        raw_stack = iss.pipeline.load_and_register_raw_stack(
-            data_path, prefix, tile_coors
-        )
+        raw_stack = load_and_register_raw_stack(data_path, prefix, tile_coors)
         raw_stack = np.nan_to_num(raw_stack, 0)
         raw_stack = np.clip(raw_stack, 0, 2**16 - 1).astype(np.uint16)
         z_shift = ops.get("cellpose_channel_z_shift", 0)
@@ -331,7 +333,7 @@ def get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack=True):
         else:
             img = raw_stack[..., channels, :]
     else:
-        img = iss.pipeline.load_and_register_tile(data_path, tile_coors, prefix)
+        img = load_and_register_tile(data_path, tile_coors, prefix)
         img = img[..., channels]
     return img
 
@@ -343,8 +345,9 @@ def segment_roi(data_path, iroi, prefix="DAPI_1", use_gpu=False):
 
     Args:
         data_path (str): Relative path to data.
-        iroi (int): ROI ID to segment as specificied in MicroManager (i.e. 1-based).
-        prefix (str, optional): Acquisition prefix to use for segmentation. Defaults to "DAPI_1".
+        iroi (int): ROI ID to segment as specified in MicroManager (i.e. 1-based).
+        prefix (str, optional): Acquisition prefix to use for segmentation. Defaults to
+            "DAPI_1".
         use_gpu (bool, optional): Whether to use GPU. Defaults to False.
 
     """
@@ -373,10 +376,8 @@ def segment_roi(data_path, iroi, prefix="DAPI_1", use_gpu=False):
         model_type=ops["cellpose_model_type"],
         use_gpu=use_gpu,
     )
-    np.save(iss.io.get_processed_path(data_path) / f"masks_{iroi}.npy", masks)
-    diagnostics.check_segmentation(
-        data_path, iroi, prefix, reference_prefix, stitched_stack, masks
-    )
+    np.save(get_processed_path(data_path) / f"masks_{iroi}.npy", masks)
+    check_segmentation(data_path, iroi, prefix, reference_prefix, stitched_stack, masks)
 
 
 def get_cell_masks(
@@ -408,7 +409,7 @@ def get_cell_masks(
     Returns:
         np.ndarray: Cell masks
     """
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
 
     if prefix is None:
         prefix = ops["segmentation_prefix"]
@@ -419,7 +420,7 @@ def get_cell_masks(
             mask_expansion = ops.get(f"{prefix}_mask_expansion", 0)
     seg_prefix = f"{prefix}_masks"
     target = f"{data_path}/cells/{seg_prefix}_{roi}_{mask_expansion}.tif"
-    target = iss.io.get_processed_path(target)
+    target = get_processed_path(target)
     if curated:
         target = target.with_name(target.stem + "_curated" + target.suffix)
         manual_masks = target.with_name(
@@ -430,12 +431,12 @@ def get_cell_masks(
             raise IOError("Curated can only be reloaded")
 
     if reload and target.exists():
-        masks = iss.io.load_stack(target)[..., 0]
+        masks = load_stack(target)[..., 0]
         return masks
     elif curated:
         # we can expand if we have the manual mask with 0 expansion
         if manual_masks.exists():
-            masks = iss.io.load_stack(manual_masks)[..., 0]
+            masks = load_stack(manual_masks)[..., 0]
         else:
             raise FileNotFoundError(
                 f"{manual_masks} does not exist. "
@@ -443,7 +444,7 @@ def get_cell_masks(
             )
     else:
         print(f"Stitching masks for {data_path} {roi} {prefix}")
-        masks = iss.pipeline.stitch_registered(
+        masks = stitch_registered(
             data_path,
             prefix=seg_prefix,
             roi=roi,
@@ -451,8 +452,8 @@ def get_cell_masks(
         )[..., 0]
     if mask_expansion > 0:
         print(f"Expanding masks by {mask_expansion} pixels")
-        masks = iss.pipeline.segment.get_big_masks(data_path, masks, mask_expansion)
-    iss.io.write_stack(masks, target, dtype=masks.dtype)
+        masks = get_big_masks(data_path, masks, mask_expansion)
+    write_stack(masks, target, dtype=masks.dtype)
     print(f"Saved masks to {target}")
     return masks
 
@@ -499,7 +500,7 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=None, atlas_s
     # TODO: add coordinate in tile
 
     if atlas_size is not None:
-        ara_registration.spots_ara_infos(
+        spots_ara_infos(
             data_path,
             spots=cell_df,
             atlas_size=atlas_size,
@@ -507,7 +508,7 @@ def make_cell_dataframe(data_path, roi, masks=None, mask_expansion=None, atlas_s
             acronyms=True,
             inplace=True,
         )
-    cell_folder = iss.io.get_processed_path(data_path) / "cells"
+    cell_folder = get_processed_path(data_path) / "cells"
     cell_folder.mkdir(exist_ok=True)
     cell_df.to_pickle(cell_folder / f"cells_df_roi{roi}.pkl")
     return cell_df
@@ -549,7 +550,7 @@ def add_mask_id(
         dict: Dictionary of spots dataframes
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
 
     metadata = load_metadata(data_path=data_path)
     spot_acquisitions = []
@@ -652,7 +653,7 @@ def segment_spots(
         cell_df = count_spots(spots=spot_df, grouping_column=grouping_column)
         spots_in_cells[prefix] = cell_df
 
-    save_dir = iss.io.get_processed_path(data_path) / "cells"
+    save_dir = get_processed_path(data_path) / "cells"
     save_dir.mkdir(exist_ok=True)
     # Save barcodes
     if "barcode_round" in spots_in_cells:
@@ -732,7 +733,7 @@ def segment_mcherry_tile(
     """
 
     # Load the unmixed and original mCherry image stacks
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
     short_prefix = prefix.split("_")[0].lower()
 
@@ -870,7 +871,8 @@ def find_edge_touching_masks(masks, border_width=4):
             touching. Defaults to 4.
 
     Returns:
-        edge_touching_labels (list): A list of unique labels that touch the edge of the image.
+        edge_touching_labels (list): A list of unique labels that touch the edge of the
+        image.
     """
     if border_width < 1:
         raise ValueError("Border width must be at least 1.")
@@ -889,22 +891,30 @@ def find_edge_touching_masks(masks, border_width=4):
 
 def get_overlap_regions(data_path, prefix, ref_coors):
     """
-    Determine the coordinates of the overlap region between two adjacent tiles using explicit tile direction.
+    Determine the coordinates of the overlap region between two adjacent tiles using
+    explicit tile direction.
 
     Args:
-        shifts (dict): The dictionary containing the shift values for the down and right tiles.
+        shifts (dict): The dictionary containing the shift values for the down and right
+            tiles.
         tile_ref (np.ndarray): The reference tile.
         tile_right (np.ndarray): The right tile.
         tile_down (np.ndarray): The down tile.
         tile_down_right (np.ndarray): The down right tile.
 
     Returns:
-        overlap_ref_vert (np.ndarray): The overlap region between the reference tile and the down tile.
-        overlap_down (np.ndarray): The overlap region between the down tile and the reference tile.
-        overlap_ref_side (np.ndarray): The overlap region between the reference tile and the right tile.
-        overlap_right (np.ndarray): The overlap region between the right tile and the reference tile.
-        overlap_ref_with_down_right (np.ndarray): The overlap region between the reference tile and the down right tile.
-        overlap_down_right_with_ref (np.ndarray): The overlap region between the down right tile and the reference tile.
+        overlap_ref_vert (np.ndarray): The overlap region between the reference tile and
+            the down tile.
+        overlap_down (np.ndarray): The overlap region between the down tile and the
+            reference tile.
+        overlap_ref_side (np.ndarray): The overlap region between the reference tile and
+            the right tile.
+        overlap_right (np.ndarray): The overlap region between the right tile and the
+            reference tile.
+        overlap_ref_with_down_right (np.ndarray): The overlap region between the
+            reference tile and the down right tile.
+        overlap_down_right_with_ref (np.ndarray): The overlap region between the down
+            right tile and the reference tile.
 
     """
     roi_dim = get_roi_dimensions(data_path)
@@ -923,20 +933,20 @@ def get_overlap_regions(data_path, prefix, ref_coors):
     full_images = {}
     tile_ref = None  # to load it only once
     for comp_coors in to_compare[valid]:
-        ovl, ovl_ref, ovl_comp = iss.pipeline.stitch.find_tile_overlap(
+        ovl, ovl_ref, ovl_comp = find_tile_overlap(
             data_path, prefix, ref_coors, comp_coors
         )
         if ovl is None:
             continue
         if tile_ref is None:
-            tile_ref = iss.io.load.load_mask_by_coors(
+            tile_ref = load_mask_by_coors(
                 data_path,
                 tile_coors=ref_coors,
                 prefix=prefix,
                 suffix="corrected",
             )
             full_images[tuple(ref_coors)] = tile_ref
-        tile_comp = iss.io.load.load_mask_by_coors(
+        tile_comp = load_mask_by_coors(
             data_path,
             tile_coors=comp_coors,
             prefix=prefix,
@@ -975,9 +985,9 @@ def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
             overlapped and their respective percentages.
 
     """
-    processed_path = iss.io.get_processed_path(data_path)
-    roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
-    ops = iss.io.load_ops(data_path)
+    processed_path = get_processed_path(data_path)
+    roi_dims = get_roi_dimensions(data_path, prefix)
+    ops = load_ops(data_path)
     if upper_overlap_thresh is None:
         upper_overlap_thresh = ops.get(f"{prefix}_upper_overlap_thresh", 0.3)
 
@@ -1000,7 +1010,7 @@ def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
                 leave=False,
             ):
                 coors = (roi[0], tilex, tiley)
-                tile = iss.io.load.load_mask_by_coors(
+                tile = load_mask_by_coors(
                     data_path,
                     tile_coors=coors,
                     prefix=prefix,
@@ -1029,7 +1039,7 @@ def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
                     data_path, prefix, ref_coors
                 )
                 for comp_coors, (overlap_ref, overlap_comp) in overlap_regions.items():
-                    overlapping = iss.segment.cells.remove_overlapping_labels(
+                    overlapping = remove_overlapping_labels(
                         overlap_ref, overlap_comp, upper_overlap_thresh
                     )
                     for o in overlapping:
@@ -1065,7 +1075,7 @@ def save_mcherry_mask_df(data_path, prefix):
     Returns:
         pd.DataFrame: Dataframe with the cell information.
     """
-    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    mask_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
     overlap_df = mask_folder / f"{prefix}_overlapping_pairs.pkl"
     assert (
         overlap_df.exists()
@@ -1082,7 +1092,7 @@ def save_mcherry_mask_df(data_path, prefix):
         + deleted.match_tiley.astype(str)
     )
 
-    roi_dims = iss.io.get_roi_dimensions(data_path, prefix)
+    roi_dims = get_roi_dimensions(data_path, prefix)
     dfs = []
     for roi_dim in roi_dims:
         # also add the final "stitched" label
@@ -1157,7 +1167,7 @@ def filter_mcherry_cells(
 
     if tile_list is None:
         roi_dims = get_roi_dimensions(data_path)
-        ops = iss.io.load_ops(data_path)
+        ops = load_ops(data_path)
         use_rois = ops.get("use_rois", roi_dims[:, 0])
         tile_list = []
         for r in use_rois:
@@ -1209,7 +1219,7 @@ def _remove_non_cell_masks(data_path, prefix, roi=None, tilex=None, tiley=None):
     """
 
     print(f"Removing non-cell masks for tile {roi}_{tilex}_{tiley}")
-    processed_path = iss.io.get_processed_path(data_path)
+    processed_path = get_processed_path(data_path)
     mask_dir = processed_path / "cells" / f"{prefix}_cells"
     df_thresh = pd.read_pickle(mask_dir / f"{prefix}_df_corrected.pkl")
     fname = f"{prefix}_masks_corrected_{roi}_{tilex}_{tiley}.npy"
@@ -1249,7 +1259,7 @@ def _gmm_cluster_mcherry_cells(data_path, prefix):
         data_path (str): Relative path to the data.
     """
     print("Loading dataframes")
-    mask_folder = iss.io.get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    mask_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
     fused_df_fname = mask_folder / f"{prefix}_df_corrected.pkl"
     assert (
         fused_df_fname.exists()
@@ -1271,7 +1281,7 @@ def _gmm_cluster_mcherry_cells(data_path, prefix):
     df.dropna(subset=features, inplace=True)
 
     # Define some initial cluster centers TODO: make it availlabe in the ops
-    px_size = iss.io.get_pixel_size(data_path)
+    px_size = get_pixel_size(data_path)
     intentity_th = np.nanpercentile(df["intensity_mean-1"], [10, 50, 70])
     # Cells are around 10um, circucal, solid, not to bright in background and about 10
     # times brighter in signal
@@ -1304,14 +1314,14 @@ def _gmm_cluster_mcherry_cells(data_path, prefix):
     fused_df.to_pickle(fused_df_fname)
     print(f"Saved GMM clustering results to {fused_df_fname}")
     # Plot diagnostics plot
-    fig = diagnostics.plot_mcherry_gmm(
+    fig = plot_mcherry_gmm(
         fused_df, features, cluster_centers=gmm.means_, initial_centers=initial_unscaled
     )
-    fig_folder = iss.io.get_processed_path(data_path) / "figures" / "segmentation"
+    fig_folder = get_processed_path(data_path) / "figures" / "segmentation"
     fig_folder.mkdir(exist_ok=True, parents=True)
     fig.savefig(fig_folder / f"{prefix}_gmm_diagnostics.png")
 
-    iss.pipeline.batch_process_tiles(
+    batch_process_tiles(
         data_path, script="remove_non_cell_masks", additional_args=f",PREFIX={prefix}"
     )
 
@@ -1390,7 +1400,7 @@ def save_unmixing_coefficients(
     background = []
     for tile in tile_coors:
         print(f"Loading tile {tile}")
-        stack, _ = iss.pipeline.load_and_register_tile(
+        stack, _ = load_and_register_tile(
             data_path,
             tile_coors=tile,
             prefix=prefix,
@@ -1420,7 +1430,7 @@ def save_unmixing_coefficients(
     )
 
     # save diagnostics plot
-    figs = diagnostics.plot_unmixing_diagnostics(
+    figs = plot_unmixing_diagnostics(
         signal_image=np.vstack(signal),
         background_image=np.vstack(background),
         pure_signal=pure_signal,
@@ -1470,7 +1480,7 @@ def unmix_tile(
         projection = ops[f"{short_prefix}_projection"]
 
     print(f"Unmixing tile {tile_coors}")
-    stack, _ = iss.pipeline.load_and_register_tile(
+    stack, _ = load_and_register_tile(
         data_path,
         tile_coors=tile_coors,
         prefix=prefix,
@@ -1482,7 +1492,7 @@ def unmix_tile(
     stack = stack[..., 0]
 
     unmix_param = np.load(seg_folder / f"unmixing_coef_{short_prefix}.npz")
-    unmixed = iss.image.correction.unmix_images(
+    unmixed = unmix_images(
         background_image=stack[..., background_channel],
         mixed_signal_image=stack[..., signal_channel],
         coef=unmix_param["coef"],
@@ -1518,9 +1528,9 @@ def save_curated_dataframes(
     if isinstance(rois, int):
         rois = [rois]
     if rois is None:
-        roi_dims = iss.io.get_roi_dimensions(data_path)
+        roi_dims = get_roi_dimensions(data_path)
         rois = list(roi_dims[:, 0])
-    mask_folder = iss.io.get_processed_path(data_path) / "cells"
+    mask_folder = get_processed_path(data_path) / "cells"
     dfs = []
     for roi in rois:
         print(f"Processing ROI {roi}")

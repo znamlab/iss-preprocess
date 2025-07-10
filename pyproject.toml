@@ -21,8 +21,9 @@ dependencies = [
         "natsort",
         "seaborn",
         "decorator",
-        "scipy>=1.11.0",]
-license = {text = "MIT"}
+        "scipy>=1.11.0",
+          "wheel"]
+license = "MIT"
 
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -32,13 +33,17 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Operating System :: OS Independent",
-    "License :: OSI Approved :: MIT License",
 ]
 
 [project.scripts]
 iss = "iss_preprocess.cli.iss:iss_cli"
 iss-register = "iss_preprocess.cli.register_cli:register_cli"
 iss-sync-and-crunch = "iss_preprocess.cli.sync_and_crunch_cli:sync_and_crunch_cli"
+iss-core = "iss_preprocess.cli.core_cli:core_cli"
+iss-call = "iss_preprocess.cli.call_cli:call_cli"
+iss-segment = "iss_preprocess.cli.segment_cli:segment_cli"
+iss-reg2ref = "iss_preprocess.cli.reg2ref_cli:reg2ref_cli"
+
 
 [project.urls]
 "Homepage" = "https://github.com/znamlab/iss-preprocess"
@@ -108,7 +113,17 @@ ignore = [
 [tool.ruff]
 line-length = 88
 exclude = ["__init__.py","build",".eggs"]
-select = ["I", "E", "F"]
+lint.select = [
+  "E",   # pycodestyle errors
+  "F",   # Pyflakes
+  "I",   # isort
+  # You can see what all the rules do here: https://docs.astral.sh/ruff/rules/
+  # Some additional ruff rules that might be useful (uncomment to enable)
+  #"UP",  # pyupgrade
+  #"B",   # flake8 bugbear
+  #"SIM", # flake8 simplify
+  #"C90", # McCabe complexity
+]
 fix = true
 
 [tool.tox]

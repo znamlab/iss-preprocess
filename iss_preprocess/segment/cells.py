@@ -1,9 +1,18 @@
 import numpy as np
 import pandas as pd
+from scipy.ndimage import binary_dilation, binary_erosion
 from skimage import measure
-from tqdm import tqdm
 from skimage.morphology import dilation
-from scipy.ndimage import binary_erosion, binary_dilation
+from tqdm import tqdm
+
+__all__ = [
+    "cellpose_segmentation",
+    "spot_mask_value",
+    "count_spots",
+    "project_mask",
+    "remove_overlapping_labels",
+    "label_image",
+]
 
 
 def cellpose_segmentation(
@@ -79,7 +88,7 @@ def spot_mask_value(masks, spots):
         spots (pandas.DataFrame): table of spot locations. Must have a x and y columns
 
     Returns:
-        pandas.DataFrame: spots, modfied inplace to add a "mask_id" column
+        pandas.DataFrame: spots, modified inplace to add a "mask_id" column
 
     """
     xy = np.round(spots.loc[:, ["x", "y"]].values).astype(int)
@@ -113,14 +122,14 @@ def count_spots(spots, grouping_column, masks=None, mask_id_column="mask_id"):
         assert mask_id_column in spots.columns
     else:
         spots = spot_mask_value(masks, spots)
-    # count the number of occurence of each ("mask_id", genes or barcode) pair
+    # count the number of occurrence of each ("mask_id", genes or barcode) pair
     cell_df = pd.DataFrame(
         spots.loc[:, [mask_id_column, grouping_column]]
         .groupby([mask_id_column, grouping_column])
         .aggregate(len)
     )
 
-    # formating
+    # formatting
     cell_df = cell_df.unstack(grouping_column)
     cell_df[np.isnan(cell_df)] = 0
 

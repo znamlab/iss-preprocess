@@ -7,6 +7,15 @@ from ..coppafish import scaled_k_means
 
 BASES = np.array(["G", "T", "A", "C"])
 
+__all__ = [
+    "BASES",
+    "get_cluster_means",
+    "extract_spots",
+    "rois_to_array",
+    "basecall_rois",
+    "call_genes",
+]
+
 
 def get_cluster_means(spots, initial_cluster_mean, score_thresh=0.0):
     """Find the mean of the 4 clusters (one per channel)

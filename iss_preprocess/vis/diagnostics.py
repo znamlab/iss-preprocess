@@ -1,21 +1,13 @@
-from pathlib import Path
 import warnings
-import cv2
-import flexiznam as flz
+
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-from matplotlib.animation import FFMpegWriter, FuncAnimation
-from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from natsort import natsorted
-from znamutils import slurm_it
-import iss_preprocess as iss
-from iss_preprocess.pipeline import ara_registration as ara_registration
-from iss_preprocess.pipeline import sequencing
-from iss_preprocess.vis import add_bases_legend, round_to_rgb
 
-from ..io import load_ops
+from ..io import get_processed_path, load_ops, write_stack
+from . import add_bases_legend, animate_sequencing_rounds, to_rgb
+from .utils import plot_matrix_with_colorbar
 
 
 def plot_correction_images(
@@ -115,7 +107,7 @@ def _plot_channels_intensity(
 
     This will plot the first len(axes) channels of correction image
     Args:
-        axes (list): List of plt.Axes to plot. Must be same lenght as number of channel
+        axes (list): List of plt.Axes to plot. Must be same length as number of channel
         correction_image (np.array): A X x Y x Nch image to plot
         subtract_chan (int, optional): Channel to subtract before displaying. Defaults
             to None, no subtraction
@@ -158,7 +150,7 @@ def plot_affine_debug_images(debug_info, fig=None):
     if fig is None:
         fig = plt.figure(figsize=(2 * 7, 1.5 * len(debug_info)))
     nchans = len(debug_info)
-    axes = fig.subplots(nchans, 7)
+    axes = fig.subplots(nchans, 7, squeeze=False)
     labels = [
         "Correlation",
         "X Shift",
@@ -258,29 +250,29 @@ def adjacent_tiles_registration(
             ax = axes[idir * 2 + i, 0]
             ax.set_ylabel(f"{direction}\nshift - {x}")
             m = np.nanmedian(rsh[..., i])
-            iss.vis.plot_matrix_with_colorbar(
+            plot_matrix_with_colorbar(
                 rsh[..., i].T, ax, vmin=m - max_shift, vmax=m + max_shift
             )
             if idir == 0 and i == 0:
-                ax.set_title(f"Raw")
+                ax.set_title("Raw")
             ax = axes[idir * 2 + i, 1]
-            iss.vis.plot_matrix_with_colorbar(
+            plot_matrix_with_colorbar(
                 sh[..., i].T, ax, vmin=m - max_shift, vmax=m + max_shift
             )
             if idir == 0 and i == 0:
-                ax.set_title(f"Corrected")
+                ax.set_title("Corrected")
             ax = axes[idir * 2 + i, 2]
-            iss.vis.plot_matrix_with_colorbar(
+            plot_matrix_with_colorbar(
                 delta_shift.T, ax, vmin=0, vmax=max_delta_shift * 1.1
             )
             if idir == 0 and i == 0:
-                ax.set_title(f"Delta")
+                ax.set_title("Delta")
             ax = axes[idir * 2 + i, 3]
             if idir == 0 and i == 0:
-                ax.set_title(f"Bad tiles")
-            iss.vis.plot_matrix_with_colorbar(bad2plot.T, ax, vmin=0, vmax=2)
-        axes[idir * 2, 4].set_title(f"Max corr")
-        iss.vis.plot_matrix_with_colorbar(
+                ax.set_title("Bad tiles")
+            plot_matrix_with_colorbar(bad2plot.T, ax, vmin=0, vmax=2)
+        axes[idir * 2, 4].set_title("Max corr")
+        plot_matrix_with_colorbar(
             xc.T, axes[idir * 2, 4], vmin=0, vmax=1, cmap="coolwarm"
         )
         axes[idir * 2 + 1, 4].axis("off")
@@ -288,7 +280,7 @@ def adjacent_tiles_registration(
     warnings.filterwarnings("default", category=RuntimeWarning)
     fig.tight_layout()
     fig_file = (
-        iss.io.get_processed_path(data_path)
+        get_processed_path(data_path)
         / "figures"
         / "registration"
         / prefix
@@ -297,64 +289,6 @@ def adjacent_tiles_registration(
     fig_file.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(fig_file, dpi=300)
     print(f"Saving {fig_file}")
-    return fig
-
-
-def plot_ara_registration(data_path, roi, reference_prefix="genes_round_1_1"):
-    """Overlay reference image to ARA borders
-
-    Args:
-        data_path (str): Relative path to data
-        roi (int): ROI number to plot
-        reference_prefix (str, optional): Image to use as reference. Defaults to
-            "genes_round_1_1".
-
-    Raises:
-        ImportError: If `cricksaw_analysis` is not installed
-
-    Returns:
-        plt.Figure: Reference to the figure created.
-    """
-    try:
-        from cricksaw_analysis import atlas_utils
-    except ImportError:
-        raise ImportError("`plot_registration requires `cricksaw_analysis")
-    area_ids = ara_registration.make_area_image(
-        data_path=data_path, roi=roi, atlas_size=10, full_scale=False
-    )
-    reg_metadata = ara_registration.load_registration_reference_metadata(
-        data_path, roi=roi
-    )
-
-    ops = load_ops(data_path)
-    stitched_stack = iss.pipeline.stitch_registered(
-        data_path,
-        reference_prefix,
-        roi=roi,
-        channels=ops["ref_ch"],
-    ).astype(np.single)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    new_shape = reg_metadata["new_shape"]
-    downsampled = cv2.resize(stitched_stack, (new_shape[1], new_shape[0]))
-    ax.imshow(
-        downsampled,
-        extent=(0, new_shape[1], 0, new_shape[0]),
-        vmax=np.quantile(downsampled, 0.99),
-        vmin=0,
-        origin="lower",
-        cmap="gray",
-    )
-    atlas_utils.plot_borders_and_areas(
-        ax,
-        area_ids,
-        border_kwargs=dict(colors="purple", alpha=0.6, linewidths=0.1),
-    )
-    ax.set_ylim(ax.get_ylim()[::-1])
-    ax.set_xticks([])
-    ax.set_yticks([])
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     return fig
 
 
@@ -371,13 +305,17 @@ def plot_tilestats_distributions(
         figure_folder (pathlib.Path): Path where to save the figures.
         camera_order (list): Order list of camera as in ops['camera_order']
     """
-    ops = iss.io.load_ops(data_path)
+    ops = load_ops(data_path)
     camera_order = ops["camera_order"]
     distri = distributions.copy()
     fig = plt.figure(figsize=(10, 20), facecolor="white")
     colors = ["blue", "green", "red", "purple"]
     # TODO: adapt to varying number of rounds
     nrounds = [np.sum([k.startswith(p) for k in distri]) for p in grand_averages]
+    if not len(grand_averages):
+        print("No grand averages to plot. Not doing anything.")
+        return
+
     for ip, prefix in enumerate(grand_averages):
         grand_data = distri.pop(prefix)
         ax = fig.add_subplot(np.max(nrounds), 2, 1 + ip)
@@ -417,85 +355,17 @@ def plot_tilestats_distributions(
     fig.savefig(figure_folder / "pixel_value_distributions.png", dpi=600)
 
 
-def plot_matrix_difference(
-    raw,
-    corrected,
-    col_labels=None,
-    line_labels=("Raw", "Corrected", "Difference"),
-    range_min=(5, 5, 0.1),
-    range_max=None,
-    axes=None,
-):
-    """Plot the raw, corrected matrices and their difference
-
-    Args:
-        raw (np.array): n feature x tilex x tiley array of raw estimates
-        corrected (np.array): n feature x tilex x tiley array of corrected estimates
-        col_labels (list, optional): List of feature names for axes titles. Defaults to
-            None.
-        line_labels (list, optional): List of names for ylabel of leftmost plots.
-            Defaults to ('Raw', 'Corrected', 'Difference').
-        range_min (tuple, optional): N features long tuple of minimal range for color
-            bars. Defaults to (5,5,0.1)
-        range_max (tuple, optional): N features long tuple of maximal range for color
-            bars. Defaults to None, no max.
-        axes (np.array, optional): 3 x n features array of axes to plot into. Defaults
-            to None.
-
-    Returns:
-        plt.Figure: Figure instance
-    """
-    ncols = raw.shape[0]
-    if axes is None:
-        fig, axes = plt.subplots(3, ncols)
-        fig.set_size_inches((ncols * 3.5, 6))
-        fig.subplots_adjust(top=0.9, wspace=0.15, hspace=0)
-    else:
-        fig = axes[0, 0].figure
-
-    for col in range(ncols):
-        vmin = corrected[col].min()
-        vmax = corrected[col].max()
-        rng = vmax - vmin
-        if rng < range_min[col]:
-            rng = range_min[col]
-            vmin = vmin - rng
-            vmax = vmax + rng
-        elif (range_max is not None) and (rng > range_max[col]):
-            rng = range_max[col]
-            vmin = vmin - rng
-            vmax = vmax + rng
-        plot_matrix_with_colorbar(
-            raw[col].T, axes[0, col], vmin=vmin - rng / 5, vmax=vmax + rng / 5
-        )
-        plot_matrix_with_colorbar(
-            corrected[col].T,
-            axes[1, col],
-            vmin=vmin - rng / 5,
-            vmax=vmax + rng / 5,
-        )
-        plot_matrix_with_colorbar(
-            (raw[col] - corrected[col]).T,
-            axes[2, col],
-            cmap="RdBu_r",
-            vmin=-rng,
-            vmax=rng,
-        )
-
-    for x in axes.flatten():
-        x.set_xticks([])
-        x.set_yticks([])
-    if col_labels is not None:
-        for il, label in enumerate(col_labels):
-            axes[0, il].set_title(label, fontsize=11)
-    if line_labels is not None:
-        for il, label in enumerate(line_labels):
-            axes[il, 0].set_ylabel(label, fontsize=11)
-    return fig
-
-
 def plot_all_rounds(
-    stack, view=None, channel_colors=None, grid=True, round_labels=None
+    stack,
+    view=None,
+    channel_colors=None,
+    grid=True,
+    round_labels=None,
+    fig=None,
+    axes=None,
+    vmin=None,
+    vmax=None,
+    legend_kwargs=None,
 ):
     """Plot all rounds of a stack in a grid
 
@@ -507,6 +377,12 @@ def plot_all_rounds(
         grid (bool, optional): Whether to plot a grid. Defaults to True.
         round_labels (list, optional): List of round labels. Defaults to None, which
             will use "Round {iround}".
+        fig (plt.Figure, optional): Figure to plot into. Defaults to None, will create
+            a new figure.
+        axes (list, optional): List of axes to plot into. Defaults to None, will create
+            new axes.
+        vmin (float, optional): Minimum value for the colormap. Defaults to None.
+        vmax (float, optional): Maximum value for the colormap. Defaults to None.
 
     Returns:
         plt.Figure: Figure instance
@@ -518,18 +394,20 @@ def plot_all_rounds(
         view = np.array([[0, stack.shape[0]], [0, stack.shape[1]]])
     nrounds = stack.shape[3]
 
-    def round_image(iround):
-        vmax = np.percentile(
-            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
-            99.99,
-            axis=(0, 1),
-        )
-        vmin = np.percentile(
-            stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
-            0.01,
-            axis=(0, 1),
-        )
-        return iss.vis.to_rgb(
+    def round_image(iround, vmin, vmax):
+        if vmax is None:
+            vmax = np.percentile(
+                stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+                99.99,
+                axis=(0, 1),
+            )
+        if vmin is None:
+            vmin = np.percentile(
+                stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
+                0.01,
+                axis=(0, 1),
+            )
+        return to_rgb(
             stack[view[0, 0] : view[0, 1], view[1, 0] : view[1, 1], :, iround],
             channel_colors,
             vmin=vmin,
@@ -539,13 +417,17 @@ def plot_all_rounds(
     # Make the smallest rectangle that contains `nrounds` axes
     nrows = int(np.sqrt(nrounds))
     ncols = int(np.ceil(nrounds / nrows))
-    fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
+    if fig is None:
+        fig = plt.figure(figsize=(3.5 * ncols, 3.2 * nrows))
     rgb_stack = np.empty(np.diff(view, axis=1).ravel().tolist() + [3, nrounds])
     if round_labels is None:
         round_labels = [f"Round {iround}" for iround in range(nrounds)]
     for iround in range(nrounds):
-        ax = fig.add_subplot(nrows, ncols, iround + 1)
-        rgb = round_image(iround)
+        if axes is None:
+            ax = fig.add_subplot(nrows, ncols, iround + 1)
+        else:
+            ax = axes[iround]
+        rgb = round_image(iround, vmin=vmin, vmax=vmax)
         rgb_stack[..., iround] = rgb
         ax.imshow(rgb)
         ax.set_title(round_labels[iround])
@@ -554,30 +436,10 @@ def plot_all_rounds(
             ax.set_xticklabels([])
             ax.set_yticklabels([])
     fig.tight_layout()
-    iss.vis.add_bases_legend(channel_colors)
+    if legend_kwargs is None:
+        legend_kwargs = {}
+    add_bases_legend(channel_colors, **legend_kwargs)
     return fig, rgb_stack
-
-
-def plot_matrix_with_colorbar(mtx, ax=None, **kwargs):
-    """Plot a matrix with a colorbar just on the side
-
-    Args:
-        mtx (np.array): Matrix to plot
-        ax (plt.Axes, optional): Axes instance. Will be created if None. Defaults to
-            None.
-
-    Returns:
-        plt.Axes: Colorbar axes
-        plt.colorbar: Colorbar instance
-    """
-    if ax is None:
-        ax = plt.subplot(1, 1, 1)
-
-    im = ax.imshow(mtx, **kwargs)
-    ax_divider = make_axes_locatable(ax)
-    cax = ax_divider.append_axes("right", size="7%", pad="2%")
-    cb = ax.figure.colorbar(im, cax=cax)
-    return cax, cb
 
 
 def plot_registration_correlograms(
@@ -586,29 +448,35 @@ def plot_registration_correlograms(
     figure_name,
     debug_dict,
 ):
-    target_folder = iss.io.get_processed_path(data_path) / "figures" / prefix
+    target_folder = get_processed_path(data_path) / "figures" / "registration" / prefix
     print(f"Creating figures in {target_folder}")
-    if not target_folder.exists():
-        target_folder.mkdir()
-    ops = iss.io.load_ops(data_path)
+    target_folder.mkdir(exist_ok=True, parents=True)
+    ops = load_ops(data_path)
     mshift = ops["rounds_max_shift"]
+    figs = {}
     for what, data in debug_dict.items():
         print(f"Plotting {what}", flush=True)
         if what == "align_within_channels":
-            _plot_within_channel_correlogram(data, target_folder, figure_name, mshift)
+            fig = _plot_within_channel_correlogram(
+                data, target_folder, figure_name, mshift
+            )
         elif what == "estimate_correction":
-            _plot_between_channels_correlogram(data, target_folder, figure_name, mshift)
+            fig = _plot_between_channels_correlogram(
+                data, target_folder, figure_name, mshift
+            )
         elif what == "correct_by_block":
             tile_coors = ops["ref_tile"]
             fig = plt.figure(figsize=(2 * 7, 1.5 * 3))
-            iss.vis.diagnostics.plot_affine_debug_images(data, fig=fig)
+            plot_affine_debug_images(data, fig=fig)
             fig.suptitle(f"{prefix} - Tile {tile_coors}")
             tile_name = "_".join([str(x) for x in tile_coors])
             fig.savefig(target_folder / f"affine_debug_{prefix}_{tile_name}.png")
         else:
             raise NotImplementedError(f"Unknown correlogram output: {what}")
+        figs[what] = fig
     plt.close("all")
     print(f"Saved figures to {target_folder}")
+    return figs
 
 
 def _plot_between_channels_correlogram(data, target_folder, figure_name, max_shift=100):
@@ -622,6 +490,7 @@ def _plot_between_channels_correlogram(data, target_folder, figure_name, max_shi
     for ich, ch_data in enumerate(data):
         if not ch_data:
             continue
+        fig.clear()
         for irow, row_name in enumerate(rows):
             for icol, col_name in enumerate(columns):
                 ax = fig.add_subplot(
@@ -648,7 +517,8 @@ def _plot_between_channels_correlogram(data, target_folder, figure_name, max_shi
             dpi=300,
             transparent=True,
         )
-        fig.clear()
+
+    return fig
 
 
 def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift=100):
@@ -658,6 +528,7 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
     ncol = nrounds
     fig = plt.figure()
     for ch in range(nchannels):
+        fig.clear()
         for rnd in range(nrounds):
             rnd_data = data[(ch, rnd)]
             nrow = len(rnd_data)
@@ -691,7 +562,8 @@ def _plot_within_channel_correlogram(data, target_folder, figure_name, max_shift
         fig.savefig(
             target_folder / f"{figure_name}_shifts_channel_{ch}.pdf", transparent=True
         )
-        fig.clear()
+
+    return fig
 
 
 def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax):
@@ -732,212 +604,123 @@ def _draw_correlogram(ax, xcorr, max_shift, vmin, vmax):
     )
 
 
-def check_rolonies_registration(
-    savefname,
-    data_path,
-    tile_coors,
-    n_rolonies,
-    prefix="genes_round",
-    channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
-    vmax=0.5,
-    correct_illumination=True,
-    corrected_shifts="best",
-):
-    """Check the registration of rolonies
-
-    Will plot a random selection of rolonies overlaid on the spot sign image circles.
+def plot_spot_sign_image(spot_image):
+    """
+    Plot the average spot sign image.
 
     Args:
-        savefname (str): Path to save the figure to
-        data_path (str): Path to the data folder
-        tile_coors (tuple): Tile coordinates
-        n_rolonies (int): Number of rolonies to plot
-        prefix (str, optional): Prefix to use. Defaults to "genes_round".
-        channel_colors (list, optional): List of colors for each channel. Defaults to
-            ([1,0,0],[0,1,0],[1,0,1],[0,1,1]).
-        vmax (float, optional): Max value image scale. Defaults to 0.5.
-        correct_illumination (bool, optional): Whether to correct for illumination.
-            Defaults to True.
-        corrected_shifts (str, optional): Which shifts to use. One of `best`, `ransac`,
-            `single_tile`, `reference`, Defaults to 'best'.
+        spot_image: X x Y array of average spot sign values.
 
     """
-    ops = load_ops(data_path)
-    processed_path = Path(flz.config.PARAMETERS["data_root"]["processed"])
-    spot_sign = np.load(processed_path / data_path / "spot_sign_image.npy")
-    # cut a line in the middle
-    line = spot_sign[spot_sign.shape[0] // 2, :]
-    positive_radius = np.diff(np.where(line > 0)[0][[0, -1]]) / 2 + 0.5
-    negative_radius = np.diff(np.where(line < -0.1)[0][[0, -1]]) / 2
-
-    spot_folder = processed_path / data_path / "spots"
-    spots = pd.read_pickle(
-        spot_folder
-        / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+    plt.figure(figsize=(5, 5), facecolor="white")
+    plt.pcolormesh(
+        spot_image, cmap="bwr", vmin=-1, vmax=1, edgecolors="white", linewidths=1
     )
-    spots.reset_index(inplace=True)
-    nrounds = ops[f"{prefix}s"]
-    # get stack registered between channel and rounds
-    reg_stack, bad_pixels = sequencing.load_and_register_sequencing_tile(
-        data_path,
-        filter_r=ops["filter_r"],
-        correct_channels=True,
-        correct_illumination=correct_illumination,
-        corrected_shifts=corrected_shifts,
-        tile_coors=tile_coors,
-        suffix=ops[f"{prefix.split('_')[0]}_projection"],
-        prefix=prefix,
-        nrounds=nrounds,
-        specific_rounds=None,
-    )
-    extent = np.array([-1, 1]) * 100
-
-    rng = np.random.default_rng(42)
-    rolonies = rng.choice(spots.index, n_rolonies, replace=False)
-    if n_rolonies == 1:
-        fig, axes = plt.subplots(1, 1, figsize=(5, 5))
-        axes = np.array([axes])
-    else:
-        nrow = int(np.sqrt(n_rolonies))
-        ncol = int(np.ceil(n_rolonies / nrow))
-        fig, axes = plt.subplots(nrow, ncol, figsize=(ncol * 3, nrow * 3))
-    fig.subplots_adjust(
-        top=0.9, wspace=0.01, hspace=0.1, bottom=0.01, left=0.01, right=0.99
-    )
-
-    # get codebook
-    codebook = pd.read_csv(
-        Path(__file__).parent.parent / "call" / ops["codebook"],
-        header=None,
-        names=["gii", "seq", "gene"],
-    )
-    base_params = dict(color="white", fontsize=20, fontweight="bold")
-    stacks_list = []
-    sequences = []
-    labels = []
-    for i, ax in enumerate(axes.flatten()):
-        spot = spots.loc[rolonies[i]]
-        center = spot[["x", "y"]].astype(int).values
-        wx = np.clip(center[0] + extent, 0, reg_stack.shape[0])
-        wy = np.clip(center[1] + extent, 0, reg_stack.shape[1])
-        stack_part = reg_stack[slice(*wy), slice(*wx)]
-        stacks_list.append(stack_part)
-        pc = plt.Circle(center, radius=positive_radius, ec="r", fc="none", lw=2)
-        ax.add_artist(pc)
-        nc = plt.Circle(center, radius=negative_radius, ec="b", fc="none", lw=2)
-        ax.add_artist(nc)
-        ax.imshow(
-            round_to_rgb(stack_part, 0, None, channel_colors, vmax),
-            extent=np.hstack([wx, wy]),
-            origin="lower",
-        )
-        ax.axis("off")
-        ax.set_title(f"Rol #{rolonies[i]}. X: {center[0]}, Y: {center[1]}")
-        gene = spots.loc[rolonies[i], "gene"]
-        sequences.append(codebook.loc[codebook["gene"] == gene, "seq"].values[0])
-        txt = ax.text(0.05, 0.9, sequences[i][0], transform=ax.transAxes, **base_params)
-        labels.append(txt)
-
-    add_bases_legend(channel_colors=channel_colors)
-
-    def animate(iround):
-        for iax, stack in enumerate(stacks_list):
-            ax = axes.flatten()[iax]
-
-            ax.images[0].set_data(
-                round_to_rgb(stack, iround, None, channel_colors, vmax),
-            )
-            labels[iax].set_text(sequences[iax][iround])
-        fig.suptitle(
-            f"Tile {tile_coors}. Corrected shifts: {corrected_shifts}. Round {iround}"
-        )
-
-    anim = FuncAnimation(fig, animate, frames=reg_stack.shape[3], interval=200)
-    anim.save(savefname, writer=FFMpegWriter(fps=2))
+    image_size = spot_image.shape[0]
+    ticks_labels = np.arange(image_size) - int(image_size / 2)
+    plt.xticks(np.arange(image_size) + 0.5, ticks_labels)
+    plt.yticks(np.arange(image_size) + 0.5, ticks_labels)
+    plt.colorbar()
+    plt.gca().set_aspect("equal")
 
 
-@slurm_it(conda_env="iss-preprocess")
-def check_barcode_mcherry_reg(
-    data_path,
-    roi,
-    barcode_prefix="barcode_round_1_1",
-    mcherry_prefix="mCherry_1",
-    target=None,
+def plot_round_registration_diagnostics(
+    reg_stack, target_folder, fname_base, view_window=200, round_labels=None
 ):
-    """Check registration of barcode and mCherry to reference on whole stitched image
+    """Generate 3 diagnostics tools for the registration of a tile
+
+    - A static figure showing the stack of all rounds
+    - An animated figure showing the stack of all rounds
+    - A stack of RGB images for fiji
 
     Args:
-        data_path (str): Path to data
-        roi (int): ROI number
-        barcode_prefix (str, optional): Prefix for barcode. Defaults to
-            "barcode_round_1_1".
-        mcherry_prefix (str, optional): Prefix for mCherry. Defaults to "mCherry_1".
-        target (str, optional): Path to save the figure to. Defaults to None.
+        reg_stack (np.ndarray): Registered stack of images
+        target_folder (pathlib.Path): Folder to save the figures
+        fname_base (str): Base name for the figures
+        view_window (int, optional): Half size of the window to show in the figures.
+            Defaults to 200.
 
     Returns:
-        plt.Figure: Figure instance
+        None
+
+    """
+    # compute vmax based on round 0
+    vmins, vmaxs = np.percentile(reg_stack[..., 0], (0.01, 99.99), axis=(0, 1))
+    center = np.array(reg_stack.shape[:2]) // 2
+    view = np.array([center - view_window, center + view_window]).T
+    channel_colors = ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1])
+
+    print("Static figure")
+    fig, rgb_stack = plot_all_rounds(
+        reg_stack, view, channel_colors, round_labels=round_labels
+    )
+    fig.tight_layout()
+    fname = target_folder / f"{fname_base}.png"
+    fig.savefig(fname)
+    print(f"Saved to {fname}")
+
+    # also save the stack for fiji
+    write_stack(
+        (rgb_stack * 255).astype("uint8"),
+        target_folder / f"{fname_base}_rgb_stack_{reg_stack.shape[-1]}rounds.tif",
+    )
+
+    print("Animating")
+    animate_sequencing_rounds(
+        reg_stack,
+        savefname=target_folder / f"{fname_base}.mp4",
+        vmax=vmaxs,
+        vmin=vmins,
+        extent=(view[0], view[1]),
+        channel_colors=channel_colors,
+    )
+
+
+def check_reg2ref_using_stitched(
+    save_path,
+    stitched_stack_reference,
+    stitched_stack_target,
+    ref_centers=None,
+    trans_centers=None,
+):
+    """Check the registration to reference done on stitched images
+
+    Args:
+        data_path (str): Relative path to data
+        reg_prefix (str): Prefix of the registered images
+        ref_prefix (str): Prefix of the reference images
+        roi (int): ROI to process
+        stitched_stack_reference (np.ndarray): Stitched stack of the reference images
+        stitched_stack_target (np.ndarray): Stitched stack of the registered images
+        ref_centers (np.ndarray): Reference centers to plot. Defaults
+            to None.
+        trans_centers (np.ndarray): Transformed centers to plot. Defaults
+
+    Returns:
+        plt.Figure: Figure
     """
 
-    ops = iss.io.load_ops(data_path)
-    ref_prefix = ops["reference_prefix"]
-    ref_ch = ops["reg2ref_reference_channels"]
-    print(f"Stitching ref")
-    ref = iss.pipeline.stitch_registered(
-        data_path, prefix=ref_prefix, roi=roi, channels=ref_ch
+    st = np.dstack([stitched_stack_reference, stitched_stack_target])
+    rgb = to_rgb(
+        st, colors=[(0, 1, 0), (1, 0, 1)], vmax=np.nanpercentile(st, 99, axis=(0, 1))
     )
-    ref = np.nanmean(ref, axis=2)
-
-    bc_chans = ops.get("reg2ref_barcode_channels", [0, 1, 2, 3])
-    print(f"Stitching barcode")
-    barcode_round_1 = iss.pipeline.stitch_registered(
-        data_path, prefix=barcode_prefix, roi=roi, channels=bc_chans
-    )
-    barcode_round_1 = np.nanmax(barcode_round_1, axis=2)
-    mch_chan = ops.get("reg2ref_mCherry_channels", [3])
-    print(f"Stitching mCherry")
-    mcherry = iss.pipeline.stitch_registered(
-        data_path, prefix=mcherry_prefix, roi=roi, channels=mch_chan
-    )
-    mcherry = np.nanmean(mcherry, axis=2)
-
-    st = np.dstack([ref, mcherry, barcode_round_1])
-    rgb = iss.vis.to_rgb(
-        st,
-        colors=[(0, 0, 1), (1, 0, 0), (0, 1, 0)],
-        vmin=np.nanpercentile(st, 1, axis=(0, 1)),
-        vmax=np.nanpercentile(st, 99.9, axis=(0, 1)),
-    )
-
-    aspect_ratio = rgb.shape[1] / rgb.shape[0]
-    print(aspect_ratio)
-    fig = plt.figure(figsize=(10 * aspect_ratio, 20))
-    ax = fig.add_subplot(2, 1, 1)
-    ax.imshow(rgb, interpolation="none")
+    del st
+    aspect_ratio = rgb.shape[0] / rgb.shape[1]
+    fig = plt.figure(figsize=(5, 5 * aspect_ratio))
+    ax = fig.add_subplot(111)
+    ax.imshow(rgb, zorder=0)
+    if ref_centers is not None:
+        flat_refc = ref_centers.reshape(-1, 2)
+        ax.scatter(flat_refc[:, 1], flat_refc[:, 0], c="blue", s=1, zorder=2)
+    if trans_centers is not None:
+        flat_trac = trans_centers.reshape(-1, 2)
+        ax.scatter(flat_trac[:, 1], flat_trac[:, 0], c="orange", s=2, zorder=3)
+    if trans_centers is not None and ref_centers is not None:
+        for c, t in zip(flat_refc, flat_trac):
+            ax.plot([c[1], t[1]], [c[0], t[0]], "k", zorder=1)
     ax.set_axis_off()
-
-    fw, fh = ref.shape[:2]
-    w = int(fw // 4 * aspect_ratio)
-    h = fh // 4
-    margin = [fw // 6, fh // 6]
-    for ix in range(2):
-        for iy in range(2):
-            ax = fig.add_subplot(4, 2, ix + 2 * iy + 5)
-            xlims = np.array([margin[0], margin[0] + w])
-            if ix:
-                xlims = fw - xlims[::-1]
-            ylims = np.array([margin[1], margin[1] + h])
-            if iy:
-                ylims = fh - ylims[::-1]
-            s_corner = st[ylims[0] : ylims[1], xlims[0] : xlims[1]]
-            rgb_part = iss.vis.to_rgb(
-                s_corner,
-                colors=[(0, 0, 1), (1, 0, 0), (0, 1, 0)],
-                vmin=np.nanpercentile(s_corner, 1, axis=(0, 1)),
-                vmax=np.nanpercentile(s_corner, 99.9, axis=(0, 1)),
-            )
-            ax.imshow(rgb_part, interpolation="none")
-            ax.set_axis_off()
     fig.tight_layout()
-    if target is not None:
-        fig.savefig(target, dpi=300)
+    fig.savefig(save_path, dpi=1200)
+    print(f"Saving plot to {save_path}")
+    del rgb
     return fig

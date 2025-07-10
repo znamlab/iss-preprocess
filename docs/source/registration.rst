@@ -4,11 +4,111 @@ Registration
 Final data is in one common coordinate system. It takes quite a few steps to get that.
 This file describe how genes and barcodes are registered together.
 
-TODO: integrate hyb, reference, anchor, mcherry
+Overview
+--------
+
+The command is run as follows:
+
+.. code-block:: bash
+
+    iss register --path relative/path/to/data --prefix genes_round
+
+By default, the script will perform only missing steps. There is a ``--force-redo`` flag
+that will force the script to re-run all steps, even if the output files already exist.
+
+The script will perform different steps depending on the type of acquisition. See
+details for `sequencing` and `fluorescent` acquisitions.
+
+To check that everything worked, look in `figures/registration/prefix` for diagnostic
+plots. If there is no motion on the `mp4` files for sequencing acquisitions, you're
+good. For fluorescent acquisitions, you should see that the spots are aligned across
+channels on the `png`.
+
+If it looks bad, see the relevant `Troubleshooting` section below.
+
+
+Register Sequencing acquisitions
+--------------------------------
+
+These are acquisitions that have multiple rounds, namely `genes_round` and
+`barcode_round`. The steps are:
+
+.. mermaid::
+
+    flowchart TD
+    start[Start] --> regref[run_register_reference_tile];
+        batch_est(((register_tile)));
+
+        subgraph register_reference_tile
+            regref --> diag_ref([check_ref_tile_registration]);
+        end
+
+
+
+        regref --> batch_est;
+        batch_est --> corr;
+        subgraph correct_shifts
+            subgraph run_correct_shifts
+                corr[run_correct_shifts];
+                corr --> filt[filter_ransac_shifts];
+            end
+
+            subgraph check_tile_shifts
+                filt --> ctr([check_tile_registration]);
+            end
+            subgraph check_shift_correction
+                filt --> csc([check_shift_correction]);
+            end
+            subgraph check_tile_registration
+                ctr --> diag_tile([check_tile_registration]);
+            end
+        end
+
+        style batch_est fill:#E1BEE7,stroke:#424242
+
+        style corr stroke:#000000,fill:#E1BEE7
+        style regref stroke:#000000,fill:#E1BEE7
+        style filt stroke:#000000,fill:#E1BEE7
+
+        style csc fill:#BBDEFB,stroke:#616161,color:#000000
+        style diag_ref fill:#BBDEFB,stroke:#616161,color:#000000
+        style diag_tile fill:#BBDEFB,stroke:#616161,color:#000000
+        style ctr fill:#BBDEFB,stroke:#616161,color:#000000
+
+        style run_correct_shifts fill:#EEEEEE, stroke:#424242
+        style check_tile_shifts fill:#EEEEEE, stroke:#424242
+        style check_shift_correction fill:#EEEEEE, stroke:#424242
+        style check_tile_registration fill:#EEEEEE, stroke:#424242
+
+        style correct_shifts fill:#AAAAAA, stroke:#424242
+        style register_reference_tile fill:#AAAAAA, stroke:#424242
+
+Troubleshooting
+~~~~~~~~~~~~~~~
+
+If the registration looks bad, we need to find which step failed.
+
+- Is the reference tile registered properly?
+
+In the ``figures/registration`` folder, look at the files starting with
+``registration_reference_tile``. If there is no or little signal: pick a better
+tile (change the ``'ref_tile'`` parameter in the ``ops.yml`` file). If there is signal and
+it still looks bad, double check the ``figures/registration/PREFIX`` folder, look at the
+``affine_debug_PREFIX...`` png file. You might not have enough signal for affine
+registration. If that's the case, you will have to try similarity transform (not
+supported anymore, but might still work).
+
+- Are most shifts estimated correctly?
+
+Parameters you can tweak: ``ops["ransac_max_shift"]``, ``ops["ransac_min_tiles"]``, and
+``ops["ransac_residual_threshold"]``.
+
+
 
 Registering sequencing rounds
 -----------------------------
-We need to register the channels and rounds together and the tiles with their neighbours.
+We need to register the channels and rounds together and the tiles with their
+neighbours.
 
 Short version:
 ~~~~~~~~~~~~~~
@@ -162,7 +262,7 @@ Registering acquisition together
 --------------------------------
 
 The final reference coordinate is (for now) ``genes_round``. We can register each
-acquisition independantly first. Then we want to merge them. To do that we generate
+acquisition independently first. Then we want to merge them. To do that we generate
 a downsampled stitched image of the reference acquisition and the acquisition we want
 to register.
 
@@ -172,4 +272,4 @@ and angle.
 
 This output is not saved for now.
 
-For spots, the same function is called by ``iss align-spots``
+For spots, the same function is called by ``iss-reg2ref align-spots``

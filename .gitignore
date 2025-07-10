@@ -9,12 +9,11 @@ __pycache__
 *.npy
 *.tif
 *.tiff
-*.png
-*.jpg
-*.pdf
 pkgs
 envs
 .tmp/*
 docs/build/*
 build/*
 scratch.py
+.vscode/*
+.coverage
