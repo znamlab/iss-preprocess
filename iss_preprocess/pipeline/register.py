@@ -1010,6 +1010,20 @@ def load_and_register_sequencing_tile(
     tforms = get_channel_round_transforms(
         data_path, prefix, tile_coors, corrected_shifts
     )
+    matrix = np.array(
+        [
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        ]
+    )
+
+    if "matrix_between_channels" not in tforms:
+        print("No matrix_between_channels in tforms")
+        tforms = dict(tforms)
+        tforms["matrix_between_channels"] = matrix
+
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],
