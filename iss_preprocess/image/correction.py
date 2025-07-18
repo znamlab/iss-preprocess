@@ -1,11 +1,18 @@
+import logging
+import warnings
 from functools import partial
 from pathlib import Path
 
+import basicpy as bpy  # pip install BaSiCPy>=1.2
 import cv2
 import numpy as np
+import tifffile
 from scipy.ndimage import gaussian_filter, median_filter
 from skimage.morphology import disk
 from sklearn.linear_model import LinearRegression
+from tifffile import imwrite
+from tqdm import tqdm
+from znamutils import slurm_it
 
 from ..coppafish import hanning_diff
 from ..io import get_processed_path, load_ops, load_stack
@@ -409,3 +416,81 @@ def compute_distribution(stack, max_value=int(2**12 + 1)):
             stack[:, :, ich].flatten().astype(np.uint16), minlength=max_value + 1
         )
     return distribution
+
+
+@slurm_it(conda_env="iss-preprocess", slurm_options={"time": "3:00:00", "mem": "200G"})
+def compute_flatfield(data_path: str, chamber: str, prefix: str, suffix: str = "max"):
+    """ """
+    # Suppress the specific PydanticDeprecatedSince20 warning
+    warnings.filterwarnings(
+        "ignore",
+        message="The `dict` method is deprecated; use `model_dump` instead.*",
+        category=UserWarning,
+        module="basicpy._jax_routines",
+    )
+    logging.basicConfig(level=logging.INFO)
+
+    processed_path = get_processed_path(data_path)
+    image_path = processed_path / chamber / prefix
+    averages_path = processed_path / chamber / "averages"
+    averages_path.mkdir(parents=True, exist_ok=True)
+
+    files = sorted(image_path.glob(f"*_{suffix}.tif"))
+    if not files:
+        raise FileNotFoundError(
+            f"No files ending in *_{suffix}.tif found in {image_path}"
+        )
+
+    stack = np.stack(
+        [tifffile.imread(f).astype(np.float32) for f in tqdm(files, desc="Reading")]
+    )
+    print(stack.shape)
+    Y, X = stack.shape[2:4]
+    n_channels = stack.shape[1]
+
+    flatfield_stack = np.zeros((Y, X, n_channels), dtype=np.float32)
+
+    # Fit per channel and fill into the output stacks
+    for c in range(n_channels):
+        print(f"Fitting channel {c}")
+        basic = bpy.BaSiC(get_darkfield=False, max_workers=10)
+        basic.fit(stack[:, c, :, :])  # Shape: (N, Y, X)
+
+        flat = basic.flatfield.astype(np.float32)  # smooth multiplicative shading map
+        # flat /= flat.mean()
+
+        flatfield_stack[:, :, c] = flat
+
+    # Normalise each channel to 1
+    flatfield_stack_max = flatfield_stack.max(axis=(0, 1))
+    flatfield_stack_max = flatfield_stack_max.astype("float32")
+    flatfield_stack = flatfield_stack / flatfield_stack_max
+
+    # Add T and Z singleton dimensions to match 'TZCYX' format
+    expanded = flatfield_stack[np.newaxis, np.newaxis, :, :, :]
+
+    # Rearrange to (1, 1, 4, 2460, 3290) = (T, Z, C, Y, X)
+    flatfield_stack_5d = np.transpose(expanded, (0, 1, 4, 2, 3))
+
+    # Select appropriate average name
+    ops = load_ops(data_path)
+    if f"{prefix}_average_for_correction" in ops:
+        # see if it has been specified in the ops file
+        corr_prefix = ops[f"{prefix}_average_for_correction"]
+    elif ("genes" in prefix) or ("barcode" in prefix):
+        # if not and it's a round acquisition, use the "all_rounds" average
+        corr_prefix = prefix.split("_round")[0] + "_round"
+    else:
+        # otherwise, just use the single prefix
+        corr_prefix = prefix
+    fname = f"{corr_prefix}_{suffix}_average.tif"
+
+    imwrite(
+        averages_path / fname,
+        flatfield_stack_5d,
+        dtype=flat.dtype,
+        imagej=True,
+        metadata={"axes": "TZCYX"},
+    )
+
+    print("Done!  Flatfield written to", f"{averages_path}/{fname}")
