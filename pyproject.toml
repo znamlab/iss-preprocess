@@ -21,6 +21,7 @@ dependencies = [
         "natsort",
         "seaborn",
         "decorator",
+        "basicpy",
         "scipy>=1.11.0",
           "wheel"]
 license = "MIT"
