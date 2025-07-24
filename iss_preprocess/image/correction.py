@@ -3,7 +3,6 @@ import warnings
 from functools import partial
 from pathlib import Path
 
-import basicpy as bpy  # pip install BaSiCPy>=1.2
 import cv2
 import numpy as np
 import tifffile
@@ -422,6 +421,10 @@ def compute_distribution(stack, max_value=int(2**12 + 1)):
 def compute_flatfield(data_path: str, chamber: str, prefix: str, suffix: str = "max"):
     """ """
     # Suppress the specific PydanticDeprecatedSince20 warning
+    try:
+        import basicpy as bpy  # pip install BaSiCPy>=1.2
+    except ImportError:
+        raise ImportError("Flatfield correction requires basicpy")
     warnings.filterwarnings(
         "ignore",
         message="The `dict` method is deprecated; use `model_dump` instead.*",
