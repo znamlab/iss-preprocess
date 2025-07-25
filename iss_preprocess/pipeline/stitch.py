@@ -316,7 +316,7 @@ def register_within_acquisition(
     correct_illumination=False,
     reload=True,
     save_plot=False,
-    dimension_prefix="genes_round_1_1",
+    dimension_prefix=None,
     min_corrcoef=0.6,
     max_delta_shift=20,
     verbose=2,
@@ -358,6 +358,8 @@ def register_within_acquisition(
         prefix = ops["reference_prefix"]
     if ref_ch is None:
         ref_ch = ops["ref_ch"]
+    if dimension_prefix is None:
+        dimension_prefix = prefix
 
     verbose = int(verbose)
     save_fname = (
