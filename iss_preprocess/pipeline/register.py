@@ -135,7 +135,7 @@ def register_fluorescent_tile(
         tile_coors (tuple): Coordinates of tile to register, in (ROI, X, Y) format.
         prefix (str): Directory prefix to register. Defaults to
         reference_prefix (str, optional): Prefix to load scale or initial matrix from.
-            Defaults to None.
+            If "ops", will load "reference_channel_tforms_prefix". Defaults to None.
         debug (bool, optional): Return debug information. Defaults to False.
         save_output (bool, optional): Save output to disk. Defaults to True.
 
@@ -150,6 +150,8 @@ def register_fluorescent_tile(
     projection = ops[f"{ops_prefix}_projection"]
     projection = ops.get(f"{ops_prefix}_reg_projection", projection)
     print("Projection used for registration:", projection)
+    if reference_prefix == "ops":
+        reference_prefix = ops.get("reference_channel_tforms_prefix", None)
     if reference_prefix is not None:
         reference_tforms = get_channel_round_transforms(
             data_path, reference_prefix, shifts_type="reference"
