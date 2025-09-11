@@ -60,6 +60,8 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
     ref_tile = ops["ref_tile"]
     print(f"Reference tile: {ref_tile}")
     nrounds = ops[prefix + "s"]
+    if not nrounds:
+        raise ValueError("Number of rounds must be specified in the metadata")
     projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     print("Projection used for registration:", projection)
     stack = load_sequencing_rounds(
