@@ -292,7 +292,9 @@ def register_channels_by_pairs(
         )
 
         if debug:
-            db_info["first_round"][tuple(group)] = tform
+            db_info["first_round"][tuple(group)] = tform[1]
+            tform = tform[0]
+
         if "matrix_between_channels" in tform.keys():
             tform_matrix = tform["matrix_between_channels"]
         else:
@@ -324,7 +326,9 @@ def register_channels_by_pairs(
         verbose=False,
     )
     if debug:
-        db_info["second_round"] = tform
+        db_info["second_round"] = tform[1]
+        tform = tform[0]
+
     if "matrix_between_channels" in tform.keys():
         tform_matrix = tform["matrix_between_channels"]
     else:
