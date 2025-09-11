@@ -205,12 +205,12 @@ def register_fluorescent_tile(
 
     else:
         print(f"Registering channels by pairs: {channel_grouping}")
+
         out = register_channels_by_pairs(
             channel_grouping,
             ops,
             ops_prefix,
             stack,
-            reference_prefix,
             binarise_quantile,
             reference_tforms,
             debug,
@@ -242,7 +242,6 @@ def register_channels_by_pairs(
     ops,
     ops_prefix,
     stack,
-    reference_prefix,
     binarise_quantile,
     reference_tforms,
     debug=False,
@@ -261,9 +260,9 @@ def register_channels_by_pairs(
         ops (dict): Experiment metadata.
         ops_prefix (str): Prefix to use for ops, e.g. "genes".
         stack (np.array): Image stack to register.
-        reference_prefix (str): Prefix to load scale or initial matrix from.
         binarise_quantile (float): Quantile to binarise images before registration.
-        reference_tforms (dict): Reference transformation parameters.
+        reference_tforms (dict): Reference transformation parameters, must have
+            "matrix_between_channels" key. Used if a group fails to register.
         debug (bool): Return debug information.
 
     Returns:
@@ -283,7 +282,7 @@ def register_channels_by_pairs(
             ref_ch=0,  # always 0 as channels are reordered
             binarise_quantile=binarise_quantile,
             rounds_max_shift=ops["rounds_max_shift"],
-            reference_tforms=reference_tforms,
+            reference_tforms=None,  # don't use reference tforms inside groups
             reg_block_size=ops.get(f"{ops_prefix}_reg_block_size", 256),
             reg_block_overlap=ops.get(f"{ops_prefix}_reg_block_overlap", 0.5),
             correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
@@ -318,7 +317,7 @@ def register_channels_by_pairs(
         ref_ch=0,  # always 0 as channels are reordered
         binarise_quantile=binarise_quantile,
         rounds_max_shift=ops["rounds_max_shift"],
-        reference_tforms=reference_tforms,
+        reference_tforms=None,
         reg_block_size=ops.get(f"{ops_prefix}_reg_block_size", 256),
         reg_block_overlap=ops.get(f"{ops_prefix}_reg_block_overlap", 0.5),
         correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
@@ -354,7 +353,13 @@ def register_channels_by_pairs(
             # we should still be mostly fine
             if np.any(np.isnan(tform_matrix[igpg])):
                 warn(f"Failed to register group {gpg} to reference")
-                tform_matrix[igpg] = np.eye(3)
+                # Look if there is a default transform in the ops
+                if reference_tforms is not None:
+                    print("Using reference tforms as default")
+                    tform_matrix[igpg] = reference_tforms["matrix_between_channels"][ch]
+                else:
+                    print("Using identity transform as default")
+                    tform_matrix[igpg] = np.eye(3)
             output[ch] = output[ch] @ tform_matrix[igpg]
     # convert back to expected output format
     if "matrix_between_channels" in tform.keys():
