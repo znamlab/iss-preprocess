@@ -28,7 +28,7 @@ PAB0017:
   channel: 4
   fluorophore: 5TYE665
 PAB0023:
-  target: OAB0001
+  target: OAB0001 and Sindbis
   channel: 1
   fluorophore: 5ATTO532N
 PAB0024:
@@ -59,3 +59,7 @@ PAB0030:
   target: All genes
   channel: 2
   fluorophore: 5ATTO565N
+PAB0039:
+  target: All V1 and CSM genes except highly expressed genes
+  channel: 4
+  fluorophore: 5TYE705
