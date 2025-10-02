@@ -328,17 +328,50 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"mem": "16G", "time": "1:00:00"})
-def extract_hyb_spots_tile(data_path, tile_coors, prefix, return_spots=False):
+def extract_hyb_spots_tile(data_path, tile_coors, prefix, detect_only=None, return_spots=False, channels=None):
     """Detect hybridisation spots for a given tile.
 
     Args:
         data_path (str): Relative path to data.
         tile_coors (tuple): Coordinates of tile to load: ROI, Xpos, Ypos.
         prefix (str): Prefix of the hybridisation round, e.g. "hybridisation_1_1".
+        detect_only (bool | None): If True, only detect spot coordinates (skip extraction /
+            clustering). If None, value is read from `ops['hybridisation_detect_only']`
+            (defaults to False if missing).
+        return_spots (bool | False): If True and detect_only=True, return the spots
+            DataFrame instead of (only) saving it. If None, read from
+            `ops['hybridisation_return_spots']` (defaults False).
+        channels (Iterable[int] | str | None): Subset of channels to use. If None, will
+            use all channels unless `ops['hybridisation_channels']` is defined. A string
+            like "0,2,3" or "0 2 3" is accepted. If a subset is specified while
+            classification is requested, classification is automatically disabled to
+            avoid mismatches with cluster means.
 
     """
     processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
+
+    # Pull defaults from ops if not explicitly provided, with per-round overrides
+    # Per-round keys use the pattern: <prefix>_hyb_detect_only, <prefix>_hyb_return_spots, <prefix>_hyb_channels
+    if detect_only is None:
+        detect_only = ops.get(f"{prefix}_hyb_detect_only", ops.get("hybridisation_detect_only", False))
+    if channels is None:
+        channels = ops.get(f"{prefix}_hyb_channels", ops.get("hybridisation_channels", None))
+
+    # Normalise channels specification from ops if provided as string
+    if isinstance(channels, str):
+        if channels.strip().lower() in ("all", "*"):
+            channels = None
+        else:
+            # allow both comma and space separated lists
+            parts = [p for seg in channels.replace(",", " ").split() for p in [seg] if p != ""]
+            try:
+                channels = tuple(int(p) for p in parts)
+            except ValueError:
+                raise ValueError(
+                    f"Could not parse hybridisation_channels string '{channels}'. Use comma/space separated integers."
+                )
+
     clusters = np.load(
         processed_path / f"{prefix}_cluster_means.npz", allow_pickle=True
     )
@@ -352,9 +385,56 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix, return_spots=False):
         correct_channels=ops["hybridisation_correct_channels"],
     )
     print(f"detecting spots in tile {tile_coors}")
+    if channels is None:
+        channels = tuple(range(stack.shape[2]))  # all channels
+    else:
+        try:
+            channels = tuple(channels)
+        except TypeError:
+            channels = (int(channels),)
+
+    # Basic validation
+    if len(channels) == 0:
+        raise ValueError("channels cannot be empty")
+    if max(channels) >= stack.shape[2] or min(channels) < 0:
+        raise ValueError(
+            f"Channel indices {channels} out of bounds for stack with {stack.shape[2]} channels"
+        )
+    if len(set(channels)) != len(channels):
+        print("WARNING: duplicate channel indices detected; using unique ordering")
+        channels = tuple(dict.fromkeys(channels))
+
+    subset = len(channels) != stack.shape[2]
+    if subset:
+        if not detect_only:
+            print(
+                "INFO: Channel subset specified; forcing detect_only=True to avoid mismatch with cluster means."
+            )
+            detect_only = True
+        stack = stack[:, :, list(channels)]
+        if detect_only:
+            print(
+                f"Detecting using channel subset {channels} (original nch={ops['black_level'].__len__()})."
+            )
+    
     spots = detect_spots(
         np.max(stack, axis=2), threshold=ops["hybridisation_detection_threshold"]
     )
+    if detect_only:
+        print(f"Found {spots.shape[0]} spots. Stopping here as requested")
+        if return_spots:
+            return spots
+        else:
+            # save spots data frame
+            save_dir = processed_path / "spots"
+            save_dir.mkdir(parents=True, exist_ok=True)
+            channels_str = "_".join(map(str, list(channels)))
+            spots.to_pickle(
+                save_dir
+                / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}_chs_{channels_str}.pkl"
+            )
+            print(f"saved spots for {prefix} tile {tile_coors} to {save_dir}")
+            return
     if spots.shape[0]:
         print(f"Found {spots.shape[0]} spots. Extracting")
         stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
@@ -388,5 +468,3 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix, return_spots=False):
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
     print(f"saved spots for {prefix} tile {tile_coors} to {save_dir}")
-    if return_spots:
-        return spots
