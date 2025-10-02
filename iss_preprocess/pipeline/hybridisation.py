@@ -328,7 +328,7 @@ def extract_hyb_spots_roi(data_path, prefix, roi):
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"mem": "16G", "time": "1:00:00"})
-def extract_hyb_spots_tile(data_path, tile_coors, prefix):
+def extract_hyb_spots_tile(data_path, tile_coors, prefix, return_spots=False):
     """Detect hybridisation spots for a given tile.
 
     Args:
@@ -388,3 +388,5 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix):
         save_dir / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
     )
     print(f"saved spots for {prefix} tile {tile_coors} to {save_dir}")
+    if return_spots:
+        return spots
