@@ -161,6 +161,20 @@ hybridisation:
   # have 4 channels and you want to register 1-2 and 3-4 together and then 4 to 1, the
   # final reference, you would set channel_grouping to [[0,1], [3,2]]
   hybridisation_example_reg_channel_grouping: [[0,1], [3,2]]
+  # Prefix to load a fall-back transformation from. Used only if registration between
+  # two groups of channels failed
+  reference_channel_tforms_prefix: null
+  # Global defaults for hybridisation spot extraction / detection
+  hybridisation_detect_only: false
+  # Optional global channel subset (e.g. "0,2,3" or [0,2,3]); leave null for all
+  hybridisation_channels: null
+  # Per-round overrides: specify keys of the form
+  #   <prefix>_hyb_detect_only: true/false
+  #   <prefix>_hyb_return_spots: true/false
+  #   <prefix>_hyb_channels: [0,2,3]
+  # Example:
+  # hybridisation_1_1_hyb_detect_only: true
+  # hybridisation_1_1_hyb_channels: [0,2,3]
 
 # Detection of mCherry+ cells
 mcherry:

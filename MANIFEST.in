@@ -10,9 +10,11 @@ recursive-include iss_preprocess/call *.csv  # codebook for gene panels
 include iss_preprocess/call/spot_sign_image.npy
 include iss_preprocess/call/hybridisation_probes.yml
 
+
 recursive-exclude notebooks temp_*  #Notebooks that are not under version control
 recursive-exclude notebooks/.ipynb_checkpoints *
 recursive-include notebooks *.ipynb
+include notebooks/gene_colour_plot.py
 
 exclude .pre-commit-config.yaml
 exclude update_docs.sh

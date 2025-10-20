@@ -60,6 +60,8 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
     ref_tile = ops["ref_tile"]
     print(f"Reference tile: {ref_tile}")
     nrounds = ops[prefix + "s"]
+    if not nrounds:
+        raise ValueError("Number of rounds must be specified in the metadata")
     projection = ops[f"{prefix.split('_')[0].lower()}_projection"]
     print("Projection used for registration:", projection)
     stack = load_sequencing_rounds(
@@ -133,7 +135,7 @@ def register_fluorescent_tile(
         tile_coors (tuple): Coordinates of tile to register, in (ROI, X, Y) format.
         prefix (str): Directory prefix to register. Defaults to
         reference_prefix (str, optional): Prefix to load scale or initial matrix from.
-            Defaults to None.
+            If "ops", will load "reference_channel_tforms_prefix". Defaults to None.
         debug (bool, optional): Return debug information. Defaults to False.
         save_output (bool, optional): Save output to disk. Defaults to True.
 
@@ -148,6 +150,8 @@ def register_fluorescent_tile(
     projection = ops[f"{ops_prefix}_projection"]
     projection = ops.get(f"{ops_prefix}_reg_projection", projection)
     print("Projection used for registration:", projection)
+    if reference_prefix == "ops":
+        reference_prefix = ops.get("reference_channel_tforms_prefix", None)
     if reference_prefix is not None:
         reference_tforms = get_channel_round_transforms(
             data_path, reference_prefix, shifts_type="reference"
@@ -203,12 +207,12 @@ def register_fluorescent_tile(
 
     else:
         print(f"Registering channels by pairs: {channel_grouping}")
+
         out = register_channels_by_pairs(
             channel_grouping,
             ops,
             ops_prefix,
             stack,
-            reference_prefix,
             binarise_quantile,
             reference_tforms,
             debug,
@@ -240,7 +244,6 @@ def register_channels_by_pairs(
     ops,
     ops_prefix,
     stack,
-    reference_prefix,
     binarise_quantile,
     reference_tforms,
     debug=False,
@@ -259,9 +262,9 @@ def register_channels_by_pairs(
         ops (dict): Experiment metadata.
         ops_prefix (str): Prefix to use for ops, e.g. "genes".
         stack (np.array): Image stack to register.
-        reference_prefix (str): Prefix to load scale or initial matrix from.
         binarise_quantile (float): Quantile to binarise images before registration.
-        reference_tforms (dict): Reference transformation parameters.
+        reference_tforms (dict): Reference transformation parameters, must have
+            "matrix_between_channels" key. Used if a group fails to register.
         debug (bool): Return debug information.
 
     Returns:
@@ -281,7 +284,7 @@ def register_channels_by_pairs(
             ref_ch=0,  # always 0 as channels are reordered
             binarise_quantile=binarise_quantile,
             rounds_max_shift=ops["rounds_max_shift"],
-            reference_tforms=reference_tforms,
+            reference_tforms=None,  # don't use reference tforms inside groups
             reg_block_size=ops.get(f"{ops_prefix}_reg_block_size", 256),
             reg_block_overlap=ops.get(f"{ops_prefix}_reg_block_overlap", 0.5),
             correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
@@ -292,7 +295,9 @@ def register_channels_by_pairs(
         )
 
         if debug:
-            db_info["first_round"][tuple(group)] = tform
+            db_info["first_round"][tuple(group)] = tform[1]
+            tform = tform[0]
+
         if "matrix_between_channels" in tform.keys():
             tform_matrix = tform["matrix_between_channels"]
         else:
@@ -314,7 +319,7 @@ def register_channels_by_pairs(
         ref_ch=0,  # always 0 as channels are reordered
         binarise_quantile=binarise_quantile,
         rounds_max_shift=ops["rounds_max_shift"],
-        reference_tforms=reference_tforms,
+        reference_tforms=None,
         reg_block_size=ops.get(f"{ops_prefix}_reg_block_size", 256),
         reg_block_overlap=ops.get(f"{ops_prefix}_reg_block_overlap", 0.5),
         correlation_threshold=ops.get(f"{ops_prefix}_correlation_threshold", None),
@@ -324,7 +329,9 @@ def register_channels_by_pairs(
         verbose=False,
     )
     if debug:
-        db_info["second_round"] = tform
+        db_info["second_round"] = tform[1]
+        tform = tform[0]
+
     if "matrix_between_channels" in tform.keys():
         tform_matrix = tform["matrix_between_channels"]
     else:
@@ -348,7 +355,13 @@ def register_channels_by_pairs(
             # we should still be mostly fine
             if np.any(np.isnan(tform_matrix[igpg])):
                 warn(f"Failed to register group {gpg} to reference")
-                tform_matrix[igpg] = np.eye(3)
+                # Look if there is a default transform in the ops
+                if reference_tforms is not None:
+                    print("Using reference tforms as default")
+                    tform_matrix[igpg] = reference_tforms["matrix_between_channels"][ch]
+                else:
+                    print("Using identity transform as default")
+                    tform_matrix[igpg] = np.eye(3)
             output[ch] = output[ch] @ tform_matrix[igpg]
     # convert back to expected output format
     if "matrix_between_channels" in tform.keys():
@@ -1010,6 +1023,20 @@ def load_and_register_sequencing_tile(
     tforms = get_channel_round_transforms(
         data_path, prefix, tile_coors, corrected_shifts
     )
+    matrix = np.array(
+        [
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        ]
+    )
+
+    if "matrix_between_channels" not in tforms:
+        print("No matrix_between_channels in tforms")
+        tforms = dict(tforms)
+        tforms["matrix_between_channels"] = matrix
+
     tforms = generate_channel_round_transforms(
         tforms["angles_within_channels"],
         tforms["shifts_within_channels"],

@@ -214,7 +214,7 @@ def register_all_rois_within(
     roi2use=None,
     reload=False,
     save_plot=True,
-    dimension_prefix="genes_round_1_1",
+    dimension_prefix=None,
     verbose=1,
     use_slurm=True,
     job_dependency=None,
@@ -238,7 +238,7 @@ def register_all_rois_within(
         reload (bool, optional): Reload saved shifts if True. Defaults to False.
         save_plot (bool, optional): Save diagnostic plot. Defaults to True.
         dimension_prefix (str, optional): Prefix to use to find ROI dimension. Used
-            only if the acquisition is an overview. Defaults to 'genes_round_1_1'.
+            only if the acquisition is an overview. Defaults to 'reference_prefix'.
         verbose (int, optional): Verbosity level. Defaults to 1.
         use_slurm (bool, optional): Use SLURM to parallelize the registration. Defaults
             to True.
@@ -252,6 +252,9 @@ def register_all_rois_within(
     ops = load_ops(data_path)
     if prefix is None:
         prefix = ops["reference_prefix"]
+    if dimension_prefix is None:
+        dimension_prefix = prefix
+
     sprefix = prefix.split("_")[0].lower()
 
     min_corrcoef = ops.get(f"{sprefix}_min_corrcoef", 0.3)
@@ -313,7 +316,7 @@ def register_within_acquisition(
     correct_illumination=False,
     reload=True,
     save_plot=False,
-    dimension_prefix="genes_round_1_1",
+    dimension_prefix=None,
     min_corrcoef=0.6,
     max_delta_shift=20,
     verbose=2,
@@ -355,6 +358,8 @@ def register_within_acquisition(
         prefix = ops["reference_prefix"]
     if ref_ch is None:
         ref_ch = ops["ref_ch"]
+    if dimension_prefix is None:
+        dimension_prefix = prefix
 
     verbose = int(verbose)
     save_fname = (

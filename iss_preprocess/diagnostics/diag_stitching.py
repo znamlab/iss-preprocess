@@ -18,7 +18,7 @@ from ..pipeline.stitch import stitch_registered, stitch_tiles
 from ..vis.vis import to_rgb
 
 
-@slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="64G"))
+@slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="128G"))
 def plot_single_overview(
     data_path,
     prefix,

@@ -250,14 +250,17 @@ def add_bases_legend(channel_colors, transform=None, **kwargs):
     default_kwargs = dict(
         fontweight="bold",
         fontsize=32,
+        ha="center",
+        va="center",
+        clip_on=False,  # <–– disable clipping
     )
     default_kwargs.update(kwargs)
     if transform is None:
         transform = plt.gca().transAxes
     for i, (color, base) in enumerate(zip(channel_colors, BASES)):
         plt.text(
-            0.6 + i * 0.1,
-            0.05,
+            0.55 + i * 0.13,
+            0.07,
             base,
             color=color,
             transform=transform,
