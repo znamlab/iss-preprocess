@@ -1,15 +1,15 @@
 <!doctype html>
-<html class="no-js" lang="en">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.io package" href="iss_preprocess.io.html" /><link rel="prev" title="iss_preprocess.coppafish package" href="iss_preprocess.coppafish.html" />
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.io package" href="iss_preprocess.io.html" /><link rel="prev" title="iss_preprocess.diagnostics package" href="iss_preprocess.diagnostics.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
-        <title>iss_preprocess.image package - iss-preprocess 0.2 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
+        <title>iss_preprocess.image package - iss-preprocess 0.2.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     
     
 
@@ -68,7 +68,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -83,22 +83,63 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
 </svg>
@@ -112,6 +153,8 @@
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
 
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
 
 
 <div class="page">
@@ -123,13 +166,14 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">iss-preprocess 0.2 documentation</div></a>
+      <a href="index.html"><div class="brand">iss-preprocess 0.2.1 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -146,7 +190,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">iss-preprocess 0.2 documentation</span>
+  <span class="sidebar-brand-text">iss-preprocess 0.2.1 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -156,19 +200,24 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_and_average.html">Crunch the data</a></li>
 <li class="toctree-l1"><a class="reference internal" href="registration.html">Registration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="call.html">Calling spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="correction.html">Channel brightness and illumination correction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="bleedthrough.html">Bleedthrough matrix estimation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Gene and barcode sequencing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Calling various spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="hybridisation.html">Detecting hybridisation spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="segmentation.html">Cell segmentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="detect_mcherry.html">Detection mCherry cells</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API reference:</span></p>
 <ul class="current">
-<li class="toctree-l1 current has-children"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of iss_preprocess package</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html">iss_preprocess.call package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.config.html">iss_preprocess.config package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.coppafish.html">iss_preprocess.coppafish package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.diagnostics.html">iss_preprocess.diagnostics package</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">iss_preprocess.image package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.io.html">iss_preprocess.io package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html">iss_preprocess.pipeline package</a></li>
@@ -177,6 +226,7 @@
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html">iss_preprocess.vis package</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="flowchart_legends.html">Flowcharts legends</a></li>
 </ul>
 
 </div>
@@ -196,11 +246,17 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/iss_preprocess.image.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -210,17 +266,17 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main">
+        <article role="main" id="furo-main-content">
           <section id="iss-preprocess-image-package">
-<h1>iss_preprocess.image package<a class="headerlink" href="#iss-preprocess-image-package" title="Permalink to this heading">#</a></h1>
+<h1>iss_preprocess.image package<a class="headerlink" href="#iss-preprocess-image-package" title="Link to this heading">¶</a></h1>
 <section id="submodules">
-<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">#</a></h2>
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
 </section>
 <section id="module-iss_preprocess.image.correction">
-<span id="iss-preprocess-image-correction-module"></span><h2>iss_preprocess.image.correction module<a class="headerlink" href="#module-iss_preprocess.image.correction" title="Permalink to this heading">#</a></h2>
+<span id="iss-preprocess-image-correction-module"></span><h2>iss_preprocess.image.correction module<a class="headerlink" href="#module-iss_preprocess.image.correction" title="Link to this heading">¶</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.image.correction.apply_illumination_correction">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">apply_illumination_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype=&lt;class</span> <span class="pre">'float'&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.apply_illumination_correction" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">apply_illumination_correction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">projection=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype=&lt;class</span> <span class="pre">'float'&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.apply_illumination_correction" title="Link to this definition">¶</a></dt>
 <dd><p>Apply illumination correction</p>
 <p>Use precomputed normalised and filtered averages to correct for inhomogeneous
 illumination</p>
@@ -231,7 +287,9 @@ illumination</p>
 <li><p><strong>stack</strong> (<em>np.array</em>) – A 3 or 4D array with X x Y x Nchannels as first 3 dimensions</p></li>
 <li><p><strong>prefix</strong> (<em>str</em>) – Prefix name of the average, e.g. “barcode_round” for grand average
 or “barcode_round_1” for single round average.</p></li>
-<li><p><strong>dtype</strong> (<em>str</em><em> or </em><em>type</em><em>, </em><em>optional</em>) – data type of the ouput. Division is always
+<li><p><strong>projection</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the projection to use. If None, will try to
+get it from ops. Defaults to None.</p></li>
+<li><p><strong>dtype</strong> (<em>str</em><em> or </em><em>type</em><em>, </em><em>optional</em>) – data type of the output. Division is always
 performed as float</p></li>
 </ul>
 </dd>
@@ -245,8 +303,40 @@ performed as float</p></li>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.image.correction.calculate_unmixing_coefficient">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">calculate_unmixing_coefficient</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">signal_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_coef</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold_background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold_signal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_intercept</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.calculate_unmixing_coefficient" title="Link to this definition">¶</a></dt>
+<dd><p>Unmixes two images: one with only background autofluorescence and another with both
+background and useful signal. Uses Linear regression for the unmixing process.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>background_image</strong> – numpy array of the background image.</p></li>
+<li><p><strong>signal_image</strong> – numpy array of the image with both signal and background.</p></li>
+<li><p><strong>background_coef</strong> – Coefficient to multiply the background image by before
+subtraction.</p></li>
+<li><p><strong>threshold_background</strong> (<em>optional</em>) – Minimum value for a pixel to be considered
+background. If None will use the median. Default None.</p></li>
+<li><p><strong>threshold_signal</strong> (<em>optional</em>) – Minimum value on signal channel for a pixel to be
+considered background. If None will use the median. Default None.</p></li>
+<li><p><strong>fit_intercept</strong> (<em>optional</em>) – Whether to fit an intercept in the linear model.
+Default True.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The isolated signal image after background subtraction.
+model_coef: Coefficient used to multiply the background image for unmixing.
+intercept: Intercept of the linear model used for unmixing.
+valid_pixel: Boolean array of pixels that passed the thresholding.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pure_signal_image</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.image.correction.compute_distribution">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">compute_distribution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4097</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.compute_distribution" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">compute_distribution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4097</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.compute_distribution" title="Link to this definition">¶</a></dt>
 <dd><p>Compute simple tile statistics for one multichannel image</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -266,7 +356,7 @@ performed as float</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.image.correction.filter_stack">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">filter_stack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r1=2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r2=4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype=&lt;class</span> <span class="pre">'float'&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.filter_stack" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">filter_stack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r1=2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">r2=4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype=&lt;class</span> <span class="pre">'float'&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.filter_stack" title="Link to this definition">¶</a></dt>
 <dd><p>Filter stack with hanning window</p>
 <p>Convolve each image from the stack with a hanning kernel a la coppafish. The kernel
 is the sum of a negative outer circle and a positive inner circle.</p>
@@ -292,7 +382,7 @@ Defaults to 4.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.image.correction.tilestats_and_mean_image">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">tilestats_and_mean_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_folder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_batch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">black_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">median_filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine_tilestats</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclude_tiffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.tilestats_and_mean_image" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">tilestats_and_mean_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_folder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_batch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">black_level</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">median_filter_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gaussian_filter_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalise</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">combine_tilestats</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclude_tiffs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row_filter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.tilestats_and_mean_image" title="Link to this definition">¶</a></dt>
 <dd><p>Compute tile statistics and mean image to use for illumination correction.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -303,8 +393,8 @@ filter</p></li>
 <li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – suffix to filter images to average. Defaults to “”, no
 filter</p></li>
 <li><p><strong>n_batch</strong> (<em>int</em><em>, </em><em>optional</em>) – If 1 average everything, otherwise makes <cite>n_batch</cite>
-averages and take the median of those. All averages must fit in RAM.
-Defaults to None</p></li>
+averages and take the median of those. All averages must fit in RAM. If
+<cite>None</cite>, create as many batches as tiffs. Defaults to 1.</p></li>
 <li><p><strong>black_level</strong> (<em>float</em><em>, </em><em>optional</em>) – image black level to subtract before calculating
 each mean image. Defaults to 0</p></li>
 <li><p><strong>max_value</strong> (<em>float</em><em>, </em><em>optional</em>) – image values are clipped to this value <em>after</em>
@@ -313,11 +403,14 @@ features skewing the average image. Defaults to 10000.</p></li>
 <li><p><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) – whether to report on progress. Defaults to False</p></li>
 <li><p><strong>median_filter</strong> (<em>int</em><em>, </em><em>optional</em>) – size of median filter to apply to the correction
 image. If None, no median filtering is applied. Defaults to None.</p></li>
+<li><p><strong>mean_filter</strong> (<em>int</em><em>, </em><em>optional</em>) – size of mean filter to apply to the correction
+image. If None, no mean filtering is applied. Defaults to None.</p></li>
 <li><p><strong>normalise</strong> (<em>bool</em><em>, </em><em>optional</em>) – Divide each channel by its maximum value. Default to
 False</p></li>
 <li><p><strong>combine_tilestats</strong> (<em>bool</em><em>, </em><em>optional</em>) – If False, compute tilestats, if True, load
 already created tilestats for each tif and sum them.</p></li>
 <li><p><strong>exclude_tiffs</strong> (<em>list</em><em>, </em><em>optional</em>) – List of str filter to exclude tiffs from average</p></li>
+<li><p><strong>row_filter</strong> (<em>str</em><em>, </em><em>optional</em>) – If “even”/”odd”, only average tiffs on even/odd rows</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -330,35 +423,63 @@ dict: tile statistics of clipped and black subtracted images</p>
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.image.correction.unmix_images">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.correction.</span></span><span class="sig-name descname"><span class="pre">unmix_images</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">background_image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mixed_signal_image</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coef</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intercept</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_coef</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.correction.unmix_images" title="Link to this definition">¶</a></dt>
+<dd><p>Unmixes two images</p>
+<p>One must contain only background autofluorescence and another with both
+background and useful signal.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>background_image</strong> – numpy array of the background image.</p></li>
+<li><p><strong>mixed_signal_image</strong> – numpy array of the image with both signal and background.</p></li>
+<li><p><strong>coef</strong> – Coefficient to multiply the background image by before subtraction.</p></li>
+<li><p><strong>intercept</strong> – Intercept of the linear model used for unmixing.</p></li>
+<li><p><strong>background_coef</strong> – Fudge factor to increase the amount of background subtracted.
+Default 1.0.</p></li>
+<li><p><strong>offset</strong> – Small value to add to the signal image to avoid negative values after
+subtraction. Default 10.0.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The isolated signal image after background subtraction.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>signal_image</p>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 <section id="module-iss_preprocess.image.fstack">
-<span id="iss-preprocess-image-fstack-module"></span><h2>iss_preprocess.image.fstack module<a class="headerlink" href="#module-iss_preprocess.image.fstack" title="Permalink to this heading">#</a></h2>
+<span id="iss-preprocess-image-fstack-module"></span><h2>iss_preprocess.image.fstack module<a class="headerlink" href="#module-iss_preprocess.image.fstack" title="Link to this heading">¶</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.image.fstack.fstack">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.fstack.</span></span><span class="sig-name descname"><span class="pre">fstack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wsize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">13</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">focus</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.fstack.fstack" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.fstack.</span></span><span class="sig-name descname"><span class="pre">fstack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wsize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">13</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">focus</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.fstack.fstack" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.image.fstack.fstack_channels">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.fstack.</span></span><span class="sig-name descname"><span class="pre">fstack_channels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wsize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">13</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">focus</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.fstack.fstack_channels" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.fstack.</span></span><span class="sig-name descname"><span class="pre">fstack_channels</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wsize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">13</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">focus</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.fstack.fstack_channels" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.image.fstack.gauss3P">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.fstack.</span></span><span class="sig-name descname"><span class="pre">gauss3P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.fstack.gauss3P" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.fstack.</span></span><span class="sig-name descname"><span class="pre">gauss3P</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Y</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.fstack.gauss3P" title="Link to this definition">¶</a></dt>
 <dd><p>Fast 3-point gaussian interpolation</p>
 <p>Rewritten based on equations in “Shape from Focus”, Shree K. Nayar, 1989</p>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.image.fstack.gfocus">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.fstack.</span></span><span class="sig-name descname"><span class="pre">gfocus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wsize</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.fstack.gfocus" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.image.fstack.</span></span><span class="sig-name descname"><span class="pre">gfocus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wsize</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.image.fstack.gfocus" title="Link to this definition">¶</a></dt>
 <dd><p>Calculate focus measure as the local variance of the images</p>
 </dd></dl>
 
 </section>
 <section id="module-iss_preprocess.image">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-iss_preprocess.image" title="Permalink to this heading">#</a></h2>
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-iss_preprocess.image" title="Link to this heading">¶</a></h2>
 </section>
 </section>
 
@@ -376,14 +497,14 @@ dict: tile statistics of clipped and black subtracted images</p>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="iss_preprocess.coppafish.html">
+          <a class="prev-page" href="iss_preprocess.diagnostics.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">iss_preprocess.coppafish package</div>
+                <div class="title">iss_preprocess.diagnostics package</div>
                 
               </div>
             </a>
@@ -421,9 +542,11 @@ dict: tile statistics of clipped and black subtracted images</p>
 <li><a class="reference internal" href="#submodules">Submodules</a></li>
 <li><a class="reference internal" href="#module-iss_preprocess.image.correction">iss_preprocess.image.correction module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.image.correction.apply_illumination_correction"><code class="docutils literal notranslate"><span class="pre">apply_illumination_correction()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.image.correction.calculate_unmixing_coefficient"><code class="docutils literal notranslate"><span class="pre">calculate_unmixing_coefficient()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.image.correction.compute_distribution"><code class="docutils literal notranslate"><span class="pre">compute_distribution()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.image.correction.filter_stack"><code class="docutils literal notranslate"><span class="pre">filter_stack()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.image.correction.tilestats_and_mean_image"><code class="docutils literal notranslate"><span class="pre">tilestats_and_mean_image()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.image.correction.unmix_images"><code class="docutils literal notranslate"><span class="pre">unmix_images()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-iss_preprocess.image.fstack">iss_preprocess.image.fstack module</a><ul>
@@ -445,9 +568,9 @@ dict: tile statistics of clipped and black subtracted images</p>
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/doctools.js"></script>
-    <script src="_static/sphinx_highlight.js"></script>
-    <script src="_static/scripts/furo.js"></script>
+</div><script src="_static/documentation_options.js?v=37f418d5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>

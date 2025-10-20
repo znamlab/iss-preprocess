@@ -1,15 +1,15 @@
 <!doctype html>
-<html class="no-js" lang="en">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.config package" href="iss_preprocess.config.html" /><link rel="prev" title="iss_preprocess package" href="iss_preprocess.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
-        <title>iss_preprocess.call package - iss-preprocess 0.2 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
+        <title>iss_preprocess.call package - iss-preprocess 0.2.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     
     
 
@@ -68,7 +68,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -83,22 +83,63 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
 </svg>
@@ -112,6 +153,8 @@
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
 
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
 
 
 <div class="page">
@@ -123,13 +166,14 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">iss-preprocess 0.2 documentation</div></a>
+      <a href="index.html"><div class="brand">iss-preprocess 0.2.1 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -146,7 +190,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">iss-preprocess 0.2 documentation</span>
+  <span class="sidebar-brand-text">iss-preprocess 0.2.1 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -156,19 +200,24 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_and_average.html">Crunch the data</a></li>
 <li class="toctree-l1"><a class="reference internal" href="registration.html">Registration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="call.html">Calling spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="correction.html">Channel brightness and illumination correction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="bleedthrough.html">Bleedthrough matrix estimation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Gene and barcode sequencing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Calling various spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="hybridisation.html">Detecting hybridisation spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="segmentation.html">Cell segmentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="detect_mcherry.html">Detection mCherry cells</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API reference:</span></p>
 <ul class="current">
-<li class="toctree-l1 current has-children"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of iss_preprocess package</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">iss_preprocess.call package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.config.html">iss_preprocess.config package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.coppafish.html">iss_preprocess.coppafish package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.diagnostics.html">iss_preprocess.diagnostics package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.image.html">iss_preprocess.image package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.io.html">iss_preprocess.io package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html">iss_preprocess.pipeline package</a></li>
@@ -177,6 +226,7 @@
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html">iss_preprocess.vis package</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="flowchart_legends.html">Flowcharts legends</a></li>
 </ul>
 
 </div>
@@ -196,11 +246,17 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/iss_preprocess.call.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -210,17 +266,17 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main">
+        <article role="main" id="furo-main-content">
           <section id="iss-preprocess-call-package">
-<h1>iss_preprocess.call package<a class="headerlink" href="#iss-preprocess-call-package" title="Permalink to this heading">#</a></h1>
+<h1>iss_preprocess.call package<a class="headerlink" href="#iss-preprocess-call-package" title="Link to this heading">¶</a></h1>
 <section id="submodules">
-<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">#</a></h2>
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
 </section>
 <section id="module-iss_preprocess.call.call">
-<span id="iss-preprocess-call-call-module"></span><h2>iss_preprocess.call.call module<a class="headerlink" href="#module-iss_preprocess.call.call" title="Permalink to this heading">#</a></h2>
+<span id="iss-preprocess-call-call-module"></span><h2>iss_preprocess.call.call module<a class="headerlink" href="#module-iss_preprocess.call.call" title="Link to this heading">¶</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.call.basecall_rois">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">basecall_rois</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">separate_rounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nsamples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.basecall_rois" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">basecall_rois</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">separate_rounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nsamples</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.basecall_rois" title="Link to this definition">¶</a></dt>
 <dd><p>Assign bases using a Gaussian Mixture Model.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -241,7 +297,7 @@ all data are used for fitting. Default None.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.call.call_genes">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">call_genes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sequences</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">codebook</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.call_genes" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">call_genes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sequences</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">codebook</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.call_genes" title="Link to this definition">¶</a></dt>
 <dd><p>Assigns sequences to genes based on the provided codebook.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -260,19 +316,15 @@ List of edit distances.</p>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="iss_preprocess.call.call.correct_barcode_sequences">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">correct_barcode_sequences</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_edit_distance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.correct_barcode_sequences" title="Permalink to this definition">#</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.call.extract_spots">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">extract_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stack</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.extract_spots" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">extract_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_radius</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.extract_spots" title="Link to this definition">¶</a></dt>
 <dd><p>Extract fluorescence traces of spots and assign them to a column of the DataFrame.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>spots</strong> (<em>pandas.DataFrame</em>) – </p></li>
+<li><p><strong>spots</strong> (<em>pandas.DataFrame</em>)</p></li>
 <li><p><strong>stack</strong> (<em>numpy.ndarray</em>) – X x Y x C x R stack.</p></li>
+<li><p><strong>spot_radius</strong> (<em>int</em><em>, </em><em>optional</em>) – Radius of the spot. Defaults to 2.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -290,13 +342,12 @@ List of edit distances.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.call.get_cluster_means">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">get_cluster_means</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.get_cluster_means" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">get_cluster_means</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_cluster_mean</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">score_thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.get_cluster_means" title="Link to this definition">¶</a></dt>
 <dd><p>Find the mean of the 4 clusters (one per channel)</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>spots</strong> (<em>pandas.DataFrame</em>) – Dataframe of extracted spot.</p></li>
-<li><p><strong>vis</strong> (<em>bool</em><em>, </em><em>optional</em>) – Plot clusters and means. Defaults to False.</p></li>
 <li><p><strong>score_thresh</strong> (<em>float</em><em>, </em><em>optional</em>) – score_thresh arguments for scaled_k_means.
 Scalar between 0 and 1. To give a different score for each cluster, give
 a list of Nc floats. Only points with dot product to a cluster mean vector
@@ -308,6 +359,8 @@ greater than this contribute to new estimate of mean vector. Defaults to 0.</p><
 <dt>A list with Nrounds elements. Each a Ncl x Nch (square</dt><dd><p>because N channels is equal to N clusters) array of cluster means</p>
 </dd>
 </dl>
+<p>spot_colors (numpy.ndarray): Nrounds x Nch x Nspots array of spot colors
+cluster_inds (list): A list with Nrounds elements. Each a Nspots array of</p>
 </p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -318,15 +371,15 @@ greater than this contribute to new estimate of mean vector. Defaults to 0.</p><
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.call.rois_to_array">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">rois_to_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.rois_to_array" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.call.</span></span><span class="sig-name descname"><span class="pre">rois_to_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">normalize</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.call.rois_to_array" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </section>
 <section id="module-iss_preprocess.call.omp">
-<span id="iss-preprocess-call-omp-module"></span><h2>iss_preprocess.call.omp module<a class="headerlink" href="#module-iss_preprocess.call.omp" title="Permalink to this heading">#</a></h2>
+<span id="iss-preprocess-call-omp-module"></span><h2>iss_preprocess.call.omp module<a class="headerlink" href="#module-iss_preprocess.call.omp" title="Link to this heading">¶</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.barcode_spots_dot_product">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">barcode_spots_dot_product</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cluster_means</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'sequence'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.barcode_spots_dot_product" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">barcode_spots_dot_product</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spots</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cluster_means</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sequence_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'sequence'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.barcode_spots_dot_product" title="Link to this definition">¶</a></dt>
 <dd><p>Compute dot product between synthetic trace and observed trace for each spot.</p>
 <p>The synthetic trace is estimated using the provided bleeedthrough matrix.
 The observed trace is first background subtracted using the same approach as
@@ -352,7 +405,7 @@ Default is ‘sequence’, but could also be ‘corrected_sequence’.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.make_background_vectors">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">make_background_vectors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nchannels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.make_background_vectors" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">make_background_vectors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nchannels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.make_background_vectors" title="Link to this definition">¶</a></dt>
 <dd><p>Create background vectors for OMP algorithm. There is one vector for each channel.
 Each vector has fluorescence in one channel across all rounds. Vectors are
 normalized to have unit norm.</p>
@@ -371,7 +424,7 @@ normalized to have unit norm.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.make_gene_templates">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">make_gene_templates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cluster_means</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">codebook</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.make_gene_templates" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">make_gene_templates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cluster_means</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">codebook</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.make_gene_templates" title="Link to this definition">¶</a></dt>
 <dd><p>Make dictionary of fluorescence values for each gene by finding well-matching
 spots.</p>
 <dl class="field-list simple">
@@ -395,7 +448,7 @@ columns.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.omp">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">omp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_vectors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_comp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.omp" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">omp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_vectors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_comp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.omp" title="Link to this definition">¶</a></dt>
 <dd><p>Run Orthogonal Matching Pursuit to identify components present in the input
 signal.</p>
 <p>The algorithm works by iteratively. At each step we find the component that has
@@ -427,7 +480,7 @@ Length N array of residuals</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.omp_weighted">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">omp_weighted</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_vectors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_comp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">120.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta_squared</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weighted</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.omp_weighted" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">omp_weighted</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_vectors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_comp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">120.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta_squared</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weighted</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.omp_weighted" title="Link to this definition">¶</a></dt>
 <dd><p>Run Orthogonal Matching Pursuit to identify components present in the input
 signal.</p>
 <p>The algorithm works by iteratively. At each step we find the component that has
@@ -448,13 +501,20 @@ components reaches <cite>max_comp</cite>.</p>
 <li><p><strong>max_comp</strong> (<em>int</em>) – maximum number of components to include.</p></li>
 <li><p><strong>tol</strong> (<em>float</em>) – tolerance threshold that determines the minimum fraction of
 the residual norm to retain a component.</p></li>
-<li><p><strong>alpha</strong> (<em>float</em>) – parameter for weighted OMP.</p></li>
-<li><p><strong>beta_squared</strong> (<em>float</em>) – parameter for weighted OMP.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em>) – Controls the influence of the previously selected components</p></li>
+<li><p><strong>selected</strong> (<em>on the current weights. Higher alpha increases the effect</em><em> of </em><em>the</em>)</p></li>
+<li><p><strong>contributions</strong> (<em>components'</em>)</p></li>
+<li><p><strong>the</strong> (<em>making the algorithm more sensitive to</em>)</p></li>
+<li><p><strong>components.</strong> (<em>already chosen</em>)</p></li>
+<li><p><strong>beta_squared</strong> (<em>float</em>) – This parameter sets a baseline for the variance in the
+weights calculation. It ensures that the weights are not solely dependent on
+the residuals but also have a minimum variance that can stabilize the
+process.</p></li>
 <li><p><strong>weighted</strong> (<em>bool</em>) – whether to use weighted OMP. Default is True.</p></li>
-<li><p><strong>refit_background</strong> (<em>bool</em>) – whether to refit background coefficients on every iteration.
-Default is True.</p></li>
-<li><p><strong>norm_shift</strong> (<em>float</em>) – additional shift to add to the norm of the pixel trace. Larger values
-reduce false positive gene calls in dim pixels. Default is 0.</p></li>
+<li><p><strong>refit_background</strong> (<em>bool</em>) – whether to refit background coefficients on every
+iteration. Default is True.</p></li>
+<li><p><strong>norm_shift</strong> (<em>float</em>) – additional shift to add to the norm of the pixel trace.
+Larger values reduce false positive gene calls in dim pixels. Default is 0.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -466,7 +526,7 @@ Length N array of residuals</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.refine_gene_templates">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">refine_gene_templates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unique_genes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.refine_gene_templates" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">refine_gene_templates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rois</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unique_genes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.refine_gene_templates" title="Link to this definition">¶</a></dt>
 <dd><p>Refine gene templates by finding spots that match the template and averaging
 their fluorescence values.</p>
 <p>TODO: This function is currently unused. Needs to be updated to work with
@@ -495,7 +555,7 @@ Default: 0.8.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.omp.run_omp">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">run_omp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weighted</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">120.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta_squared</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_comp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_intensity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.run_omp" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.omp.</span></span><span class="sig-name descname"><span class="pre">run_omp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weighted</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">refit_background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">120.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta_squared</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">norm_shift</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_comp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_intensity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.omp.run_omp" title="Link to this definition">¶</a></dt>
 <dd><p>Apply the OMP algorithm to every pixel of the provided image stack.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -505,16 +565,16 @@ Default: 0.8.</p></li>
 number of genes.</p></li>
 <li><p><strong>tol</strong> (<em>float</em>) – tolerance threshold for OMP algorithm.</p></li>
 <li><p><strong>weighted</strong> (<em>bool</em>) – whether to use weighted OMP. Default is True.</p></li>
-<li><p><strong>refit_background</strong> (<em>bool</em>) – whether to refit background coefficients on every iteration.
-Default is True.</p></li>
+<li><p><strong>refit_background</strong> (<em>bool</em>) – whether to refit background coefficients on every
+iteration. Default is True.</p></li>
 <li><p><strong>alpha</strong> (<em>float</em>) – parameter for weighted OMP.</p></li>
 <li><p><strong>beta_squared</strong> (<em>float</em>) – parameter for weighted OMP.</p></li>
-<li><p><strong>norm_shift</strong> (<em>float</em>) – additional shift to add to the norm of the pixel trace. Larger values
-reduce false positive gene calls in dim pixels. Default is 0.</p></li>
-<li><p><strong>max_comp</strong> (<em>int</em>) – maximum number of components to use in OMP. Default is None, in which case
-OMP proceeds until the tolerance threshold is reached.</p></li>
-<li><p><strong>min_intensity</strong> (<em>float</em>) – minimum intensity for a pixel to be considered. Calculated as
-the mean absolute value of the pixel trace. Default is 0.</p></li>
+<li><p><strong>norm_shift</strong> (<em>float</em>) – additional shift to add to the norm of the pixel trace.
+Larger values reduce false positive gene calls in dim pixels. Default is 0.</p></li>
+<li><p><strong>max_comp</strong> (<em>int</em>) – maximum number of components to use in OMP. Default is None, in
+which case OMP proceeds until the tolerance threshold is reached.</p></li>
+<li><p><strong>min_intensity</strong> (<em>float</em>) – minimum intensity for a pixel to be considered.
+Calculated as the mean absolute value of the pixel trace. Default is 0.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -527,11 +587,12 @@ Residual stack, shape X x Y x (R * C)</p>
 
 </section>
 <section id="module-iss_preprocess.call.spot_shape">
-<span id="iss-preprocess-call-spot-shape-module"></span><h2>iss_preprocess.call.spot_shape module<a class="headerlink" href="#module-iss_preprocess.call.spot_shape" title="Permalink to this heading">#</a></h2>
+<span id="iss-preprocess-call-spot-shape-module"></span><h2>iss_preprocess.call.spot_shape module<a class="headerlink" href="#module-iss_preprocess.call.spot_shape" title="Link to this heading">¶</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.spot_shape.apply_symmetry">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.spot_shape.</span></span><span class="sig-name descname"><span class="pre">apply_symmetry</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spot_sign_image</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.spot_shape.apply_symmetry" title="Permalink to this definition">#</a></dt>
-<dd><p>Generates a circularly symmetric spot image by averaging pixels at the same distance from the centre.</p>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.spot_shape.</span></span><span class="sig-name descname"><span class="pre">apply_symmetry</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spot_sign_image</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.spot_shape.apply_symmetry" title="Link to this definition">¶</a></dt>
+<dd><p>Generates a circularly symmetric spot image by averaging pixels at the same distance
+from the centre.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>spot_sign_image</strong> (<em>numpy.ndarray</em>) – inputs spot image</p>
@@ -547,16 +608,17 @@ Residual stack, shape X x Y x (R * C)</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.spot_shape.detect_spots_by_shape">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.spot_shape.</span></span><span class="sig-name descname"><span class="pre">detect_spots_by_shape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_sign_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.spot_shape.detect_spots_by_shape" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.spot_shape.</span></span><span class="sig-name descname"><span class="pre">detect_spots_by_shape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">im</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_sign_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.spot_shape.detect_spots_by_shape" title="Link to this definition">¶</a></dt>
 <dd><p>Detect spots in an image based on similarity to a spot sign image.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>im</strong> (<em>numpy.ndarray</em>) – input image</p></li>
-<li><p><strong>spot_sign_image</strong> (<em>numpy.ndarray</em>) – average spot sign image to use as a template in filtering spots</p></li>
+<li><p><strong>spot_sign_image</strong> (<em>numpy.ndarray</em>) – average spot sign image to use as a template</p></li>
+<li><p><strong>spots</strong> (<em>in filtering</em>)</p></li>
 <li><p><strong>threshold</strong> (<em>float</em>) – threshold for initial spot detection. Default: 0.</p></li>
-<li><p><strong>rho</strong> (<em>float</em>) – multiplier that defines the relative weight assigned to positive spot pixels.
-Default: 2.</p></li>
+<li><p><strong>rho</strong> (<em>float</em>) – multiplier that defines the relative weight assigned to</p></li>
+<li><p><strong>pixels.</strong> (<em>positive spot</em>) – Default: 2.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -570,27 +632,23 @@ Default: 2.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.spot_shape.find_gene_spots">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.spot_shape.</span></span><span class="sig-name descname"><span class="pre">find_gene_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_sign_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.spot_shape.find_gene_spots" title="Permalink to this definition">#</a></dt>
-<dd><p>Finds gene spots based on similarity to the spot sign image.</p>
-<p>We first detect spots by finding peaks in the OMP out put images. For each
-spot we compute a score based on its similarity with average spot sign image.
-This score is defined as</p>
-<blockquote>
-<div><p>(n_neg + rho * n_pos) / (max_neg + rho * max_pos)</p>
-</div></blockquote>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.spot_shape.</span></span><span class="sig-name descname"><span class="pre">find_gene_spots</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_sign_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gene_names</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rho</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_score_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">disk_radius</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.spot_shape.find_gene_spots" title="Link to this definition">¶</a></dt>
+<dd><p>Finds gene spots and extracts additional gene coefficient statistics.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>g</strong> (<em>numpy.ndarray</em>) – X x Y x Ngenes OMP output</p></li>
-<li><p><strong>spot_sign_image</strong> (<em>numpy.ndarray</em>) – average spot sign image to use as a template in filtering spots</p></li>
-<li><p><strong>rho</strong> (<em>float</em>) – multiplier that defines the relative weight assigned to positive spot pixels.
-Default: 2.</p></li>
-<li><p><strong>spot_score_threshold</strong> (<em>float</em>) – minimum score threshold for including spots.
-Default: 0.05</p></li>
+<li><p><strong>spot_sign_image</strong> (<em>numpy.ndarray</em>) – Average spot sign image for filtering</p></li>
+<li><p><strong>gene_names</strong> (<em>list</em>) – List of gene names corresponding to g’s third dimension</p></li>
+<li><p><strong>rho</strong> (<em>float</em>) – Weight multiplier for positive spot pixels (default: 2)</p></li>
+<li><p><strong>spot_score_threshold</strong> (<em>float</em>) – Minimum score threshold for including spots</p></li>
+<li><p><strong>(</strong><strong>default</strong> – 0.05)</p></li>
+<li><p><strong>disk_radius</strong> (<em>int</em>) – Radius of the disk to extract gene coefficients (default: 2)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>list of pandas.DataFrame with spot coordinates and scores for each gene.</p>
+<dd class="field-even"><p>List of pandas.DataFrame with spot coordinates and scores for each gene.
+pandas.DataFrame: DataFrame with spot x gene coefficients.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>list</p>
@@ -600,15 +658,17 @@ Default: 0.05</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.call.spot_shape.get_spot_shape">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.spot_shape.</span></span><span class="sig-name descname"><span class="pre">get_spot_shape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_xy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbor_filter_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbor_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.spot_shape.get_spot_shape" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.call.spot_shape.</span></span><span class="sig-name descname"><span class="pre">get_spot_shape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">g</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spot_xy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbor_filter_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">9</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbor_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.call.spot_shape.get_spot_shape" title="Link to this definition">¶</a></dt>
 <dd><p>Get average spot shape.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>g</strong> (<em>numpy.ndarray</em>) – X x Y x Ngenes OMP output</p></li>
 <li><p><strong>spot_xy</strong> (<em>int</em>) – spot radius to extract</p></li>
-<li><p><strong>neighbor_filter_size</strong> (<em>int</em>) – size of the square filter used for counting pixels in initial spot selection</p></li>
-<li><p><strong>neighbor_threshold</strong> (<em>int</em>) – minimum number of positive pixels for a spot to be included in the average</p></li>
+<li><p><strong>neighbor_filter_size</strong> (<em>int</em>) – size of the square filter used for counting pixels</p></li>
+<li><p><strong>selection</strong> (<em>in initial spot</em>)</p></li>
+<li><p><strong>neighbor_threshold</strong> (<em>int</em>) – minimum number of positive pixels for a spot to be</p></li>
+<li><p><strong>average</strong> (<em>included in the</em>)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -622,7 +682,7 @@ Default: 0.05</p></li>
 
 </section>
 <section id="module-iss_preprocess.call">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-iss_preprocess.call" title="Permalink to this heading">#</a></h2>
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-iss_preprocess.call" title="Link to this heading">¶</a></h2>
 </section>
 </section>
 
@@ -686,7 +746,6 @@ Default: 0.05</p></li>
 <li><a class="reference internal" href="#module-iss_preprocess.call.call">iss_preprocess.call.call module</a><ul>
 <li><a class="reference internal" href="#iss_preprocess.call.call.basecall_rois"><code class="docutils literal notranslate"><span class="pre">basecall_rois()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.call.call.call_genes"><code class="docutils literal notranslate"><span class="pre">call_genes()</span></code></a></li>
-<li><a class="reference internal" href="#iss_preprocess.call.call.correct_barcode_sequences"><code class="docutils literal notranslate"><span class="pre">correct_barcode_sequences()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.call.call.extract_spots"><code class="docutils literal notranslate"><span class="pre">extract_spots()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.call.call.get_cluster_means"><code class="docutils literal notranslate"><span class="pre">get_cluster_means()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.call.call.rois_to_array"><code class="docutils literal notranslate"><span class="pre">rois_to_array()</span></code></a></li>
@@ -721,9 +780,9 @@ Default: 0.05</p></li>
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/doctools.js"></script>
-    <script src="_static/sphinx_highlight.js"></script>
-    <script src="_static/scripts/furo.js"></script>
+</div><script src="_static/documentation_options.js?v=37f418d5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>

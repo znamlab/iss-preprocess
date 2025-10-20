@@ -10,6 +10,7 @@ Subpackages
    iss_preprocess.call
    iss_preprocess.config
    iss_preprocess.coppafish
+   iss_preprocess.diagnostics
    iss_preprocess.image
    iss_preprocess.io
    iss_preprocess.pipeline

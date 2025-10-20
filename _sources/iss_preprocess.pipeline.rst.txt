@@ -12,14 +12,6 @@ iss\_preprocess.pipeline.ara\_registration module
    :undoc-members:
    :show-inheritance:
 
-iss\_preprocess.pipeline.diagnostics module
--------------------------------------------
-
-.. automodule:: iss_preprocess.pipeline.diagnostics
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 iss\_preprocess.pipeline.hybridisation module
 ---------------------------------------------
 

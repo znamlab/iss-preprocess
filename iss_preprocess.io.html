@@ -1,15 +1,15 @@
 <!doctype html>
-<html class="no-js" lang="en">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="iss_preprocess.pipeline package" href="iss_preprocess.pipeline.html" /><link rel="prev" title="iss_preprocess.image package" href="iss_preprocess.image.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
-        <title>iss_preprocess.io package - iss-preprocess 0.2 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
+        <title>iss_preprocess.io package - iss-preprocess 0.2.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     
     
 
@@ -68,7 +68,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -83,22 +83,63 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
 </svg>
@@ -112,6 +153,8 @@
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
 
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
 
 
 <div class="page">
@@ -123,13 +166,14 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">iss-preprocess 0.2 documentation</div></a>
+      <a href="index.html"><div class="brand">iss-preprocess 0.2.1 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -146,7 +190,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">iss-preprocess 0.2 documentation</span>
+  <span class="sidebar-brand-text">iss-preprocess 0.2.1 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -156,19 +200,24 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_and_average.html">Crunch the data</a></li>
 <li class="toctree-l1"><a class="reference internal" href="registration.html">Registration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="call.html">Calling spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="correction.html">Channel brightness and illumination correction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="bleedthrough.html">Bleedthrough matrix estimation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Gene and barcode sequencing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Calling various spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="hybridisation.html">Detecting hybridisation spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="segmentation.html">Cell segmentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="detect_mcherry.html">Detection mCherry cells</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API reference:</span></p>
 <ul class="current">
-<li class="toctree-l1 current has-children"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l1 current has-children"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of iss_preprocess package</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html">iss_preprocess.call package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.config.html">iss_preprocess.config package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.coppafish.html">iss_preprocess.coppafish package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.diagnostics.html">iss_preprocess.diagnostics package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.image.html">iss_preprocess.image package</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">iss_preprocess.io package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html">iss_preprocess.pipeline package</a></li>
@@ -177,6 +226,7 @@
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html">iss_preprocess.vis package</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="flowchart_legends.html">Flowcharts legends</a></li>
 </ul>
 
 </div>
@@ -196,11 +246,17 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/iss_preprocess.io.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -210,47 +266,165 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main">
+        <article role="main" id="furo-main-content">
           <section id="iss-preprocess-io-package">
-<h1>iss_preprocess.io package<a class="headerlink" href="#iss-preprocess-io-package" title="Permalink to this heading">#</a></h1>
+<h1>iss_preprocess.io package<a class="headerlink" href="#iss-preprocess-io-package" title="Link to this heading">¶</a></h1>
 <section id="submodules">
-<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading">#</a></h2>
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
 </section>
 <section id="module-iss_preprocess.io.load">
-<span id="iss-preprocess-io-load-module"></span><h2>iss_preprocess.io.load module<a class="headerlink" href="#module-iss_preprocess.io.load" title="Permalink to this heading">#</a></h2>
+<span id="iss-preprocess-io-load-module"></span><h2>iss_preprocess.io.load module<a class="headerlink" href="#module-iss_preprocess.io.load" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.find_roi_position_on_cryostat">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">find_roi_position_on_cryostat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.find_roi_position_on_cryostat" title="Link to this definition">¶</a></dt>
+<dd><p>Find the A/P position of each ROI relative to the first collected slice</p>
+<p>The section order is guess from the sign of <cite>section_thickness_um</cite>, positive for
+antero-posterior slicing (starting from the olfactory bulb), negative for opposite.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data_path</strong> (<em>str</em>) – Relative path to the data</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>For each ROI, the slice depth in um relative to the</dt><dd><p>first collected slice</p>
+</dd>
+</dl>
+<p>min_step (float): Minimum thickness between two slices</p>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>roi_slice_pos_um (dict)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.get_channel_round_transforms">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_channel_round_transforms</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shifts_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'best'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">load_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_channel_round_transforms" title="Link to this definition">¶</a></dt>
+<dd><p>Load the channel and round shifts for a given tile and sequencing acquisition.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Prefix of the sequencing round.</p></li>
+<li><p><strong>tile_coors</strong> (<em>tuple</em><em>, </em><em>optional</em>) – Coordinates of the tile to process. Required if
+<cite>shifts_type</cite> is not <cite>reference</cite>. Defaults to None.</p></li>
+<li><p><strong>corrected_shifts</strong> (<em>str</em><em>, </em><em>optional</em>) – Which shift to use. One of <cite>reference</cite>,
+<cite>single_tile</cite>, <cite>ransac</cite>, or <cite>best</cite>. Defaults to <cite>best</cite>.</p></li>
+<li><p><strong>load_file</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to load the shifts from file or just return
+the file name. Defaults to True.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Array of channel and round shifts if load_file, else the path</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray | Path</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.get_pixel_size">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_pixel_size</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_pixel_size" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_pixel_size</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_pixel_size" title="Link to this definition">¶</a></dt>
 <dd><p>Get pixel size from MicroManager metadata.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
-<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Which acquisition prefix to use. Defaults to “genes_round_1_1”.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Which acquisition prefix to use. Defaults to
+“genes_round_1_1”.</p></li>
 </ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Pixel size in microns</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.get_processed_path">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_processed_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_processed_path" title="Link to this definition">¶</a></dt>
+<dd><p>Return the path to the processed data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Path to processed data</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pathlib.Path</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.get_raw_filename">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_raw_filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_raw_filename" title="Link to this definition">¶</a></dt>
+<dd><p>Return the root name of raw data for a tile.</p>
+<p>Raw file names may take on different patterns depending on micromanager version.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Prefix of acquisition to load</p></li>
+<li><p><strong>tile_coors</strong> (<em>tuple</em>) – Tile coordinates (roi, xpos, ypos)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Root name of the raw data file</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.get_raw_path">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_raw_path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_raw_path" title="Link to this definition">¶</a></dt>
+<dd><p>Return the path to the raw data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Path to raw data</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pathlib.Path</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.get_roi_dimensions">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_roi_dimensions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_roi_dimensions" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_roi_dimensions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_roi_dimensions" title="Link to this definition">¶</a></dt>
 <dd><p>Find imaging ROIs and determine their dimensions.</p>
-<p>Create and/or load f”{prefix}_roi_dims.npy”. The default (“genes_round_1_1”) should
-be used for all acquisitions that have the same ROI dimensions (everything except
-overviews).</p>
+<p>The output is the maximum index of the file names, which are 0 based. It is
+therefore the number of tiles in each dimension minus 1.</p>
+<p>Create and/or load f”{prefix}_roi_dims.npy”. The default (None for
+ops[‘reference_prefix’]) should be used for all acquisitions that have the same ROI
+dimensions (everything except overviews).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
-<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of acquisition to load. Defaults to
-“genes_round_1_1”</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of acquisition to load. Defaults to None.</p></li>
 <li><p><strong>save</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True save roi dimensions if they are not already found
 on disk. Default to True</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Nroi x 3 array of containing (roi_id, NtilesX, NtilesY) for each roi</p>
+<dd class="field-even"><p><dl class="simple">
+<dt>Nroi x 3 array of containing (roi_id, NtilesX, NtilesY) for each</dt><dd><p>roi</p>
+</dd>
+</dl>
+</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>numpy.ndarray</p>
@@ -260,13 +434,16 @@ on disk. Default to True</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.get_tile_ome">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_tile_ome</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fmetadata</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_tile_ome" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_tile_ome</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fmetadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_indexmap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_tile_ome" title="Link to this definition">¶</a></dt>
 <dd><p>Load OME TIFF tile.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>fname</strong> (<em>str</em>) – path to OME TIFF</p></li>
-<li><p><strong>fmetadata</strong> (<em>str</em>) – path to OME metadata file</p></li>
+<li><p><strong>fmetadata</strong> (<em>str</em><em>, </em><em>optional</em>) – path to OME metadata file. Required if use_indexmap
+is False or None. Defaults to None.</p></li>
+<li><p><strong>use_indexmap</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to use the indexmap from micromanager
+metadata. If True, the metadata file is not required. Defaults to True.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -279,8 +456,76 @@ on disk. Default to True</p></li>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.get_z_step">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_z_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_z_step" title="Link to this definition">¶</a></dt>
+<dd><p>Get z step size from MicroManager metadata.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Which acquisition prefix to use. Defaults to
+“genes_round_1_1”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Z step size in microns</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.get_zprofile">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">get_zprofile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coords</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.get_zprofile" title="Link to this definition">¶</a></dt>
+<dd><p>Load the zprofile for a tile</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Prefix of acquisition to load</p></li>
+<li><p><strong>tile_coords</strong> (<em>tuple</em>) – Tile coordinates (roi, xpos, ypos)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Z profile for the tile, with ‘std’ and ‘top_1permille’ keys</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.load_correction_image">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_correction_image</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">projection</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corr_prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_correction_image" title="Link to this definition">¶</a></dt>
+<dd><p>Load the image for illumination correction</p>
+<p>By default, find the appropriate correction image from the ops file. This can be
+overridden by providing a corr_prefix.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to dataset.</p></li>
+<li><p><strong>projection</strong> (<em>str</em>) – Projection to use, one of <cite>max</cite>, <cite>median</cite>.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Prefix to correct, this is the image you want to correct, not
+the one you use for the correction.</p></li>
+<li><p><strong>corr_prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Prefix of the image to use for correction. If
+provided, this is used instead of the prefix. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>X x Y x channels stack.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.load_hyb_probes_metadata">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_hyb_probes_metadata</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_hyb_probes_metadata" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_hyb_probes_metadata</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_hyb_probes_metadata" title="Link to this definition">¶</a></dt>
 <dd><p>Load the hybridisation probes metadata.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
@@ -293,10 +538,33 @@ on disk. Default to True</p></li>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.load_mask_by_coors">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_mask_by_coors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'corrected'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_mask_by_coors" title="Link to this definition">¶</a></dt>
+<dd><p>Load masks for a single tile.</p>
+<p>If the corrected mask is not found, the raw mask is loaded instead.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – relative path to dataset.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em>) – Full folder name prefix, including round number.</p></li>
+<li><p><strong>tile_coors</strong> (<em>tuple</em>) – Coordinates of tile to load: ROI, Xpos, Ypos.</p></li>
+<li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – Suffix to add to the file name. Defaults to “corrected”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>X x Y x channels stack.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.load_metadata">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_metadata" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_metadata" title="Link to this definition">¶</a></dt>
 <dd><p>Load the metadata.yml file</p>
-<p>This is the user generated file containing ROI and rounds informations</p>
+<p>This is the user generated file containing ROI and rounds information</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p>
@@ -312,7 +580,7 @@ on disk. Default to True</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.load_micromanager_metadata">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_micromanager_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_micromanager_metadata" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_micromanager_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_micromanager_metadata" title="Link to this definition">¶</a></dt>
 <dd><p>Load the metadata.txt of a single acquisition round</p>
 <p>This is the detailed metadata from the microscope.</p>
 <dl class="field-list simple">
@@ -333,13 +601,17 @@ on disk. Default to True</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.load_ops">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_ops</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_ops" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_ops</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">warn_missing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_ops" title="Link to this definition">¶</a></dt>
 <dd><p>Load the ops.yaml file.</p>
 <p>This must be manually generated first. If it is not found, the default
 options are used.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – Relative path to data</p></li>
+<li><p><strong>warn_missing</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to warn if the ops or metadata files are
+not found. Defaults to True.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Options, see config/defaults_ops.yaml for description</p>
@@ -352,7 +624,7 @@ options are used.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.load_section_position">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_section_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_section_position" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_section_position</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_section_position" title="Link to this definition">¶</a></dt>
 <dd><p>Load the section position information</p>
 <p>This is the same for all chambers and is contained in the parent folder of
 <cite>data_path</cite></p>
@@ -370,15 +642,45 @@ options are used.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="iss_preprocess.io.load.load_sequencing_rounds">
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_sequencing_rounds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nrounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'max'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">specific_rounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_illumination</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_sequencing_rounds" title="Link to this definition">¶</a></dt>
+<dd><p>Load processed tile images across rounds</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_path</strong> (<em>str</em>) – relative path to dataset.</p></li>
+<li><p><strong>tile_coors</strong> (<em>tuple</em><em>, </em><em>optional</em>) – Coordinates of tile to load: ROI, Xpos, Ypos.
+Defaults to (1,0,0).</p></li>
+<li><p><strong>nrounds</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of rounds to load. Used only if
+<cite>specific_rounds</cite> is None. Defaults to 7.</p></li>
+<li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – File name suffix. Defaults to ‘fstack’.</p></li>
+<li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – the folder name prefix, before round number. Defaults
+to “genes_round”</p></li>
+<li><p><strong>specific_round</strong> (<em>list</em><em>, </em><em>optional</em>) – if not None, specify which rounds must be
+loaded and ignores <cite>nrounds</cite>. Defaults to None</p></li>
+<li><p><strong>correct_illumination</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to correct for illumination
+Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>X x Y x channels x rounds stack.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.load_stack">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_stack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fname</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_stack" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_stack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fname</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_stack" title="Link to this definition">¶</a></dt>
 <dd><p>Load TIFF stack.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>fname</strong> (<em>str</em>) – path to TIFF</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>X x Y x Z stack.</p>
+<dd class="field-even"><p>X x Y x Z stack</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>numpy.ndarray</p>
@@ -388,7 +690,7 @@ options are used.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.load.load_tile_by_coors">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_tile_by_coors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'fstack'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_tile_by_coors" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.load.</span></span><span class="sig-name descname"><span class="pre">load_tile_by_coors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tile_coors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(1,</span> <span class="pre">0,</span> <span class="pre">0)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'max'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefix</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'genes_round_1_1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">correct_illumination</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.load.load_tile_by_coors" title="Link to this definition">¶</a></dt>
 <dd><p>Load processed tile images</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -399,10 +701,12 @@ Defaults to (1,0,0).</p></li>
 <li><p><strong>suffix</strong> (<em>str</em><em>, </em><em>optional</em>) – File name suffix. Defaults to “fstack”.</p></li>
 <li><p><strong>prefix</strong> (<em>str</em><em>, </em><em>optional</em>) – Full folder name prefix, including round number.
 Defaults to “genes_round_1_1”</p></li>
+<li><p><strong>correct_illumination</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to correct for illumination
+Defaults to False.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>X x Y x channels stack.</p>
+<dd class="field-even"><p>X x Y x channels stack. uint16 if not corrected, float otherwise.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>numpy.ndarray</p>
@@ -412,10 +716,10 @@ Defaults to “genes_round_1_1”</p></li>
 
 </section>
 <section id="module-iss_preprocess.io.save">
-<span id="iss-preprocess-io-save-module"></span><h2>iss_preprocess.io.save module<a class="headerlink" href="#module-iss_preprocess.io.save" title="Permalink to this heading">#</a></h2>
+<span id="iss-preprocess-io-save-module"></span><h2>iss_preprocess.io.save module<a class="headerlink" href="#module-iss_preprocess.io.save" title="Link to this heading">¶</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.save.save_ome_tiff_pyramid">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.save.</span></span><span class="sig-name descname"><span class="pre">save_ome_tiff_pyramid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pixel_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subresolutions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'uint16'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_thumbnail</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.save.save_ome_tiff_pyramid" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.save.</span></span><span class="sig-name descname"><span class="pre">save_ome_tiff_pyramid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">target</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pixel_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subresolutions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'uint16'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rescale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">save_thumbnail</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.save.save_ome_tiff_pyramid" title="Link to this definition">¶</a></dt>
 <dd><p>Write single image plane as pyramidal ome-tiff</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -441,7 +745,7 @@ Defaults to “uint16”.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="iss_preprocess.io.save.write_stack">
-<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.save.</span></span><span class="sig-name descname"><span class="pre">write_stack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bigtiff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'uint16'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.save.write_stack" title="Permalink to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">iss_preprocess.io.save.</span></span><span class="sig-name descname"><span class="pre">write_stack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stack</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bigtiff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'uint16'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">clip</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compress</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#iss_preprocess.io.save.write_stack" title="Link to this definition">¶</a></dt>
 <dd><p>Write a stack to file as a multipage TIFF</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -449,8 +753,10 @@ Defaults to “uint16”.</p></li>
 <li><p><strong>stack</strong> (<em>numpy.ndarray</em>) – X x Y x … array (can have multiple channels /
 zplanes, etc.)</p></li>
 <li><p><strong>fname</strong> (<em>str</em>) – save path for the TIFF</p></li>
-<li><p><strong>dtype</strong> (<em>str</em>) – datatype of the output image. Default to ‘uint16’</p></li>
-<li><p><strong>clip</strong> (<em>bool</em>) – clip negative values before convertion</p></li>
+<li><p><strong>bigtiff</strong> (<em>bool</em><em>, </em><em>optional</em>) – use bigtiff format. Default to False</p></li>
+<li><p><strong>dtype</strong> (<em>str</em><em>, </em><em>optional</em>) – datatype of the output image. Default to ‘uint16’</p></li>
+<li><p><strong>clip</strong> (<em>bool</em><em>, </em><em>optional</em>) – clip negative values before conversion. Default to True</p></li>
+<li><p><strong>compress</strong> (<em>bool</em><em>, </em><em>optional</em>) – compress the image using zlib, default to True</p></li>
 </ul>
 </dd>
 </dl>
@@ -458,7 +764,7 @@ zplanes, etc.)</p></li>
 
 </section>
 <section id="module-iss_preprocess.io">
-<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-iss_preprocess.io" title="Permalink to this heading">#</a></h2>
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-iss_preprocess.io" title="Link to this heading">¶</a></h2>
 </section>
 </section>
 
@@ -520,14 +826,24 @@ zplanes, etc.)</p></li>
 <li><a class="reference internal" href="#">iss_preprocess.io package</a><ul>
 <li><a class="reference internal" href="#submodules">Submodules</a></li>
 <li><a class="reference internal" href="#module-iss_preprocess.io.load">iss_preprocess.io.load module</a><ul>
+<li><a class="reference internal" href="#iss_preprocess.io.load.find_roi_position_on_cryostat"><code class="docutils literal notranslate"><span class="pre">find_roi_position_on_cryostat()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.io.load.get_channel_round_transforms"><code class="docutils literal notranslate"><span class="pre">get_channel_round_transforms()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.get_pixel_size"><code class="docutils literal notranslate"><span class="pre">get_pixel_size()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.io.load.get_processed_path"><code class="docutils literal notranslate"><span class="pre">get_processed_path()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.io.load.get_raw_filename"><code class="docutils literal notranslate"><span class="pre">get_raw_filename()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.io.load.get_raw_path"><code class="docutils literal notranslate"><span class="pre">get_raw_path()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.get_roi_dimensions"><code class="docutils literal notranslate"><span class="pre">get_roi_dimensions()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.get_tile_ome"><code class="docutils literal notranslate"><span class="pre">get_tile_ome()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.io.load.get_z_step"><code class="docutils literal notranslate"><span class="pre">get_z_step()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.io.load.get_zprofile"><code class="docutils literal notranslate"><span class="pre">get_zprofile()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.io.load.load_correction_image"><code class="docutils literal notranslate"><span class="pre">load_correction_image()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.load_hyb_probes_metadata"><code class="docutils literal notranslate"><span class="pre">load_hyb_probes_metadata()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.io.load.load_mask_by_coors"><code class="docutils literal notranslate"><span class="pre">load_mask_by_coors()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.load_metadata"><code class="docutils literal notranslate"><span class="pre">load_metadata()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.load_micromanager_metadata"><code class="docutils literal notranslate"><span class="pre">load_micromanager_metadata()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.load_ops"><code class="docutils literal notranslate"><span class="pre">load_ops()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.load_section_position"><code class="docutils literal notranslate"><span class="pre">load_section_position()</span></code></a></li>
+<li><a class="reference internal" href="#iss_preprocess.io.load.load_sequencing_rounds"><code class="docutils literal notranslate"><span class="pre">load_sequencing_rounds()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.load_stack"><code class="docutils literal notranslate"><span class="pre">load_stack()</span></code></a></li>
 <li><a class="reference internal" href="#iss_preprocess.io.load.load_tile_by_coors"><code class="docutils literal notranslate"><span class="pre">load_tile_by_coors()</span></code></a></li>
 </ul>
@@ -549,9 +865,9 @@ zplanes, etc.)</p></li>
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/doctools.js"></script>
-    <script src="_static/sphinx_highlight.js"></script>
-    <script src="_static/scripts/furo.js"></script>
+</div><script src="_static/documentation_options.js?v=37f418d5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>

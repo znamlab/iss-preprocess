@@ -1,15 +1,15 @@
 <!doctype html>
-<html class="no-js" lang="en">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Gene and barcode sequencing" href="sequencing.html" /><link rel="prev" title="Channel brightness and illumination correction" href="correction.html" />
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Calling various spots" href="sequencing.html" /><link rel="prev" title="Channel brightness and illumination correction" href="correction.html" />
 
-    <!-- Generated with Sphinx 6.1.3 and Furo 2022.12.07 -->
-        <title>Bleedthrough matrix estimation - iss-preprocess 0.2 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=91d0f0d1c444bdcb17a68e833c7a53903343c195" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
+        <title>Bleedthrough matrix estimation - iss-preprocess 0.2.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     
     
 
@@ -68,7 +68,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -83,22 +83,63 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
 </svg>
@@ -112,6 +153,8 @@
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
 
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
 
 
 <div class="page">
@@ -123,18 +166,19 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">iss-preprocess 0.2 documentation</div></a>
+      <a href="index.html"><div class="brand">iss-preprocess 0.2.1 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -146,7 +190,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">iss-preprocess 0.2 documentation</span>
+  <span class="sidebar-brand-text">iss-preprocess 0.2.1 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -156,19 +200,24 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="project_and_average.html">Crunch the data</a></li>
 <li class="toctree-l1"><a class="reference internal" href="registration.html">Registration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="call.html">Calling spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="correction.html">Channel brightness and illumination correction</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Bleedthrough matrix estimation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Gene and barcode sequencing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sequencing.html">Calling various spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="hybridisation.html">Detecting hybridisation spots</a></li>
 <li class="toctree-l1"><a class="reference internal" href="segmentation.html">Cell segmentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="detect_mcherry.html">Detection mCherry cells</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API reference:</span></p>
 <ul>
-<li class="toctree-l1 has-children"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="iss_preprocess.html">iss_preprocess package</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of iss_preprocess package</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.call.html">iss_preprocess.call package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.config.html">iss_preprocess.config package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.coppafish.html">iss_preprocess.coppafish package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="iss_preprocess.diagnostics.html">iss_preprocess.diagnostics package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.image.html">iss_preprocess.image package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.io.html">iss_preprocess.io package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.pipeline.html">iss_preprocess.pipeline package</a></li>
@@ -177,6 +226,7 @@
 <li class="toctree-l2"><a class="reference internal" href="iss_preprocess.vis.html">iss_preprocess.vis package</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="flowchart_legends.html">Flowcharts legends</a></li>
 </ul>
 
 </div>
@@ -196,23 +246,87 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/bleedthrough.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main">
+        <article role="main" id="furo-main-content">
           <section id="bleedthrough-matrix-estimation">
-<h1>Bleedthrough matrix estimation<a class="headerlink" href="#bleedthrough-matrix-estimation" title="Permalink to this heading">#</a></h1>
+<h1>Bleedthrough matrix estimation<a class="headerlink" href="#bleedthrough-matrix-estimation" title="Link to this heading">¶</a></h1>
+<p>For both barcode and genes the first step is to generate bleed-through matrices for
+basecalling. This is done by using <cite>iss setup-barcodes</cite> and <cite>iss setup-omp</cite>.
+The principles for both are the same and they both generate diagnostics plots (see
+final section of the page). Here we document the barcode setup.</p>
+<section id="setup-barcode-calling">
+<h2>Setup barcode calling<a class="headerlink" href="#setup-barcode-calling" title="Link to this heading">¶</a></h2>
+<p>The aim is to find what is the fluorescence of each base. We determine this by
+detecting some isolated spots, extract their fluorescence value and cluster in 4
+groups. This steps depend on 4 <cite>ops</cite> parameters:</p>
+<ul class="simple">
+<li><p><cite>barcode_ref_tiles</cite> (default [ [ 1, 0, 0 ] ], must be changed)</p></li>
+<li><p><cite>barcode_detection_threshold</cite> (default 0.3)</p></li>
+<li><p><cite>barcode_isolation_threshold</cite> (default 0.3)</p></li>
+<li><p><cite>spots_extraction_radius</cite>, shared with gene rounds (default 2)</p></li>
+</ul>
+<p>To help setting the two threshold correctly, use <cite>notebooks/select_spot_detection_thresholds.ipynb</cite>.</p>
+<section id="extracting-isolated-barcode-spots">
+<h3>Extracting isolated barcode spots<a class="headerlink" href="#extracting-isolated-barcode-spots" title="Link to this heading">¶</a></h3>
+<section id="detecting-barcode-spots">
+<h4>Detecting barcode spots<a class="headerlink" href="#detecting-barcode-spots" title="Link to this heading">¶</a></h4>
+<p>All <cite>barcode_ref_tiles</cite> are processed sequencialy. They are loaded and registered
+between channel and rounds. Then a reference image is created by taking the standard
+deviation of the stack. This image is used to detect spots by simple thresholding.</p>
+<a class="reference internal image-reference" href="_images/barcode_spot_detection_bleedthrough.png"><img alt="Detection of barcode rolonies" src="_images/barcode_spot_detection_bleedthrough.png" style="width: 700px;" /></a>
+</section>
+<section id="filtering-isolated-spots">
+<h4>Filtering isolated spots<a class="headerlink" href="#filtering-isolated-spots" title="Link to this heading">¶</a></h4>
+<a class="reference internal image-reference" href="_images/barcode_spot_isolation.png"><img alt="Filter barcode rolonies to select isolated ones" src="_images/barcode_spot_isolation.png" style="width: 900px;" /></a>
+</section>
+<section id="extracting-fluorescence-values">
+<h4>Extracting fluorescence values<a class="headerlink" href="#extracting-fluorescence-values" title="Link to this heading">¶</a></h4>
+<a class="reference internal image-reference" href="_images/barcode_spot_extraction.png"><img alt="Extract barcode rolonies fluorescence values" src="_images/barcode_spot_extraction.png" style="width: 700px;" /></a>
+</section>
+</section>
+<section id="cluster-extracted-data-in-4-groups">
+<h3>Cluster extracted data in 4 groups<a class="headerlink" href="#cluster-extracted-data-in-4-groups" title="Link to this heading">¶</a></h3>
+<p>The detection/extraction steps are repeated for all <cite>barcode_ref_tiles</cite>. The resulting
+data is then clustered in 4 groups using <cite>coppafish</cite> scaled k-means. Internally this is
+done in <cite>iss.call.call.get_cluster_means</cite>.</p>
+<p>The main output of the clustering is saved in <cite>processed_path / “barcode_cluster_means.npy”</cite>
+The cluster assignement for each spot and their fluorescence values are saved in
+<cite>processed_path / “reference_barcode_spots.npz”</cite> and used to generate diagnostics plots
+described in the next section.</p>
+</section>
+<section id="plot-diagnostics">
+<h3>Plot diagnostics<a class="headerlink" href="#plot-diagnostics" title="Link to this heading">¶</a></h3>
+<p>The diagnostics plot are generated by <cite>iss.pipeline.diagnostics.check_barcode_calling</cite>,
+which is called automatically by <cite>iss setup-barcodes</cite>. It generates one main figure
+of the bleed-through matrices: <cite>processed_path / figures / ‘barcode_cluster_means.png’</cite>.
+This should hopefully look like this:</p>
+<a class="reference internal image-reference" href="_images/barcode_cluster_means.png"><img alt="Example of good bleed-through matrices." src="_images/barcode_cluster_means.png" style="width: 700px;" /></a>
+<p>A further <cite>nrounds</cite> plots will be generated to help with debugging if the clustering
+went wrong. They are saved in the same folder and called <cite>barcode_clusters_round_{x}.png</cite>
+where <cite>x</cite> is the round number.
+Here is an example output of successful barcode calling:</p>
+<a class="reference internal image-reference" href="_images/barcode_clusters_diagnostics.png"><img alt="Barcode clusters for an example round" src="_images/barcode_clusters_diagnostics.png" style="width: 700px;" /></a>
+</section>
+</section>
 </section>
 
         </article>
@@ -225,7 +339,7 @@
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Gene and barcode sequencing</div>
+                <div class="title">Calling various spots</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -258,15 +372,44 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Bleedthrough matrix estimation</a><ul>
+<li><a class="reference internal" href="#setup-barcode-calling">Setup barcode calling</a><ul>
+<li><a class="reference internal" href="#extracting-isolated-barcode-spots">Extracting isolated barcode spots</a><ul>
+<li><a class="reference internal" href="#detecting-barcode-spots">Detecting barcode spots</a></li>
+<li><a class="reference internal" href="#filtering-isolated-spots">Filtering isolated spots</a></li>
+<li><a class="reference internal" href="#extracting-fluorescence-values">Extracting fluorescence values</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#cluster-extracted-data-in-4-groups">Cluster extracted data in 4 groups</a></li>
+<li><a class="reference internal" href="#plot-diagnostics">Plot diagnostics</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/doctools.js"></script>
-    <script src="_static/sphinx_highlight.js"></script>
-    <script src="_static/scripts/furo.js"></script>
+</div><script src="_static/documentation_options.js?v=37f418d5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>
