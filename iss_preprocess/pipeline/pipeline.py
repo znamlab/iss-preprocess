@@ -891,7 +891,6 @@ def overview_for_ara_registration(
     rois_to_do=None,
     sigma_blur=10,
     ref_prefix="genes_round",
-    non_similar_overview=False,
 ):
     """Generate a stitched overview for registering to the ARA
 
@@ -935,7 +934,6 @@ def overview_for_ara_registration(
             SLICE_ID=roi2section_order[roi],
             PREFIX=prefix,
             REF_PREFIX=ref_prefix,
-            NON_SIMILAR_OVERVIEW=non_similar_overview,
         )
         args = "--export=" + ",".join([f"{k}={v}" for k, v in export_args.items()])
         slurm_folder = Path.home() / "slurm_logs" / data_path / "ara"
@@ -1100,7 +1098,10 @@ def call_spots(
             job_dependency=jobs if use_slurm else None,
         )
         check_barcode_calling(
-            data_path, use_slurm=use_slurm, job_dependency=job if use_slurm else None
+            data_path, 
+            use_slurm=use_slurm,
+            slurm_folder=slurm_folder,
+            job_dependency=job if use_slurm else None
         )
         if not setup_only:
             batch_process_tiles(
