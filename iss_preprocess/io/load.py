@@ -516,12 +516,12 @@ def get_roi_dimensions(data_path, prefix=None, save=True):
 
     """
     processed_path = get_processed_path(data_path)
-    roi_dims_file = processed_path / f"{prefix}_roi_dims.npy"
-    if roi_dims_file.exists():
-        return np.load(roi_dims_file)
     if prefix is None:
         ops = load_ops(data_path)
         prefix = ops["reference_prefix"]
+    roi_dims_file = processed_path / f"{prefix}_roi_dims.npy"
+    if roi_dims_file.exists():
+        return np.load(roi_dims_file)
 
     # file does not exist, let's find roi dims from filenames and create the file
     data_dir = get_raw_path(data_path) / prefix
