@@ -351,6 +351,7 @@ def register_channels_by_pairs(
     for igpg, gpg in enumerate(channel_grouping):
         if not igpg:
             # reference group
+            reference_channel = gpg[0]
             continue
         for ch in gpg:
             # the first round must run successfully but the second one can fail,
@@ -360,7 +361,14 @@ def register_channels_by_pairs(
                 # Look if there is a default transform in the ops
                 if reference_tforms is not None:
                     print("Using reference tforms as default")
-                    tform_matrix[igpg] = reference_tforms["matrix_between_channels"][ch]
+                    print(reference_tforms["matrix_between_channels"][ch])
+                    # need to figure out which channel was ref for ref tforms
+                    fallback_reference_channel = ops["ref_ch"]
+                    if reference_channel == fallback_reference_channel:
+                        tform_matrix[igpg] = reference_tforms["matrix_between_channels"][ch]
+                    else:
+                        tform_from_ref_ref_to_hyb_ref = np.linalg.inv(reference_tforms["matrix_between_channels"][fallback_reference_channel])
+                        tform_matrix[igpg] = tform_from_ref_ref_to_hyb_ref @ reference_tforms["matrix_between_channels"][ch]
                 else:
                     print("Using identity transform as default")
                     tform_matrix[igpg] = np.eye(3)
