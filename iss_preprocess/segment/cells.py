@@ -17,7 +17,7 @@ __all__ = [
 
 def cellpose_segmentation(
     img,
-    channels,
+    # channels,
     flow_threshold=0.4,
     min_pix=0,
     dilate_pix=0,
@@ -25,6 +25,7 @@ def cellpose_segmentation(
     pretrained_model=None,
     use_gpu=False,
     debug=False,
+    cellprob_threshold=0.0,
     **kwargs,
 ):
     """Segment cells using Cellpose.
@@ -54,9 +55,10 @@ def cellpose_segmentation(
     )
     masks, flows, styles = model.eval(
         img,
-        channels=channels,
+        channel_axis=-1,
         flow_threshold=flow_threshold,
-        tile=True,
+        cellprob_threshold=cellprob_threshold,
+        # tile=True,
         **kwargs,
     )
     if min_pix > 0:
