@@ -674,9 +674,19 @@ def correct_hyb_shifts(data_path, prefix=None):
             f"{hyb_round.split('_')[0]}_use_median_channel_registration", False
         )
         use_median = ops.get(f"{hyb_round}_use_median_channel_registration", use_median)
+        use_ref_tile_bridge = ops.get(
+            f"{hyb_round.split('_')[0]}_use_median_channel_registration", False
+        )
+        use_ref_tile_bridge = ops.get(
+            f"{hyb_round}_use_median_channel_registration", 
+            use_ref_tile_bridge
+        )
         if use_median:
             print("Using median channel registration for all ROIs")
             merge_shifts(data_path, prefix=hyb_round, n_chans=4)
+        elif use_ref_tile_bridge:
+            # get 
+            print("not yet written")
         else:
             for roi in roi_dims[use_rois, :]:
                 print(f"correcting shifts for ROI {roi}, {hyb_round} from {data_path}")
@@ -792,14 +802,36 @@ def merge_shifts(data_path, prefix, n_chans=4):
 
     # save all the corrected to the same median value
     processed_path = get_processed_path(data_path)
-    save_dir = processed_path / "reg"
+    save_dir = processed_path / "reg" / prefix
     save_dir.mkdir(parents=True, exist_ok=True)
+    only_failed = ops.get(
+        f"{prefix.split('_')[0]}_use_median_only_for_failed_tiles", False
+    )
+    only_failed = ops.get(f"{prefix}_use_median_only_for_failed_tiles", only_failed)
+
     for roi, nx, ny in roi_dims[use_rois, ...]:
         nx += 1
         ny += 1
         itile = 0
         for iy in range(ny):
             for ix in range(nx):
+                # option to only use median for failed tiles/channels
+                if only_failed:
+                    #check if tile has nan shift in any channel
+                    tforms = get_channel_round_transforms(
+                        data_path, prefix, (roi, ix, iy), shifts_type="best",
+                    )
+                    if tforms is None:
+                        print(f"No tforms for tile {roi} {ix} {iy}, please try once before running failed_only=true")
+                    # all channels failed
+                    if align_method == "affine":
+                        if np.any(np.isnan(tforms["matrix_between_channels"])):
+                            itile += 1
+                            pass
+                    else:
+                        if np.any(np.isnan(tforms["shifts_between_channels"])):
+                            itile += 1
+                            pass
                 if align_method == "affine":
                     to_save = dict(matrix_between_channels=matrix_corrected)
                 else:
@@ -827,17 +859,23 @@ def _load_shift_roi(data_path, prefix, roi, nx, ny, align_method, n_chans=None):
             fname = (
                 processed_path / "reg" / prefix / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
             )
+            old_fname = (
+                processed_path / "reg" / f"tforms_{prefix}_{roi}_{ix}_{iy}.npz"
+            )
             if not fname.exists():
-                print(f"No tforms for tile {roi} {ix} {iy}")
-                shifts.append(np.array([[np.nan, np.nan]]))
-                if n_chans is None:
-                    raise ValueError("n_chans must be provided if tforms are missing")
-                if align_method == "affine":
-                    angles.append(np.zeros((n_chans, 2, 2)) + np.nan)
-                else:
-                    angles.append(np.array(np.nan, ndmin=2))
+                if not old_fname.exists():
+                    print(f"No tforms for tile {roi} {ix} {iy}")
+                    shifts.append(np.array([[np.nan, np.nan]]))
+                    if n_chans is None:
+                        raise ValueError("n_chans must be provided if tforms are missing")
+                    if align_method == "affine":
+                        angles.append(np.zeros((n_chans, 2, 2)) + np.nan)
+                    else:
+                        angles.append(np.array(np.nan, ndmin=2))
 
-                continue
+                    continue
+                else:
+                    fname = old_fname
             try:
                 tforms = np.load(fname)
                 if align_method == "affine":
