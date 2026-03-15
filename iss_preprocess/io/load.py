@@ -293,7 +293,7 @@ def load_section_position(data_path):
         pandas.DataFrame: Slice position info
 
     """
-    mouse_path = get_raw_path(data_path).parent
+    mouse_path = get_processed_path(data_path).parent
     csv_path = mouse_path / "section_position.csv"
     if not csv_path.exists():
         # look in processed
