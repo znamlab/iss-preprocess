@@ -9,7 +9,7 @@ from ..reg import estimate_rotation_translation
 from ..vis.diagnostics import check_reg2ref_using_stitched
 from .core import batch_process_tiles
 from .register import load_and_register_tile
-from .stitch import get_tile_corners, register_within_acquisition, stitch_and_register
+from .stitch import get_tile_corners, register_within_acquisition, stitch_and_register, warp_stack_to_ref
 
 
 def register_all_tiles_to_ref(data_path, reg_prefix, use_masked_correlation):
@@ -193,39 +193,7 @@ def register_tile_to_ref(
     return tforms
 
 
-def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
-    """Get the shifts to reference coordinates for a given tile
-
-    Args:
-        data_path (str): Relative path to data
-        prefix (str): Prefix of the tile to register
-        roi (int): ROI ID
-        tilex (int): X coordinate of the tile
-        tiley (int): Y coordinate of the tile
-
-    Returns:
-        np.NpzFile: The transformation parameter to reference coordinates
-
-    """
-    ops = load_ops(data_path)
-    if ops["corrected_shifts"] == "single_tile":
-        corrected_shifts = ""
-    elif ops["corrected_shifts"] == "ransac":
-        corrected_shifts = "_corrected"
-    elif ops["corrected_shifts"] == "best":
-        corrected_shifts = "_best"
-    else:
-        raise ValueError(f"Corrected shifts {ops['corrected_shifts']} not recognised")
-    processed_path = get_processed_path(data_path)
-    tform2ref = np.load(
-        processed_path
-        / "reg"
-        / f"tforms{corrected_shifts}_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
-    )
-    return tform2ref
-
-
-@slurm_it(conda_env="iss-preprocess", print_job_id=True, slurm_options=dict(mem="72G"))
+@slurm_it(conda_env="iss-preprocess", print_job_id=True, slurm_options=dict(mem="256G"))
 def register_to_ref_using_stitched_registration(
     data_path,
     roi,
