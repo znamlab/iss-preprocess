@@ -19,7 +19,7 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
         check_reg_to_ref_correction,
         check_registration_to_reference,
     )
-    from ..pipeline import correct_shifts_to_ref
+    from ..pipeline.register import correct_shifts_to_ref
 
     if use_slurm:
         from pathlib import Path
