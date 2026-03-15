@@ -355,8 +355,10 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix, detect_only=None, retu
     # Per-round keys use the pattern: <prefix>_hyb_detect_only, <prefix>_hyb_return_spots, <prefix>_hyb_channels
     if detect_only is None:
         detect_only = ops.get(f"{prefix}_hyb_detect_only", ops.get("hybridisation_detect_only", False))
+        print(f"Using detect_only from ops: {detect_only}")
     if channels is None:
         channels = ops.get(f"{prefix}_hyb_channels", ops.get("hybridisation_channels", None))
+        print(f"Using channels from ops: {channels}")
 
     # Normalise channels specification from ops if provided as string
     if isinstance(channels, str):
@@ -372,9 +374,6 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix, detect_only=None, retu
                     f"Could not parse hybridisation_channels string '{channels}'. Use comma/space separated integers."
                 )
 
-    clusters = np.load(
-        processed_path / f"{prefix}_cluster_means.npz", allow_pickle=True
-    )
     print("loading and registering tile")
     stack, _ = load_and_register_hyb_tile(
         data_path,
@@ -404,21 +403,16 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix, detect_only=None, retu
         print("WARNING: duplicate channel indices detected; using unique ordering")
         channels = tuple(dict.fromkeys(channels))
 
-    subset = len(channels) != stack.shape[2]
-    if subset:
-        if not detect_only:
-            print(
-                "INFO: Channel subset specified; forcing detect_only=True to avoid mismatch with cluster means."
-            )
-            detect_only = True
-        stack = stack[:, :, list(channels)]
+    is_subset = len(channels) != stack.shape[2]
+    if is_subset:
+        stack_for_detection = stack[:, :, list(channels)]
         if detect_only:
             print(
-                f"Detecting using channel subset {channels} (original nch={ops['black_level'].__len__()})."
+                f"Detecting using channel subset {channels}."
             )
     
     spots = detect_spots(
-        np.max(stack, axis=2), threshold=ops["hybridisation_detection_threshold"]
+        np.max(stack_for_detection, axis=2), threshold=ops["hybridisation_detection_threshold"]
     )
     if detect_only:
         print(f"Found {spots.shape[0]} spots. Stopping here as requested")
@@ -431,10 +425,15 @@ def extract_hyb_spots_tile(data_path, tile_coors, prefix, detect_only=None, retu
             channels_str = "_".join(map(str, list(channels)))
             spots.to_pickle(
                 save_dir
-                / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}_chs_{channels_str}.pkl"
+                / f"{prefix}_spots_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
             )
             print(f"saved spots for {prefix} tile {tile_coors} to {save_dir}")
             return
+    
+    clusters = np.load(
+        processed_path / f"{prefix}_cluster_means.npz", allow_pickle=True
+    )
+
     if spots.shape[0]:
         print(f"Found {spots.shape[0]} spots. Extracting")
         stack = stack[:, :, np.argsort(ops["camera_order"]), np.newaxis]
