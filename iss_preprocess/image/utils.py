@@ -2,6 +2,9 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import tifffile
+
+from iss_preprocess.io.load import get_channel_round_transforms, get_processed_path, get_processed_path, load_ops, load_tile_by_coors
 
 from ..io import load_stack, write_stack
 
@@ -86,3 +89,31 @@ def flip_all_tiffs(
             flip_vertical=flip_vertical,
         )
         write_stack(flipped, target)
+
+
+def black_out_tiff(input_path, output_path):
+    """Load a TIFF, zero all pixels, and save.
+
+    Args:
+        input_path (str): Path to input TIFF.
+        output_path (str): Path to output TIFF.
+    """
+    if input_path is None or output_path is None:
+        print("Usage: python blackout_tif.py input.tif output.tif")
+        return
+
+    # Load all pages
+    with tifffile.TiffFile(input_path) as tf:
+        pages = [p.asarray() for p in tf.pages]
+
+
+    # Zero all pages and stack into (X, Y, Npages)
+    black_pages = [np.zeros_like(img) for img in pages]
+    stack = np.stack(black_pages, axis=2)  # shape: (X, Y, N)
+
+    # Save back as multi-page TIFF (write_stack handles dtype/compression)
+    write_stack(stack, output_path, dtype="uint16")
+
+    print(f"Blacked out TIFF written to: {output_path}")
+
+
