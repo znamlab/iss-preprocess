@@ -726,7 +726,7 @@ def correct_shifts_to_ref(data_path, prefix, max_shift=None, fit_angle=False):
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     if max_shift is None:
-        max_shift = ops["max_shift2ref"]
+        max_shift = ops["initial_max_shift2ref"]
     use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
     prefix_to_reg = f"to_ref_{prefix}"
     for roi_dim in roi_dims[use_rois, :]:
