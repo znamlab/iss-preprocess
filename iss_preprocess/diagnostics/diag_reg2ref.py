@@ -133,22 +133,48 @@ def check_reg_to_ref_correction(
         for ix in range(ntiles[0]):
             for iy in range(ntiles[1]):
                 fname = reg_dir / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                new_fname = reg_dir / f"to_ref_{prefix}" / f"tforms_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
                 if not fname.exists():
-                    continue
+                    if not new_fname.exists():
+                        continue
+                    else: 
+                        fname = new_fname
                 try:
                     tform = np.load(fname)["matrix_between_channels"][0]
                     raw[:2, ix, iy] = tform[:2, 2]
                 except ValueError:
                     print(f"Could not load {fname}. Skipping.")
                     continue
-                tform = np.load(
-                    reg_dir / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
-                )["matrix_between_channels"][0]
-                corrected[:2, ix, iy] = tform[:2, 2]
-                tform = np.load(
-                    reg_dir / f"tforms_best_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
-                )["matrix_between_channels"][0]
-                best[:2, ix, iy] = tform[:2, 2]
+                fname = reg_dir / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                new_fname = reg_dir / f"to_ref_{prefix}" / f"tforms_corrected_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                if not fname.exists():
+                    if not new_fname.exists():
+                        continue
+                    else: 
+                        fname = new_fname
+                try:
+                    tform = np.load(
+                        fname
+                    )["matrix_between_channels"][0]
+                    corrected[:2, ix, iy] = tform[:2, 2]
+                except ValueError:
+                    print(f"Could not load {fname}. Skipping.")
+                    continue
+                fname = reg_dir / f"tforms_best_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                new_fname = reg_dir / f"to_ref_{prefix}" / f"tforms_best_to_ref_{prefix}_{roi}_{ix}_{iy}.npz"
+                if not fname.exists():
+                    if not new_fname.exists():
+                        continue
+                    else: 
+                        fname = new_fname
+                try:
+                    tform = np.load(
+                        fname
+                    )["matrix_between_channels"][0]
+                    best[:2, ix, iy] = tform[:2, 2]
+                except ValueError:
+                    print(f"Could not load {fname}. Skipping.")
+                    continue
         fig, axes = plt.subplots(4, 3, figsize=(12, 8))
         fig = plot_matrix_difference(
             raw=raw,
@@ -168,7 +194,9 @@ def check_reg_to_ref_correction(
             figure_folder / f"registration_to_ref_estimation_{prefix}_roi{roi}.png"
         )
         figs[roi] = fig
-    return fig
+        plt.close(fig) 
+    print("done")
+    return figs
 
 
 @slurm_it(conda_env="iss-preprocess")
