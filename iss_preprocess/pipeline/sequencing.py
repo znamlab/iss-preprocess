@@ -209,17 +209,41 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     cluster_means = np.load(processed_path / "barcode_cluster_means.npy")
 
     print(f"Loading and registering tile {tile_coors}")
-    stack, bad_pixels = load_and_register_sequencing_tile(
-        data_path,
-        tile_coors,
-        filter_r=ops["filter_r"],
-        prefix="barcode_round",
-        suffix=ops["barcode_projection"],
-        nrounds=ops["barcode_rounds"],
-        correct_channels=ops["barcode_correct_channels"],
-        corrected_shifts=ops["corrected_shifts"],
-        correct_illumination=True,
-    )
+    # check ops for whether to fill tile with neighbours?
+    if ops["fill_with_neighbours"]:
+        print("Filling missing pixels with neighbouring tiles")
+        ref_round = ops["ref_round"] + 1  # rounds are 1-indexed in filenames
+        reference_prefix = f"barcode_round_{ref_round}_1"
+        stack, bad_pixels = load_register_and_fill_tile(
+            data_path,
+            tile_coors,
+            filter_r=ops["filter_r"],
+            prefix="barcode_round",
+            suffix=ops["barcode_projection"],
+            nrounds=ops["barcode_rounds"],
+            correct_channels=ops["barcode_correct_channels"],
+            corrected_shifts=ops["corrected_shifts"],
+            correct_illumination=True,
+            reference_prefix=reference_prefix,
+            specific_rounds=None, 
+            edge=10,
+            mid=5,
+            zero_fill_output=False,
+        )
+    else:
+        print("Not filling missing pixels with neighbouring tiles")
+        stack, bad_pixels = load_and_register_sequencing_tile(
+            data_path,
+            tile_coors,
+            filter_r=ops["filter_r"],
+            prefix="barcode_round",
+            suffix=ops["barcode_projection"],
+            nrounds=ops["barcode_rounds"],
+            correct_channels=ops["barcode_correct_channels"],
+            corrected_shifts=ops["corrected_shifts"],
+            correct_illumination=True,
+        )
+
     stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 
     spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])

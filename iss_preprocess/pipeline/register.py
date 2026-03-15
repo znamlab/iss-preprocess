@@ -5,9 +5,11 @@ import numpy as np
 from image_tools.similarity_transforms import make_transform
 from scipy.ndimage import median_filter
 from skimage.morphology import binary_dilation, disk
-from skimage.transform import SimilarityTransform
+from skimage.transform import SimilarityTransform, AffineTransform, warp
 from sklearn.linear_model import RANSACRegressor
 from znamutils import slurm_it
+
+from iss_preprocess.io.load import load_mask_by_coors, get_shifts_to_ref
 
 from ..image.correction import filter_stack
 from ..io import (
@@ -1194,3 +1196,451 @@ def load_and_register_raw_stack(data_path, prefix, tile_coors, corrected_shifts=
         )
 
     return c_stack
+
+
+# helpers for load and fill function
+def find_tiles_to_load(bad_pixels, edge = 10, mid = 5):
+    """Given a bad pixel mask for a tile, find which neighboring tiles are needed
+    to fill the bad pixels at the edges.
+    Args:
+        bad_pixels (numpy.ndarray): 2D boolean array (X x Y) of bad pixels for the tile.
+        edge (int, optional): pixel distance from edge searched for missing pixels. Defaults to 10.
+        mid (int, optional): half-width of the middle window along the edge. Defaults to 5.
+    
+    Returns:
+        numpy.ndarray: List of (x_offset, y_offset) tuples indicating which neighboring
+        tiles to load.
+    """
+
+    tiles_to_load = []
+
+    H, W = bad_pixels.shape
+  
+    H, W = bad_pixels.shape
+    cy, cx = H // 2, W // 2
+
+    checks = {
+        # sides first
+        ( 1,  0): bad_pixels[cy-mid:cy+mid, -edge:],   # right edge middle
+        ( 0,  1): bad_pixels[-edge:, cx-mid:cx+mid],   # bottom edge middle
+        ( 0, -1): bad_pixels[0:edge,  cx-mid:cx+mid],  # top edge middle
+        (-1,  0): bad_pixels[cy-mid:cy+mid, 0:edge],   # left edge middle
+        # then corners
+        (-1, -1): bad_pixels[0:edge, 0:edge],          # top-left
+        ( 1, -1): bad_pixels[0:edge, -edge:],          # top-right
+        (-1,  1): bad_pixels[-edge:, 0:edge],          # bottom-left
+        ( 1,  1): bad_pixels[-edge:, -edge:],          # bottom-right
+    }
+
+    for offset, region in checks.items():
+        if region.any():
+            tiles_to_load.append(offset)
+
+    tiles_to_load = np.array(tiles_to_load, dtype=int)
+
+    return tiles_to_load
+
+def find_shift_stitch(tile_coors, shifts, adj_offset, ops):
+    """
+    Computes the (down_shift, right_shift) needed to map the neighbor tile into the center tile frame.
+    """
+    try:
+        # account for tiling direction
+        right_offset_mirror = 1 if ops["x_tile_direction"] == "left_to_right" else -1
+        down_offset_mirror = 1 if ops["y_tile_direction"] == "top_to_bottom" else -1
+
+        # down stitches
+        if adj_offset[1] == 1:  # tiles below
+            down_shift, right_shift = -shifts["shift_down"][tile_coors[1], tile_coors[2]+1 * down_offset_mirror]
+        elif adj_offset[1] == -1:  # tiles above
+            down_shift, right_shift = shifts["shift_down"][tile_coors[1], tile_coors[2]]
+        elif adj_offset[1] == 0:
+            down_shift, right_shift = 0, 0
+
+        # right stitches
+        if adj_offset[0] == 1:  # tiles to right
+            down_shift_r, right_shift_r = -shifts["shift_right"][tile_coors[1], tile_coors[2] + adj_offset[1] * down_offset_mirror]
+            down_shift += down_shift_r
+            right_shift += right_shift_r
+        elif adj_offset[0] == -1:  # tiles to left
+            down_shift_r, right_shift_r = shifts["shift_right"][tile_coors[1] - right_offset_mirror, tile_coors[2] + adj_offset[1] * down_offset_mirror]
+            down_shift += down_shift_r
+            right_shift += right_shift_r
+    
+    except Exception as e:
+        print(f"Error computing shifts for tile {tile_coors} with offset {adj_offset}: {e}")
+        down_shift, right_shift = None, None
+
+    return down_shift, right_shift
+
+
+def load_register_and_fill_tile(
+    data_path,
+    tile_coors,
+    prefix="barcode_round",
+    suffix="max",
+    reference_prefix="barcode_round_2_1",
+    corrected_shifts="best",
+    correct_channels=False,
+    correct_illumination=True,
+    filter_r=(2,4),
+    specific_rounds=None, 
+    nrounds=15, # necessary?
+    edge=10,
+    mid=5,
+    zero_fill_output=False,
+):
+    """Load, register and fill missing pixels in a tile using neighbouring tiles.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple): (Roi, tileX, tileY) tuple
+        prefix (str, optional): Prefix of the sequencing round.
+            Defaults to "barcode_round".
+        suffix (str, optional): Filename suffix corresponding to the z-projection
+            to use. Defaults to "max".
+        corrected_shifts (str, optional): Which shift to use. One of `reference`,
+            `single_tile`, `ransac`, or `best`. Defaults to 'best'.
+        correct_channels (bool, optional): Whether to normalize channel
+            brightness. If 'round1_only', normalise by round 1 correction factor,
+            otherwise, if True use all norm_factors. Defaults to False.
+        correct_illumination (bool, optional): Whether to correct vignetting.
+            Defaults to True.
+        bad_pixels_per_round (bool, optional): If True, bad pixels are identified
+            per round, otherwise across all rounds. Defaults to True.
+        specific_rounds (list, optional): if not None, specifies which rounds must be
+            loaded and ignores `nrounds`. Defaults to None
+        nrounds (int, optional): Number of sequencing rounds to load. Used only if
+            specific_rounds is None. Defaults to None.
+        edge (int, optional): Edge size for filling missing pixels. Defaults to 10.
+        mid (int, optional): Mid size for filling missing pixels. Defaults to 5.
+        reload_shifts (bool, optional): Whether to reload shifts from file.
+            Defaults to True.
+        save_plot (bool, optional): Whether to save a plot of the filled pixels.
+            Defaults to False.
+        zero_fill_output (bool, optional): Whether to set filled pixels to zero.
+            Defaults to True.
+        filter_r (tuple, optional): Inner and out radius for the hanning filter.
+            If `False`, stack is not filtered. Defaults to (2, 4).
+    
+    Returns:
+        numpy.ndarray: X x Y x Nch x len(specific_rounds) or Nrounds image stack.
+        numpy.ndarray: X x Y boolean mask, identifying bad pixels that are left.
+    """
+    ops = load_ops(data_path)
+    print("Loading and registering tile:", tile_coors)
+    processed_path = get_processed_path(data_path)
+    # load shifts between tiles within reference acquisition
+    shifts_within_ref_fname = (
+        processed_path
+        / "reg"
+        / f"{reference_prefix}_within"
+        / f"{reference_prefix}_{tile_coors[0]}_shifts.npz"
+    )
+    if not shifts_within_ref_fname.exists():
+        raise FileNotFoundError(f"Could not find saved shifts at {shifts_within_ref_fname}, please run register_within_acquisition first.")
+    shifts = np.load(shifts_within_ref_fname)
+
+    # requires that setup of barcode calling has been run for channel correction
+    res, bad_pixels = load_and_register_sequencing_tile(
+        data_path,
+        tile_coors=tile_coors,
+        prefix=prefix,
+        suffix=suffix,
+        filter_r=False, # do this once for filled stack in the end
+        correct_channels=correct_channels,
+        corrected_shifts=corrected_shifts,
+        correct_illumination=correct_illumination,
+        nrounds=nrounds,
+        specific_rounds=specific_rounds,
+        bad_pixels_per_round=True
+    )
+    mask = np.broadcast_to(bad_pixels[:, :, None, :], res.shape)  # (2460,3290,4,15)
+    res[mask] = np.nan
+    # identify pixels to fill
+    bad_pixels_any_round = np.any(bad_pixels, axis=2)
+    tiles_to_load = find_tiles_to_load(bad_pixels_any_round, edge=edge, mid=mid)
+
+    # for illumination correction
+    round_prefix = "barcode_round"
+    correction_path = processed_path / f"correction_{round_prefix}.npz"
+    norm_factors = np.load(correction_path, allow_pickle=True)["norm_factors"]
+    if correct_channels == "round1_only":
+        # use round 1 factors for all rounds keep shape as (4,15)
+        norm_factors = np.repeat(norm_factors[:,0][:,np.newaxis], norm_factors.shape[1], axis=1) 
+    elif not correct_channels:
+        norm_factors = np.ones_like(norm_factors)  # (4,15)
+
+    filled_stack = res.copy()
+    bad_pixels_orig = np.broadcast_to(bad_pixels[:, :, None, :], res.shape).copy()  # (2460,3290,4,15)
+
+    # normalize specific_rounds to np.ndarray of round numbers starting at 1
+    if specific_rounds is None:
+        rounds_1based = np.arange(nrounds) + 1
+    elif isinstance(specific_rounds, int):
+        rounds_1based = np.array([specific_rounds], dtype=int)
+    else:
+        rounds_1based = np.array(list(specific_rounds), dtype=int)
+
+
+    for adj_offset in tiles_to_load.copy():
+            #### DO THIS BEFORE accounting for direction
+            # TODO make more clear framework for how to account for direction
+            down_stitch, right_stitch = find_shift_stitch(tile_coors, shifts, adj_offset, ops)
+            ###
+
+            #skip if tile is edge tile and no tiles were imaged to the current direction
+            if down_stitch is None or right_stitch is None:
+                print(f"Skipping adjacent tile at offset {adj_offset} due to missing shifts")
+                continue
+
+            # account for direction
+            if ops["x_tile_direction"] == "right_to_left":
+                    print("Accounting for right to left tiling")
+                    adj_offset *= np.array([-1, 1])
+            if ops["y_tile_direction"] == "bottom_to_top":
+                    print("Accounting for bottom to top tiling")
+                    adj_offset *= np.array([1, -1])
+                
+            # put together tile coordinates of adjacent tile
+            adj_coors = (tile_coors[0], tile_coors[1] + adj_offset[0], tile_coors[2] + adj_offset[1])
+            print(f"Loading adjacent tile at offset {adj_offset}, coordinates {adj_coors}")
+            # load adjacent tile
+            try:
+                stack = load_sequencing_rounds(
+                        data_path,
+                        adj_coors,
+                        suffix=suffix,
+                        prefix=prefix,
+                        nrounds=nrounds,
+                        specific_rounds=specific_rounds,
+                        correct_illumination=correct_illumination,
+                )
+            except FileNotFoundError:
+                print(f"Could not load adjacent tile at offset {adj_offset}, skipping")
+                continue
+
+            tforms = get_channel_round_transforms(
+                    data_path, prefix, adj_coors, shifts_type=corrected_shifts, load_file=True
+            )
+
+            if "matrix_between_channels" not in tforms:
+                    print("No matrix_between_channels in tforms")
+
+            tforms = generate_channel_round_transforms(
+                    tforms["angles_within_channels"],
+                    tforms["shifts_within_channels"],
+                    tforms["matrix_between_channels"],
+                    stack.shape[:2],
+                    align_channels=ops["align_channels"],
+                    ref_ch=ops["ref_ch"],
+            )
+
+            tforms = tforms[:, rounds_1based - 1]
+
+            # add stitching shifts to tforms
+            for i in range(tforms.shape[0]):
+                    for j in range(tforms.shape[1]):
+                            A = tforms[i, j]
+                            A[0, 2] += right_stitch
+                            A[1, 2] += down_stitch
+
+            stack = align_channels_and_rounds(stack, tforms)
+
+            ### TODO mask for each channel to account for cases with big shifts between channels
+
+            # mask bad pixels
+            bad_pixels_adj = np.any(np.isnan(stack), axis=2, keepdims=True)  # shape (2460, 3290, 1, 15)
+            bad_pixels_mask = np.broadcast_to(bad_pixels_adj, stack.shape)              # shape (2460, 3290, 4, 15)
+            stack_masked = stack.copy()
+            stack_masked[bad_pixels_mask] = np.nan
+
+            # mask already good pixels
+            can_fill = bad_pixels_orig & ~np.isnan(stack_masked)
+
+            # apply channel illumination correction
+            if correct_channels:
+                stack_masked = stack_masked / norm_factors[np.newaxis, np.newaxis, :, rounds_1based - 1]
+            
+            # stack_masked = np.nan_to_num(stack_masked)???
+
+            # copy into result only where bad pixels in original
+            filled_stack[can_fill] = stack_masked[can_fill]
+
+            # update filled pixels mask
+            bad_pixels_orig[can_fill] = False
+            print(f"Filled {np.sum(can_fill)} pixels from adjacent tile at offset {adj_offset}")
+    
+
+    bad_pixels_left = np.any(bad_pixels_orig, axis=(2,3))
+
+    # hanning windowing commutes w the channel correction that we do right?
+    if filter_r: 
+        filled_stack = filter_stack(filled_stack, r1=filter_r[0], r2=filter_r[1])
+        mask = np.ones((filter_r[1] * 2 + 1, filter_r[1] * 2 + 1))
+        bad_pixels_left = binary_dilation(bad_pixels_left, mask)
+
+    filled_stack = np.nan_to_num(filled_stack) if zero_fill_output else filled_stack
+    
+
+    return filled_stack, bad_pixels_left
+
+
+def load_register_and_fill_tile_mask(
+    data_path,
+    tile_coors,
+    prefix="hybridisation_round_1_1",
+    reference_prefix="barcode_round_2_1",
+    corrected_shifts="best",
+):
+    """Load, register and fill missing pixels in a tile using neighbouring tiles.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple): (Roi, tileX, tileY) tuple
+        prefix (str, optional): Prefix of the acquisition to load. Defaults to "hybridisation_round_1_1".
+        reference_prefix (str, optional): Prefix of the acquisition to use for registration reference. Defaults to "barcode_round_2_1".
+        corrected_shifts (str, optional): Which shift to use. One of `reference`, `single_tile`, `ransac`, or `best`. Defaults to 'best'.
+
+    Returns:
+        numpy.ndarray: X x Y mask image.
+    """
+    ops = load_ops(data_path)
+    print("Loading and registering tile:", tile_coors)
+    processed_path = get_processed_path(data_path)
+    # load shifts between tiles within reference acquisition
+    shifts_within_ref_fname = (
+        processed_path
+        / "reg"
+        / f"{reference_prefix}_within"
+        / f"{reference_prefix}_{tile_coors[0]}_shifts.npz"
+    )
+    if not shifts_within_ref_fname.exists():
+        raise FileNotFoundError(f"Could not find saved shifts at {shifts_within_ref_fname}, please run register_within_acquisition first.")
+    shifts = np.load(shifts_within_ref_fname)
+
+    # requires that setup of barcode calling has been run for channel correction
+    cell_mask = load_mask_by_coors(
+        data_path,
+        prefix,
+        tile_coors,
+        suffix="corrected",
+    )
+
+    reg2ref_tform = get_shifts_to_ref(
+        data_path, 
+        prefix, 
+        tile_coors[0], 
+        tile_coors[1], 
+        tile_coors[2]
+    )["matrix_between_channels"][0]
+
+
+    channels = ops["cellpose_channels"]
+    # create transform 
+    if len(channels) == 1:
+        # if only one channel, include channel transform
+        channel_transforms = get_channel_round_transforms(
+            data_path,
+            prefix,
+            tile_coors=tile_coors,
+            shifts_type=corrected_shifts,
+            load_file=True,
+        )["matrix_between_channels"][channels][0]
+
+        # first ch tform then reg2ref
+        tform = reg2ref_tform @ channel_transforms
+
+    else:
+        tform = reg2ref_tform
+
+    res = warp(
+        cell_mask,
+        AffineTransform(matrix=tform).inverse,
+        preserve_range=True,
+        cval=0,
+        order=0,        
+    ).astype(cell_mask.dtype)
+    
+    # load adjacent tiles and fill with labels
+    tiles_to_load = [[0, 1], [1,1], [0, -1], [-1,1], [1, 0], [-1, 0], [-1,-1], [1,-1]]  # down, up, right, left + corners
+    for adj_offset in tiles_to_load.copy():
+            #### DO THIS BEFORE accounting for direction
+            # TODO make more clear framework for how to account for direction
+            down_stitch, right_stitch = find_shift_stitch(tile_coors, shifts, adj_offset, ops)
+            ###
+
+            #skip if tile is edge tile and no tiles were imaged to the current direction
+            if down_stitch is None or right_stitch is None:
+                print(f"Skipping adjacent tile at offset {adj_offset} due to missing shifts")
+                continue
+
+            # account for direction
+            if ops["x_tile_direction"] == "right_to_left":
+                    print("Accounting for right to left tiling")
+                    adj_offset *= np.array([-1, 1])
+            if ops["y_tile_direction"] == "bottom_to_top":
+                    print("Accounting for bottom to top tiling")
+                    adj_offset *= np.array([1, -1])
+
+            # put together tile coordinates of adjacent tile
+            adj_coors = (tile_coors[0], tile_coors[1] + adj_offset[0], tile_coors[2] + adj_offset[1])
+            print(f"Loading adjacent tile at offset {adj_offset}, coordinates {adj_coors}")
+            # load adjacent tile
+            try:
+                adj_mask = load_mask_by_coors(
+                    data_path,
+                    prefix,
+                    adj_coors,
+                    suffix="corrected",
+                )
+            except FileNotFoundError:
+                print(f"Could not load adjacent tile at offset {adj_offset}, skipping")
+                continue
+
+            adj_reg2ref_tform = get_shifts_to_ref(
+                data_path, 
+                prefix, 
+                adj_coors[0], 
+                adj_coors[1], 
+                adj_coors[2]
+            )["matrix_between_channels"][0]
+
+            if len(channels) == 1:
+                # if only one channel, include channel transform
+                adj_channel_transforms = get_channel_round_transforms(
+                    data_path,
+                    prefix,
+                    tile_coors=adj_coors,
+                    shifts_type=corrected_shifts,
+                    load_file=True,
+                )["matrix_between_channels"][channels][0]
+
+                # first ch tform then reg2ref
+                tform = adj_reg2ref_tform @ adj_channel_transforms
+            else:
+                tform = adj_reg2ref_tform
+
+            # add stitching shifts to tforms
+
+            tform[0, 2] += right_stitch
+            tform[1, 2] += down_stitch
+
+            adj_masks = warp(
+                adj_mask,
+                AffineTransform(matrix=tform).inverse,
+                preserve_range=True,
+                cval=0,
+                order=0,        
+            ).astype(adj_mask.dtype)
+
+            # add masks from adjacent tile to current tile, only filling in where current tile is 0 and adjacent tile is not 0
+            fill_mask = (res == 0) & (adj_masks != 0)
+
+            # make sure same label isn't used for several cells
+            max_label = res.max()
+            adj_masks[adj_masks > 0] += max_label
+
+            res[fill_mask] = adj_masks[fill_mask]
+
+    return res
