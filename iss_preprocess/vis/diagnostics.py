@@ -93,7 +93,8 @@ def plot_correction_images(
         axes = [
             fig.add_subplot(len(other_prefix) * 2, 4, ip * 8 + i + 5) for i in range(4)
         ]
-        sub_images = correction_images[prefix] - correction_images["genes_round"]
+        # TODO: should there be an opion to decide which acquisition to use as reference for subtraction? 
+        sub_images = correction_images[prefix] - correction_images["barcode_round_max"]
         sub_images = np.dstack([sub_images, np.zeros_like(sub_images[:, :, 0])])
         _plot_channels_intensity(axes, sub_images, subtract_chan=4)
     plt.subplots_adjust(wspace=0.2)
