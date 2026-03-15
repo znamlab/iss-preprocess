@@ -24,7 +24,7 @@ ROI:
 10:
   chamber_position: 10
 
-# Rank order wavelength for each camera
+# Rank order wavelength (short to long) for each camera
 camera_order: [4, 3, 2, 1]
 
 # Folders for rounds are called: genes_round_X_1 or barcode_round_X_1
