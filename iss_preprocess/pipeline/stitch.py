@@ -909,13 +909,13 @@ def stitch_tiles(
     else:
         if correct_illumination:
             ops = load_ops(data_path)
-            average_image_fname = processed_path / "averages" / f"{prefix}_average.tif"
+            average_image_fname = processed_path / "averages" / f"{prefix}_{suffix}_average.tif"
             average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
 
         def load_func(data_path, tile_coors, prefix):
             stack = load_tile_by_coors(
                 data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
-            )[:, :, ich]
+            )
             if correct_illumination:
                 stack = (stack.astype(float) - ops["black_level"][ich]) / average_image
             return stack
@@ -923,10 +923,19 @@ def stitch_tiles(
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_func(data_path, (roi, ix, iy), prefix=prefix)
-            stitched_stack[
-                tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
-                tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
-            ] = stack
+            # print(stack.shape)
+            # print(ich)
+            if ich is not None:
+                stitched_stack[
+                    tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
+                    tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
+                ] = stack[:, :, ich].squeeze()
+            else:
+                stitched_stack[
+                    tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
+                    tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
+                    :,
+                ] = stack
     return stitched_stack
 
 
