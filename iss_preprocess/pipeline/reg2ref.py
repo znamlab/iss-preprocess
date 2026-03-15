@@ -323,17 +323,19 @@ def register_to_ref_using_stitched_registration(
             tforms = make_transform(1, angle, shift_tile, tile_shape)
             processed_path = get_processed_path(data_path)
 
-            target = (
+            target_folder = (
                 processed_path
                 / "reg"
-                / f"tforms_to_ref_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
+                / f"to_ref_{reg_prefix}"
             )
+            target_folder.mkdir(parents=True, exist_ok=True)
+            target = target_folder / f"tforms_stitched_to_ref_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
             # reshape tforms to be like the multichannels tforms
             np.savez(target, matrix_between_channels=tforms.reshape((1, 3, 3)))
 
     if save_plot:
         save_folder = get_processed_path(data_path) / "figures" / "registration"
-        save_folder /= f"{reg_prefix}_to_{ref_prefix}"
+        save_folder /= f"stitched_to_ref_{ref_prefix}"
         save_folder.mkdir(parents=True, exist_ok=True)
         save_path = save_folder / f"{reg_prefix}_to_{ref_prefix}_roi_{roi}.png"
         check_reg2ref_using_stitched(

@@ -23,6 +23,7 @@ from ..io import (
     load_stack,
     load_tile_by_coors,
 )
+from iss_preprocess.io.load import get_shifts_to_ref
 from ..reg import (
     estimate_rotation_translation,
     estimate_scale_rotation_translation,
@@ -102,7 +103,13 @@ def load_tile_ref_coors(
 
 
 def warp_stack_to_ref(
-    stack, data_path, prefix, tile_coors, interpolation=1, bad_pixels=None
+    stack, 
+    data_path, 
+    prefix, 
+    tile_coors, 
+    interpolation=1, 
+    bad_pixels=None,
+    shift_type=None
 ):
     """Warp a stack to the reference coordinates
 
@@ -123,7 +130,10 @@ def warp_stack_to_ref(
 
     """
     ops = load_ops(data_path)
-    reg2ref = get_tform_to_ref(data_path, prefix, tile_coors)
+    if shift_type is not None:
+        reg2ref = get_tform_to_ref(data_path, prefix, tile_coors, corrected_shifts=shift_type)
+    else:
+        reg2ref = get_tform_to_ref(data_path, prefix, tile_coors)
 
     if ops["align_method"] == "affine":
         tform = reg2ref["matrix_between_channels"][0]
@@ -178,7 +188,7 @@ def get_tform_to_ref(data_path, prefix, tile_coors, corrected_shifts=None):
         ops = load_ops(data_path)
         corrected_shifts = ops["corrected_shifts2ref"]
 
-    valid_shifts = ["single_tile", "ransac", "best"]
+    valid_shifts = ["single_tile", "ransac", "best", "stitched"]
     assert corrected_shifts in valid_shifts, (
         f"unknown shifts2ref correction method, must be one of {valid_shifts}",
     )
@@ -197,9 +207,11 @@ def get_tform_to_ref(data_path, prefix, tile_coors, corrected_shifts=None):
         correction_fname = "tforms_corrected_to_ref"
     elif corrected_shifts == "best":
         correction_fname = "tforms_best_to_ref"
+    elif corrected_shifts == "stitched":
+        correction_fname = "tforms_stitched_to_ref"
     reg2ref = np.load(
         get_processed_path(data_path)
-        / "reg"
+        / "reg" / f"to_ref_{reg_prefix}"
         / f"{correction_fname}_{reg_prefix}_{roi}_{tilex}_{tiley}.npz"
     )
     return reg2ref
@@ -243,7 +255,7 @@ def register_all_rois_within(
         use_slurm (bool, optional): Use SLURM to parallelize the registration. Defaults
             to True.
         job_dependency (list, optional): List of job dependencies. Defaults to None.
-        script_names (str, optional):Script names for slurm jobs. Defaults to None.
+        scripts_name (str, optional):Script names for slurm jobs. Defaults to None.
         slurm_folder (str, optional): Folder to save SLURM logs. Defaults to None.
 
     Returns:
