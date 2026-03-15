@@ -142,6 +142,7 @@ def check_shift_correction(
         ndims = ndims[np.isin(ndims[:, 0], ops["use_rois"])]
     nc = len(ops["camera_order"])
     nr = ops.get(f"{prefix}s", 1)
+    selected_shifts = ops.get("corrected_shifts", "best")
 
     # Now plot them.
     def get_shifts(which, archive):
@@ -186,7 +187,8 @@ def check_shift_correction(
                 )
                 corrected[..., :2, ix, iy] = get_shifts(which, data)
                 corrected[..., 2, ix, iy] = get_angle(which, data)
-                tf_best = reg_dir / f"tforms_best_{prefix}_{roi}_{ix}_{iy}.npz"
+                # TDOD select the form used in ops["corrected_shifts"] (default best) - not sure whats below is robust in terms of options vs tform file naming
+                tf_best = reg_dir / f"tforms_{selected_shifts}_{prefix}_{roi}_{ix}_{iy}.npz"
                 if tf_best.exists():
                     data = np.load(tf_best)
                     best[..., :2, ix, iy] = get_shifts(which, data)
@@ -207,40 +209,74 @@ def check_shift_correction(
             for c in range(nc):
                 for ifeat, feat in enumerate(corr_feature):
                     raw_to_plot = raw[c, :, ifeat, ...]
-                    corr_to_plot = corrected[c, :, ifeat, ...]
+                    corrected_to_plot = corrected[c, :, ifeat, ...]
                     best_to_plot = best[c, :, ifeat, ...]
-                    plot_matrix_difference(
-                        raw=raw_to_plot,
-                        corrected=corr_to_plot,
-                        col_labels=[f"Round {i} {feat}" for i in np.arange(nr)],
-                        range_min=[5 if ifeat < 2 else 0.1] * nr,
-                        range_max=[10 if ifeat < 2 else 1] * nr,
-                        axes=axes[c * 4 : c * 4 + 3, ifeat * nr : (ifeat + 1) * nr],
-                        line_labels=("Raw", f"CHANNEL {c}\nCorrected", "Difference"),
-                    )
-                    # also plot best
-                    for ir in range(nr):
-                        ax = axes[c * 4 + 3, ifeat * nr + ir]
-                        data = best_to_plot[ir]
-                        vmin, vmax = data.min(), data.max()
-                        rng = vmin - vmax
-                        rng_min = 5 if ifeat < 2 else 0.1
-                        if rng < rng_min:
-                            vmin -= (rng_min - rng) / 2
-                            vmax += (rng_min - rng) / 2
+                    col_labels=[f"Round {i} {feat}" for i in np.arange(nr)]
+                    range_min=[5 if ifeat < 2 else 0.1] * nr
+                    range_max=[10 if ifeat < 2 else 1] * nr
+                    line_labels=("Raw", f"CHANNEL {c}\nCorrected", f"{selected_shifts.capitalize()}", "Difference")
+                    ncols = raw_to_plot.shape[0]
+                    subaxes=axes[c * 4 : c * 4 + 4, ifeat * nr : (ifeat + 1) * nr]
+                    fig = subaxes[0, 0].figure
+                    for col in range(ncols):
+                        vmin = corrected_to_plot[col].min()
+                        vmax = corrected_to_plot[col].max()
+                        rng = vmax - vmin
+                        if rng < range_min[col]:
+                            rng = range_min[col]
+                            vmin = vmin - rng
+                            vmax = vmax + rng
+                        elif (range_max is not None) and (rng > range_max[col]):
+                            rng = range_max[col]
+                            vmin = vmin - rng
+                            vmax = vmax + rng
+                        
+                        # plot raw shifts
                         plot_matrix_with_colorbar(
-                            best_to_plot[ir].T, ax, vmin=vmin, vmax=vmax
+                            raw_to_plot[col].T, 
+                            subaxes[0, col], 
+                            vmin=vmin - rng / 5, 
+                            vmax=vmax + rng / 5
                         )
-                        ax.set_xticks([])
-                        ax.set_yticks([])
-                    axes[c * 4 + 3, ifeat * nr].set_ylabel("Best")
+                        # plot corrected shifts
+                        plot_matrix_with_colorbar(
+                            corrected_to_plot[col].T,
+                            subaxes[1, col],
+                            vmin=vmin - rng / 5,
+                            vmax=vmax + rng / 5,
+                        )
+                        # plot selected shifts (best shifts)
+                        plot_matrix_with_colorbar(
+                            best_to_plot[col].T, 
+                            subaxes[2, col], 
+                            vmin=vmin - rng / 5, 
+                            vmax=vmax + rng / 5
+                        )
+                        # plot difference between selected shifts and raw shifts
+                        plot_matrix_with_colorbar(
+                            (best_to_plot[col] - raw_to_plot[col]).T,
+                            subaxes[3, col],
+                            cmap="RdBu_r",
+                            vmin=-rng,
+                            vmax=rng,
+                        )
+
+                    for x in subaxes.flatten():
+                        x.set_xticks([])
+                        x.set_yticks([])
+                    if col_labels is not None:
+                        for il, label in enumerate(col_labels):
+                            subaxes[0, il].set_title(label, fontsize=11)
+                    if line_labels is not None:
+                        for il, label in enumerate(line_labels):
+                            subaxes[il, 0].set_ylabel(label, fontsize=11)
+
             fig_title = f"{prefix} Correct shift within channels\n"
             fig_title += f"ROI {roi}"
             fig.suptitle(fig_title)
             fig.subplots_adjust(
                 wspace=0.15, hspace=0, bottom=0.01, top=0.95, right=0.95, left=0.1
             )
-
             fname = fig_title.lower().replace(" ", "_").replace("\n", "_")
             fig.savefig(target_folder / (fname + ".png"))
     if between:
