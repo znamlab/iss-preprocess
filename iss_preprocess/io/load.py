@@ -767,3 +767,42 @@ def load_sequencing_rounds(
             )
         )
     return np.stack(ims, axis=3)
+
+
+def get_shifts_to_ref(data_path, prefix, roi, tilex, tiley):
+    """Get the shifts to reference coordinates for a given tile
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of the tile to register
+        roi (int): ROI ID
+        tilex (int): X coordinate of the tile
+        tiley (int): Y coordinate of the tile
+
+    Returns:
+        np.NpzFile: The transformation parameter to reference coordinates
+
+    """
+    ops = load_ops(data_path)
+    if ops["corrected_shifts2ref"] == "single_tile":
+        corrected_shifts = ""
+    elif ops["corrected_shifts2ref"] == "ransac":
+        corrected_shifts = "_corrected"
+    elif ops["corrected_shifts2ref"] == "best":
+        corrected_shifts = "_best"
+    elif ops["corrected_shifts2ref"] == "stitched":
+        corrected_shifts = "_stitched"
+    else:
+        raise ValueError(f"Corrected shifts {ops['corrected_shifts2ref']} not recognised")
+    processed_path = get_processed_path(data_path)
+    tform_path = processed_path / "reg" / f"tforms{corrected_shifts}_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
+    if not tform_path.exists():
+        tform_path = processed_path / "reg" / f"to_ref_{prefix}" / f"tforms{corrected_shifts}_to_ref_{prefix}_{roi}_{tilex}_{tiley}.npz"
+    
+    if not tform_path.exists():
+        raise FileNotFoundError(
+            f"Could not find tforms to ref for {prefix} tile {roi}_{tilex}_{tiley}"
+        )
+    
+    tform2ref = np.load(tform_path)
+    return tform2ref
