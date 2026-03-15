@@ -875,7 +875,7 @@ def create_grand_averages(
 
     check_illumination_correction(
         data_path,
-        grand_averages=prefix_todo[:-1],
+        grand_averages=prefix_todo,
         plot_tilestats=True,
         verbose=True,
         slurm_folder=slurm_folder,
