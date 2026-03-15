@@ -248,11 +248,34 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
 
     spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
     print(f"Detecting spots in tile {tile_coors}")
+
+    basecalling_proj_across_rounds = ops.get(f"basecalling_proj_across_rounds", None)
+    if basecalling_proj_across_rounds is not None:
+        stack_for_proj = stack[:, :, :, basecalling_proj_across_rounds]
+    else:
+        stack_for_proj = stack.copy()
+
+    if ops.get(f"basecalling_proj_type", "std") == "mean":
+        detect_image = np.nanmean(
+            stack_for_proj, axis=(2, 3)
+        )
+    elif ops.get(f"basecalling_proj_type", "std") == "std":
+        detect_image = np.nanstd(
+            stack_for_proj, axis=(2, 3)
+        )
+    else:
+        raise ValueError("basecalling_proj_type must be 'mean' or 'std'")
+    #always use mean for scoring
+    score_image = np.nanmean(
+            stack_for_proj, axis=(2, 3)
+        )
+
     spots = detect_spots_by_shape(
-        np.nanmean(stack, axis=(2, 3)),
+        detect_image,
         spot_sign_image,
         threshold=ops["barcode_detection_threshold_basecalling"],
         rho=ops["barcode_spot_rho"],
+        score_image=score_image,
     )
     print(f"Extracting spots in tile {tile_coors}")
     extract_spots(spots, stack, ops["spot_extraction_radius"])
@@ -557,8 +580,22 @@ def get_reference_spots(data_path, prefix="genes"):
         )
         stack[bad_pixels, :, :] = 0
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
+
+        basecalling_proj_across_rounds = ops.get(f"basecalling_proj_across_rounds", None)
+        if basecalling_proj_across_rounds is not None:
+            stack_for_proj = stack[:, :, :, basecalling_proj_across_rounds]
+
+        if ops.get(f"basecalling_proj_type", "std") == "std":
+            proj_image = np.nanstd(
+                stack_for_proj, axis=(2, 3)
+            )
+        else:
+            proj_image = np.nanmean(
+                stack_for_proj, axis=(2, 3)
+            )
+
         spots = detect_isolated_spots(
-            np.std(stack, axis=(2, 3)),
+            proj_image,
             detection_threshold=ops[f"{prefix}_detection_threshold"],
             isolation_threshold=ops[f"{prefix}_isolation_threshold"],
         )
