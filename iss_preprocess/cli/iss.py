@@ -224,7 +224,7 @@ def call(
     help="Whether to use the GPU",
 )
 def segment_all(path, prefix, use_gpu=False):
-    from iss_preprocess.pipeline.pipeline import segment_all_rois
+    from iss_preprocess.pipeline.segment import segment_all_rois
 
     segment_all_rois(path, prefix, use_gpu=use_gpu)
 
