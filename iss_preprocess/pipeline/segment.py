@@ -8,6 +8,7 @@ import pandas as pd
 from skimage import measure
 from skimage.morphology import binary_closing
 from skimage.segmentation import expand_labels
+from skimage.transform import AffineTransform, warp
 from sklearn.mixture import GaussianMixture
 from tqdm import tqdm
 from znamutils import slurm_it
@@ -19,6 +20,7 @@ from ..diagnostics.diag_segmentation import (
 )
 from ..image.correction import calculate_unmixing_coefficient, unmix_images
 from ..io import (
+    get_channel_round_transforms,
     get_pixel_size,
     get_processed_path,
     get_roi_dimensions,
@@ -27,6 +29,7 @@ from ..io import (
     load_ops,
     load_stack,
     write_stack,
+    load_tile_by_coors,
 )
 from ..segment import (
     cellpose_segmentation,
@@ -38,7 +41,7 @@ from ..segment.cells import label_image, remove_overlapping_labels
 from .ara_registration import spots_ara_infos
 from .core import batch_process_tiles
 from .register import load_and_register_raw_stack, load_and_register_tile
-from .stitch import find_tile_overlap, stitch_registered
+from .stitch import find_tile_overlap, get_tile_corners, stitch_registered
 
 
 def segment_all_rois(data_path, prefix="DAPI_1", use_gpu=False):
@@ -101,10 +104,10 @@ def segment_all_tiles(
         list: List of job IDs for the slurm jobs.
     """
     # create the list of tiles to process
+    ops = load_ops(data_path)
     if tile_list is None:
         roi_dims = get_roi_dimensions(data_path)
         if use_rois is None:
-            ops = load_ops(data_path)
             use_rois = ops.get("use_rois", roi_dims[:, 0])
         tile_list = []
         for r in use_rois:
@@ -118,7 +121,7 @@ def segment_all_tiles(
     slurm_folder = Path.home() / "slurm_logs" / data_path / "segmentation"
     slurm_folder.mkdir(exist_ok=True, parents=True)
 
-    ops = load_ops(data_path)
+
     target = get_processed_path(data_path) / "cells"
     target.mkdir(exist_ok=True)
     if use_raw_stack:
@@ -138,34 +141,63 @@ def segment_all_tiles(
     done = len(tile_list) - len(tile_2cellpose)
     print(f"Raw masks already exist for {done}/{len(tile_list)} tiles")
 
-    # Running cellpose on slurm
-    if len(tile_2cellpose):
-        if use_slurm:
-            job_ids = run_cellpose_segmentation(
-                data_path=data_path,
-                prefix=prefix,
-                use_raw_stack=use_raw_stack,
-                use_gpu=use_gpu,
-                use_slurm=use_slurm,
-                slurm_folder=slurm_folder,
-                batch_param_names=["roi", "tx", "ty"],
-                batch_param_list=tile_2cellpose,
-            )
+    if ops["segmentation_approach"] == "cpsam_2d":
+        assert use_raw_stack == False, "use projected tiles for 2d segmentation"
+        print("using cpsam_2d")
+        if len(tile_2cellpose):
+            if use_slurm:
+                job_ids = run_cpsam_2d_segmentation(
+                    data_path=data_path,
+                    prefix=prefix,
+                    use_gpu=use_gpu,
+                    use_slurm=use_slurm,
+                    slurm_folder=slurm_folder,
+                    batch_param_names=["roi", "tx", "ty"],
+                    batch_param_list=tile_2cellpose,
+                )
+            else:
+                for roi, tx, ty in tile_2cellpose:
+                    run_cpsam_2d_segmentation(
+                        data_path,
+                        prefix,
+                        roi=roi,
+                        tx=tx,
+                        ty=ty,
+                        use_gpu=use_gpu,
+                    )
+                job_ids = []
         else:
-            for roi, tx, ty in tile_2cellpose:
-                run_cellpose_segmentation(
-                    data_path,
-                    prefix,
-                    roi=roi,
-                    tx=tx,
-                    ty=ty,
+            job_ids = []
+        job_ids = [item for sublist in job_ids for item in sublist]
+    # Running cellpose on slurm
+    else:
+        if len(tile_2cellpose):
+            if use_slurm:
+                job_ids = run_cellpose_segmentation(
+                    data_path=data_path,
+                    prefix=prefix,
                     use_raw_stack=use_raw_stack,
                     use_gpu=use_gpu,
+                    use_slurm=use_slurm,
+                    slurm_folder=slurm_folder,
+                    batch_param_names=["roi", "tx", "ty"],
+                    batch_param_list=tile_2cellpose,
                 )
+            else:
+                for roi, tx, ty in tile_2cellpose:
+                    run_cellpose_segmentation(
+                        data_path,
+                        prefix,
+                        roi=roi,
+                        tx=tx,
+                        ty=ty,
+                        use_raw_stack=use_raw_stack,
+                        use_gpu=use_gpu,
+                    )
+                job_ids = []
+        else:
             job_ids = []
-    else:
-        job_ids = []
-    job_ids = [item for sublist in job_ids for item in sublist]
+        job_ids = [item for sublist in job_ids for item in sublist]
 
     if use_raw_stack:
         # project masks to a single plane
@@ -255,6 +287,87 @@ def run_cellpose_segmentation(
         print(f"Saved masks to {target}")
     return masks
 
+@slurm_it(
+    conda_env="iss-preprocess",
+    slurm_options={
+        "mem": "32GB",
+        "time": "1:00:00",
+    },
+)
+def run_cpsam_2d_segmentation(
+    data_path, prefix, roi=None, tx=None, ty=None, use_raw_stack=False, use_gpu=True
+):
+    tile_coors = (roi, tx, ty)
+    ops = load_ops(data_path)
+    # if only one channel load w/o any warping, else load and register
+    channels = ops["cellpose_channels"]
+    if len(channels) == 1:
+        img = load_tile_by_coors(
+            data_path,
+            tile_coors=tile_coors,
+            suffix= ops["projection_for_segmentation"],
+            prefix=prefix,
+            correct_illumination=True,
+        )
+        img = img[..., channels]
+    else:
+        img, _ = load_and_register_tile(data_path, tile_coors, prefix)
+        if len(channels):
+            img = img[..., channels]
+        # img = img[..., channels]
+    #     load_and_register_hyb_tile(
+    #     data_path,
+    #     tile_coors=tile_coors,
+    #     prefix=prefix,
+    #     suffix="max",
+    #     filter_r=False,
+    #     correct_illumination=True,
+    #     correct_channels=False,
+    #     corrected_shifts="best",
+    # )
+    # if len(channels):
+
+    
+    stitch_threshold = 0
+    z_axis = None
+
+    print(f"segmenting {data_path} {tile_coors} {prefix}")
+    normalisation = ops["cellpose_normalise"]
+    if "lowhigh" in normalisation:
+        normalisation["lowhigh"] = np.array(normalisation["lowhigh"])
+
+    masks = cellpose_segmentation(
+        img,
+        z_axis=z_axis,
+        # channel_axis=2,
+        use_gpu=use_gpu,
+        # channels=[0, 1],  # channel selection is made in get_stack_for_cellpose
+        flow_threshold=ops["cellpose_flow_threshold"],
+        min_pix=ops["cellpose_min_pix"],
+        dilate_pix=ops["cellpose_dilate_pix"],
+        diameter=ops["cellpose_diameter"],
+        rescale=ops["cellpose_rescale"],
+        model_type=ops["cellpose_model_type"],
+        pretrained_model=ops["pretrained_model"],
+        debug=False,
+        stitch_threshold=stitch_threshold,
+        normalize=normalisation,
+        cellprob_threshold=ops["cellpose_cellprob_threshold"],
+        do_3D=False,
+        anisotropy=None,
+    )
+
+    masks, _ = find_edge_touching_masks(masks, border_width=4)
+
+    target = get_processed_path(data_path) / "cells"
+    tile_name = "_".join(map(str, tile_coors))
+    fname = f"{prefix}_masks_{tile_name}.npy"
+
+    target.mkdir(exist_ok=True)
+    np.save(target / fname, masks)
+    print(f"Saved masks to {target}")
+    return masks
+
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"mem": "64GB", "time": "2:00:00"})
 def run_mask_projection(
@@ -333,8 +446,9 @@ def get_stack_for_cellpose(data_path, prefix, tile_coors, use_raw_stack=True):
         else:
             img = raw_stack[..., channels, :]
     else:
-        img = load_and_register_tile(data_path, tile_coors, prefix)
-        img = img[..., channels]
+        img, _ = load_and_register_tile(data_path, tile_coors, prefix)
+        if len(channels):
+            img = img[..., channels]
     return img
 
 
@@ -361,18 +475,22 @@ def segment_roi(data_path, iroi, prefix="DAPI_1", use_gpu=False):
         prefix=prefix,
         roi=iroi,
         channels=ops["cellpose_channels"],
+        projection=ops["projection_for_segmentation"]
     )
-    if stitched_stack.ndim == 3:
-        stitched_stack = np.nanmean(stitched_stack, axis=-1)
-
+    # if stitched_stack.ndim == 3:
+    #     stitched_stack = np.nanmean(stitched_stack, axis=-1)
+    # adapted to cpsam parameters, eg. takes more than one channel, scale invariant option to give cellprop thresh
     print("starting segmentation", flush=True)
+    print(f"{stitched_stack.ndim}")
     masks = cellpose_segmentation(
-        stitched_stack[..., 0],
-        channels=ops["cellpose_channels"],
+        stitched_stack,
+        # channels=ops["cellpose_channels"],
         flow_threshold=ops["cellpose_flow_threshold"],
-        min_pix=0,
+        cellprob_threshold=ops["cellprob_threshold"],
+        min_pix=ops["mask_size_min_pixel"],
         dilate_pix=0,
-        rescale=ops["cellpose_rescale"],
+        # rescale=ops["cellpose_rescale"],
+        pretrained_model = ops["pretrained_model"],
         model_type=ops["cellpose_model_type"],
         use_gpu=use_gpu,
     )
