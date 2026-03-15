@@ -1151,7 +1151,7 @@ def stitch_and_register(
         nangles=11,
         upsample=False,
         debug=debug,
-        max_shift=ops["max_shift2ref"] // downsample,
+        max_shift=ops["initial_max_shift2ref"] // downsample,
         min_shift=0,
         reference=prep_stack(stitched_stack_reference, downsample),
         target=prep_stack(stitched_stack_target, downsample),
