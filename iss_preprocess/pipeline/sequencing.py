@@ -705,6 +705,26 @@ def estimate_channel_correction(
         norm_factors_raw=norm_factors_raw,
     )
     print(f"Saved pixel distribution and normalisation factors to {save_path}")
+    print(f"plotting normalisation factors across rounds and channels")
+    metadata = load_metadata(data_path)
+    # pairwise matching hues for each channel
+    channel_order = metadata["camera_order"]
+    color = ['red', 'green', 'cyan', 'magenta']
+    color = [color[i-1] for i in channel_order]
+
+    plt.figure(figsize=(16, 8))
+    for ch in range(0, norm_factors_raw.shape[0]):
+        # ch = rank_order - 1  # zero-based
+        plt.plot(norm_factors_fit[ch,:], label=f'Norm factors channel {ch}', linestyle='dashed', color=color[ch])
+        plt.plot(norm_factors_raw[ch,:], label=f'Raw norm factors channel {ch}', color=color[ch])
+        plt.xlabel('Round')
+        # show each round on x
+        plt.xticks(range(norm_factors_raw.shape[1]), range(1, norm_factors_raw.shape[1]+1))
+        plt.ylabel('Normalization Factor')
+        plt.legend()
+    plt.title(f'Normalization Factors per Channel - {data_path}')
+    plt.savefig(get_processed_path(data_path) / "figures" / f'normalization_factors_{prefix}.png')
+
     return pixel_dist, norm_factors_fit, norm_factors_raw
 
 
