@@ -240,7 +240,7 @@ def merge_and_align_spots_all_rois(
         )
 
 
-def align_cell_dataframe(data_path, prefix, ref_prefix=None):
+def align_cell_dataframe(data_path, prefix, ref_prefix=None, sindbis=False):
     """Align a cell dataframe to reference coordinates
 
     Designed for mCherry cells. Reads the f"{prefix}_df_corrected.pkl" file generated
@@ -256,13 +256,30 @@ def align_cell_dataframe(data_path, prefix, ref_prefix=None):
     Returns:
         pd.DataFrame: The cell dataframe with x and y registered to reference tile.
     """
-    mask_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
-    cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
-    assert cells_df.exists(), (
-        f"Cells dataframe {cells_df} does not exist. "
-        + "Run remove_all_duplicate_masks first"
-    )
-    cells_df = pd.read_pickle(cells_df)
+    ### TODO: adapt to find dataframes from sindbis soma barcode calling ie. already in reference frame
+    mask_folder = get_processed_path(data_path) / "cells"
+    if not sindbis:
+        cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
+        assert cells_df.exists(), (
+            f"Cells dataframe {cells_df} does not exist. "
+            + "Run remove_all_duplicate_masks first"
+        )
+        cells_df = pd.read_pickle(cells_df)
+    else: 
+        # get roidims
+        roi_dims = get_roi_dimensions(data_path)
+        # loop over rois and load all tiles, concatenate and drop duplicates again (just in case)
+        cells_df = []       
+        for roi in roi_dims[:, 0]:
+            for tx in range(roi_dims[roi_dims[:, 0] == roi, 1:][0, 0] + 1):
+                for ty in range(roi_dims[roi_dims[:, 0] == roi, 1:][0, 1] + 1):
+                    cell_file = mask_folder / f"{prefix}_somata_{roi}_{tx}_{ty}.pkl"
+                    if cell_file.exists():
+                        cells_df.append(pd.read_pickle(cell_file))
+                    else:
+                        print(f"Cell dataframe {cell_file} does not exist. Skipping.")
+    cells_df = pd.concat(cells_df, ignore_index=True)
+
     if "x" not in cells_df.columns:
         cells_df.rename(columns={"centroid-1": "x", "centroid-0": "y"}, inplace=True)
 
@@ -275,9 +292,66 @@ def align_cell_dataframe(data_path, prefix, ref_prefix=None):
 
     return aligned_df
 
+def drop_duplicated_masks_center_dist(df_roi, corners):
+    """
+    df_roi: rows for one roi with columns: ['tilex','tiley','x','y'] where x,y are GLOBAL coords
+    corners: output of get_tile_corners(..., roi=roi) with shape [ntx, nty, 2, 4], coords in (y,x)
+    """
+    df_roi = df_roi.reset_index(drop=True)
+    # Precompute bbox + center per tile from corners
+    ys = corners[:, :, 0, :]  # (tx,ty,4)
+    xs = corners[:, :, 1, :]  # (tx,ty,4)
+
+    xmin = xs.min(axis=2); xmax = xs.max(axis=2)
+    ymin = ys.min(axis=2); ymax = ys.max(axis=2)
+    cx   = xs.mean(axis=2); cy   = ys.mean(axis=2)
+
+    ntx, nty = xmin.shape
+
+    # 9-neighborhood offsets
+    offsets = [(0,0),(1,0),(-1,0),(0,1),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1)]
+
+    keep = np.ones(len(df_roi), dtype=bool)
+
+    # Work tile-by-tile so we only ever check 9 candidates per row
+    for (tx, ty), idx in df_roi.groupby(["tilex","tiley"], sort=False).groups.items():
+        tx = int(tx); ty = int(ty)
+        x = df_roi.loc[idx, "x"].to_numpy(float)
+        y = df_roi.loc[idx, "y"].to_numpy(float)
+
+        best_d2 = np.full(len(idx), np.inf)
+        best_tx = np.full(len(idx), tx)
+        best_ty = np.full(len(idx), ty)
+        found   = np.zeros(len(idx), dtype=bool)
+
+        for dtx, dty in offsets:
+            tx2, ty2 = tx + dtx, ty + dty
+            if tx2 < 0 or ty2 < 0 or tx2 >= ntx or ty2 >= nty:
+                continue
+
+            inside = (x >= xmin[tx2,ty2]) & (x < xmax[tx2,ty2]) & (y >= ymin[tx2,ty2]) & (y < ymax[tx2,ty2])
+            if not inside.any():
+                continue
+
+            dx = x - cx[tx2,ty2]
+            dy = y - cy[tx2,ty2]
+            d2 = dx*dx + dy*dy
+
+            better = inside & (d2 < best_d2)
+            if better.any():
+                best_d2[better] = d2[better]
+                best_tx[better] = tx2
+                best_ty[better] = ty2
+                found[better] = True
+
+        # if no candidate tile contained the point, keep it (don’t delete blindly)
+        keep_idx = (~found) | ((best_tx == tx) & (best_ty == ty))
+        keep[np.array(list(idx))] = keep_idx
+
+    return df_roi.loc[keep].copy()
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"time": "1:00:00", "mem": "8G"})
-def stitch_cell_dataframes(data_path, prefix, ref_prefix=None):
+def stitch_cell_dataframes(data_path, prefix, ref_prefix=None, sindbis=False):
     """Stitch cell dataframes across all tiles and ROI.
 
     Args:
@@ -294,25 +368,43 @@ def stitch_cell_dataframes(data_path, prefix, ref_prefix=None):
     if ref_prefix is None:
         ref_prefix = ops["reference_prefix"]
 
-    stitched_df = align_cell_dataframe(data_path, prefix, ref_prefix=None).copy()
+    stitched_df = align_cell_dataframe(data_path, prefix, ref_prefix=None, sindbis=sindbis).copy() # if sindbis, we assume the cell dataframe is already in reference frame, so we skip alignment
     stitched_df["x_in_tile"] = stitched_df["x"].copy()
     stitched_df["y_in_tile"] = stitched_df["y"].copy()
     stitched_df["tile"] = "Not Processed"
     stitched_df["x"] = np.nan
     stitched_df["y"] = np.nan
 
-    for roi, df in stitched_df.groupby("roi"):
-        # find tile origin, final shape, and shifts in reference coordinates
-        ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)
-        ref_origins = ref_corners[..., 0]
-        for (tx, ty), tdf in df.groupby(["tilex", "tiley"]):
-            stitched_df.loc[tdf.index, "tile"] = f"{roi}_{tx}_{ty}"
-            stitched_df.loc[tdf.index, "x"] = tdf["x_in_tile"] + ref_origins[tx, ty, 1]
-            stitched_df.loc[tdf.index, "y"] = tdf["y_in_tile"] + ref_origins[tx, ty, 0]
+    kept = []
 
-    # save stitched dataframe
+    for roi, df_roi in stitched_df.groupby("roi", sort=False):
+        ref_corners = get_tile_corners(data_path, prefix=ref_prefix, roi=roi)  # [ntx,nty,2,4]
+        ref_origins = ref_corners[..., 0]  # [ntx,nty,2] (y,x) of corner [0,0]
+
+        df_roi = df_roi.copy()
+
+        # compute global x/y for this ROI
+        tx = df_roi["tilex"].to_numpy(dtype=int)
+        ty = df_roi["tiley"].to_numpy(dtype=int)
+
+        # vectorized lookup of origins
+        x0 = ref_origins[tx, ty, 1]
+        y0 = ref_origins[tx, ty, 0]
+
+        df_roi["tile"] = [f"{roi}_{a}_{b}" for a, b in zip(tx, ty)]
+        df_roi["x"] = df_roi["x_in_tile"].to_numpy(float) + x0
+        df_roi["y"] = df_roi["y_in_tile"].to_numpy(float) + y0
+
+        # drop duplicates inside this ROI
+        df_roi = drop_duplicated_masks_center_dist(df_roi, ref_corners)
+
+        kept.append(df_roi)
+
+    stitched_df = pd.concat(kept, ignore_index=True)
+
     mask_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
-    cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
-    stitched_df.to_pickle(cells_df)
-
+    target = mask_folder / f"{prefix}_df_corrected.pkl"
+    mask_folder.mkdir(exist_ok=True)
+    stitched_df.to_pickle(target)
+    print(f"Saved stitched cell dataframe to {target}")
     return stitched_df

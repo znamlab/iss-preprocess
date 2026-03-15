@@ -1080,12 +1080,244 @@ def get_overlap_regions(data_path, prefix, ref_coors):
     return overlaps, full_images
 
 
+def _get_channel_matrix_for_tile(data_path, prefix, tile_coors, channel):
+    tforms = get_channel_round_transforms(
+        data_path,
+        prefix,
+        tile_coors=tile_coors,
+        shifts_type="best",
+        load_file=True,
+    )
+    if "matrix_between_channels" not in tforms:
+        raise KeyError(
+            f"matrix_between_channels missing in transforms for {prefix} {tile_coors}"
+        )
+    matrix_between_channels = tforms["matrix_between_channels"]
+    if channel >= len(matrix_between_channels):
+        raise IndexError(
+            f"Channel {channel} not available in matrix_between_channels for {tile_coors}"
+        )
+    return np.asarray(matrix_between_channels[channel], dtype=float)
+
+
+def _compose_tile_to_global_affine(origin_xy, channel_matrix):
+    ox, oy = origin_xy
+    translate = np.array([[1.0, 0.0, ox], [0.0, 1.0, oy], [0.0, 0.0, 1.0]])
+    return translate @ channel_matrix
+
+
+def _transform_polygon(poly_xy, affine_3x3):
+    poly_h = np.hstack([poly_xy, np.ones((poly_xy.shape[0], 1), dtype=float)])
+    out = (affine_3x3 @ poly_h.T).T
+    return out[:, :2]
+
+
+def _remove_overlaps_affine_single_channel(
+    data_path,
+    prefix,
+    ref_coors,
+    upper_overlap_thresh,
+):
+    roi = ref_coors[0]
+    roi_corners = get_tile_corners(data_path, prefix=prefix, roi=roi)
+    ops = load_ops(data_path)
+    seg_channel = int(ops["cellpose_channels"][0])
+
+    roi_dim = get_roi_dimensions(data_path)
+    roi_dim = roi_dim[roi_dim[:, 0] == roi][0]
+    roi_dim[1:] += 1
+
+    to_compare = np.array(ref_coors) + np.array([(0, 0, 1), (0, 1, 0), (0, 1, 1)])
+    valid = np.all(to_compare >= 0, axis=1) & np.all(
+        to_compare[:, 1:] < roi_dim[1:], axis=1
+    )
+
+    tile_ref = load_mask_by_coors(
+        data_path,
+        tile_coors=ref_coors,
+        prefix=prefix,
+        suffix="corrected",
+    )
+    full_images = {tuple(ref_coors): tile_ref}
+    overlapping_pairs = []
+
+    ref_corner = roi_corners[ref_coors[1], ref_coors[2]]
+    ref_origin = np.array([ref_corner[1, 0], ref_corner[0, 0]], dtype=float)
+    ref_ch_affine = _get_channel_matrix_for_tile(
+        data_path, prefix, ref_coors, seg_channel
+    )
+    ref_to_global = _compose_tile_to_global_affine(ref_origin, ref_ch_affine)
+
+    h_ref, w_ref = tile_ref.shape
+    ref_poly_local = np.array([[0, 0], [w_ref, 0], [w_ref, h_ref], [0, h_ref]], dtype=float)
+    ref_poly_global = _transform_polygon(ref_poly_local, ref_to_global)
+
+    for comp_coors in to_compare[valid]:
+        comp_key = tuple(comp_coors)
+        tile_comp = load_mask_by_coors(
+            data_path,
+            tile_coors=comp_coors,
+            prefix=prefix,
+            suffix="corrected",
+        )
+        full_images[comp_key] = tile_comp
+
+        comp_corner = roi_corners[comp_coors[1], comp_coors[2]]
+        comp_origin = np.array([comp_corner[1, 0], comp_corner[0, 0]], dtype=float)
+        comp_ch_affine = _get_channel_matrix_for_tile(
+            data_path, prefix, comp_coors, seg_channel
+        )
+        comp_to_global = _compose_tile_to_global_affine(comp_origin, comp_ch_affine)
+
+        h_comp, w_comp = tile_comp.shape
+        comp_poly_local = np.array(
+            [[0, 0], [w_comp, 0], [w_comp, h_comp], [0, h_comp]], dtype=float
+        )
+        comp_poly_global = _transform_polygon(comp_poly_local, comp_to_global)
+
+        ref_xmin, ref_ymin = np.floor(ref_poly_global.min(axis=0)).astype(int)
+        ref_xmax, ref_ymax = np.ceil(ref_poly_global.max(axis=0)).astype(int)
+        comp_xmin, comp_ymin = np.floor(comp_poly_global.min(axis=0)).astype(int)
+        comp_xmax, comp_ymax = np.ceil(comp_poly_global.max(axis=0)).astype(int)
+
+        xmin = max(ref_xmin, comp_xmin)
+        ymin = max(ref_ymin, comp_ymin)
+        xmax = min(ref_xmax, comp_xmax)
+        ymax = min(ref_ymax, comp_ymax)
+        if (xmin >= xmax) or (ymin >= ymax):
+            continue
+
+        patch_h = ymax - ymin
+        patch_w = xmax - xmin
+        to_patch = np.array([[1.0, 0.0, -xmin], [0.0, 1.0, -ymin], [0.0, 0.0, 1.0]])
+        ref_to_patch = to_patch @ ref_to_global
+        comp_to_patch = to_patch @ comp_to_global
+
+        warped_ref = warp(
+            tile_ref,
+            AffineTransform(matrix=ref_to_patch).inverse,
+            output_shape=(patch_h, patch_w),
+            order=0,
+            preserve_range=True,
+            cval=0,
+        ).astype(tile_ref.dtype)
+        warped_comp = warp(
+            tile_comp,
+            AffineTransform(matrix=comp_to_patch).inverse,
+            output_shape=(patch_h, patch_w),
+            order=0,
+            preserve_range=True,
+            cval=0,
+        ).astype(tile_comp.dtype)
+
+        pre_ref = warped_ref.copy()
+        pre_comp = warped_comp.copy()
+        overlapping = remove_overlapping_labels(
+            warped_ref,
+            warped_comp,
+            upper_overlap_thresh,
+        )
+        for o in overlapping:
+            o["roi"] = roi
+            o["ref_tilex"] = ref_coors[1]
+            o["ref_tiley"] = ref_coors[2]
+            o["match_tilex"] = comp_coors[1]
+            o["match_tiley"] = comp_coors[2]
+        overlapping_pairs.extend(overlapping)
+
+        removed_ref_patch = (pre_ref != 0) & (warped_ref == 0)
+        removed_comp_patch = (pre_comp != 0) & (warped_comp == 0)
+
+        if np.any(removed_ref_patch):
+            removed_ref = warp(
+                removed_ref_patch.astype(np.uint8),
+                AffineTransform(matrix=ref_to_patch),
+                output_shape=tile_ref.shape,
+                order=0,
+                preserve_range=True,
+                cval=0,
+            )
+            tile_ref[removed_ref > 0] = 0
+
+        if np.any(removed_comp_patch):
+            removed_comp = warp(
+                removed_comp_patch.astype(np.uint8),
+                AffineTransform(matrix=comp_to_patch),
+                output_shape=tile_comp.shape,
+                order=0,
+                preserve_range=True,
+                cval=0,
+            )
+            tile_comp[removed_comp > 0] = 0
+
+        delete_labels = [
+            o["match_label"] for o in overlapping if o.get("delete_match", False)
+        ]
+        if delete_labels:
+            tile_comp[np.isin(tile_comp, delete_labels)] = 0
+
+    return overlapping_pairs, full_images
+
+
 @slurm_it(
     conda_env="iss-preprocess",
     slurm_options={"mem": "32GB", "time": "1-00:00:00"},
     print_job_id=True,
 )
-def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
+def remove_all_duplicate_masks(
+    data_path,
+    prefix,
+    upper_overlap_thresh=0.3,
+):
+    """
+    Remove masks that overlap in adjacent tiles for all ROIs.
+
+    The `within_acquisition` registration must be run for `prefix` beforehand.
+
+    Args:
+        data_path (str): Relative path to the data.
+        prefix (str): Prefix of the image stack.
+        upper_overlap_thresh (float, optional): The upper threshold percentage for
+            considering mask overlap significant. Defaults to 0.3.
+    Returns:
+        all_overlapping_pairs (list): A list of tuples containing the labels that
+            overlapped and their respective percentages.
+
+    """
+    # batch process all the ROIs one by one, saving the overlapping pairs for each ROI separately, and collate them at the end
+
+
+
+    roi_dims = get_roi_dimensions(data_path)
+
+    slurm_folder = Path.home() / "slurm_logs" / data_path / "segmentation"
+    slurm_folder.mkdir(exist_ok=True, parents=True)
+    root_name = f"remove_duplicate_{prefix}"
+
+    outs = []
+    for roi in roi_dims[:, 0]:
+        print(f"Removing duplicate masks for ROI {roi}")
+        scripts_name = f"remove_duplicate_{prefix}_{roi}"
+        outs.append(
+            remove_duplicate_masks_roi(
+                data_path, 
+                prefix, 
+                upper_overlap_thresh=upper_overlap_thresh, 
+                do_roi=roi,
+                use_slurm=True,
+                slurm_folder=slurm_folder,
+                scripts_name=scripts_name,
+            )
+        )
+    return outs
+
+
+@slurm_it(
+    conda_env="iss-preprocess",
+    slurm_options={"mem": "32GB", "time": "1-00:00:00"},
+    print_job_id=True,
+)
+def remove_duplicate_masks_roi(data_path, prefix, upper_overlap_thresh=None, do_roi=None):
     """
     Remove masks that overlap in adjacent tiles.
 
@@ -1097,6 +1329,7 @@ def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
         upper_overlap_thresh (float, optional): The upper threshold percentage for
             considering mask overlap significant. If None, will use ops if defined,
             0.3 otherwise. Defaults to None.
+        do_roi (int, optional): If specified, only process this ROI. Defaults to None.
 
     Returns:
         all_overlapping_pairs (list): A list of tuples containing the labels that
@@ -1111,13 +1344,18 @@ def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
 
     # Remove all old files with "masks_corrected" in the name
     mask_folder = processed_path / "cells" / f"{prefix}_cells"
+    if not mask_folder.exists():
+        mask_folder = processed_path / "cells" 
     assert mask_folder.exists(), f"Folder {mask_folder} does not exist"
 
-    for f in mask_folder.glob(f"{prefix}_masks_corrected*"):
+    for f in mask_folder.glob(f"{prefix}_masks_corrected_{do_roi}_*"):
         Path(f).unlink()
 
     # First remove masks at the edges of all the tiles
     for roi in roi_dims:
+        if do_roi is not None and roi[0] != do_roi:
+            continue
+        print(f"removing edge touching masks for roi {roi[0]}")
         for tilex in tqdm(
             range(roi[1] + 1),
             desc=f"ROI {roi[0]} X-axis",
@@ -1141,7 +1379,11 @@ def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
 
     # Now remove overlapping masks
     overlapping_pairs = []
+    use_affine_overlap = len(ops.get("cellpose_channels", [])) == 1
     for roi in roi_dims:
+        if do_roi is not None and roi[0] != do_roi:
+            continue
+        print(f"fixing overlapping masks for roi {roi[0]}")
         for tilex in tqdm(
             range(roi[1] + 1),
             desc=f"ROI {roi[0]} X-axis (overlap check)",
@@ -1152,31 +1394,52 @@ def remove_all_duplicate_masks(data_path, prefix, upper_overlap_thresh=None):
                 leave=False,
             ):
                 ref_coors = (roi[0], tilex, tiley)
-                # Get overlap regions
-                overlap_regions, full_images = get_overlap_regions(
-                    data_path, prefix, ref_coors
-                )
-                for comp_coors, (overlap_ref, overlap_comp) in overlap_regions.items():
-                    overlapping = remove_overlapping_labels(
-                        overlap_ref, overlap_comp, upper_overlap_thresh
+                if use_affine_overlap:
+                    overlapping, full_images = _remove_overlaps_affine_single_channel(
+                        data_path,
+                        prefix,
+                        ref_coors,
+                        upper_overlap_thresh,
                     )
-                    for o in overlapping:
-                        o["roi"] = roi[0]
-                        o["ref_tilex"] = tilex
-                        o["ref_tiley"] = tiley
-                        o["match_tilex"] = comp_coors[1]
-                        o["match_tiley"] = comp_coors[2]
                     overlapping_pairs.extend(overlapping)
+                else:
+                    overlap_regions, full_images = get_overlap_regions(
+                        data_path, prefix, ref_coors
+                    )
+                    for comp_coors, (overlap_ref, overlap_comp) in overlap_regions.items():
+                        overlapping = remove_overlapping_labels(
+                            overlap_ref, overlap_comp, upper_overlap_thresh
+                        )
+                        for o in overlapping:
+                            o["roi"] = roi[0]
+                            o["ref_tilex"] = tilex
+                            o["ref_tiley"] = tiley
+                            o["match_tilex"] = comp_coors[1]
+                            o["match_tiley"] = comp_coors[2]
+                        overlapping_pairs.extend(overlapping)
 
                 # Save the corrected masks
                 for tile_coors, mask in full_images.items():
                     tile_roi, tile_x, tile_y = tile_coors
                     fname = f"{prefix}_masks_corrected_{tile_roi}_{tile_x}_{tile_y}.npy"
                     np.save(mask_folder / fname, mask, allow_pickle=True)
-    overlapping_pairs = pd.DataFrame(overlapping_pairs)
-    pd.to_pickle(overlapping_pairs, mask_folder / f"{prefix}_overlapping_pairs.pkl")
-
-    save_mcherry_mask_df(data_path, prefix)
+    if do_roi is not None:
+        overlapping_pairs = pd.DataFrame(overlapping_pairs)
+        pd.to_pickle(overlapping_pairs, mask_folder / f"{prefix}_overlapping_pairs_{do_roi}.pkl")
+        # if all rois have been processed, collate the overlapping pairs into a single file
+        count = sum(1 for _ in mask_folder.glob(f"{prefix}_overlapping_pairs_*.pkl"))
+        if count == len(roi_dims):
+            all_overlapping_pairs = []
+            for f in mask_folder.glob(f"{prefix}_overlapping_pairs_*.pkl"):
+                df = pd.read_pickle(f)
+                all_overlapping_pairs.append(df)
+            all_overlapping_pairs = pd.concat(all_overlapping_pairs, ignore_index=True)
+            pd.to_pickle(all_overlapping_pairs, mask_folder / f"{prefix}_overlapping_pairs.pkl")
+    else:
+        overlapping_pairs = pd.DataFrame(overlapping_pairs)
+        pd.to_pickle(overlapping_pairs, mask_folder / f"{prefix}_overlapping_pairs.pkl")
+    if "mcherry" in prefix: # this isn't how we do it 
+        save_mcherry_mask_df(data_path, prefix)
     return overlapping_pairs
 
 
