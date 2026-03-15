@@ -95,7 +95,7 @@ def load_registration_reference_metadata(data_path, roi):
     chamber = reg_folder.parent.name
     if not reg_folder.is_dir():
         raise IOError("Registration folder does not exists. Perform registration first")
-    metadata_file = list(reg_folder.glob(f"{chamber}_r{roi}_sl*.yml"))
+    metadata_file = list(reg_folder.glob(f"{chamber}_sl*_r{roi}.ome.yml"))
     if not len(metadata_file):
         raise IOError(f"No file found for ROI {roi}")
     elif len(metadata_file) > 1:
@@ -473,10 +473,11 @@ def overview_single_roi(
 
     stitched_stack = gaussian_filter(stitched_stack, sigma_blur)
 
-    target = registration_folder / f"{chamber}_r{roi}_sl{slice_id:03d}.ome.tif"
+    target = registration_folder / f"{chamber}_sl{slice_id:03d}_r{roi}.ome.tif"
     logfile = Path(target).with_suffix(".yml")
     print("Saving stitched image", flush=True)
-
+    with open(logfile, "w") as fhandle:
+        yaml.dump(log, fhandle)
     save_ome_tiff_pyramid(
         target,
         stitched_stack,
