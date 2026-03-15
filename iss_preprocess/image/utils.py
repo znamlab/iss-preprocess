@@ -116,4 +116,43 @@ def black_out_tiff(input_path, output_path):
 
     print(f"Blacked out TIFF written to: {output_path}")
 
+def make_butterworth_highpass_mask(H, W, cutoff, order=2):
+    cy, cx = H // 2, W // 2
+    y = np.arange(H) - cy
+    x = np.arange(W) - cx
+    X, Y = np.meshgrid(x, y)
+    R = np.sqrt(X**2 + Y**2)
+
+    eps = 1e-8
+    # Butterworth high-pass: 0 at center, smoothly rises to 1
+    Hmask = 1 / (1 + (cutoff / (R + eps))**(2 * order))
+    return Hmask.astype(np.float32)
+
+def highpass_fft_2d(img, cutoff=3.0, order=2, pad=None):
+    img = img.astype(np.float32)
+
+    if pad and pad > 0:
+        imgp = np.pad(img, ((pad, pad), (pad, pad)), mode="reflect")
+    else:
+        imgp = img
+
+    Hp, Wp = imgp.shape
+    mask = make_butterworth_highpass_mask(Hp, Wp, cutoff=cutoff, order=order)
+
+    F = np.fft.fftshift(np.fft.fft2(imgp))
+    outp = np.fft.ifft2(np.fft.ifftshift(F * mask))
+    outp = np.real(outp).astype(np.float32)
+
+    if pad and pad > 0:
+        return outp[pad:-pad, pad:-pad]
+    return outp
+
+def highpass_stack(stack, cutoff=3.0, order=2, pad=None):
+    H, W, C, R = stack.shape
+    out = np.empty_like(stack, dtype=np.float32)
+    for c in range(C):
+        for r in range(R):
+            out[:, :, c, r] = highpass_fft_2d(stack[:, :, c, r], cutoff=cutoff, order=order, pad=pad)
+    return out
+
 
