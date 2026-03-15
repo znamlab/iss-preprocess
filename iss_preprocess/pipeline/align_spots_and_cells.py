@@ -6,7 +6,7 @@ from image_tools.similarity_transforms import make_transform
 from znamutils import slurm_it
 
 from ..io import get_processed_path, get_roi_dimensions, load_ops
-from .reg2ref import get_shifts_to_ref
+from ..io.load import get_shifts_to_ref
 from .stitch import get_tile_corners
 
 

@@ -87,6 +87,6 @@ def filter_mcherry_masks(path, prefix):
     help="Whether to use the GPU",
 )
 def segment(path, prefix, roi=1, use_gpu=False):
-    from iss_preprocess.pipeline.pipeline import segment_roi
+    from iss_preprocess.pipeline.segment import segment_roi
 
     segment_roi(path, roi, prefix, use_gpu=use_gpu)
