@@ -89,11 +89,13 @@ def register_tile_to_ref(
 
     if binarise_quantile is None:
         binarise_quantile = ops.get(f"{spref}_binarise_quantile", 0.7)
+        # if there is something defined specifically for reg2ref, use it instead
+        binarise_quantile = ops.get(f"reg2ref_{spref}_binarise_quantile", binarise_quantile)
     if reg_channels is None:
         # use either the same as ref or what is in the ops
         reg_channels = ops.get(f"reg2ref_{spref}_channels", ref_channels)
         # if there is something defined for this acquisition, use it instead
-        reg_channels = ops.get(f"reg2ref_{reg_prefix}_channels", reg_channels)
+        reg_channels = ops.get(f"reg2ref_{reg_prefix}_channels", reg_channels)        
 
     print(f"Registering {reg_prefix} to {ref_prefix}", flush=True)
     if use_masked_correlation:
@@ -126,6 +128,18 @@ def register_tile_to_ref(
         zero_bad_pixels=False,
     )
 
+    if ops.get("reg2ref_start_from_stitched", False):
+        reg_all_channels, reg_bad_pixels  = warp_stack_to_ref(
+            reg_all_channels, 
+            data_path, 
+            reg_prefix, 
+            tile_coors, 
+            interpolation=1, 
+            bad_pixels=reg_bad_pixels,
+            shift_type="stitched"
+        )
+        
+
     if ref_channels is not None:
         if isinstance(ref_channels, int):
             ref_channels = [ref_channels]
@@ -145,8 +159,8 @@ def register_tile_to_ref(
         reg = median_filter(reg, footprint=disk(ops["reg_median_filter"]), axes=(0, 1))
 
     if binarise_quantile is not None:
-        reg = reg > np.quantile(reg, binarise_quantile)
-        ref = ref > np.quantile(ref, binarise_quantile)
+        reg = reg > np.quantile(reg[~reg_bad_pixels], binarise_quantile)
+        ref = ref > np.quantile(ref[~ref_bad_pixels], binarise_quantile)
 
     angle, shift = estimate_rotation_translation(
         ref,
@@ -154,13 +168,22 @@ def register_tile_to_ref(
         angle_range=1.0,
         niter=3,
         nangles=15,
-        max_shift=ops["rounds_max_shift"],
+        max_shift=ops.get("max_shift2ref", ops["rounds_max_shift"]),
         reference_mask=~ref_bad_pixels if use_masked_correlation else None,
         target_mask=~reg_bad_pixels if use_masked_correlation else None,
     )
     print(f"Angle: {angle}, Shifts: {shift}")
     # make it into affine matrix
     tforms = make_transform(s=1, angle=angle, shift=shift, shape=reg.shape[:2])
+    if ops.get("reg2ref_start_from_stitched", False):
+        # multiply the tform from stitched tform with the one we just estimated
+        tform_stitched = np.load(get_processed_path(data_path) 
+                                 / "reg" 
+                                 / f"to_ref_{reg_prefix}"
+                                 / f"tforms_stitched_to_ref_{reg_prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
+                                 )["matrix_between_channels"][0]
+        tforms =  tforms @ tform_stitched 
+        print(f"incldeing initial shift: Angle: {angle}, Shifts: {shift}")
     processed_path = get_processed_path(data_path)
     r, x, y = tile_coors
     target = processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
