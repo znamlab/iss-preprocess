@@ -44,12 +44,12 @@ def check_segmentation(
         stitched_stack = stitch_registered(
             data_path, ref_prefix=reference, prefix=prefix, roi=roi
         )[..., 0]
-    elif stitched_stack.ndim == 3:
+    elif stitched_stack.ndim == 3 and stitched_stack.shape[2] == 4 :
         ops = load_ops(data_path)
         stitched_stack = stitched_stack[..., ops["cellpose_channels"][0]]
 
     # normalize the stack and downsample by 2 using block_reduce
-    stitched_stack = block_reduce(stitched_stack, (2, 2), np.mean)
+    stitched_stack = block_reduce(stitched_stack, 2, np.mean)
     mi, ma = np.percentile(stitched_stack, [0.01, 99.99])
     stitched_stack = np.clip((stitched_stack - mi) / (ma - mi), 0, 1)
 
