@@ -573,5 +573,6 @@ def check_tile_shifts(data_path, prefix, rois=None, roi_dimension_prefix=None):
                     )
                     fig.suptitle(f"Dim {dim} shifts. {prefix} ROI {roi} channel {ch}")
                     pdf.savefig(fig)
-                    figs[roi] = fig
-    return figs
+                    # figs[roi] = fig
+                    plt.close(fig)
+    # return figs
