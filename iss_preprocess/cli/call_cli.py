@@ -62,6 +62,31 @@ def basecall(path):
         scripts_name="check_basecall",
     )
 
+@call_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+def basecall_somata(path):
+    """Start batch jobs to run basecalling for barcodes on all tiles."""
+    from iss_preprocess.pipeline.core import batch_process_tiles
+
+    job_ids, failed_job = batch_process_tiles(path, "basecall_somata_tile")
+    click.echo(f"Basecalling started for {len(job_ids)} tiles.")
+    click.echo(f"Last job id: {job_ids[-1]}")
+
+    # TODO soma basecalling diagnostics
+    # from pathlib import Path
+
+    # from iss_preprocess.diagnostics.diag_sequencing import check_barcode_basecall
+
+    # slurm_folder = Path.home() / "slurm_logs" / path
+    # slurm_folder.mkdir(parents=True, exist_ok=True)
+    # check_barcode_basecall(
+    #     path,
+    #     use_slurm=True,
+    #     job_dependency=job_ids,
+    #     slurm_folder=slurm_folder,
+    #     scripts_name="check_basecall_soma",
+    # )
+
 
 @call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
@@ -182,6 +207,22 @@ def basecall_tile(path, roi=1, x=0, y=0):
 
 @call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", default=0, help="Tile X position")
+@click.option("-y", default=0, help="Tile Y position.")
+def basecall_somata_tile(path, roi=1, x=0, y=0):
+    """Run basecalling for barcodes on a single tile."""
+    from iss_preprocess.pipeline.sequencing import basecall_somata_tile
+
+    click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
+    basecall_somata_tile(path, (roi, x, y))
+
+
+
+@call_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
 @click.option("--force-redo", is_flag=True, help="Whether to force redo")
 def setup_omp(path, use_slurm=True, force_redo=False):
@@ -218,6 +259,26 @@ def setup_barcodes(path, use_slurm=True, force_redo=False):
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         scripts_name="setup_barcodes",
+        force_redo=force_redo,
+    )
+
+@call_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("--use-slurm", is_flag=True, help="Whether to use slurm")
+@click.option("--force-redo", is_flag=True, help="Whether to force redo")
+def setup_soma_barcodes(path, use_slurm=True, force_redo=False):
+    """Estimate bleedthrough matrices for barcode calling of barcode filled cells."""
+    from pathlib import Path
+
+    from iss_preprocess.pipeline.sequencing import setup_soma_barcode_calling
+
+    slurm_folder = Path.home() / "slurm_logs" / path
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    setup_soma_barcode_calling(
+        path,
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name="setup_soma_barcodes",
         force_redo=force_redo,
     )
 

@@ -2,9 +2,17 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import OneHotEncoder
 from znamutils import slurm_it
+
+from iss_preprocess.call.call import extract_traces_somata
+from iss_preprocess.image.utils import highpass_stack
+from iss_preprocess.io.load import load_metadata
+from iss_preprocess.pipeline.segment import find_edge_touching_masks
+from iss_preprocess.vis.vis import plot_clusters
+
 
 from ..call import (
     BASES,
@@ -24,7 +32,7 @@ from ..image import (
 )
 from ..io import get_processed_path, load_ops, load_sequencing_rounds, write_stack
 from ..segment import detect_isolated_spots
-from .register import load_and_register_sequencing_tile
+from .register import load_and_register_sequencing_tile, load_register_and_fill_tile, load_register_and_fill_tile_mask
 
 
 @slurm_it(conda_env="iss-preprocess")
@@ -62,6 +70,129 @@ def setup_barcode_calling(data_path):
     print("barcode calling setup complete")
     return cluster_means, all_spots
 
+@slurm_it(conda_env="iss-preprocess")
+def setup_soma_barcode_calling(data_path, reload=False):
+    """Detect spots and compute cluster means
+
+    Args:
+        data_path (str): Relative path to data
+
+    Returns:
+        cluster_means (list): A list with Nrounds elements. Each a Nch x Ncl (square
+            because N channels is equal to N clusters) array of cluster means,
+            normalised by round 0 intensity
+        all_spots (pandas.DataFrame): All detected spots.
+
+    """
+
+    ops = load_ops(data_path)
+    reference_tiles = ops["barcode_soma_reference_tiles"]
+    all_tile_dfs = []
+    processed_path = get_processed_path(data_path)
+    reloaded = None
+    # reload 
+    if reload:
+        try:
+            reloaded = pd.read_pickle(processed_path / "somata_traces_df.pkl")
+        except FileNotFoundError:
+            print("Could not find saved tile traces, starting from scratch.")
+
+    for tile_coors in reference_tiles:
+    # load stack and masks
+        # max
+        tile_id = "_".join(map(str, tile_coors))
+        if reloaded is not None and tile_id in reloaded["tile_of_origin"].values:
+            all_tile_dfs.append(reloaded[reloaded["tile_of_origin"] == tile_id])
+            continue
+
+        max_stack, bad_pixels = load_register_and_fill_tile(
+            data_path,
+            tile_coors,
+            filter_r=None,
+            prefix="barcode_round",
+            suffix="max",
+            nrounds=ops["barcode_rounds"],
+            correct_channels="round1_only",
+            corrected_shifts=ops["corrected_shifts"],
+            correct_illumination=True,
+            reference_prefix = ops["reference_prefix"],
+            specific_rounds=None,
+            edge=10,
+            mid=5,
+            zero_fill_output=True,
+        )
+
+        max_stack[bad_pixels, ...] = 0 # however there shouldn't be any bad pixels left
+
+        # Reorder channels (assumes max_stack is (H, W, C, R))
+        cam_order = np.argsort(ops["camera_order"])
+        max_stack = max_stack[:, :, cam_order, :]
+
+        # High-pass filter the stack to enhance somata
+        filtered_stack = highpass_stack(max_stack, cutoff=15.0, order=2, pad=100)
+
+        masks = load_register_and_fill_tile_mask(
+            data_path,
+            tile_coors,
+            prefix=ops["segmentation_acquisition"],
+            reference_prefix=ops["reference_prefix"],
+            corrected_shifts=ops["corrected_shifts"],
+        )
+
+        # before barcode calling remove edge masks again (these will be covered on adjacent tiles anyways).
+        masks, _ = find_edge_touching_masks(masks, border_width=10)
+
+
+        # extract traces for each mask
+        tile_traces_df = extract_traces_somata(filtered_stack, masks)
+
+        # Filter + annotate (avoid SettingWithCopy)
+        tile_traces_df = (
+            tile_traces_df
+            .loc[tile_traces_df["std"] > ops["soma_std_threshold_clustering"]]
+            .copy()
+        )
+        tile_id = "_".join(map(str, tile_coors))
+        tile_traces_df["tile_of_origin"] = tile_id
+
+        all_tile_dfs.append(tile_traces_df)
+
+    traces_df = pd.concat(all_tile_dfs, axis=0, ignore_index=True) if all_tile_dfs else pd.DataFrame()
+
+    # run kmeans on traces to get cluster means
+    cluster_means = []
+    initial_cluster_mean = np.array(ops["initial_cluster_means"])   
+    cluster_means, spot_colors, cluster_inds = get_cluster_means(
+        traces_df,
+        score_thresh=ops["somata_cluster_score_thresh"],
+        initial_cluster_mean=initial_cluster_mean,
+    )
+
+    # save somata clustering
+    np.save(processed_path / "somata_barcode_cluster_means.npy", cluster_means)
+    np.savez(
+        processed_path / "somata_reference_barcodes.npz",
+        spot_colors=spot_colors,
+        cluster_inds=cluster_inds,
+    )
+    # save traces_df
+    traces_df.to_pickle(processed_path / "somata_traces_df.pkl")
+
+    # diagnostics
+    figure_folder = processed_path / "figures" / "cells"
+    figure_folder.mkdir(exist_ok=True)
+    reference_barcode_spots = np.load(
+        processed_path / "somata_reference_barcodes.npz", allow_pickle=True
+    )
+
+    cluster_means = np.load(processed_path / "somata_barcode_cluster_means.npy")
+    figs = plot_clusters(
+        cluster_means,
+        reference_barcode_spots["spot_colors"],
+        reference_barcode_spots["cluster_inds"],
+    )
+    for fig in figs:
+        fig.savefig(figure_folder / f"barcode_{fig.get_label()}.png")
 
 def basecall_tile(data_path, tile_coors, save_spots=True):
     """Detect and basecall barcodes for a given tile.
@@ -157,6 +288,157 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     print(f"Basecalling complete for tile {tile_coors}")
     return stack, spot_sign_image, spots
 
+@slurm_it(conda_env="iss-preprocess")
+def basecall_somata_tile(data_path, tile_coors, save_basecalled_somata=True):
+    """Detect and basecall barcodes for a given tile.
+
+    Args:
+        data_path (str): Relative path to data.
+        tile_coors (tuple, optional): Coordinates of tile to load: ROI, Xpos, Ypos.
+        save_basecalled_somata (bool, optional): Whether to save the basecalled somata. Used to run
+            without erasing during diagnostics. Defaults to True.
+        use_slurm (bool, optional): Submit job to slurm. Defaults to True.
+    Returns:
+        filtered_stack (numpy.ndarray): The high-pass filtered registered stack for the tile.
+        masks (numpy.ndarray): The segmentation masks for the tile.
+        tile_traces_df (pandas.DataFrame): DataFrame containing the extracted traces and basecalling results for each detected soma.
+    """
+    processed_path = get_processed_path(data_path)
+    ops = load_ops(data_path)
+    cluster_means = np.load(processed_path / "somata_barcode_cluster_means.npy")
+
+    masks = load_register_and_fill_tile_mask(
+        data_path,
+        tile_coors,
+        prefix=ops["segmentation_acquisition"],
+        reference_prefix=ops["reference_prefix"],
+        corrected_shifts=ops["corrected_shifts"],
+    )
+
+    # before barcode calling remove edge masks again (these will be covered on adjacent tiles anyways).
+    masks, _ = find_edge_touching_masks(masks, border_width=10)
+
+    # check any masks in the tile ie any pixel above 0 in the mask?
+    if np.nansum(masks) == 0:
+        print(f"No masks detected in tile {tile_coors}")
+        col2add = [
+            "label", 
+            "centroid-0", 
+            "centroid-1", 
+            "area",
+            "trace",
+            "std",
+            "sequence",
+            "scores",
+            "mean_score",
+            "bases",
+            "dot_product_score",
+            "mean_intensity",
+            "roi",
+            "tilex",
+            "tiley",
+        ]
+        tile_traces_df = pd.DataFrame(columns=col2add)
+        if save_basecalled_somata:
+            save_dir = processed_path / "cells"
+            save_dir.mkdir(parents=True, exist_ok=True)
+            print(f"Saving somata to {save_dir}")
+            tile_traces_df.to_pickle(
+                save_dir
+                / f"barcode_round_somata_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+            )
+        return None, None, tile_traces_df
+
+    max_stack, bad_pixels = load_register_and_fill_tile(
+        data_path,
+        tile_coors,
+        filter_r=None,
+        prefix="barcode_round",
+        suffix="max",
+        nrounds=ops["barcode_rounds"],
+        correct_channels="round1_only",
+        corrected_shifts=ops["corrected_shifts"],
+        correct_illumination=True,
+        reference_prefix = ops["reference_prefix"],
+        specific_rounds=None,
+        edge=10,
+        mid=5,
+        zero_fill_output=True,
+    )
+
+    max_stack[bad_pixels, ...] = 0 # however there shouldn't be any bad pixels left
+
+    # Reorder channels (assumes max_stack is (H, W, C, R))
+    cam_order = np.argsort(ops["camera_order"])
+    max_stack = max_stack[:, :, cam_order, :]
+
+    # High-pass filter the stack to enhance somata
+    filtered_stack = highpass_stack(max_stack, cutoff=15.0, order=2, pad=100)
+
+
+    tile_traces_df = extract_traces_somata(filtered_stack, masks)
+
+    if len(tile_traces_df) == 0:
+        print(f"No spots detected in tile {tile_coors}")
+        col2add = [
+            "sequence",
+            "scores",
+            "mean_score",
+            "bases",
+            "dot_product_score",
+            "mean_intensity",
+            "roi",
+            "tilex",
+            "tiley",
+        ]
+        tile_traces_df = pd.DataFrame(columns=tile_traces_df.columns.tolist() + col2add)
+    else:
+        x = np.stack(tile_traces_df["trace"], axis=2)
+        x = np.nan_to_num(x)
+
+        cluster_inds = []
+        top_score = []
+
+        print(f"Basecalling tile {tile_coors}")
+        for iround in range(ops["barcode_rounds"]):
+            this_round_means = cluster_means[iround] / np.linalg.norm(
+                cluster_means[iround], axis=1, keepdims=True
+            )
+            x_norm = x[iround, :, :].T / np.linalg.norm(
+                x[iround, :, :].T, axis=1, keepdims=True
+            )
+
+            # should be Spots x Channels matrix @ Channels x Clusters matrix
+            score = x_norm @ this_round_means.T
+            cluster_ind = np.argmax(score, axis=1)
+            top_score.append(score[np.arange(x_norm.shape[0]), cluster_ind])
+            cluster_ind[np.isnan(score).any(axis=1)] = cluster_means[iround].shape[0]
+            cluster_inds.append(cluster_ind)
+
+        sequences = np.stack(cluster_inds, axis=1)
+        print("Adding quality metrics to spots")
+        tile_traces_df["sequence"] = [seq for seq in sequences]
+        scores = np.stack(top_score, axis=1)
+        tile_traces_df["scores"] = [s for s in scores]
+        tile_traces_df["mean_score"] = np.nanmean(scores, axis=1)
+        bases = np.hstack([BASES, ["N"]])
+        tile_traces_df["bases"] = ["".join(bases[seq]) for seq in tile_traces_df["sequence"]]
+        tile_traces_df["dot_product_score"] = barcode_spots_dot_product(tile_traces_df, cluster_means)
+        tile_traces_df["mean_intensity"] = [np.mean(np.abs(trace)) for trace in tile_traces_df["trace"]]
+        tile_traces_df["roi"] = tile_coors[0]
+        tile_traces_df["tilex"] = tile_coors[1]
+        tile_traces_df["tiley"] = tile_coors[2]
+
+    if save_basecalled_somata:
+        save_dir = processed_path / "cells"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Saving somata to {save_dir}")
+        tile_traces_df.to_pickle(
+            save_dir
+            / f"barcode_round_somata_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.pkl"
+        )
+    print(f"Basecalling complete for tile {tile_coors}")
+    return filtered_stack, masks, tile_traces_df
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"time": "1:00:00", "mem": "8GB"})
 def setup_omp(data_path, force_redo=False):

@@ -1,5 +1,7 @@
 import numpy as np
+import pandas as pd
 from scipy.spatial.distance import hamming
+from skimage.measure import label, regionprops_table
 from skimage.morphology import disk
 from sklearn.mixture import GaussianMixture
 
@@ -79,6 +81,52 @@ def extract_spots(spots, stack, spot_radius=2):
         cc = np.clip(dcc + spot["x"], 0, stack.shape[1] - 1).astype(int)
         traces.append(stack[rr, cc, :, :].mean(axis=0).T)
     spots["trace"] = traces
+
+def extract_traces_somata(stack, masks):
+    """
+    Extract fluorescence traces of somata and assign them to a column of the DataFrame.
+
+    Args:
+        stack (numpy.ndarray): X x Y x C x R stack.
+        masks (numpy.ndarray): X x Y labelled masks.
+    Returns:
+        masks_df (pandas.DataFrame): DataFrame with a "trace" column containing a R x C array of fluorescence values for each soma.
+    """
+    labelled_masks = label(masks)
+    H, W, C, R = stack.shape
+
+    collapsed = stack.reshape(H, W, C * R)
+
+    props = regionprops_table(
+        labelled_masks,
+        intensity_image=collapsed,
+        properties=["label", "centroid", "intensity_mean", "area"] #"centroid_weighted_local", "centroid_local"],
+    )
+
+    masks_df = pd.DataFrame(props)
+
+    # pull intensity_mean-* columns and convert each row into a (R, C) trace 
+    int_cols = [c for c in masks_df.columns if c.startswith("intensity_mean-")]
+
+    # (n_masks, C*R) -> (n_masks, C, R) -> (n_masks, R, C)
+    tr = masks_df[int_cols].to_numpy().reshape(len(masks_df), C, R).transpose(0, 2, 1)
+
+    masks_df["trace"] = list(tr)  # each element is an (R, C) array
+
+    # optional cleanup: drop the flat intensity columns
+    masks_df = masks_df.drop(columns=int_cols)
+
+    if masks_df.empty:
+        masks_df["std"] = []
+        return masks_df
+    # stack traces into a real 3D array: (n_masks, R, C)
+    trace_stack = np.stack(masks_df["trace"].to_numpy(), axis=0)
+
+    # std across rounds and channels
+    masks_df["std"] = np.nanstd(trace_stack, axis=(1, 2))
+
+    return masks_df
+
 
 
 def rois_to_array(rois, normalize=True):

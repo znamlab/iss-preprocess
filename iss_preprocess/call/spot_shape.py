@@ -150,7 +150,7 @@ def find_gene_spots(
     return all_genes, all_coefficients
 
 
-def detect_spots_by_shape(im, spot_sign_image, threshold=0, rho=2):
+def detect_spots_by_shape(im, spot_sign_image=None, threshold=0, rho=2, score_image=None):
     """
     Detect spots in an image based on similarity to a spot sign image.
 
@@ -168,6 +168,9 @@ def detect_spots_by_shape(im, spot_sign_image, threshold=0, rho=2):
 
     """
     spots = detect_spots(im, threshold=threshold)
+
+    if spot_sign_image is not None:
+        im = score_image
 
     neg_max = np.sum(np.sign(spot_sign_image) == -1)
     pos_max = np.sum(np.sign(spot_sign_image) == 1)
