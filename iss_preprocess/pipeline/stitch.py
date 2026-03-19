@@ -892,7 +892,9 @@ def stitch_tiles(
     )
     tile_origins = tile_origins.astype(int)
     max_origin = np.max(tile_origins, axis=(0, 1))
-    stitched_stack = np.zeros(max_origin + tile_shape)
+    selected_channels = slice(None) if ich is None else ich
+
+ 
     if register_channels:
 
         def load_func(data_path, tile_coors, prefix):
@@ -904,7 +906,7 @@ def stitch_tiles(
                 projection=suffix,
                 correct_illumination=correct_illumination,
             )
-            return stack[:, :, ich, 0]
+            return stack[:, :, selected_channels, 0].squeeze()
 
     else:
         if correct_illumination:
@@ -918,24 +920,25 @@ def stitch_tiles(
             )
             if correct_illumination:
                 stack = (stack.astype(float) - ops["black_level"][ich]) / average_image
-            return stack
+            return stack[:, :, selected_channels].squeeze()
+    # figure out dimensionality of stitched stack based on requested ich
+    test = load_func(data_path, (roi, 0, 0), prefix=prefix)
+    H = max_origin[0] + tile_shape[0]
+    W = max_origin[1] + tile_shape[1]
+    if test.ndim == 2:
+        stitched_stack = np.zeros((H, W), dtype=test.dtype)
+    else:
+        stitched_stack = np.zeros((H, W, test.shape[2]), dtype=test.dtype)
 
     for ix in range(ntiles[0]):
         for iy in range(ntiles[1]):
             stack = load_func(data_path, (roi, ix, iy), prefix=prefix)
-            # print(stack.shape)
-            # print(ich)
-            if ich is not None:
-                stitched_stack[
-                    tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
-                    tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
-                ] = stack[:, :, ich].squeeze()
+            y0 = tile_origins[ix, iy, 0]
+            x0 = tile_origins[ix, iy, 1]
+            if stack.ndim == 2:
+                stitched_stack[y0:y0+tile_shape[0], x0:x0+tile_shape[1]] = stack
             else:
-                stitched_stack[
-                    tile_origins[ix, iy, 0] : tile_origins[ix, iy, 0] + tile_shape[0],
-                    tile_origins[ix, iy, 1] : tile_origins[ix, iy, 1] + tile_shape[1],
-                    :,
-                ] = stack
+                stitched_stack[y0:y0+tile_shape[0], x0:x0+tile_shape[1], :] = stack
     return stitched_stack
 
 
