@@ -43,6 +43,7 @@ iss-core = "iss_preprocess.cli.core_cli:core_cli"
 iss-call = "iss_preprocess.cli.call_cli:call_cli"
 iss-segment = "iss_preprocess.cli.segment_cli:segment_cli"
 iss-reg2ref = "iss_preprocess.cli.reg2ref_cli:reg2ref_cli"
+iss-volume-registration = "iss_preprocess.cli.volume_registration_cli:volume_registration_cli"
 
 
 [project.urls]
