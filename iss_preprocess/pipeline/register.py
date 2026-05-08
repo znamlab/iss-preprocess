@@ -4,6 +4,7 @@ from warnings import warn
 import numpy as np
 from image_tools.similarity_transforms import make_transform
 from scipy.ndimage import median_filter
+from skimage.measure import regionprops
 from skimage.morphology import binary_dilation, disk
 from skimage.transform import SimilarityTransform, AffineTransform, warp
 from sklearn.linear_model import RANSACRegressor
@@ -1545,8 +1546,15 @@ def load_register_and_fill_tile_mask(
     prefix="hybridisation_round_1_1",
     reference_prefix="barcode_round_2_1",
     corrected_shifts="best",
+    patch_mode="owner_tile",
 ):
-    """Load, register and fill missing pixels in a tile using neighbouring tiles.
+    """Load and register soma masks into a barcode-reference tile frame.
+
+    The default `patch_mode="owner_tile"` avoids the legacy behavior of blindly
+    importing whole neighbouring labels into zero-valued regions. Instead, corrected
+    masks from the local 3x3 neighbourhood are warped into the local reference-tile
+    frame and each source label is assigned to a single owner barcode tile based on its
+    transformed centroid.
 
     Args:
         data_path (str): Relative path to data.
@@ -1554,10 +1562,140 @@ def load_register_and_fill_tile_mask(
         prefix (str, optional): Prefix of the acquisition to load. Defaults to "hybridisation_round_1_1".
         reference_prefix (str, optional): Prefix of the acquisition to use for registration reference. Defaults to "barcode_round_2_1".
         corrected_shifts (str, optional): Which shift to use. One of `reference`, `single_tile`, `ransac`, or `best`. Defaults to 'best'.
+        patch_mode (str, optional): One of `owner_tile` or `legacy_fill`. Defaults to
+            `owner_tile`.
 
     Returns:
         numpy.ndarray: X x Y mask image.
     """
+    if patch_mode not in {"owner_tile", "legacy_fill"}:
+        raise ValueError("patch_mode must be 'owner_tile' or 'legacy_fill'")
+    if patch_mode == "legacy_fill":
+        return _load_register_and_fill_tile_mask_legacy(
+            data_path=data_path,
+            tile_coors=tile_coors,
+            prefix=prefix,
+            reference_prefix=reference_prefix,
+            corrected_shifts=corrected_shifts,
+        )
+
+    return _load_register_and_assign_tile_mask(
+        data_path=data_path,
+        tile_coors=tile_coors,
+        prefix=prefix,
+        reference_prefix=reference_prefix,
+        corrected_shifts=corrected_shifts,
+    )
+
+
+def _get_mask_registration_matrix(data_path, prefix, tile_coors, corrected_shifts, channels):
+    reg2ref_tform = np.asarray(
+        get_shifts_to_ref(
+            data_path,
+            prefix,
+            tile_coors[0],
+            tile_coors[1],
+            tile_coors[2],
+        )["matrix_between_channels"][0],
+        dtype=float,
+    )
+
+    if len(channels) == 1:
+        channel_tform = get_channel_round_transforms(
+            data_path,
+            prefix,
+            tile_coors=tile_coors,
+            shifts_type=corrected_shifts,
+            load_file=True,
+        )["matrix_between_channels"][channels][0]
+        return reg2ref_tform @ channel_tform
+    return reg2ref_tform
+
+
+def _get_reference_neighbourhood(tile_coors, shifts, ops, tile_shape):
+    height, width = tile_shape
+    neighbours = [
+        {
+            "tile_coors": tuple(tile_coors),
+            "right_shift": 0.0,
+            "down_shift": 0.0,
+            "x0": 0.0,
+            "y0": 0.0,
+            "x1": float(width),
+            "y1": float(height),
+            "cx": width / 2.0,
+            "cy": height / 2.0,
+        }
+    ]
+
+    offsets = (
+        (0, 1),
+        (1, 1),
+        (0, -1),
+        (-1, 1),
+        (1, 0),
+        (-1, 0),
+        (-1, -1),
+        (1, -1),
+    )
+    for base_offset in offsets:
+        base_offset = np.array(base_offset, dtype=int)
+        down_shift, right_shift = find_shift_stitch(
+            tile_coors, shifts, base_offset.copy(), ops
+        )
+        if down_shift is None or right_shift is None:
+            continue
+
+        tile_delta = base_offset.copy()
+        if ops["x_tile_direction"] == "right_to_left":
+            tile_delta *= np.array([-1, 1], dtype=int)
+        if ops["y_tile_direction"] == "bottom_to_top":
+            tile_delta *= np.array([1, -1], dtype=int)
+
+        adj_coors = (
+            tile_coors[0],
+            tile_coors[1] + int(tile_delta[0]),
+            tile_coors[2] + int(tile_delta[1]),
+        )
+        x0 = float(right_shift)
+        y0 = float(down_shift)
+        neighbours.append(
+            {
+                "tile_coors": tuple(adj_coors),
+                "right_shift": float(right_shift),
+                "down_shift": float(down_shift),
+                "x0": x0,
+                "y0": y0,
+                "x1": x0 + float(width),
+                "y1": y0 + float(height),
+                "cx": x0 + width / 2.0,
+                "cy": y0 + height / 2.0,
+            }
+        )
+    return neighbours
+
+
+def _choose_owner_tile(transformed_xy, neighbourhood):
+    x, y = transformed_xy
+    containing = []
+    for tile in neighbourhood:
+        if tile["x0"] <= x < tile["x1"] and tile["y0"] <= y < tile["y1"]:
+            containing.append(tile)
+    if not containing:
+        return None
+    return min(
+        containing,
+        key=lambda tile: (x - tile["cx"]) ** 2 + (y - tile["cy"]) ** 2,
+    )["tile_coors"]
+
+
+def _load_register_and_assign_tile_mask(
+    data_path,
+    tile_coors,
+    prefix="hybridisation_round_1_1",
+    reference_prefix="barcode_round_2_1",
+    corrected_shifts="best",
+):
     ops = load_ops(data_path)
     print("Loading and registering tile:", tile_coors)
     processed_path = get_processed_path(data_path)
@@ -1572,128 +1710,209 @@ def load_register_and_fill_tile_mask(
         raise FileNotFoundError(f"Could not find saved shifts at {shifts_within_ref_fname}, please run register_within_acquisition first.")
     shifts = np.load(shifts_within_ref_fname)
 
-    # requires that setup of barcode calling has been run for channel correction
+    home_mask = load_mask_by_coors(
+        data_path,
+        prefix,
+        tile_coors,
+        suffix="corrected",
+    )
+    channels = ops["cellpose_channels"]
+    neighbourhood = _get_reference_neighbourhood(
+        tile_coors=tile_coors,
+        shifts=shifts,
+        ops=ops,
+        tile_shape=home_mask.shape,
+    )
+
+    max_output_labels = 0
+    for tile in neighbourhood:
+        try:
+            source_mask = load_mask_by_coors(
+                data_path,
+                prefix,
+                tile["tile_coors"],
+                suffix="corrected",
+            )
+        except FileNotFoundError:
+            continue
+        max_output_labels += int(source_mask.max())
+
+    output_dtype = np.uint16 if max_output_labels < 2**16 else np.uint32
+    output = np.zeros(home_mask.shape, dtype=output_dtype)
+    next_label = 1
+    kept_labels = 0
+    dropped_overlap = 0
+
+    for tile in neighbourhood:
+        try:
+            source_mask = load_mask_by_coors(
+                data_path,
+                prefix,
+                tile["tile_coors"],
+                suffix="corrected",
+            )
+        except FileNotFoundError:
+            print(f"Could not load corrected mask tile {tile['tile_coors']}, skipping")
+            continue
+
+        tform = _get_mask_registration_matrix(
+            data_path=data_path,
+            prefix=prefix,
+            tile_coors=tile["tile_coors"],
+            corrected_shifts=corrected_shifts,
+            channels=channels,
+        )
+        tform = np.asarray(tform, dtype=float).copy()
+        tform[0, 2] += tile["right_shift"]
+        tform[1, 2] += tile["down_shift"]
+
+        warped_mask = warp(
+            source_mask,
+            AffineTransform(matrix=tform).inverse,
+            preserve_range=True,
+            cval=0,
+            order=0,
+            output_shape=home_mask.shape,
+        ).astype(source_mask.dtype)
+
+        for prop in regionprops(source_mask):
+            transformed_centroid = tform @ np.array(
+                [prop.centroid[1], prop.centroid[0], 1.0],
+                dtype=float,
+            )
+            owner_tile = _choose_owner_tile(transformed_centroid[:2], neighbourhood)
+            if owner_tile != tuple(tile_coors):
+                continue
+
+            region = warped_mask == prop.label
+            if not np.any(region):
+                continue
+
+            if np.any(output[region] != 0):
+                dropped_overlap += 1
+                region = region & (output == 0)
+            if not np.any(region):
+                continue
+
+            output[region] = next_label
+            next_label += 1
+            kept_labels += 1
+
+    print(
+        "Assigned masks to owner tile "
+        f"{tile_coors}: kept {kept_labels} labels, dropped overlap on {dropped_overlap} labels"
+    )
+    return output
+
+
+def _load_register_and_fill_tile_mask_legacy(
+    data_path,
+    tile_coors,
+    prefix="hybridisation_round_1_1",
+    reference_prefix="barcode_round_2_1",
+    corrected_shifts="best",
+):
+    ops = load_ops(data_path)
+    print("Loading and registering tile:", tile_coors)
+    processed_path = get_processed_path(data_path)
+    shifts_within_ref_fname = (
+        processed_path
+        / "reg"
+        / f"{reference_prefix}_within"
+        / f"{reference_prefix}_{tile_coors[0]}_shifts.npz"
+    )
+    if not shifts_within_ref_fname.exists():
+        raise FileNotFoundError(
+            f"Could not find saved shifts at {shifts_within_ref_fname}, please run register_within_acquisition first."
+        )
+    shifts = np.load(shifts_within_ref_fname)
+
     cell_mask = load_mask_by_coors(
         data_path,
         prefix,
         tile_coors,
         suffix="corrected",
     )
-
-    reg2ref_tform = get_shifts_to_ref(
-        data_path, 
-        prefix, 
-        tile_coors[0], 
-        tile_coors[1], 
-        tile_coors[2]
-    )["matrix_between_channels"][0]
-
-
     channels = ops["cellpose_channels"]
-    # create transform 
-    if len(channels) == 1:
-        # if only one channel, include channel transform
-        channel_transforms = get_channel_round_transforms(
-            data_path,
-            prefix,
-            tile_coors=tile_coors,
-            shifts_type=corrected_shifts,
-            load_file=True,
-        )["matrix_between_channels"][channels][0]
-
-        # first ch tform then reg2ref
-        tform = reg2ref_tform @ channel_transforms
-
-    else:
-        tform = reg2ref_tform
-
+    tform = _get_mask_registration_matrix(
+        data_path=data_path,
+        prefix=prefix,
+        tile_coors=tile_coors,
+        corrected_shifts=corrected_shifts,
+        channels=channels,
+    )
     res = warp(
         cell_mask,
         AffineTransform(matrix=tform).inverse,
         preserve_range=True,
         cval=0,
-        order=0,        
+        order=0,
     ).astype(cell_mask.dtype)
-    
-    # load adjacent tiles and fill with labels
-    tiles_to_load = [[0, 1], [1,1], [0, -1], [-1,1], [1, 0], [-1, 0], [-1,-1], [1,-1]]  # down, up, right, left + corners
-    for adj_offset in tiles_to_load.copy():
-            #### DO THIS BEFORE accounting for direction
-            # TODO make more clear framework for how to account for direction
-            down_stitch, right_stitch = find_shift_stitch(tile_coors, shifts, adj_offset, ops)
-            ###
 
-            #skip if tile is edge tile and no tiles were imaged to the current direction
-            if down_stitch is None or right_stitch is None:
-                print(f"Skipping adjacent tile at offset {adj_offset} due to missing shifts")
-                continue
+    tiles_to_load = (
+        (0, 1),
+        (1, 1),
+        (0, -1),
+        (-1, 1),
+        (1, 0),
+        (-1, 0),
+        (-1, -1),
+        (1, -1),
+    )
+    for adj_offset in tiles_to_load:
+        adj_offset = np.array(adj_offset, dtype=int)
+        down_stitch, right_stitch = find_shift_stitch(
+            tile_coors, shifts, adj_offset.copy(), ops
+        )
+        if down_stitch is None or right_stitch is None:
+            print(f"Skipping adjacent tile at offset {tuple(adj_offset)} due to missing shifts")
+            continue
 
-            # account for direction
-            if ops["x_tile_direction"] == "right_to_left":
-                    print("Accounting for right to left tiling")
-                    adj_offset *= np.array([-1, 1])
-            if ops["y_tile_direction"] == "bottom_to_top":
-                    print("Accounting for bottom to top tiling")
-                    adj_offset *= np.array([1, -1])
+        tile_delta = adj_offset.copy()
+        if ops["x_tile_direction"] == "right_to_left":
+            tile_delta *= np.array([-1, 1], dtype=int)
+        if ops["y_tile_direction"] == "bottom_to_top":
+            tile_delta *= np.array([1, -1], dtype=int)
 
-            # put together tile coordinates of adjacent tile
-            adj_coors = (tile_coors[0], tile_coors[1] + adj_offset[0], tile_coors[2] + adj_offset[1])
-            print(f"Loading adjacent tile at offset {adj_offset}, coordinates {adj_coors}")
-            # load adjacent tile
-            try:
-                adj_mask = load_mask_by_coors(
-                    data_path,
-                    prefix,
-                    adj_coors,
-                    suffix="corrected",
-                )
-            except FileNotFoundError:
-                print(f"Could not load adjacent tile at offset {adj_offset}, skipping")
-                continue
+        adj_coors = (
+            tile_coors[0],
+            tile_coors[1] + int(tile_delta[0]),
+            tile_coors[2] + int(tile_delta[1]),
+        )
+        print(f"Loading adjacent tile at offset {tuple(tile_delta)}, coordinates {adj_coors}")
+        try:
+            adj_mask = load_mask_by_coors(
+                data_path,
+                prefix,
+                adj_coors,
+                suffix="corrected",
+            )
+        except FileNotFoundError:
+            print(f"Could not load adjacent tile at offset {tuple(tile_delta)}, skipping")
+            continue
 
-            adj_reg2ref_tform = get_shifts_to_ref(
-                data_path, 
-                prefix, 
-                adj_coors[0], 
-                adj_coors[1], 
-                adj_coors[2]
-            )["matrix_between_channels"][0]
+        tform = _get_mask_registration_matrix(
+            data_path=data_path,
+            prefix=prefix,
+            tile_coors=adj_coors,
+            corrected_shifts=corrected_shifts,
+            channels=channels,
+        )
+        tform = np.asarray(tform, dtype=float).copy()
+        tform[0, 2] += right_stitch
+        tform[1, 2] += down_stitch
 
-            if len(channels) == 1:
-                # if only one channel, include channel transform
-                adj_channel_transforms = get_channel_round_transforms(
-                    data_path,
-                    prefix,
-                    tile_coors=adj_coors,
-                    shifts_type=corrected_shifts,
-                    load_file=True,
-                )["matrix_between_channels"][channels][0]
+        adj_masks = warp(
+            adj_mask,
+            AffineTransform(matrix=tform).inverse,
+            preserve_range=True,
+            cval=0,
+            order=0,
+        ).astype(adj_mask.dtype)
 
-                # first ch tform then reg2ref
-                tform = adj_reg2ref_tform @ adj_channel_transforms
-            else:
-                tform = adj_reg2ref_tform
-
-            # add stitching shifts to tforms
-
-            tform[0, 2] += right_stitch
-            tform[1, 2] += down_stitch
-
-            adj_masks = warp(
-                adj_mask,
-                AffineTransform(matrix=tform).inverse,
-                preserve_range=True,
-                cval=0,
-                order=0,        
-            ).astype(adj_mask.dtype)
-
-            # add masks from adjacent tile to current tile, only filling in where current tile is 0 and adjacent tile is not 0
-            fill_mask = (res == 0) & (adj_masks != 0)
-
-            # make sure same label isn't used for several cells
-            max_label = res.max()
-            adj_masks[adj_masks > 0] += max_label
-
-            res[fill_mask] = adj_masks[fill_mask]
+        fill_mask = (res == 0) & (adj_masks != 0)
+        max_label = res.max()
+        adj_masks[adj_masks > 0] += max_label
+        res[fill_mask] = adj_masks[fill_mask]
 
     return res
