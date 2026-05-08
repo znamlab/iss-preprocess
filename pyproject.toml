@@ -72,6 +72,10 @@ dev = [
   "sphinx",
   "sphinxcontrib-mermaid",
 ]
+napari = [
+  "napari[pyqt5]>=0.4.18",
+  "qtpy",
+]
 
 [build-system]
 requires = [

@@ -13,3 +13,15 @@ def save_pairwise_overlap_plots(*args, **kwargs):
     from .volume_registration import save_pairwise_overlap_plots as _save
 
     return _save(*args, **kwargs)
+
+
+def review_pairwise_registrations_napari(*args, **kwargs):
+    """Lazy import wrapper for the napari-based pairwise registration reviewer.
+
+    Requires the optional `napari` extra: `pip install 'iss-preprocess[napari]'`.
+    """
+    from .volume_registration_napari import (
+        review_pairwise_registrations_napari as _napari,
+    )
+
+    return _napari(*args, **kwargs)
