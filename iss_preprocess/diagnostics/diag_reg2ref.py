@@ -16,6 +16,7 @@ from ..pipeline.register import (
     load_and_register_sequencing_tile,
     load_and_register_tile,
 )
+from ..pipeline.stitch import warp_stack_to_ref
 from ..vis import add_bases_legend, round_to_rgb, to_rgb
 from ..vis.diagnostics import plot_round_registration_diagnostics
 from ..vis.utils import plot_matrix_difference, plot_matrix_with_colorbar
@@ -371,16 +372,19 @@ def check_registration_to_reference(data_path, prefix, ref_prefix, tile_coords=N
         "Ref and Reg chan 0/1",
         "Ref and Reg chan 2/3",
         f"Ref: {ref_prefix}",
-        "Reg: {prefix}",
+        f"Reg: {prefix}",
     ]
     for tile in tile_coords:
         # get the reference tile
         ref_stack, _ = load_and_register_tile(
             data_path, tile, ref_prefix, filter_r=False
         )
-        # get the tile to register
-        reg_stack, _ = load_and_register_tile(
+        # get the tile to register and warp it into the reference frame
+        reg_stack, reg_bad = load_and_register_tile(
             data_path, tile, full_prefix, filter_r=False
+        )
+        reg_stack, _ = warp_stack_to_ref(
+            reg_stack, data_path, full_prefix, tile, bad_pixels=reg_bad
         )
         # concatenate the stacks
         stack = np.concatenate([ref_stack, reg_stack], axis=3)
