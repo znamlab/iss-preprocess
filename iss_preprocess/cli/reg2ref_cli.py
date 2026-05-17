@@ -82,11 +82,11 @@ def correct_ref_shifts(path, prefix=None, use_slurm=False):
 def register_to_reference(
     path,
     reg_prefix,
-    roi,
-    tilex,
-    tiley,
-    use_masked_correlation,
-    use_stitched,
+    roi=None,
+    tilex=None,
+    tiley=None,
+    use_masked_correlation=False,
+    use_stitched=False,
 ):
     """Register an acquisition to reference tile by tile."""
     from iss_preprocess.pipeline.reg2ref import (

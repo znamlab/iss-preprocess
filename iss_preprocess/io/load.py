@@ -708,17 +708,11 @@ def get_channel_round_transforms(
     else:
         raise ValueError(f"unknown shift correction method: {shifts_type}")
     filename = tforms_path / tforms_fname
+    if not filename.exists():
+        filename = old_path / tforms_fname
     if not load_file:
         return filename
-    try:
-        tforms = np.load(tforms_path / tforms_fname, allow_pickle=True)
-    except FileNotFoundError:
-        # try the old path
-        filename = old_path / tforms_fname
-        tforms = np.load(old_path / tforms_fname, allow_pickle=True)
-        warnings.warn(
-            f"{filename} not found. Loading from old path", DeprecationWarning
-        )
+    tforms = np.load(filename, allow_pickle=True)
     return tforms
 
 

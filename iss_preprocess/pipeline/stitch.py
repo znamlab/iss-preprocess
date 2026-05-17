@@ -122,6 +122,7 @@ def warp_stack_to_ref(
         bad_pixels (np.array, optional): A (X x Y) boolean array of bad pixels that fall
             outside image after registration. If None, will not apply any mask. Defaults
             to None.
+        shift_type (str, optional): Method used to correct shifts to reference. If None, will use the one in `ops`. Defaults to None.
 
     Returns:
         np.array: A (X x Y x Nchannels x Nrounds) registered stack

@@ -182,8 +182,13 @@ def register_tile_to_ref(
                                  / f"to_ref_{reg_prefix}"
                                  / f"tforms_stitched_to_ref_{reg_prefix}_{tile_coors[0]}_{tile_coors[1]}_{tile_coors[2]}.npz"
                                  )["matrix_between_channels"][0]
+        print("Multiplying with initial shift from stitched registration")
+        print(f"Initial shift from stitched registration: {tform_stitched}")
         tforms =  tforms @ tform_stitched 
-        print(f"incldeing initial shift: Angle: {angle}, Shifts: {shift}")
+        A = tforms.params
+        angle_rad = np.arctan2(A[1, 0], A[0, 0])
+        angle_deg = np.rad2deg(angle_rad)
+        print(f"including initial shift: Angle: {angle_deg}, Shifts: {shift}")
     processed_path = get_processed_path(data_path)
     r, x, y = tile_coors
     target = processed_path / "reg" / f"tforms_to_ref_{reg_prefix}_{r}_{x}_{y}.npz"
