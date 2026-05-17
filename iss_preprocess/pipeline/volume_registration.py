@@ -14,7 +14,7 @@ from image_tools.registration.phase_correlation import (
 from scipy.optimize import dual_annealing
 from skimage import exposure
 from skimage.filters import window
-from skimage.transform import AffineTransform, warp
+from skimage.transform import AffineTransform, resize, warp
 from tqdm.auto import tqdm
 from znamutils import slurm_it
 
@@ -1570,6 +1570,17 @@ def write_bad_slices_to_chamber_ops(
         entries = stack["manifest"]["entries"]
     grouping = _group_bad_slices_by_chamber(entries, bad_slices)
 
+    # Use ruamel.yaml round-trip mode so we preserve the existing file's
+    # key ordering, comments, quoting style, and block/flow layout instead
+    # of nuking everything with PyYAML's safe_dump. The bad_slices entry
+    # is updated in place; new files (none exist by default) would have
+    # the key appended at the end.
+    from ruamel.yaml import YAML
+    from ruamel.yaml.comments import CommentedSeq
+
+    yaml_rt = YAML()
+    yaml_rt.preserve_quotes = True
+
     written = []
     for chamber, chamber_bad in grouping.items():
         processed_path = get_processed_path(chamber)
@@ -1579,12 +1590,17 @@ def write_bad_slices_to_chamber_ops(
                 print(f"Skipping bad_slices write: {ops_fname} does not exist")
             continue
         with open(ops_fname, "r") as fhandle:
-            existing = yaml.safe_load(fhandle) or {}
-        if existing.get("bad_slices") == chamber_bad:
+            existing = yaml_rt.load(fhandle) or {}
+        # CommentedSeq inherits from list; list-equality compares element-wise.
+        if list(existing.get("bad_slices", [])) == list(chamber_bad):
             continue
-        existing["bad_slices"] = chamber_bad
+        # Force flow style ([1, 2, 3]) regardless of length, matching the
+        # short-list convention typical in hand-written ops.yml files.
+        bad_seq = CommentedSeq(chamber_bad)
+        bad_seq.fa.set_flow_style()
+        existing["bad_slices"] = bad_seq
         with open(ops_fname, "w") as fhandle:
-            yaml.safe_dump(existing, fhandle, sort_keys=True)
+            yaml_rt.dump(existing, fhandle)
         written.append(str(ops_fname))
     return written
 
@@ -1617,6 +1633,185 @@ def load_bad_slices(data_path=None, stack_path=None, state_path=None):
     }
 
 
+def _scale_matrix(scale):
+    return np.array([[scale, 0.0, 0.0], [0.0, scale, 0.0], [0.0, 0.0, 1.0]])
+
+
+def _infer_overview_downsample_ratio(transforms):
+    ratios = []
+    for overview_matrix, fullres_matrix in zip(
+        transforms["global_from_overview"], transforms["global_from_fullres"]
+    ):
+        overview_norm = np.linalg.norm(
+            np.asarray(overview_matrix, dtype=float)[:2, :2]
+        )
+        fullres_norm = np.linalg.norm(
+            np.asarray(fullres_matrix, dtype=float)[:2, :2]
+        )
+        if (
+            fullres_norm > 0
+            and np.isfinite(overview_norm)
+            and np.isfinite(fullres_norm)
+        ):
+            ratios.append(overview_norm / fullres_norm)
+    if ratios:
+        return float(np.median(ratios))
+    return 1.0
+
+
+def _overview_pixel_size_um(transforms, native_xy_um):
+    for overview_file in transforms.get("overview_files", []):
+        metadata_path = Path(str(overview_file)).with_suffix(".yml")
+        try:
+            metadata = _load_overview_metadata(metadata_path)
+        except Exception:
+            metadata = {}
+        if not metadata:
+            continue
+        if metadata.get("pixel_size") is not None:
+            return float(metadata["pixel_size"])
+        if metadata.get("downsample_ratio") is not None:
+            original_pixel_size = float(
+                metadata.get("original_pixel_size", native_xy_um)
+            )
+            return original_pixel_size * float(metadata["downsample_ratio"])
+
+    return float(native_xy_um) * _infer_overview_downsample_ratio(transforms)
+
+
+def _integer_local_mean_downsample(image, factor):
+    out_y = image.shape[0] // factor
+    out_x = image.shape[1] // factor
+    if out_y < 1 or out_x < 1:
+        raise ValueError(
+            f"Cannot downsample image with shape {image.shape[:2]} by factor {factor}"
+        )
+    cropped = image[: out_y * factor, : out_x * factor]
+    return cropped.reshape(out_y, factor, out_x, factor).mean(
+        axis=(1, 3),
+        dtype=np.float32,
+    )
+
+
+def _area_resample_to_pixel_size(image, input_pixel_size_um, output_pixel_size_um):
+    image = np.asarray(image, dtype=np.float32)
+    input_pixel_size_um = float(input_pixel_size_um)
+    output_pixel_size_um = float(output_pixel_size_um)
+    if input_pixel_size_um <= 0 or output_pixel_size_um <= 0:
+        raise ValueError("Pixel sizes must be positive")
+
+    scale = input_pixel_size_um / output_pixel_size_um
+    output_shape = (
+        max(1, int(np.floor(image.shape[0] * scale))),
+        max(1, int(np.floor(image.shape[1] * scale))),
+    )
+    if output_shape == image.shape[:2]:
+        return image
+
+    downsample_factor = output_pixel_size_um / input_pixel_size_um
+    nearest_integer = int(round(downsample_factor))
+    if downsample_factor > 1 and np.isclose(
+        downsample_factor, nearest_integer, rtol=1e-6, atol=1e-6
+    ):
+        downsampled = _integer_local_mean_downsample(image, nearest_integer)
+        if downsampled.shape == output_shape:
+            return downsampled.astype(np.float32, copy=False)
+
+    return resize(
+        image,
+        output_shape,
+        order=1,
+        mode="edge",
+        cval=0,
+        clip=False,
+        preserve_range=True,
+        anti_aliasing=scale < 1.0,
+    ).astype(np.float32, copy=False)
+
+
+def _prepare_volume_resampling(transforms, native_xy_um, target_voxel_size_um=None):
+    overview_xy_um = _overview_pixel_size_um(transforms, native_xy_um)
+    xy_voxel_size_um = (
+        overview_xy_um
+        if target_voxel_size_um is None
+        else float(target_voxel_size_um)
+    )
+    if xy_voxel_size_um <= 0:
+        raise ValueError("target_voxel_size_um must be positive")
+
+    canvas_shape = transforms["canvas_shape_yx"]
+    output_from_overview_scale = overview_xy_um / xy_voxel_size_um
+    output_shape = (
+        max(1, int(round(int(canvas_shape[0]) * output_from_overview_scale))),
+        max(1, int(round(int(canvas_shape[1]) * output_from_overview_scale))),
+    )
+    output_from_overview = _scale_matrix(output_from_overview_scale)
+    overview_from_resampled_source = _scale_matrix(
+        xy_voxel_size_um / overview_xy_um
+    )
+    matrices = np.stack(
+        [
+            output_from_overview
+            @ np.asarray(matrix, dtype=float)
+            @ overview_from_resampled_source
+            for matrix in transforms["global_from_overview"]
+        ]
+    )
+    return matrices, output_shape, float(xy_voxel_size_um), float(overview_xy_um)
+
+
+def _build_volume_slice_worker(
+    data_path,
+    roi,
+    z_index,
+    matrix,
+    output_shape,
+    native_xy_um,
+    resampled_xy_um,
+    prefix,
+    suffix,
+    channels,
+    correct_illumination,
+):
+    """Stitch + warp a single slice/ROI for ``build_registered_volume_stack``.
+
+    Module-level so loky workers can pickle it. Returns
+    ``(z_index, [(channel_idx, warped_2d_float32), ...])``.
+    """
+    from threadpoolctl import threadpool_limits
+
+    with threadpool_limits(limits=1):
+        stitched = stitch_tiles(
+            data_path,
+            prefix=prefix,
+            roi=int(roi),
+            suffix=suffix,
+            ich=channels,
+            correct_illumination=correct_illumination,
+            shifts_prefix=None,
+            register_channels=True,
+            allow_quick_estimate=False,
+            filter_r=False,
+        )
+        if stitched.ndim == 2:
+            stitched = stitched[:, :, np.newaxis]
+        warped_channels = []
+        for ch in range(stitched.shape[2]):
+            resampled = _area_resample_to_pixel_size(
+                stitched[:, :, ch],
+                input_pixel_size_um=native_xy_um,
+                output_pixel_size_um=resampled_xy_um,
+            )
+            warped = warp_with_affine(
+                resampled,
+                matrix,
+                output_shape=output_shape,
+                order=1,
+            )
+            warped_channels.append((ch, warped.astype(np.float32, copy=False)))
+        return int(z_index), warped_channels
+
+
 def build_registered_volume_stack(
     data_path,
     transforms_path,
@@ -1626,21 +1821,57 @@ def build_registered_volume_stack(
     channels=None,
     correct_illumination=True,
     z_step_um=None,
+    target_voxel_size_um=None,
+    n_jobs=1,
 ):
-    """Warp stitched ROIs into the global tangential volume frame."""
+    """Warp stitched ROIs into the global tangential volume frame.
+
+    Args:
+        data_path: One chamber path or the parent mouse path; used to
+            resolve the volume root for outputs.
+        transforms_path: NPZ produced by ``compose_global_slice_transforms``.
+        prefix: Acquisition prefix to stitch and warp.
+        output_name: Output filename inside the volume root. Default
+            includes the target voxel size when one is provided.
+        suffix, channels, correct_illumination: Forwarded to ``stitch_tiles``.
+        z_step_um (float, optional): Override the inferred Z spacing.
+        target_voxel_size_um (float, optional): If set, the volume is
+            rendered at this isotropic XY voxel size. Each stitched channel
+            is first downsampled with local-mean/anti-aliased resampling,
+            then warped at the smaller canvas size. If ``None``, the output
+            keeps the overview pixel size used for slice registration.
+        n_jobs (int): Parallel worker count. ``1`` (default) runs
+            sequentially; ``>1`` dispatches per-slice work via joblib
+            ``loky`` workers with BLAS oversubscription guarded by
+            ``threadpool_limits(limits=1)``. Throughput is typically
+            disk-bound, so values much larger than the number of
+            independent disk readers see diminishing returns.
+    """
     transforms = load_global_slice_transforms(transforms_path)
     slice_numbers = transforms["slice_numbers"]
-    matrices = transforms["global_from_fullres"]
     data_paths = transforms["data_paths"]
     rois = transforms["rois"]
-    canvas_shape = transforms["canvas_shape_yx"]
 
     if output_name is None:
-        output_name = f"registered_volume_{prefix}.npz"
+        suffix_token = (
+            f"_iso{int(round(target_voxel_size_um))}um"
+            if target_voxel_size_um is not None
+            else ""
+        )
+        output_name = f"registered_volume_{prefix}{suffix_token}.npz"
     volume_root = get_volume_root(data_path)
     volume_root.mkdir(parents=True, exist_ok=True)
     logger = _get_volume_job_logger(volume_root)
     output_path = volume_root / output_name
+
+    native_xy_um = float(get_pixel_size(data_paths[0], prefix=prefix))
+    matrices, output_shape, xy_voxel_size_um, overview_xy_um = (
+        _prepare_volume_resampling(
+            transforms,
+            native_xy_um=native_xy_um,
+            target_voxel_size_um=target_voxel_size_um,
+        )
+    )
 
     if z_step_um is None:
         z_step_um = float(
@@ -1673,59 +1904,134 @@ def build_registered_volume_stack(
         sample = sample[:, :, np.newaxis]
     nch = sample.shape[2]
     volume = np.zeros(
-        (z_indices.max() + 1, canvas_shape[0], canvas_shape[1], nch),
+        (z_indices.max() + 1, output_shape[0], output_shape[1], nch),
         dtype=np.float32,
     )
     logger.info(
-        "Building registered volume %s from %d slices for prefix %s",
+        "Building registered volume %s from %d slices for prefix %s "
+        "(canvas %s, %d ch, n_jobs=%d, native_xy_um=%.4f, "
+        "overview_xy_um=%.4f, output_xy_um=%.4f)",
         output_path,
         len(slice_numbers),
         prefix,
+        output_shape,
+        nch,
+        int(n_jobs),
+        native_xy_um,
+        overview_xy_um,
+        xy_voxel_size_um,
     )
 
+    n_slices = len(slice_numbers)
+
     with tqdm(
-        total=len(slice_numbers) + 1,
-        desc=f"Building {prefix} volume",
+        total=n_slices + 1,
+        desc=f"Building {prefix} volume"
+        + (f" (n_jobs={int(n_jobs)})" if int(n_jobs) > 1 else ""),
         dynamic_ncols=True,
     ) as pbar:
-        for data_path_i, roi, z_index, matrix in zip(data_paths, rois, z_indices, matrices):
+        if int(n_jobs) > 1:
+            from joblib import Parallel, delayed
+
+            tasks = [
+                (str(dp), int(roi), int(z_idx), np.asarray(mat, dtype=float))
+                for dp, roi, z_idx, mat in zip(
+                    data_paths, rois, z_indices, matrices
+                )
+            ]
             try:
-                stitched = stitch_tiles(
-                    data_path_i,
-                    prefix=prefix,
-                    roi=int(roi),
-                    suffix=suffix,
-                    ich=channels,
-                    correct_illumination=correct_illumination,
-                    shifts_prefix=None,
-                    register_channels=True,
-                    allow_quick_estimate=False,
-                    filter_r=False,
-                )
-                if stitched.ndim == 2:
-                    stitched = stitched[:, :, np.newaxis]
-                for ch in range(stitched.shape[2]):
-                    volume[z_index, :, :, ch] = warp_with_affine(
-                        stitched[:, :, ch].astype(np.float32),
-                        matrix,
-                        output_shape=canvas_shape,
-                        order=1,
+                results_iter = Parallel(
+                    n_jobs=int(n_jobs),
+                    backend="loky",
+                    return_as="generator",
+                )(
+                    delayed(_build_volume_slice_worker)(
+                        dp,
+                        roi,
+                        z_idx,
+                        mat,
+                        output_shape,
+                        native_xy_um,
+                        xy_voxel_size_um,
+                        prefix,
+                        suffix,
+                        channels,
+                        correct_illumination,
                     )
-                logger.info(
-                    "Added roi %s from %s at z-index %s",
-                    int(roi),
-                    data_path_i,
-                    int(z_index),
+                    for dp, roi, z_idx, mat in tasks
                 )
+            except TypeError:
+                # joblib < 1.3 has no return_as="generator"
+                results_iter = iter(
+                    Parallel(n_jobs=int(n_jobs), backend="loky")(
+                        delayed(_build_volume_slice_worker)(
+                            dp,
+                            roi,
+                            z_idx,
+                            mat,
+                            output_shape,
+                            native_xy_um,
+                            xy_voxel_size_um,
+                            prefix,
+                            suffix,
+                            channels,
+                            correct_illumination,
+                        )
+                        for dp, roi, z_idx, mat in tasks
+                    )
+                )
+
+            for z_idx, warped_channels in results_iter:
+                for ch, warped in warped_channels:
+                    volume[z_idx, :, :, ch] = warped
+                logger.info("Added slice at z-index %s", int(z_idx))
                 pbar.update(1)
-            except Exception:
-                logger.exception(
-                    "Failed building roi %s from %s at z-index %s",
-                    int(roi),
-                    data_path_i,
-                    int(z_index),
-                )
-                raise
+        else:
+            for data_path_i, roi, z_index, matrix in zip(
+                data_paths, rois, z_indices, matrices
+            ):
+                try:
+                    stitched = stitch_tiles(
+                        data_path_i,
+                        prefix=prefix,
+                        roi=int(roi),
+                        suffix=suffix,
+                        ich=channels,
+                        correct_illumination=correct_illumination,
+                        shifts_prefix=None,
+                        register_channels=True,
+                        allow_quick_estimate=False,
+                        filter_r=False,
+                    )
+                    if stitched.ndim == 2:
+                        stitched = stitched[:, :, np.newaxis]
+                    for ch in range(stitched.shape[2]):
+                        resampled = _area_resample_to_pixel_size(
+                            stitched[:, :, ch],
+                            input_pixel_size_um=native_xy_um,
+                            output_pixel_size_um=xy_voxel_size_um,
+                        )
+                        volume[z_index, :, :, ch] = warp_with_affine(
+                            resampled,
+                            matrix,
+                            output_shape=output_shape,
+                            order=1,
+                        )
+                    logger.info(
+                        "Added roi %s from %s at z-index %s",
+                        int(roi),
+                        data_path_i,
+                        int(z_index),
+                    )
+                    pbar.update(1)
+                except Exception:
+                    logger.exception(
+                        "Failed building roi %s from %s at z-index %s",
+                        int(roi),
+                        data_path_i,
+                        int(z_index),
+                    )
+                    raise
 
         pbar.set_description(f"Compressing {prefix} volume")
         logger.info("Compressing and saving registered volume to %s", output_path)
@@ -1736,7 +2042,10 @@ def build_registered_volume_stack(
             z_positions_um=z_positions,
             z_indices=z_indices,
             z_step_um=float(z_step_um),
-            canvas_shape_yx=np.asarray(canvas_shape, dtype=int),
+            xy_voxel_size_um=float(xy_voxel_size_um),
+            native_xy_voxel_size_um=float(native_xy_um),
+            overview_xy_voxel_size_um=float(overview_xy_um),
+            canvas_shape_yx=np.asarray(output_shape, dtype=int),
             channels=np.asarray(np.arange(nch), dtype=int),
         )
         pbar.update(1)
@@ -1748,10 +2057,46 @@ def register_spots_to_global_volume(
     data_path,
     transforms_path,
     spots_prefix="barcode_round",
+    pixel_size_reference_round="barcode_round_1_1",
     output_name=None,
     output_unit="pixel",
+    include_bad_slices=True,
 ):
-    """Project per-ROI spot tables into the global tangential volume frame."""
+    """Project per-ROI spot tables into the global tangential volume frame.
+
+    Iterates over ``transforms["slice_numbers"]`` (registered slices only)
+    and applies the per-slice ``global_from_fullres`` affine to each
+    chamber's ``{spots_prefix}_spots_{roi}.pkl`` ``(x, y)`` columns. The
+    union of all registered slices is concatenated and saved as one mouse-
+    level table at ``{volume_root}/{spots_prefix}_spots_global.pkl``.
+
+    When ``include_bad_slices=True`` (default), bad-slice ROIs are also
+    loaded from the same per-ROI files and appended with NaN
+    ``x_global`` / ``y_global`` / ``z_global_um`` and
+    ``is_bad_slice=True``. This keeps the output table a single source of
+    truth: spatial QC steps ``.dropna()`` the NaN rows out, but sequence-
+    only steps (error correction, Hamming distance) still see them.
+
+    Args:
+        data_path: any chamber path; only used to resolve
+            ``get_volume_root(data_path)`` for the output location.
+        transforms_path: NPZ produced by
+            :func:`compose_global_slice_transforms`.
+        spots_prefix: prefix for the per-ROI spot files
+            (``{spots_prefix}_spots_{roi}.pkl``) and the output filename.
+        pixel_size_reference_round: acquisition prefix used to look up the
+            camera pixel size when ``output_unit='um'``.
+        output_name: override the output filename; defaults to
+            ``{spots_prefix}_spots_global.pkl`` inside the volume root.
+        output_unit: ``"pixel"`` (default) or ``"um"``. Applied to the
+            ``x_global`` / ``y_global`` columns only; ``z_global_um`` is
+            always in microns (from ``find_roi_position_on_cryostat``).
+        include_bad_slices: when True (default), append bad-slice ROI rows
+            with NaN globals + ``is_bad_slice=True``.
+
+    Returns:
+        pathlib.Path: location of the saved pickle.
+    """
     if output_unit not in {"pixel", "um"}:
         raise ValueError("`output_unit` must be either `pixel` or `um`")
     transforms = load_global_slice_transforms(transforms_path)
@@ -1759,17 +2104,28 @@ def register_spots_to_global_volume(
     data_paths = transforms["data_paths"]
     rois = transforms["rois"]
     slice_numbers = transforms["slice_numbers"]
+    bad_slice_numbers = {int(s) for s in transforms.get("bad_slices", [])}
     if output_name is None:
         output_name = f"{spots_prefix}_spots_global.pkl"
     logger = _get_volume_job_logger(get_volume_root(data_path))
 
-    pixel_size_um = get_pixel_size(data_paths[0])
+    # The global_from_fullres affine lands in the global canvas, which is
+    # at overview-pixel resolution (not native camera pixels). To go to
+    # μm we therefore scale by the overview pixel size, not the native
+    # camera pixel size — multiplying by the native size silently
+    # underestimates μm by `downsample_ratio` (e.g. 8× or 32×).
+    native_xy_um = float(
+        get_pixel_size(data_paths[0], prefix=pixel_size_reference_round)
+    )
+    overview_xy_um = float(_overview_pixel_size_um(transforms, native_xy_um))
     slice_positions_um = {}
+    z_step_per_chamber = {}
     for chamber_path in set(data_paths.tolist()):
-        roi_pos_um, _ = find_roi_position_on_cryostat(chamber_path)
+        roi_pos_um, z_step = find_roi_position_on_cryostat(chamber_path)
         slice_positions_um[chamber_path] = {
             int(k): float(v) for k, v in roi_pos_um.items()
         }
+        z_step_per_chamber[chamber_path] = float(z_step)
 
     all_spots = []
     logger.info(
@@ -1797,12 +2153,13 @@ def register_spots_to_global_volume(
             spots["x_global"] = global_xy[:, 0]
             spots["y_global"] = global_xy[:, 1]
             if output_unit == "um":
-                spots["x_global"] *= pixel_size_um
-                spots["y_global"] *= pixel_size_um
+                spots["x_global"] *= overview_xy_um
+                spots["y_global"] *= overview_xy_um
             spots["slice_number"] = int(slice_number)
             spots["roi"] = int(roi)
             spots["data_path"] = chamber_path
             spots["z_global_um"] = slice_positions_um[chamber_path][int(roi)]
+            spots["is_bad_slice"] = False
             all_spots.append(spots)
             logger.info("Registered %d spots from %s", len(spots), spot_file)
         except Exception:
@@ -1812,6 +2169,35 @@ def register_spots_to_global_volume(
                 chamber_path,
             )
             raise
+
+    if include_bad_slices and bad_slice_numbers:
+        for chamber_path in sorted(set(data_paths.tolist())):
+            z_step = z_step_per_chamber[chamber_path]
+            for roi, pos_um in slice_positions_um[chamber_path].items():
+                slice_num = int(round(pos_um / z_step))
+                if slice_num not in bad_slice_numbers:
+                    continue
+                processed_path = get_processed_path(chamber_path)
+                spot_file = processed_path / f"{spots_prefix}_spots_{int(roi)}.pkl"
+                if not spot_file.exists():
+                    continue
+                spots = pd.read_pickle(spot_file).copy()
+                if not len(spots):
+                    continue
+                spots["x_global"] = np.nan
+                spots["y_global"] = np.nan
+                spots["z_global_um"] = np.nan
+                spots["slice_number"] = slice_num
+                spots["roi"] = int(roi)
+                spots["data_path"] = chamber_path
+                spots["is_bad_slice"] = True
+                all_spots.append(spots)
+                logger.info(
+                    "Loaded %d spots from bad-slice %s roi %d (no global coords)",
+                    len(spots),
+                    spot_file,
+                    int(roi),
+                )
 
     if not all_spots:
         raise FileNotFoundError(
@@ -1826,4 +2212,347 @@ def register_spots_to_global_volume(
         merged.to_pickle(output_path)
         pbar.update(1)
     logger.info("Saved merged global spot table to %s", output_path)
+    return output_path
+
+
+def register_somata_to_global_volume(
+    data_path,
+    transforms_path,
+    barcode_prefix="barcode_round",
+    pixel_size_reference_round="barcode_round_1_1",
+    output_name=None,
+    output_unit="pixel",
+    include_bad_slices=True,
+):
+    """Project per-chamber stitched soma-call tables into the global tangential
+    volume frame.
+
+    Mirrors :func:`register_spots_to_global_volume`. For each registered
+    slice listed in the transforms file, loads the corresponding chamber's
+    stitched soma table via
+    :func:`iss_preprocess.pipeline.somata.load_stitched_soma_calls`
+    (``filtered=False`` — soma QC belongs in iss-qc-sindbis), slices by
+    ROI, applies the matching ``global_from_fullres`` affine to the
+    ``(x, y)`` columns, and adds ``x_global`` / ``y_global`` /
+    ``z_global_um`` / ``slice_number`` / ``data_path`` columns. The union
+    across slices and chambers is saved as a single mouse-level table at
+    ``{volume_root}/{barcode_prefix}_somata_global.pkl``.
+
+    When ``include_bad_slices=True`` (default), somata from bad-slice ROIs
+    are also appended with NaN ``x_global`` / ``y_global`` /
+    ``z_global_um`` and ``is_bad_slice=True``. They still carry every
+    non-coordinate column (``label``, ``sequence``, ``bases``, ``area``,
+    QC scores, …) so sequence-only QC steps in iss-qc-sindbis (error
+    correction, Hamming distance) can use them.
+
+    Args:
+        data_path: any chamber path; only used to resolve
+            ``get_volume_root(data_path)`` for the output location.
+        transforms_path: NPZ produced by
+            :func:`compose_global_slice_transforms`.
+        barcode_prefix: prefix used by
+            :func:`iss_preprocess.pipeline.somata.load_stitched_soma_calls`
+            and for the output filename.
+        pixel_size_reference_round: acquisition prefix used to look up
+            the camera pixel size when ``output_unit='um'``.
+        output_name: override the output filename; defaults to
+            ``{barcode_prefix}_somata_global.pkl`` inside the volume root.
+        output_unit: ``"pixel"`` (default) or ``"um"``. Applied to the
+            ``x_global`` / ``y_global`` columns only; ``z_global_um`` is
+            always in microns.
+        include_bad_slices: when True (default), append bad-slice ROI
+            rows with NaN globals + ``is_bad_slice=True``.
+
+    Returns:
+        pathlib.Path: location of the saved pickle.
+    """
+    from .somata import load_stitched_soma_calls
+
+    if output_unit not in {"pixel", "um"}:
+        raise ValueError("`output_unit` must be either `pixel` or `um`")
+    transforms = load_global_slice_transforms(transforms_path)
+    matrices = transforms["global_from_fullres"]
+    data_paths = transforms["data_paths"]
+    rois = transforms["rois"]
+    slice_numbers = transforms["slice_numbers"]
+    bad_slice_numbers = {int(s) for s in transforms.get("bad_slices", [])}
+    if output_name is None:
+        output_name = f"{barcode_prefix}_somata_global.pkl"
+    logger = _get_volume_job_logger(get_volume_root(data_path))
+
+    # See note in `register_spots_to_global_volume`: μm conversion uses
+    # the overview pixel size (canvas resolution), not the native camera
+    # pixel size.
+    native_xy_um = float(
+        get_pixel_size(data_paths[0], prefix=pixel_size_reference_round)
+    )
+    overview_xy_um = float(_overview_pixel_size_um(transforms, native_xy_um))
+    slice_positions_um = {}
+    z_step_per_chamber = {}
+    for chamber_path in set(data_paths.tolist()):
+        roi_pos_um, z_step = find_roi_position_on_cryostat(chamber_path)
+        slice_positions_um[chamber_path] = {
+            int(k): float(v) for k, v in roi_pos_um.items()
+        }
+        z_step_per_chamber[chamber_path] = float(z_step)
+
+    # Per-chamber load once, slice by ROI to apply per-slice affines.
+    chamber_tables = {}
+
+    def _load_chamber(chamber_path):
+        if chamber_path not in chamber_tables:
+            try:
+                chamber_tables[chamber_path] = load_stitched_soma_calls(
+                    chamber_path,
+                    barcode_prefix=barcode_prefix,
+                    filtered=False,
+                )
+            except FileNotFoundError:
+                logger.info(
+                    "Skipping chamber %s: stitched soma table not found",
+                    chamber_path,
+                )
+                chamber_tables[chamber_path] = None
+        return chamber_tables[chamber_path]
+
+    logger.info(
+        "Registering soma tables for %d slices from %s",
+        len(slice_numbers),
+        transforms_path,
+    )
+
+    all_somata = []
+    for matrix, chamber_path, roi, slice_number in tqdm(
+        zip(matrices, data_paths, rois, slice_numbers),
+        total=len(slice_numbers),
+        desc="Registering soma tables",
+        dynamic_ncols=True,
+    ):
+        try:
+            stitched = _load_chamber(chamber_path)
+            if stitched is None or stitched.empty:
+                continue
+            soma_subset = stitched.loc[stitched["roi"].astype(int) == int(roi)].copy()
+            if soma_subset.empty:
+                continue
+            global_xy = apply_affine_to_points(
+                soma_subset[["x", "y"]].to_numpy(), matrix
+            )
+            soma_subset["x_global"] = global_xy[:, 0]
+            soma_subset["y_global"] = global_xy[:, 1]
+            if output_unit == "um":
+                soma_subset["x_global"] *= overview_xy_um
+                soma_subset["y_global"] *= overview_xy_um
+            soma_subset["slice_number"] = int(slice_number)
+            soma_subset["data_path"] = chamber_path
+            soma_subset["z_global_um"] = slice_positions_um[chamber_path][int(roi)]
+            soma_subset["is_bad_slice"] = False
+            all_somata.append(soma_subset)
+            logger.info(
+                "Registered %d somata from %s roi %d",
+                len(soma_subset),
+                chamber_path,
+                int(roi),
+            )
+        except Exception:
+            logger.exception(
+                "Failed registering somata for roi %s from %s",
+                int(roi),
+                chamber_path,
+            )
+            raise
+
+    if include_bad_slices and bad_slice_numbers:
+        for chamber_path in sorted(set(data_paths.tolist())):
+            stitched = _load_chamber(chamber_path)
+            if stitched is None or stitched.empty:
+                continue
+            z_step = z_step_per_chamber[chamber_path]
+            for roi, pos_um in slice_positions_um[chamber_path].items():
+                slice_num = int(round(pos_um / z_step))
+                if slice_num not in bad_slice_numbers:
+                    continue
+                soma_subset = stitched.loc[stitched["roi"].astype(int) == int(roi)].copy()
+                if soma_subset.empty:
+                    continue
+                soma_subset["x_global"] = np.nan
+                soma_subset["y_global"] = np.nan
+                soma_subset["z_global_um"] = np.nan
+                soma_subset["slice_number"] = slice_num
+                soma_subset["data_path"] = chamber_path
+                soma_subset["is_bad_slice"] = True
+                all_somata.append(soma_subset)
+                logger.info(
+                    "Loaded %d somata from bad-slice %s roi %d (no global coords)",
+                    len(soma_subset),
+                    chamber_path,
+                    int(roi),
+                )
+
+    if not all_somata:
+        raise FileNotFoundError(
+            f"Could not find any stitched soma tables for prefix `{barcode_prefix}`."
+        )
+    output_path = get_volume_root(data_path) / output_name
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with tqdm(total=2, desc="Saving global soma table", dynamic_ncols=True) as pbar:
+        merged = pd.concat(all_somata, ignore_index=True)
+        pbar.update(1)
+        logger.info("Saving merged global soma table to %s", output_path)
+        merged.to_pickle(output_path)
+        pbar.update(1)
+    logger.info("Saved merged global soma table to %s", output_path)
+    return output_path
+
+
+def register_tissue_masks_to_global_volume(
+    data_path,
+    transforms_path,
+    stack_path=None,
+    output_name="tissue_mask_global.npz",
+    z_step_um=None,
+    pixel_size_reference_round="barcode_round_1_1",
+):
+    """Warp the user-drawn tissue masks from
+    :func:`export_unregistered_volume_stack` into the global volume frame.
+
+    Input: ``user_masks`` plane of
+    ``tangential_volume/unregistered_slices.npz``, drawn in Napari (1 =
+    keep, 0 = exclude) in the same padded-overview pixel space as the
+    unregistered slice images.
+
+    Per active slice, the function applies
+    ``canvas_offset_matrix @ global_from_padded[i]`` (nearest-neighbour
+    warp) to project the 2D mask into the global canvas. Bad slices are
+    excluded automatically — ``compose_global_slice_transforms`` drops
+    them from ``transforms["slice_numbers"]``, and
+    ``_prepare_pairwise_state`` flags any slice with an all-zero mask as
+    a bad slice upstream.
+
+    Output frame matches :func:`build_registered_volume_stack`'s
+    native-resolution output: a 3D boolean volume in the canvas defined
+    by ``transforms["canvas_shape_yx"]``, with z indexed by
+    ``z_index = round((z_position_um - z_min_um) / z_step_um)``.
+    ``xy_voxel_size_um`` (overview pixel size, derived via
+    ``_overview_pixel_size_um``) is saved as metadata so a μm-coordinate
+    consumer can convert query coords to mask indices.
+
+    Args:
+        data_path: any chamber path; only used to resolve
+            ``get_volume_root(data_path)`` for the output location.
+        transforms_path: NPZ produced by
+            :func:`compose_global_slice_transforms`.
+        stack_path: NPZ produced by
+            :func:`export_unregistered_volume_stack`. Defaults to
+            ``{volume_root}/unregistered_slices.npz``.
+        output_name: output filename inside the volume root.
+        z_step_um: override the inferred z spacing. If ``None``, taken
+            from the minimum cryostat slice spacing across chambers
+            (matches :func:`build_registered_volume_stack`).
+        pixel_size_reference_round: acquisition prefix used to look up
+            the native (per-tile) pixel size; the overview pixel size is
+            then derived via ``_overview_pixel_size_um``.
+
+    Returns:
+        pathlib.Path: location of the saved NPZ. Contents:
+        ``volume`` (z, y, x) bool, ``slice_numbers``, ``rois``,
+        ``data_paths``, ``z_positions_um``, ``z_indices``, ``z_step_um``,
+        ``xy_voxel_size_um``, ``canvas_shape_yx``.
+    """
+    volume_root = get_volume_root(data_path)
+    if stack_path is None:
+        stack_path = volume_root / "unregistered_slices.npz"
+    logger = _get_volume_job_logger(volume_root)
+
+    transforms = load_global_slice_transforms(transforms_path)
+    slice_numbers = transforms["slice_numbers"]
+    rois = transforms["rois"]
+    data_paths = transforms["data_paths"]
+    canvas_shape = transforms["canvas_shape_yx"]
+    offset = transforms["canvas_offset_matrix"]
+    global_from_padded = transforms["global_from_padded"]
+
+    stack = load_unregistered_volume_stack(stack_path)
+    user_masks = stack["user_masks"]  # (N_entries, H_pad, W_pad) bool
+    manifest_entries = stack["manifest"]["entries"]
+    entry_by_slice = {int(entry["slice_number"]): i for i, entry in enumerate(manifest_entries)}
+
+    active_slices_set = {int(s) for s in slice_numbers}
+    for entry_slice, i in entry_by_slice.items():
+        if entry_slice in active_slices_set:
+            continue
+        if user_masks[i].any():
+            logger.warning(
+                "Slice %s has a user mask but is flagged as bad and will be excluded",
+                entry_slice,
+            )
+
+    native_xy_um = float(
+        get_pixel_size(data_paths[0], prefix=pixel_size_reference_round)
+    )
+    overview_xy_um = float(_overview_pixel_size_um(transforms, native_xy_um))
+    if z_step_um is None:
+        z_step_um = float(
+            min(find_roi_position_on_cryostat(path)[1] for path in set(data_paths.tolist()))
+        )
+
+    roi_pos_um = {}
+    for chamber_path in set(data_paths.tolist()):
+        positions, _ = find_roi_position_on_cryostat(chamber_path)
+        roi_pos_um[chamber_path] = {int(k): float(v) for k, v in positions.items()}
+    z_positions = np.asarray(
+        [roi_pos_um[path][int(roi)] for path, roi in zip(data_paths, rois)],
+        dtype=float,
+    )
+    z_indices = np.round((z_positions - z_positions.min()) / z_step_um).astype(int)
+    n_z = int(z_indices.max()) + 1
+
+    volume = np.zeros((n_z, canvas_shape[0], canvas_shape[1]), dtype=bool)
+    logger.info(
+        "Warping %d user masks into global canvas %s at z-depth %d",
+        len(slice_numbers),
+        canvas_shape,
+        n_z,
+    )
+    for i, (slice_number, matrix_padded) in enumerate(
+        tqdm(
+            zip(slice_numbers, global_from_padded),
+            total=len(slice_numbers),
+            desc="Warping tissue masks",
+            dynamic_ncols=True,
+        )
+    ):
+        slice_int = int(slice_number)
+        if slice_int not in entry_by_slice:
+            logger.warning(
+                "Active slice %s missing from manifest; skipping", slice_int
+            )
+            continue
+        mask_in = user_masks[entry_by_slice[slice_int]].astype(np.uint8)
+        if not mask_in.any():
+            continue
+        warped = warp_with_affine(
+            mask_in,
+            offset @ matrix_padded,
+            output_shape=canvas_shape,
+            order=0,
+            cval=0.0,
+        )
+        volume[int(z_indices[i])] |= warped.astype(bool)
+
+    output_path = volume_root / output_name
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        output_path,
+        volume=volume,
+        slice_numbers=np.asarray(slice_numbers, dtype=int),
+        rois=np.asarray(rois, dtype=int),
+        data_paths=np.asarray(data_paths),
+        z_positions_um=z_positions,
+        z_indices=z_indices,
+        z_step_um=float(z_step_um),
+        xy_voxel_size_um=float(overview_xy_um),
+        canvas_shape_yx=np.asarray(canvas_shape, dtype=int),
+    )
+    logger.info("Saved global tissue mask to %s", output_path)
     return output_path

@@ -22,6 +22,7 @@ dependencies = [
         "seaborn",
         "decorator",
         "scipy>=1.11.0",
+        "ruamel.yaml",
           "wheel"]
 license = "MIT"
 

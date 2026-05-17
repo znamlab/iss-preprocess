@@ -95,6 +95,12 @@ def review_pairwise_registrations_napari(
         default_angle_radius_deg=default_angle_radius_deg,
         pyramid_levels=pyramid_levels,
     )
+    # Anchor the reviewer's lifetime to the viewer's. Without this, the
+    # Python `_NapariPairwiseReviewer` instance falls out of scope after
+    # this function returns, gets garbage-collected, and PyQt5 silently
+    # drops every signal/slot connection to it (clicking Next, nudging
+    # spinboxes, pressing buttons all become no-ops).
+    reviewer.viewer._iss_pairwise_reviewer = reviewer
     return reviewer.viewer
 
 
@@ -159,6 +165,11 @@ class _NapariPairwiseReviewer:
         self._controls_dirty = False
         self._pending_record = None  # uncommitted preview record
         self._busy = False
+        # Background refine state: None when idle, otherwise the live
+        # napari thread_worker. Run auto / Local refine are dispatched
+        # here so the UI stays responsive while phase correlation /
+        # simulated annealing churns on big slices.
+        self._bg_worker = None
 
         # Cached fixed-image pyramid keyed by slice_number to skip work
         # on pair switches that share the fixed slice (rare) and on
@@ -364,16 +375,17 @@ class _NapariPairwiseReviewer:
         self._pair_spin.valueChanged.connect(self._on_pair_spin_changed)
         self._prev_btn.clicked.connect(self._on_prev)
         self._next_btn.clicked.connect(self._on_next)
-        self._orientation_combo.currentIndexChanged.connect(self._on_control_changed)
-        self._bad_slice_combo.currentIndexChanged.connect(self._on_bad_slice_changed)
-        for spin in (
-            self._dx_spin,
-            self._dy_spin,
-            self._angle_spin,
-            self._radius_spin,
-            self._angle_radius_spin,
-        ):
+        # Transform-affecting controls: live-update the moving layer's
+        # napari affine on every commit (Enter / Tab / step button).
+        # No CPU warp, sub-10 ms per click.
+        self._orientation_combo.currentIndexChanged.connect(self._on_transform_changed)
+        for spin in (self._dx_spin, self._dy_spin, self._angle_spin):
+            spin.valueChanged.connect(self._on_transform_changed)
+        # Search-radius controls only affect Local refine, not the preview
+        # transform — mark dirty but skip the live update.
+        for spin in (self._radius_spin, self._angle_radius_spin):
             spin.valueChanged.connect(self._on_control_changed)
+        self._bad_slice_combo.currentIndexChanged.connect(self._on_bad_slice_changed)
         self._run_auto_btn.clicked.connect(self._on_run_auto)
         self._run_local_btn.clicked.connect(self._on_run_local)
         self._reload_btn.clicked.connect(self._on_reload_preview)
@@ -743,43 +755,68 @@ class _NapariPairwiseReviewer:
                 f"method={record.get('method', 'unknown')}"
             )
 
-    def _push_layers(self, fixed_image, warped_image, fixed_mask, warped_mask):
+    @staticmethod
+    def _matrix_xy_to_napari(matrix):
+        """Convert our (x, y, 1) affine matrix to napari's (y, x, 1) layout.
+
+        Our pipeline matrices act on (x, y, 1) homogeneous coordinates;
+        napari's layer.affine acts on (y, x, 1). The conversion is a
+        symmetric permutation: M_yx = P @ M_xy @ P, with P swapping the
+        first two axes (and being its own inverse).
+        """
+        M = np.asarray(matrix, dtype=float)
+        P = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]], dtype=float)
+        return P @ M @ P
+
+    def _apply_transform_to_moving(self, matrix):
+        """Update the moving layer + mask affines.
+
+        Done as a napari layer.affine assignment (GPU shader, sub-millisecond)
+        rather than a CPU warp of the underlying array.
+        """
+        if matrix is None:
+            affine = np.eye(3)
+        else:
+            affine = self._matrix_xy_to_napari(matrix)
+        self._moving_layer.affine = affine
+        self._moving_mask_layer.affine = affine
+
+    def _push_layers(self, fixed_image, moving_image, fixed_mask, moving_mask, matrix):
         f_levels = _make_pyramid(
             fixed_image.astype(np.float32, copy=False),
             n_levels=self.pyramid_levels,
             reduce="mean",
         )
-        w_levels = _make_pyramid(
-            warped_image.astype(np.float32, copy=False),
+        m_levels = _make_pyramid(
+            moving_image.astype(np.float32, copy=False),
             n_levels=self.pyramid_levels,
             reduce="mean",
         )
-        fm_levels = _make_pyramid(
-            fixed_mask.astype(np.uint8, copy=False),
-            n_levels=self.pyramid_levels,
-            reduce="max",
-        )
-        wm_levels = _make_pyramid(
-            warped_mask.astype(np.uint8, copy=False),
-            n_levels=self.pyramid_levels,
-            reduce="max",
-        )
-        # Drop down to single-level if the pyramid couldn't be built (very
-        # small images). napari requires len(data) >= 2 for multiscale.
+        # Image layers: multiscale list when the pyramid has >1 level.
         self._fixed_layer.multiscale = len(f_levels) > 1
         self._fixed_layer.data = f_levels if len(f_levels) > 1 else f_levels[0]
-        self._moving_layer.multiscale = len(w_levels) > 1
-        self._moving_layer.data = w_levels if len(w_levels) > 1 else w_levels[0]
-        self._fixed_mask_layer.multiscale = len(fm_levels) > 1
-        self._fixed_mask_layer.data = (
-            fm_levels if len(fm_levels) > 1 else fm_levels[0]
-        )
-        self._moving_mask_layer.multiscale = len(wm_levels) > 1
-        self._moving_mask_layer.data = (
-            wm_levels if len(wm_levels) > 1 else wm_levels[0]
-        )
+        self._moving_layer.multiscale = len(m_levels) > 1
+        self._moving_layer.data = m_levels if len(m_levels) > 1 else m_levels[0]
+        # Labels layers: napari's Labels.data setter does not accept a
+        # multiscale list (it expects an ndarray). Keep masks at full
+        # resolution; they're uint8 so display is already cheap.
+        self._fixed_mask_layer.data = np.asarray(fixed_mask, dtype=np.uint8)
+        self._moving_mask_layer.data = np.asarray(moving_mask, dtype=np.uint8)
+        # Reset fixed-side affines (no transform on the reference layer)
+        # and apply the current matrix to the moving layers via napari.
+        self._fixed_layer.affine = np.eye(3)
+        self._fixed_mask_layer.affine = np.eye(3)
+        self._apply_transform_to_moving(matrix)
 
-    def _render_current(self, *, seed_controls=False):
+    def _render_current(self, *, seed_controls=False, rebuild_layers=True):
+        """Refresh the UI for the currently selected pair.
+
+        ``rebuild_layers=True`` re-pushes the fixed/moving images and
+        masks (used on pair change). ``rebuild_layers=False`` keeps the
+        existing layer data and only updates the moving affine — used by
+        Run auto / Local refine / Reload preview / Reset / Save where the
+        underlying pair didn't change, only the transform.
+        """
         key, fixed_entry, moving_entry, record = self._load_record()
         if key is None:
             self._update_status_label("No active pairs.")
@@ -790,29 +827,22 @@ class _NapariPairwiseReviewer:
         self._update_pair_label(fixed_entry, moving_entry)
         self._update_status_label()
 
-        fixed_slice = int(fixed_entry["slice_number"])
-        moving_slice = int(moving_entry["slice_number"])
-        fixed_image = self.images[self.index_by_slice[fixed_slice]]
-        fixed_mask = self.masks[self.index_by_slice[fixed_slice]].astype(bool)
-        moving_image = self.images[self.index_by_slice[moving_slice]].astype(np.float32)
-        moving_mask = self.masks[self.index_by_slice[moving_slice]].astype(np.float32)
-
+        matrix = None
         if display_record and display_record.get("matrix") is not None:
             matrix = np.asarray(display_record["matrix"], dtype=float)
-            warped = warp_with_affine(
-                moving_image, matrix, output_shape=fixed_image.shape, order=1
-            )
-            warped_mask = (
-                warp_with_affine(
-                    moving_mask, matrix, output_shape=fixed_image.shape, order=0
-                )
-                > 0.5
+
+        if rebuild_layers:
+            fixed_slice = int(fixed_entry["slice_number"])
+            moving_slice = int(moving_entry["slice_number"])
+            fixed_image = self.images[self.index_by_slice[fixed_slice]]
+            fixed_mask = self.masks[self.index_by_slice[fixed_slice]].astype(bool)
+            moving_image = self.images[self.index_by_slice[moving_slice]]
+            moving_mask = self.masks[self.index_by_slice[moving_slice]].astype(bool)
+            self._push_layers(
+                fixed_image, moving_image, fixed_mask, moving_mask, matrix
             )
         else:
-            warped = moving_image
-            warped_mask = moving_mask > 0.5
-
-        self._push_layers(fixed_image, warped, fixed_mask, warped_mask)
+            self._apply_transform_to_moving(matrix)
         if display_record and display_record.get("error"):
             self._update_status_label(f"last error: {display_record['error']}")
 
@@ -859,6 +889,28 @@ class _NapariPairwiseReviewer:
         self._pending_record = None
         self._update_status_label()
 
+    def _on_transform_changed(self, *_):
+        """Live preview on every spinbox / orientation commit.
+
+        Rebuilds the matrix from the controls and updates the moving
+        layer's napari affine. No CPU warp, no pyramid rebuild — sub-10 ms
+        per click of a step button.
+        """
+        print(f"[transform] dx={self._dx_spin.value()} dy={self._dy_spin.value()} angle={self._angle_spin.value()} seeding={self._seeding}")
+        if self._seeding:
+            return
+        key, fixed_entry, moving_entry, saved_record = self._load_record()
+        if key is None:
+            return
+        preview = self._preview_record_from_controls(
+            fixed_entry, moving_entry, saved_record
+        )
+        self._pending_record = preview
+        self._controls_dirty = False
+        matrix = np.asarray(preview["matrix"], dtype=float)
+        self._apply_transform_to_moving(matrix)
+        self._update_status_label()
+
     def _on_bad_slice_changed(self, *_):
         if self._seeding:
             return
@@ -866,42 +918,135 @@ class _NapariPairwiseReviewer:
         self._update_status_label()
 
     def _on_run_auto(self):
-        key, fixed_entry, moving_entry, _ = self._load_record()
-        if key is None:
-            return
-        self._set_busy(True, message="Running automatic registration...")
-        try:
-            key, record = self._estimate_from_controls(
-                fixed_entry, moving_entry, use_local=False, force_auto=True
-            )
-            self.state["pairs"][key] = record
-            self._save_state()
-            self._pending_record = None
-            self._controls_dirty = False
-            self._render_current(seed_controls=True)
-        except Exception as exc:
-            self._update_status_label(f"Run auto failed: {exc}")
-        finally:
-            self._set_busy(False)
+        self._start_background_estimate(use_local=False)
 
     def _on_run_local(self):
+        self._start_background_estimate(use_local=True)
+
+    def _set_bg_busy(self, busy, *, message=""):
+        """Disable only Run auto / Local refine while a bg job runs.
+
+        Prev/Next/Accept/Save/Reload/Reset stay enabled so the user can
+        navigate and curate other pairs while a refine is computing.
+        """
+        for btn in (self._run_auto_btn, self._run_local_btn):
+            btn.setEnabled(not busy)
+        if message:
+            self._update_status_label(message)
+        from qtpy.QtWidgets import QApplication
+
+        QApplication.processEvents()
+
+    def _start_background_estimate(self, *, use_local):
+        """Dispatch Run auto / Local refine to a napari thread_worker.
+
+        Snapshots the inputs and control values at submission time so
+        navigating to another pair mid-compute is safe — the worker
+        always writes its result back to the pair it was started for.
+        """
+        from napari.qt import thread_worker
+
+        if self._bg_worker is not None:
+            self._update_status_label(
+                "A background registration is already running. "
+                "Wait for it to finish before starting another."
+            )
+            return
+
         key, fixed_entry, moving_entry, _ = self._load_record()
         if key is None:
             return
-        self._set_busy(True, message="Running local refine...")
-        try:
-            key, record = self._estimate_from_controls(
-                fixed_entry, moving_entry, use_local=True, force_auto=False
+
+        target_key = key
+        fixed_slice = int(fixed_entry["slice_number"])
+        moving_slice = int(moving_entry["slice_number"])
+        fixed_image = self.images[self.index_by_slice[fixed_slice]]
+        moving_image = self.images[self.index_by_slice[moving_slice]]
+        fixed_mask = self.masks[self.index_by_slice[fixed_slice]]
+        moving_mask = self.masks[self.index_by_slice[moving_slice]]
+
+        if not use_local:
+            forced_orientation = "auto"
+            manual_shift = None
+            manual_angle = None
+            local_radius = None
+        else:
+            forced_orientation = self._orientation_combo.currentData()
+            use_manual_seed = (
+                forced_orientation != "auto" or self._controls_dirty
             )
-            self.state["pairs"][key] = record
-            self._save_state()
-            self._pending_record = None
-            self._controls_dirty = False
-            self._render_current(seed_controls=True)
-        except Exception as exc:
-            self._update_status_label(f"Local refine failed: {exc}")
-        finally:
-            self._set_busy(False)
+            if use_manual_seed:
+                manual_shift = [self._dx_spin.value(), self._dy_spin.value()]
+                manual_angle = self._angle_spin.value()
+            else:
+                manual_shift = None
+                manual_angle = None
+            local_radius = self._radius_spin.value()
+        angular_radius = self._angle_radius_spin.value()
+        label = "Local refine" if use_local else "Run auto"
+
+        def compute():
+            return estimate_pairwise_registration(
+                fixed_image=fixed_image,
+                moving_image=moving_image,
+                fixed_mask=fixed_mask,
+                moving_mask=moving_mask,
+                orientation=forced_orientation,
+                manual_angle_deg=manual_angle,
+                manual_shift_xy=manual_shift,
+                local_search_radius=local_radius,
+                angle_radius_deg=angular_radius,
+            )
+
+        def on_done(result):
+            try:
+                existing = self.state["pairs"].get(target_key, {})
+                record = self._record_from_result(
+                    fixed_slice,
+                    moving_slice,
+                    result,
+                    manual_angle=manual_angle,
+                    manual_shift=manual_shift,
+                    local_radius=local_radius,
+                    angular_radius=angular_radius,
+                    status=existing.get("status", "pending"),
+                )
+                self.state["pairs"][target_key] = record
+                self._save_state()
+                current_key = self._current_key()[0]
+                if current_key == target_key:
+                    # User is still on this pair — refresh transform and labels.
+                    self._pending_record = None
+                    self._controls_dirty = False
+                    self._render_current(seed_controls=True, rebuild_layers=False)
+                else:
+                    self._update_status_label(
+                        f"{label} for pair {target_key} done "
+                        f"(currently viewing {current_key})."
+                    )
+            finally:
+                self._bg_worker = None
+                self._set_bg_busy(False)
+
+        def on_error(exc):
+            try:
+                msg = f"{label} failed for pair {target_key}: {exc}"
+                if self._current_key()[0] == target_key:
+                    self._update_status_label(msg)
+                else:
+                    print(f"[reviewer] {msg}")
+            finally:
+                self._bg_worker = None
+                self._set_bg_busy(False)
+
+        worker = thread_worker(compute)()
+        self._bg_worker = worker
+        worker.returned.connect(on_done)
+        worker.errored.connect(on_error)
+        self._set_bg_busy(
+            True, message=f"{label} running for pair {target_key} in background..."
+        )
+        worker.start()
 
     def _on_reload_preview(self):
         key, fixed_entry, moving_entry, saved_record = self._load_record()
@@ -914,7 +1059,7 @@ class _NapariPairwiseReviewer:
             )
             self._pending_record = preview
             self._controls_dirty = False
-            self._render_current(seed_controls=False)
+            self._render_current(seed_controls=False, rebuild_layers=False)
         finally:
             self._set_busy(False)
 
@@ -930,7 +1075,7 @@ class _NapariPairwiseReviewer:
             )
             self._pending_record = preview
             self._controls_dirty = False
-            self._render_current(seed_controls=False)
+            self._render_current(seed_controls=False, rebuild_layers=False)
         finally:
             self._set_busy(False)
 
@@ -938,7 +1083,7 @@ class _NapariPairwiseReviewer:
         self._set_busy(True, message="Saving preview...")
         try:
             self._commit_current_record(accept_record=False)
-            self._render_current(seed_controls=True)
+            self._render_current(seed_controls=True, rebuild_layers=False)
         finally:
             self._set_busy(False)
 
