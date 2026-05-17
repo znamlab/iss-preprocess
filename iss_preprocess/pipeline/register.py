@@ -1550,6 +1550,14 @@ def load_register_and_fill_tile_mask(
 ):
     """Load and register soma masks into a barcode-reference tile frame.
 
+    .. deprecated::
+        Soma calling no longer uses this path; it has moved to the canonical-atlas
+        builder (`pipeline.somata.build_soma_atlas` + `load_soma_atlas_tile`). This
+        function is retained because the non-Sindbis gene-call path
+        (`pipeline.sequencing.basecall_barcodes_tile`) and scratch notebooks under
+        `notebooks/scratch/somata/` still call it. Do NOT extend or use for new
+        soma work.
+
     The default `patch_mode="owner_tile"` avoids the legacy behavior of blindly
     importing whole neighbouring labels into zero-valued regions. Instead, corrected
     masks from the local 3x3 neighbourhood are warped into the local reference-tile
@@ -1613,6 +1621,13 @@ def _get_mask_registration_matrix(data_path, prefix, tile_coors, corrected_shift
 
 
 def _get_reference_neighbourhood(tile_coors, shifts, ops, tile_shape):
+    """Build the 3x3 tile neighbourhood used by the per-tile owner-tile path.
+
+    .. deprecated::
+        Only kept alive transitively by `load_register_and_fill_tile_mask`,
+        which the non-Sindbis gene-call path still uses. Soma calling has moved
+        to `pipeline.somata.build_soma_atlas` + `load_soma_atlas_tile`.
+    """
     height, width = tile_shape
     neighbours = [
         {
@@ -1676,6 +1691,13 @@ def _get_reference_neighbourhood(tile_coors, shifts, ops, tile_shape):
 
 
 def _choose_owner_tile(transformed_xy, neighbourhood):
+    """Centroid-based owner-tile picker for the per-tile owner_tile mask path.
+
+    .. deprecated::
+        Only kept alive transitively by `load_register_and_fill_tile_mask`,
+        which the non-Sindbis gene-call path still uses. Soma calling has moved
+        to `pipeline.somata.build_soma_atlas` + `load_soma_atlas_tile`.
+    """
     x, y = transformed_xy
     containing = []
     for tile in neighbourhood:
@@ -1696,6 +1718,13 @@ def _load_register_and_assign_tile_mask(
     reference_prefix="barcode_round_2_1",
     corrected_shifts="best",
 ):
+    """Per-tile warp + centroid-based owner assignment of source soma masks.
+
+    .. deprecated::
+        Only kept alive transitively by `load_register_and_fill_tile_mask`,
+        which the non-Sindbis gene-call path still uses. Soma calling has moved
+        to `pipeline.somata.build_soma_atlas` + `load_soma_atlas_tile`.
+    """
     ops = load_ops(data_path)
     print("Loading and registering tile:", tile_coors)
     processed_path = get_processed_path(data_path)
@@ -1812,6 +1841,13 @@ def _load_register_and_fill_tile_mask_legacy(
     reference_prefix="barcode_round_2_1",
     corrected_shifts="best",
 ):
+    """Legacy per-tile mask warp with neighbour-label injection into zeros.
+
+    .. deprecated::
+        Only kept alive transitively by `load_register_and_fill_tile_mask`,
+        which the non-Sindbis gene-call path still uses. Soma calling has moved
+        to `pipeline.somata.build_soma_atlas` + `load_soma_atlas_tile`.
+    """
     ops = load_ops(data_path)
     print("Loading and registering tile:", tile_coors)
     processed_path = get_processed_path(data_path)

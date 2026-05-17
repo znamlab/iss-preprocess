@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import hamming
-from skimage.measure import label, regionprops_table
+from skimage.measure import regionprops_table
 from skimage.morphology import disk
 from sklearn.mixture import GaussianMixture
 
@@ -92,7 +92,10 @@ def extract_traces_somata(stack, masks):
     Returns:
         masks_df (pandas.DataFrame): DataFrame with a "trace" column containing a R x C array of fluorescence values for each soma.
     """
-    labelled_masks = label(masks)
+    # Trust the input integer labels: the soma atlas already assigns each soma
+    # a stable global ID. Re-running skimage.measure.label here would relabel by
+    # connectivity and destroy that identity.
+    labelled_masks = masks
     H, W, C, R = stack.shape
 
     collapsed = stack.reshape(H, W, C * R)

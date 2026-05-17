@@ -240,7 +240,7 @@ def merge_and_align_spots_all_rois(
         )
 
 
-def align_cell_dataframe(data_path, prefix, ref_prefix=None, sindbis=False):
+def align_cell_dataframe(data_path, prefix, ref_prefix=None, sindbis=False, output_root=None):
     """Align a cell dataframe to reference coordinates
 
     Designed for mCherry cells. Reads the f"{prefix}_df_corrected.pkl" file generated
@@ -252,12 +252,17 @@ def align_cell_dataframe(data_path, prefix, ref_prefix=None, sindbis=False):
         prefix (str): Prefix of cells to load
         ref_prefix (str, optional): Prefix of the reference cells. If None, reads from
             ops. Defaults to None.
+        output_root (str | Path | None): Override the read root for sindbis per-tile
+            pickles. Used by the BRAC11398.3d verification flow.
 
     Returns:
         pd.DataFrame: The cell dataframe with x and y registered to reference tile.
     """
     ### TODO: adapt to find dataframes from sindbis soma barcode calling ie. already in reference frame
-    mask_folder = get_processed_path(data_path) / "cells"
+    if output_root is not None:
+        mask_folder = Path(output_root) / "cells"
+    else:
+        mask_folder = get_processed_path(data_path) / "cells"
     if not sindbis:
         cells_df = mask_folder / f"{prefix}_df_corrected.pkl"
         assert cells_df.exists(), (
@@ -293,7 +298,15 @@ def align_cell_dataframe(data_path, prefix, ref_prefix=None, sindbis=False):
     return aligned_df
 
 def drop_duplicated_masks_center_dist(df_roi, corners):
-    """
+    """Tile-center-distance heuristic for dropping duplicate soma rows in tile overlaps.
+
+    .. deprecated::
+        The Sindbis soma path no longer needs this — `pipeline.somata.build_soma_atlas`
+        assigns each soma a stable global ID and a single owner tile, so stitching
+        dedup collapses to `df.drop_duplicates(subset='label')`. This function has
+        no in-tree callers after the soma-atlas refactor; it is kept in case any
+        external scratch script still imports it.
+
     df_roi: rows for one roi with columns: ['tilex','tiley','x','y'] where x,y are GLOBAL coords
     corners: output of get_tile_corners(..., roi=roi) with shape [ntx, nty, 2, 4], coords in (y,x)
     """
@@ -351,7 +364,7 @@ def drop_duplicated_masks_center_dist(df_roi, corners):
     return df_roi.loc[keep].copy()
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"time": "1:00:00", "mem": "8G"})
-def stitch_cell_dataframes(data_path, prefix, ref_prefix=None, sindbis=False):
+def stitch_cell_dataframes(data_path, prefix, ref_prefix=None, sindbis=False, output_root=None):
     """Stitch cell dataframes across all tiles and ROI.
 
     Args:
@@ -359,6 +372,8 @@ def stitch_cell_dataframes(data_path, prefix, ref_prefix=None, sindbis=False):
         prefix (str): prefix of the cell dataframe to load
         ref_prefix (str, optional): prefix of the reference tiles to use for stitching.
             Defaults to None.
+        output_root (str | Path | None): Override the read/write root. Used by the
+            BRAC11398.3d verification flow to keep canonical outputs untouched.
 
     Returns:
         pandas.DataFrame: stitched cell dataframe
@@ -368,7 +383,9 @@ def stitch_cell_dataframes(data_path, prefix, ref_prefix=None, sindbis=False):
     if ref_prefix is None:
         ref_prefix = ops["reference_prefix"]
 
-    stitched_df = align_cell_dataframe(data_path, prefix, ref_prefix=None, sindbis=sindbis).copy() # if sindbis, we assume the cell dataframe is already in reference frame, so we skip alignment
+    stitched_df = align_cell_dataframe(
+        data_path, prefix, ref_prefix=None, sindbis=sindbis, output_root=output_root,
+    ).copy()  # if sindbis, dataframes are already in reference frame, so alignment is skipped
     stitched_df["x_in_tile"] = stitched_df["x"].copy()
     stitched_df["y_in_tile"] = stitched_df["y"].copy()
     stitched_df["tile"] = "Not Processed"
@@ -395,16 +412,24 @@ def stitch_cell_dataframes(data_path, prefix, ref_prefix=None, sindbis=False):
         df_roi["x"] = df_roi["x_in_tile"].to_numpy(float) + x0
         df_roi["y"] = df_roi["y_in_tile"].to_numpy(float) + y0
 
-        # drop duplicates inside this ROI
-        df_roi = drop_duplicated_masks_center_dist(df_roi, ref_corners)
+        # Sindbis path: each soma carries a stable global ID in `label` (built by
+        # `pipeline.somata.build_soma_atlas`). Owner-tile precomputation in the
+        # atlas already enforces tile uniqueness, so dedup collapses to a simple
+        # group-by-label. Non-sindbis (mCherry cells) keeps the historical
+        # tile-center-distance heuristic.
+        if sindbis:
+            df_roi = df_roi.drop_duplicates(subset="label", keep="first")
+        else:
+            df_roi = drop_duplicated_masks_center_dist(df_roi, ref_corners)
 
         kept.append(df_roi)
 
     stitched_df = pd.concat(kept, ignore_index=True)
 
-    mask_folder = get_processed_path(data_path) / "cells" / f"{prefix}_cells"
+    write_root = Path(output_root) if output_root is not None else get_processed_path(data_path)
+    mask_folder = write_root / "cells" / f"{prefix}_cells"
     target = mask_folder / f"{prefix}_df_corrected.pkl"
-    mask_folder.mkdir(exist_ok=True)
+    mask_folder.mkdir(parents=True, exist_ok=True)
     stitched_df.to_pickle(target)
     print(f"Saved stitched cell dataframe to {target}")
     return stitched_df

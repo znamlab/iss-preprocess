@@ -82,6 +82,7 @@ def segment_all_tiles(
     tile_list=None,
     rerun_cellpose=False,
     use_slurm=True,
+    trim_edge_masks=True,
 ):
     """Start batch jobs for segmentation for each tile.
 
@@ -99,6 +100,8 @@ def segment_all_tiles(
         rerun_cellpose (bool, optional): Whether to rerun cellpose even if the raw masks
             already exist (used only if use_raw_stack is True). Defaults to False.
         use_slurm (bool, optional): Whether to use slurm. Defaults to True.
+        trim_edge_masks (bool, optional): Whether 2D CPSAM masks touching the tile
+            edge should be removed before saving. Defaults to True.
 
     Returns:
         list: List of job IDs for the slurm jobs.
@@ -131,15 +134,16 @@ def segment_all_tiles(
 
     # find which tile needs to go through cellpose
     tile_2cellpose = []
+    cellpose_target = raw_target if use_raw_stack else target
     for tile_coors in tile_list:
         assert len(tile_coors) == 3, "Tile coordinates should be a tuple of 3 elements"
         tile_name = "_".join(map(str, tile_coors))
         fname = f"{prefix}_masks_{tile_name}.npy"
-        if use_raw_stack and (not rerun_cellpose) and (raw_target / fname).exists():
+        if (not rerun_cellpose) and (cellpose_target / fname).exists():
             continue
         tile_2cellpose.append(tile_coors)
     done = len(tile_list) - len(tile_2cellpose)
-    print(f"Raw masks already exist for {done}/{len(tile_list)} tiles")
+    print(f"Masks already exist for {done}/{len(tile_list)} tiles")
 
     if ops["segmentation_approach"] == "cpsam_2d":
         assert use_raw_stack == False, "use projected tiles for 2d segmentation"
@@ -150,6 +154,7 @@ def segment_all_tiles(
                     data_path=data_path,
                     prefix=prefix,
                     use_gpu=use_gpu,
+                    trim_edge_masks=trim_edge_masks,
                     use_slurm=use_slurm,
                     slurm_folder=slurm_folder,
                     batch_param_names=["roi", "tx", "ty"],
@@ -164,6 +169,7 @@ def segment_all_tiles(
                         tx=tx,
                         ty=ty,
                         use_gpu=use_gpu,
+                        trim_edge_masks=trim_edge_masks,
                     )
                 job_ids = []
         else:
@@ -295,7 +301,14 @@ def run_cellpose_segmentation(
     },
 )
 def run_cpsam_2d_segmentation(
-    data_path, prefix, roi=None, tx=None, ty=None, use_raw_stack=False, use_gpu=True
+    data_path,
+    prefix,
+    roi=None,
+    tx=None,
+    ty=None,
+    use_raw_stack=False,
+    use_gpu=True,
+    trim_edge_masks=True,
 ):
     tile_coors = (roi, tx, ty)
     ops = load_ops(data_path)
@@ -357,7 +370,8 @@ def run_cpsam_2d_segmentation(
         anisotropy=None,
     )
 
-    masks, _ = find_edge_touching_masks(masks, border_width=4)
+    if trim_edge_masks:
+        masks, _ = find_edge_touching_masks(masks, border_width=4)
 
     target = get_processed_path(data_path) / "cells"
     tile_name = "_".join(map(str, tile_coors))

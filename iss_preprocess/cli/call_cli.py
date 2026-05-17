@@ -90,6 +90,18 @@ def basecall_somata(path):
 
 @call_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option("--force", is_flag=True, help="Overwrite existing valid trace caches.")
+def extract_soma_traces(path, force=False):
+    """Start batch jobs to extract/cache soma traces on all tiles."""
+    from iss_preprocess.pipeline.somata import extract_soma_trace_tiles
+
+    job_ids, failed_job = extract_soma_trace_tiles(path, use_slurm=True, force=force)
+    click.echo(f"Soma trace extraction started for {len(job_ids)} tiles.")
+    click.echo(f"Last job id: {job_ids[-1]}")
+
+
+@call_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-r", "--roi", default=None, help="Number of the ROI..")
 @click.option("-x", "--tilex", default=None, help="Tile X position")
 @click.option("-y", "--tiley", default=None, help="Tile Y position.")
@@ -212,12 +224,34 @@ def basecall_tile(path, roi=1, x=0, y=0):
 )
 @click.option("-x", default=0, help="Tile X position")
 @click.option("-y", default=0, help="Tile Y position.")
-def basecall_somata_tile(path, roi=1, x=0, y=0):
+@click.option(
+    "--use-trace-cache/--live-extract",
+    default=True,
+    show_default=True,
+    help="Use cached soma traces, or live-load image data for diagnostics.",
+)
+def basecall_somata_tile(path, roi=1, x=0, y=0, use_trace_cache=True):
     """Run basecalling for barcodes on a single tile."""
     from iss_preprocess.pipeline.sequencing import basecall_somata_tile
 
     click.echo(f"Processing ROI {roi}, tile {x}, {y} from {path}")
-    basecall_somata_tile(path, (roi, x, y))
+    basecall_somata_tile(path, (roi, x, y), use_trace_cache=use_trace_cache)
+
+
+@call_cli.command()
+@click.option("-p", "--path", prompt="Enter data path", help="Data path.")
+@click.option(
+    "-r", "--roi", default=1, prompt="Enter ROI number", help="Number of the ROI.."
+)
+@click.option("-x", default=0, help="Tile X position")
+@click.option("-y", default=0, help="Tile Y position.")
+@click.option("--force", is_flag=True, help="Overwrite an existing valid trace cache.")
+def extract_soma_trace_tile(path, roi=1, x=0, y=0, force=False):
+    """Extract/cache soma traces on a single tile."""
+    from iss_preprocess.pipeline.somata import extract_soma_trace_tile
+
+    click.echo(f"Extracting soma traces for ROI {roi}, tile {x}, {y} from {path}")
+    extract_soma_trace_tile(path, (roi, x, y), force=force)
 
 
 
@@ -270,16 +304,56 @@ def setup_soma_barcodes(path, use_slurm=True, force_redo=False):
     """Estimate bleedthrough matrices for barcode calling of barcode filled cells."""
     from pathlib import Path
 
-    from iss_preprocess.pipeline.sequencing import setup_soma_barcode_calling
+    from iss_preprocess.pipeline.somata import setup_soma_calling_reference
 
     slurm_folder = Path.home() / "slurm_logs" / path
     slurm_folder.mkdir(parents=True, exist_ok=True)
-    setup_soma_barcode_calling(
+    setup_soma_calling_reference(
         path,
         use_slurm=use_slurm,
         slurm_folder=slurm_folder,
         scripts_name="setup_soma_barcodes",
         force_redo=force_redo,
+    )
+
+
+@call_cli.command()
+@click.option(
+    "-p",
+    "--path",
+    "paths",
+    multiple=True,
+    required=True,
+    help="Chamber data path. Repeat -p for each chamber to pool.",
+)
+@click.option(
+    "--use-slurm/--local",
+    is_flag=True,
+    default=True,
+    help="Whether to use slurm",
+)
+def setup_shared_soma_barcodes(paths, use_slurm=True):
+    """Build one soma cluster-means matrix from reference tiles pooled across
+    multiple chambers of one mouse, saved at the mouse level alongside
+    diagnostic plots.
+
+    Each consuming chamber must have ``use_shared_soma_cluster_means: true`` in
+    its ops for soma basecalling to read the shared file.
+    """
+    from pathlib import Path
+
+    from iss_preprocess.pipeline.somata import build_shared_soma_cluster_means
+
+    mouse_rel = Path(paths[0]).parent
+    slurm_folder = Path.home() / "slurm_logs" / mouse_rel / "shared_soma_reference"
+    slurm_folder.mkdir(parents=True, exist_ok=True)
+    build_shared_soma_cluster_means(
+        list(paths),
+        use_slurm=use_slurm,
+        slurm_folder=slurm_folder,
+        scripts_name="setup_shared_soma_barcodes",
+        save=True,
+        save_diagnostics=True,
     )
 
 

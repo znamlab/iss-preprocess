@@ -13,6 +13,7 @@ from tifffile import TiffFile
 __all__ = [
     "get_raw_path",
     "get_processed_path",
+    "get_mouse_path",
     "get_raw_filename",
     "load_hyb_probes_metadata",
     "load_ops",
@@ -280,6 +281,15 @@ def load_micromanager_metadata(data_path, prefix):
     return metadata
 
 
+def get_mouse_path(data_path):
+    """Return the mouse-level processed dir (parent of the chamber dir).
+
+    Used by mouse-wide artifacts that are shared across chambers, e.g.
+    ``section_position.csv`` and the shared soma cluster-means file.
+    """
+    return get_processed_path(data_path).parent
+
+
 def load_section_position(data_path):
     """Load the section position information
 
@@ -293,11 +303,11 @@ def load_section_position(data_path):
         pandas.DataFrame: Slice position info
 
     """
-    mouse_path = get_processed_path(data_path).parent
+    mouse_path = get_mouse_path(data_path)
     csv_path = mouse_path / "section_position.csv"
     if not csv_path.exists():
         # look in processed
-        mouse_path = get_processed_path(data_path).parent
+        mouse_path = get_mouse_path(data_path)
         csv_path = mouse_path / "section_position.csv"
     slice_info = pd.read_csv(csv_path, index_col=None)
     return slice_info
