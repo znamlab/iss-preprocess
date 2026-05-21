@@ -285,3 +285,17 @@ atlas:
 # Database integration.
 # If true will upload ops to flexilims when performing a batch operation
 use_flexilims: False
+
+# Tangential serial-section atlas annotation (M6+; consumed by
+# iss_preprocess.pipeline.tangential_atlas and the napari reviewer).
+tangential_atlas:
+  atlas_name: "allen_mouse_10um"
+  anatomy_prefix: "hybridisation_round_1_1"
+  anatomy_channel_index: 1
+  default_residual_bounds:
+    max_dx_um: 250.0
+    max_dy_um: 250.0
+    max_dtheta_deg: 2.0
+    max_dz_um: 0.0
+    smoothness_lambda: 0.0
+    centering: "mean_zero"
