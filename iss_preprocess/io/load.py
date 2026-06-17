@@ -15,6 +15,7 @@ __all__ = [
     "get_processed_path",
     "get_mouse_path",
     "get_raw_filename",
+    "raw_tile_exists",
     "load_hyb_probes_metadata",
     "load_ops",
     "load_metadata",
@@ -101,6 +102,27 @@ def get_raw_filename(data_path, prefix, tile_coors):
         f"Could not find any files matching the patterns {pattern1} or {pattern2} "
         + f"in {data_dir}"
     )
+
+
+def raw_tile_exists(data_path, prefix, tile_coors):
+    """Return True if raw data for a tile exists on disk.
+
+    Used to tell a never-acquired tile (e.g. a skipped no-tissue tile in a
+    non-rectangular ROI) apart from a tile whose projection merely failed.
+
+    Args:
+        data_path (str): Relative path to data
+        prefix (str): Prefix of acquisition to load
+        tile_coors (tuple): Tile coordinates (roi, xpos, ypos)
+
+    Returns:
+        bool: Whether raw data exists for the tile.
+    """
+    try:
+        get_raw_filename(data_path, prefix, tile_coors)
+        return True
+    except ValueError:
+        return False
 
 
 def load_hyb_probes_metadata():
@@ -313,6 +335,62 @@ def load_section_position(data_path):
     return slice_info
 
 
+def _load_missing_tile_fallback(data_path, prefix, suffix, tile_path):
+    """Return a dark-frame stand-in for a tile that was never acquired.
+
+    Used for non-rectangular ROIs where empty/no-tissue tiles were skipped during
+    acquisition, so the on-disk grid has holes inside its bounding box. If
+    ``ops["missing_tile_dark_frame_path"]`` is set, the dark frame at that path is
+    returned (reshaped/broadcast to match the projected tiles of this prefix when its
+    shape differs). Otherwise the original FileNotFoundError behaviour is preserved.
+
+    Args:
+        data_path (str): Relative path to dataset.
+        prefix (str): Acquisition prefix, e.g. "barcode_round_1_1".
+        suffix (str): Projection suffix being loaded, e.g. "max".
+        tile_path (Path): Path of the missing tile (used for error/log messages).
+
+    Returns:
+        numpy.ndarray: Dark stand-in tile, shape/dtype matching real tiles when one is
+            available to copy from.
+    """
+    ops = load_ops(data_path, warn_missing=False)
+    dark_path = ops.get("missing_tile_dark_frame_path", None)
+    if dark_path is None:
+        raise FileNotFoundError(
+            f"{tile_path} not found. Set ops['missing_tile_dark_frame_path'] to "
+            "substitute a dark frame for tiles that were never acquired."
+        )
+
+    dark = load_stack(get_processed_path(dark_path))
+
+    # Match the shape/dtype of an existing projected tile of the same suffix, so the
+    # stand-in is interchangeable with real tiles downstream.
+    processed_path = get_processed_path(data_path)
+    ref_files = sorted((processed_path / prefix).glob(f"*-Pos*_{suffix}.tif"))
+    if not ref_files:
+        print(f"[missing-tile] {tile_path.name} -> dark frame (no reference tile found)")
+        return dark
+
+    ref = load_stack(ref_files[0])
+    if dark.shape == ref.shape:
+        print(f"[missing-tile] {tile_path.name} -> dark frame {dark_path}")
+        return dark.astype(ref.dtype)
+
+    # Shapes differ (e.g. raw dark frame has a different page count): build a flat tile
+    # matching the reference, filled with the per-channel dark level.
+    out = np.zeros(ref.shape, dtype=ref.dtype)
+    per_channel = np.median(dark.reshape(-1, dark.shape[-1]), axis=0)
+    n = min(out.shape[-1], per_channel.shape[0])
+    for c in range(out.shape[-1]):
+        out[..., c] = per_channel[c] if c < n else per_channel[:n].min()
+    print(
+        f"[missing-tile] {tile_path.name} -> synthesized dark tile "
+        f"(dark {dark.shape} != tile {ref.shape})"
+    )
+    return out
+
+
 def load_tile_by_coors(
     data_path,
     tile_coors=(1, 0, 0),
@@ -345,7 +423,11 @@ def load_tile_by_coors(
             f"{prefix}_MMStack_{tile_roi}-"
             + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
         )
-        stack = load_stack(processed_path / prefix / fname)
+        tile_path = processed_path / prefix / fname
+        if tile_path.exists():
+            stack = load_stack(tile_path)
+        else:
+            stack = _load_missing_tile_fallback(data_path, prefix, suffix, tile_path)
 
         if correct_illumination:
             ops = load_ops(data_path)

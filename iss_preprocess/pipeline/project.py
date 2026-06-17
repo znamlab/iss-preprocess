@@ -18,6 +18,7 @@ from ..io import (
     get_tile_ome,
     load_metadata,
     load_ops,
+    raw_tile_exists,
     write_stack,
 )
 from .core import batch_process_tiles
@@ -51,6 +52,10 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
+    # Tiles that were never acquired (e.g. skipped no-tissue tiles in a non-rectangular
+    # ROI) have no raw data and are stood in for by a dark frame at load time, so they
+    # should not be flagged as failed projections needing reprojection.
+    dark_fallback = ops.get("missing_tile_dark_frame_path", None)
     not_projected = []
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
@@ -59,11 +64,26 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
             for ix in range(nx):
                 tile_name = f"Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}"
                 fname = f"{prefix}_MMStack_{roi[0]}-{tile_name}"
-                for suffix in suffixes:
-                    proj_path = processed_path / prefix / f"{fname}_{suffix}.tif"
-                    if not proj_path.exists():
-                        print(f"{proj_path} missing!", flush=True)
-                        not_projected.append(fname)
+                missing_suffixes = [
+                    suffix
+                    for suffix in suffixes
+                    if not (processed_path / prefix / f"{fname}_{suffix}.tif").exists()
+                ]
+                if not missing_suffixes:
+                    continue
+                if dark_fallback is not None and not raw_tile_exists(
+                    data_path, prefix, (roi[0], ix, iy)
+                ):
+                    print(
+                        f"{fname} not acquired, dark frame will stand in", flush=True
+                    )
+                    continue
+                for suffix in missing_suffixes:
+                    print(
+                        f"{processed_path / prefix / f'{fname}_{suffix}.tif'} missing!",
+                        flush=True,
+                    )
+                not_projected.append(fname)
 
     np.savetxt(
         processed_path / prefix / "missing_tiles.txt",

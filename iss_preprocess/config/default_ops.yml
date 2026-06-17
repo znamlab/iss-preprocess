@@ -22,6 +22,10 @@ image_correction:
   # Path to calibration images for black level estimation, relative to processed data path
   dark_frame_path: null
   # Example actual path: becalia_iss_microscope/calibration/20221209_dark_frame/20221209_dark_frame_MMStack_Pos0.ome.tif
+  # Path to a dark frame used to stand in for tiles that were never acquired (e.g.
+  # non-rectangular ROIs where empty/no-tissue tiles were skipped). Relative to processed
+  # data path. If null, a missing tile raises FileNotFoundError as before.
+  missing_tile_dark_frame_path: null
   # Data quantile to use for channel brightness correction - should correspond to bright rolonies
   correction_quantile: 0.9999
   # Tile coordinates for channel brightness correction, ROI x X x Y. If null will use
