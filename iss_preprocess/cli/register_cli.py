@@ -94,7 +94,7 @@ def estimate_shifts(path, prefix, suffix="max"):
 @register_cli.command()
 @click.option("-p", "--path", prompt="Enter data path", help="Data path.")
 @click.option("-n", "--prefix", default=None, help="Path prefix, e.g. 'genes_round'")
-def estimate_hyb_shifts(path, prefix=None):
+def estimate_hyb_shifts(path, prefix=None, handle_failed=False, use_slurm=True):
     """Estimate X-Y shifts across channels for a hybridisation round for all tiles."""
     from iss_preprocess.io import get_roi_dimensions, load_metadata
     from iss_preprocess.pipeline.core import batch_process_tiles
@@ -107,6 +107,8 @@ def estimate_hyb_shifts(path, prefix=None):
             script="register_hyb_tile",
             roi_dims=roi_dims,
             additional_args=additional_args,
+            handle_failed=handle_failed,
+            use_slurm=use_slurm
         )
     else:
         metadata = load_metadata(path)

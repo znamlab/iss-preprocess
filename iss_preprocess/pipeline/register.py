@@ -75,8 +75,8 @@ def run_register_reference_tile(data_path, prefix="genes_round", diag=False):
     ops_prefix = prefix.split("_")[0].lower()
     out = register_channels_and_rounds(
         stack,
-        ref_ch=ops["ref_ch"],
-        ref_round=ops["ref_round"],
+        ref_ch=ops.get(f"{ops_prefix}_ref_ch", ops["ref_ch"]),
+        ref_round=ops.get(f"{ops_prefix}_ref_round", ops["ref_round"]),
         median_filter=ops["reg_median_filter"],
         max_shift=ops["rounds_max_shift"],
         min_shift=ops["rounds_min_shift"],
@@ -413,6 +413,7 @@ def estimate_shifts_by_coors(
     ops = load_ops(data_path)
 
     median_filter_size = ops["reg_median_filter"]
+    ops_prefix = prefix.split("_")[0].lower()
     nrounds = ops[prefix + "s"]
     stack = load_sequencing_rounds(
         data_path, tile_coors, suffix=suffix, prefix=prefix, nrounds=nrounds
@@ -429,8 +430,8 @@ def estimate_shifts_by_coors(
         stack,
         reference_tforms["angles_within_channels"],
         reference_tforms["matrix_between_channels"],
-        ref_ch=ops["ref_ch"],
-        ref_round=ops["ref_round"],
+        ref_ch=ops.get(f"{ops_prefix}_ref_ch", ops["ref_ch"]),
+        ref_round=ops.get(f"{ops_prefix}_ref_round", ops["ref_round"]),
         max_shift=ops["rounds_max_shift"],
         min_shift=ops["rounds_min_shift"],
         median_filter_size=median_filter_size,
