@@ -6,6 +6,7 @@ from pathlib import Path
 from warnings import warn
 
 import numpy as np
+from tifffile import TiffFile
 from znamutils import slurm_it
 
 from ..decorators import updates_flexilims
@@ -94,6 +95,108 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
 
     if not not_projected:
         print(f"all tiles projected for {data_path} {prefix}!", flush=True)
+
+
+def _is_corrupted_tiff(path):
+    """Return True if a file exists but is empty or not a readable TIFF.
+
+    Only reads the TIFF header/IFD (not the pixel data), so it is cheap to run across
+    many tiles.
+
+    Args:
+        path (pathlib.Path): Path to the file to check.
+
+    Returns:
+        bool: True if the file is 0 bytes or cannot be opened as a valid TIFF.
+    """
+    try:
+        if path.stat().st_size == 0:
+            return True
+        with TiffFile(path) as tif:
+            if len(tif.pages) == 0:
+                return True
+            _ = tif.pages[0].shape  # touches the IFD without loading pixel data
+        return False
+    except Exception:
+        return True
+
+
+def find_corrupted_projections(
+    data_path, prefix, suffixes=("max",), skip_corrupted=False, save=True
+):
+    """List projected tiles that exist on disk but are empty or unreadable.
+
+    Purely diagnostic. It writes ``corrupted_tiles_{prefix}.txt`` to the prefix folder
+    and returns the list. It does NOT modify ``missing_tiles.txt`` and does NOT change
+    reprojection, registration, or any downstream step. Files that are simply *missing*
+    are ignored here (that is `check_projection`'s job) — this only flags files that are
+    present but broken (0 bytes or not a valid TIFF), the failure mode that otherwise
+    silently crashes `load_stack`/registration.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition prefix, e.g. "barcode_round_1_1". If None, scans all
+            acquisitions listed in the metadata.
+        suffixes (tuple, optional): Projection suffixes to validate. Defaults to
+            ("max",).
+        skip_corrupted (bool, optional): If True, corrupted files are ignored (excluded
+            from the reported/written list). If False (default), they are listed.
+        save (bool, optional): Write the list to ``corrupted_tiles_{prefix}.txt``.
+            Defaults to True.
+
+    Returns:
+        list: File names (relative to the prefix folder) of corrupted projections.
+    """
+    processed_path = get_processed_path(data_path)
+    if prefix is None:
+        metadata = load_metadata(data_path)
+        prefixes = [f"genes_round_{i+1}_1" for i in range(metadata["genes_rounds"])]
+        prefixes += [
+            f"barcode_round_{i+1}_1" for i in range(metadata["barcode_rounds"])
+        ]
+        prefixes.extend(metadata.get("hybridisation", {}).keys())
+        prefixes.extend(metadata.get("fluorescence", {}).keys())
+        corrupted = []
+        for prefix in prefixes:
+            corrupted += find_corrupted_projections(
+                data_path, prefix, suffixes, skip_corrupted, save
+            )
+        return corrupted
+
+    roi_dims = get_roi_dimensions(data_path, prefix)
+    ops = load_ops(data_path)
+    if "use_rois" not in ops.keys():
+        ops["use_rois"] = roi_dims[:, 0]
+    use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
+    corrupted = []
+    for roi in roi_dims[use_rois, :]:
+        nx = roi[1] + 1
+        ny = roi[2] + 1
+        for iy in range(ny):
+            for ix in range(nx):
+                tile_name = f"Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}"
+                fname = f"{prefix}_MMStack_{roi[0]}-{tile_name}"
+                for suffix in suffixes:
+                    proj_path = processed_path / prefix / f"{fname}_{suffix}.tif"
+                    # Missing files are not "corrupted" - that is check_projection's job.
+                    if not proj_path.exists():
+                        continue
+                    if _is_corrupted_tiff(proj_path):
+                        if skip_corrupted:
+                            print(f"{proj_path} corrupted - skipping", flush=True)
+                            continue
+                        print(
+                            f"{proj_path} CORRUPTED (empty/unreadable)!", flush=True
+                        )
+                        corrupted.append(f"{fname}_{suffix}.tif")
+
+    if save:
+        out_path = processed_path / prefix / f"corrupted_tiles_{prefix}.txt"
+        np.savetxt(out_path, corrupted, fmt="%s", delimiter="\n")
+        print(f"Wrote {len(corrupted)} corrupted tile(s) to {out_path}", flush=True)
+    if not corrupted:
+        print(f"No corrupted projections for {data_path} {prefix}", flush=True)
+    return corrupted
 
 
 @slurm_it(conda_env="iss-preprocess")
