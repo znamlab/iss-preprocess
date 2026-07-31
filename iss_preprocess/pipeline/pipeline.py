@@ -317,6 +317,7 @@ def project_and_average(data_path, force_redo=False):
     print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
     print("All jobs submitted", flush=True)
 
+
 @slurm_it(conda_env="iss-preprocess")
 def average(data_path, force_redo=False):
     """Project and average all available data then create plots.
@@ -381,7 +382,6 @@ def average(data_path, force_redo=False):
             print(f"{folder} found in processed", flush=True)
             to_process.append(folder)
 
-
     # Then create averages of projections
     csa_job_ids = create_all_single_averages(
         data_path,
@@ -445,6 +445,7 @@ def average(data_path, force_redo=False):
         po_job_ids.extend(job_id)
     print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
     print("All jobs submitted", flush=True)
+
 
 @slurm_it(conda_env="iss-preprocess")
 def register_acquisition(data_path, prefix, force_redo=False):
@@ -1096,12 +1097,13 @@ def call_spots(
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
             job_dependency=jobs if use_slurm else None,
+            force_redo=force_redo,
         )
         check_barcode_calling(
-            data_path, 
+            data_path,
             use_slurm=use_slurm,
             slurm_folder=slurm_folder,
-            job_dependency=job if use_slurm else None
+            job_dependency=job if use_slurm else None,
         )
         if not setup_only:
             batch_process_tiles(

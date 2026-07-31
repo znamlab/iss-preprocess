@@ -1,9 +1,9 @@
-from pathlib import Path
 import warnings
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import OneHotEncoder
 from znamutils import slurm_it
@@ -11,9 +11,6 @@ from znamutils import slurm_it
 from iss_preprocess.call.call import extract_traces_somata
 from iss_preprocess.image.utils import highpass_stack
 from iss_preprocess.io.load import load_metadata
-from iss_preprocess.pipeline.segment import find_edge_touching_masks
-from iss_preprocess.vis.vis import plot_clusters
-
 
 from ..call import (
     BASES,
@@ -33,15 +30,20 @@ from ..image import (
 )
 from ..io import get_processed_path, load_ops, load_sequencing_rounds, write_stack
 from ..segment import detect_isolated_spots
-from .register import load_and_register_sequencing_tile, load_register_and_fill_tile, load_register_and_fill_tile_mask
+from .register import (
+    load_and_register_sequencing_tile,
+    load_register_and_fill_tile,
+)
 
 
 @slurm_it(conda_env="iss-preprocess")
-def setup_barcode_calling(data_path):
+def setup_barcode_calling(data_path, force_redo=False):
     """Detect spots and compute cluster means
 
     Args:
         data_path (str): Relative path to data
+        force_redo (bool, optional): Whether to redo the setup even if output files
+            already exist. Defaults to False.
 
     Returns:
         cluster_means (list): A list with Nrounds elements. Each a Nch x Ncl (square
@@ -52,6 +54,15 @@ def setup_barcode_calling(data_path):
     """
     # TODO: move most of this to a pipeline.py function
     ops = load_ops(data_path)
+    processed_path = get_processed_path(data_path)
+    targets = [
+        processed_path / "reference_barcode_spots.npz",
+        processed_path / "barcode_cluster_means.npy",
+    ]
+    if all(target.exists() for target in targets) and not force_redo:
+        print("Barcode calling setup already exists. Skipping setup.")
+        return
+
     print("detecting barcode spots")
     all_spots, _ = get_reference_spots(data_path, prefix="barcode")
     cluster_means, spot_colors, cluster_inds = get_cluster_means(
@@ -59,7 +70,6 @@ def setup_barcode_calling(data_path):
         score_thresh=ops["barcode_cluster_score_thresh"],
         initial_cluster_mean=np.array(ops["initial_cluster_means"]),
     )
-    processed_path = get_processed_path(data_path)
     np.savez(
         processed_path / "reference_barcode_spots.npz",
         spot_colors=spot_colors,
@@ -70,6 +80,7 @@ def setup_barcode_calling(data_path):
     # check_barcode_calling(data_path)
     print("barcode calling setup complete")
     return cluster_means, all_spots
+
 
 @slurm_it(conda_env="iss-preprocess")
 def setup_soma_barcode_calling(data_path, reload=False, force_redo=False):
@@ -89,6 +100,7 @@ def setup_soma_barcode_calling(data_path, reload=False, force_redo=False):
         force_redo=force_redo,
         use_slurm=False,
     )
+
 
 def basecall_tile(data_path, tile_coors, save_spots=True):
     """Detect and basecall barcodes for a given tile.
@@ -121,7 +133,7 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
             corrected_shifts=ops["corrected_shifts"],
             correct_illumination=True,
             reference_prefix=reference_prefix,
-            specific_rounds=None, 
+            specific_rounds=None,
             edge=10,
             mid=5,
             zero_fill_output=False,
@@ -145,26 +157,20 @@ def basecall_tile(data_path, tile_coors, save_spots=True):
     spot_sign_image = load_spot_sign_image(data_path, ops["spot_shape_threshold"])
     print(f"Detecting spots in tile {tile_coors}")
 
-    basecalling_proj_across_rounds = ops.get(f"basecalling_proj_across_rounds", None)
+    basecalling_proj_across_rounds = ops.get("basecalling_proj_across_rounds", None)
     if basecalling_proj_across_rounds is not None:
         stack_for_proj = stack[:, :, :, basecalling_proj_across_rounds]
     else:
         stack_for_proj = stack.copy()
 
-    if ops.get(f"basecalling_proj_type", "std") == "mean":
-        detect_image = np.nanmean(
-            stack_for_proj, axis=(2, 3)
-        )
-    elif ops.get(f"basecalling_proj_type", "std") == "std":
-        detect_image = np.nanstd(
-            stack_for_proj, axis=(2, 3)
-        )
+    if ops.get("basecalling_proj_type", "std") == "mean":
+        detect_image = np.nanmean(stack_for_proj, axis=(2, 3))
+    elif ops.get("basecalling_proj_type", "std") == "std":
+        detect_image = np.nanstd(stack_for_proj, axis=(2, 3))
     else:
         raise ValueError("basecalling_proj_type must be 'mean' or 'std'")
-    #always use mean for scoring
-    score_image = np.nanmean(
-            stack_for_proj, axis=(2, 3)
-        )
+    # always use mean for scoring
+    score_image = np.nanmean(stack_for_proj, axis=(2, 3))
 
     spots = detect_spots_by_shape(
         detect_image,
@@ -284,7 +290,9 @@ def call_soma_barcodes_from_traces(traces_df, cluster_means, nrounds, tile_coors
     tile_traces_df["scores"] = [s for s in scores]
     tile_traces_df["mean_score"] = np.nanmean(scores, axis=1)
     bases = np.hstack([BASES, ["N"]])
-    tile_traces_df["bases"] = ["".join(bases[seq]) for seq in tile_traces_df["sequence"]]
+    tile_traces_df["bases"] = [
+        "".join(bases[seq]) for seq in tile_traces_df["sequence"]
+    ]
     tile_traces_df["dot_product_score"] = barcode_spots_dot_product(
         tile_traces_df, cluster_means
     )
@@ -332,11 +340,16 @@ def basecall_somata_tile(
             of reloading image data. Set False only for diagnostics.
 
     Returns:
-        filtered_stack (numpy.ndarray): The high-pass filtered registered stack for the tile.
+        filtered_stack (numpy.ndarray): The high-pass filtered registered stack for the
+            tile.
         masks (numpy.ndarray): The atlas-cropped soma label image for the tile.
-        tile_traces_df (pandas.DataFrame): DataFrame containing the extracted traces and basecalling results for each detected soma.
+        tile_traces_df (pandas.DataFrame): DataFrame containing the extracted traces and
+            basecalling results for each detected soma.
     """
-    from .somata import load_soma_atlas_tile, load_soma_trace_tile  # avoid circular import
+    from .somata import (  # avoid circular import
+        load_soma_atlas_tile,
+        load_soma_trace_tile,
+    )
 
     processed_path = get_processed_path(data_path)
     ops = load_ops(data_path)
@@ -432,14 +445,14 @@ def basecall_somata_tile(
         correct_channels="round1_only",
         corrected_shifts=ops["corrected_shifts"],
         correct_illumination=True,
-        reference_prefix = ops["reference_prefix"],
+        reference_prefix=ops["reference_prefix"],
         specific_rounds=None,
         edge=10,
         mid=5,
         zero_fill_output=True,
     )
 
-    max_stack[bad_pixels, ...] = 0 # however there shouldn't be any bad pixels left
+    max_stack[bad_pixels, ...] = 0  # however there shouldn't be any bad pixels left
 
     # Reorder channels (assumes max_stack is (H, W, C, R))
     cam_order = np.argsort(ops["camera_order"])
@@ -447,7 +460,6 @@ def basecall_somata_tile(
 
     # High-pass filter the stack to enhance somata
     filtered_stack = highpass_stack(max_stack, cutoff=15.0, order=2, pad=100)
-
 
     tile_traces_df = extract_traces_somata(filtered_stack, masks)
 
@@ -469,6 +481,7 @@ def basecall_somata_tile(
         )
     print(f"Basecalling complete for tile {tile_coors}")
     return filtered_stack, masks, tile_traces_df
+
 
 @slurm_it(conda_env="iss-preprocess", slurm_options={"time": "1:00:00", "mem": "8GB"})
 def setup_omp(data_path, force_redo=False):
@@ -564,18 +577,14 @@ def get_reference_spots(data_path, prefix="genes"):
         stack[bad_pixels, :, :] = 0
         stack = stack[:, :, np.argsort(ops["camera_order"]), :]
 
-        basecalling_proj_across_rounds = ops.get(f"basecalling_proj_across_rounds", None)
+        basecalling_proj_across_rounds = ops.get("basecalling_proj_across_rounds", None)
         if basecalling_proj_across_rounds is not None:
             stack_for_proj = stack[:, :, :, basecalling_proj_across_rounds]
 
-        if ops.get(f"basecalling_proj_type", "std") == "std":
-            proj_image = np.nanstd(
-                stack_for_proj, axis=(2, 3)
-            )
+        if ops.get("basecalling_proj_type", "std") == "std":
+            proj_image = np.nanstd(stack_for_proj, axis=(2, 3))
         else:
-            proj_image = np.nanmean(
-                stack_for_proj, axis=(2, 3)
-            )
+            proj_image = np.nanmean(stack_for_proj, axis=(2, 3))
 
         spots = detect_isolated_spots(
             proj_image,
@@ -688,25 +697,40 @@ def estimate_channel_correction(
         norm_factors_raw=norm_factors_raw,
     )
     print(f"Saved pixel distribution and normalisation factors to {save_path}")
-    print(f"plotting normalisation factors across rounds and channels")
+    print("plotting normalisation factors across rounds and channels")
     metadata = load_metadata(data_path)
     # pairwise matching hues for each channel
     channel_order = metadata["camera_order"]
-    color = ['red', 'green', 'cyan', 'magenta']
-    color = [color[i-1] for i in channel_order]
+    color = ["red", "green", "cyan", "magenta"]
+    color = [color[i - 1] for i in channel_order]
 
     plt.figure(figsize=(16, 8))
     for ch in range(0, norm_factors_raw.shape[0]):
         # ch = rank_order - 1  # zero-based
-        plt.plot(norm_factors_fit[ch,:], label=f'Norm factors channel {ch}', linestyle='dashed', color=color[ch])
-        plt.plot(norm_factors_raw[ch,:], label=f'Raw norm factors channel {ch}', color=color[ch])
-        plt.xlabel('Round')
+        plt.plot(
+            norm_factors_fit[ch, :],
+            label=f"Norm factors channel {ch}",
+            linestyle="dashed",
+            color=color[ch],
+        )
+        plt.plot(
+            norm_factors_raw[ch, :],
+            label=f"Raw norm factors channel {ch}",
+            color=color[ch],
+        )
+        plt.xlabel("Round")
         # show each round on x
-        plt.xticks(range(norm_factors_raw.shape[1]), range(1, norm_factors_raw.shape[1]+1))
-        plt.ylabel('Normalization Factor')
+        plt.xticks(
+            range(norm_factors_raw.shape[1]), range(1, norm_factors_raw.shape[1] + 1)
+        )
+        plt.ylabel("Normalization Factor")
         plt.legend()
-    plt.title(f'Normalization Factors per Channel - {data_path}')
-    plt.savefig(get_processed_path(data_path) / "figures" / f'normalization_factors_{prefix}.png')
+    plt.title(f"Normalization Factors per Channel - {data_path}")
+    plt.savefig(
+        get_processed_path(data_path)
+        / "figures"
+        / f"normalization_factors_{prefix}.png"
+    )
 
     return pixel_dist, norm_factors_fit, norm_factors_raw
 
