@@ -245,7 +245,7 @@ def load_metadata(data_path):
     return metadata
 
 
-def get_pixel_size(data_path, prefix="genes_round_1_1"):
+def get_pixel_size(data_path, prefix=None):
     """Get pixel size from MicroManager metadata.
 
     Args:
@@ -256,6 +256,9 @@ def get_pixel_size(data_path, prefix="genes_round_1_1"):
     Returns:
         float: Pixel size in microns
     """
+    if prefix is None:
+        ops = load_ops(data_path)
+        prefix = ops["reference_prefix"]
     acq_data = load_micromanager_metadata(data_path, prefix=prefix)
     pixel_size = acq_data["FrameKey-0-0-0"]["PixelSizeUm"]
     return pixel_size
