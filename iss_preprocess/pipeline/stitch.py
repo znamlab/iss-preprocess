@@ -18,10 +18,11 @@ from ..io import (
     get_raw_path,
     get_roi_dimensions,
     load_mask_by_coors,
-    load_metadata,
     load_ops,
+    load_ops_file,
     load_stack,
     load_tile_by_coors,
+    tile_in_rois,
 )
 from iss_preprocess.io.load import get_shifts_to_ref
 from ..reg import (
@@ -801,6 +802,35 @@ def calculate_tile_positions(
     return tile_origins, tile_centers
 
 
+def _quick_estimate_ref_tile(data_path, prefix, roi, roi_dims):
+    """Reference tile to estimate tile shifts from, when they have not been saved.
+
+    This is the `ref_tile` set in `ops.yml` if it is inside the ROIs of `prefix`, and
+    otherwise the central tile of the ROI being stitched, where tissue should be. The
+    `ref_tile` default is not used, as it is a corner tile that may not exist.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition prefix.
+        roi (int): ROI being stitched.
+        roi_dims (numpy.ndarray): ROI dimensions of `prefix`.
+
+    Returns:
+        list: [roi, x, y] of the reference tile.
+    """
+    ref_tile = load_ops_file(data_path).get("ref_tile")
+    if ref_tile is not None and tile_in_rois(ref_tile, roi_dims):
+        return list(ref_tile)
+    roi_dim = roi_dims[roi_dims[:, 0] == roi][0]
+    centre = [int(roi), round(roi_dim[1] / 2), round(roi_dim[2] / 2)]
+    if ref_tile is not None:
+        warnings.warn(
+            f"ref_tile {ref_tile} from ops.yml is not in the ROIs of {prefix}, using "
+            + f"the central tile {centre} instead"
+        )
+    return centre
+
+
 def stitch_tiles(
     data_path,
     prefix,
@@ -852,29 +882,9 @@ def stitch_tiles(
         shifts = np.load(shift_file)
     elif allow_quick_estimate:
         warnings.warn("Cannot load shifts.npz, will estimate from a single tile")
-
-        try:
-            metadata = load_metadata(data_path)
-            ref_roi = list(metadata["ROI"].keys())[0]
-        except FileNotFoundError:
-            ref_roi = roi_dims[0, 0]
-            warnings.warn(f"Metadata file not found, using ROI {ref_roi} as reference.")
-        ops_fname = processed_path / "ops.yml"
-        if not ops_fname.exists():
-            # Change ref tile to a central position where tissue will be
-            ops.update(
-                {
-                    "ref_tile": [
-                        ref_roi,
-                        round(roi_dims[0, 1] / 2),
-                        round(roi_dims[0, 2] / 2),
-                    ],
-                    "ref_ch": 0,
-                }
-            )
         shifts = register_adjacent_tiles(
             data_path,
-            ref_coors=ops["ref_tile"],
+            ref_coors=_quick_estimate_ref_tile(data_path, prefix, roi, roi_dims),
             ref_ch=ops["ref_ch"],
             suffix="max",
             prefix=prefix,
@@ -912,16 +922,20 @@ def stitch_tiles(
     else:
         if correct_illumination:
             ops = load_ops(data_path)
-            average_image_fname = processed_path / "averages" / f"{prefix}_{suffix}_average.tif"
-            average_image = load_stack(average_image_fname)[:, :, ich].astype(float)
+            average_image_fname = (
+                processed_path / "averages" / f"{prefix}_{suffix}_average.tif"
+            )
+            average_image = load_stack(average_image_fname)[:, :, selected_channels]
+            average_image = average_image.astype(float)
+            black_level = np.asarray(ops["black_level"])[selected_channels]
 
         def load_func(data_path, tile_coors, prefix):
             stack = load_tile_by_coors(
                 data_path, tile_coors=tile_coors, suffix=suffix, prefix=prefix
-            )
+            )[:, :, selected_channels]
             if correct_illumination:
-                stack = (stack.astype(float) - ops["black_level"][ich]) / average_image
-            return stack[:, :, selected_channels].squeeze()
+                stack = (stack.astype(float) - black_level) / average_image
+            return stack.squeeze()
     # figure out dimensionality of stitched stack based on requested ich
     test = load_func(data_path, (roi, 0, 0), prefix=prefix)
     H = max_origin[0] + tile_shape[0]

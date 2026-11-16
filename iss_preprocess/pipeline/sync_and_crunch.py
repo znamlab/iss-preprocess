@@ -174,13 +174,14 @@ def crunch_pos_file(
                 else:
                     raise ValueError(f"Invalid pos_label format: {pos_label}")
 
-                # Construct the target_name
-                target_name = f"{data_path}{prefix_folder.name}_MMStack_{r}-Pos{x:03d}_{y:03d}"
-                f"{prefix}_MMStack_{r}-Pos{x:03d}_{y:03d}"
-
-                # either the max-projection or the zprofile
+                # either the max-projection or the zprofile. Projections are saved
+                # with the canonical {r}-Pos name (see `process_position`), zprofiles
+                # with the raw file name, i.e. the position label
                 if project:
-                    outname = f"{target_pref_folder.name}_MMStack_{pos_label}_max.tif"
+                    outname = (
+                        f"{target_pref_folder.name}_MMStack_{r}-Pos{x:03d}_{y:03d}"
+                        + "_max.tif"
+                    )
                 else:
                     outname = f"{target_pref_folder.name}_MMStack_{pos_label}_zprofile.npz"
                 

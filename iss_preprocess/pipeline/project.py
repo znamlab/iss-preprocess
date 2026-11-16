@@ -13,12 +13,15 @@ from ..decorators import updates_flexilims
 from ..image import fstack_channels
 from ..io import (
     get_processed_path,
+    get_projection_path,
     get_raw_filename,
     get_raw_path,
     get_roi_dimensions,
     get_tile_ome,
+    is_preprojected,
     load_metadata,
     load_ops,
+    raw_projection_suffixes,
     raw_tile_exists,
     write_stack,
 )
@@ -53,10 +56,14 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
     if "use_rois" not in ops.keys():
         ops["use_rois"] = roi_dims[:, 0]
     use_rois = np.isin(roi_dims[:, 0], ops["use_rois"])
+    if is_preprojected(data_path, prefix):
+        # projected on the microscope: only some projections exist, in raw
+        available = raw_projection_suffixes(data_path, prefix)
+        suffixes = [s for s in suffixes if s in available]
+        print(f"{prefix} is pre-projected, checking {suffixes} only", flush=True)
     # Tiles that were never acquired (e.g. skipped no-tissue tiles in a non-rectangular
-    # ROI) have no raw data and are stood in for by a dark frame at load time, so they
+    # ROI) have no raw data and are filled with the black level at load time, so they
     # should not be flagged as failed projections needing reprojection.
-    dark_fallback = ops.get("missing_tile_dark_frame_path", None)
     not_projected = []
     for roi in roi_dims[use_rois, :]:
         nx = roi[1] + 1
@@ -68,16 +75,13 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
                 missing_suffixes = [
                     suffix
                     for suffix in suffixes
-                    if not (processed_path / prefix / f"{fname}_{suffix}.tif").exists()
+                    if get_projection_path(data_path, prefix, (roi[0], ix, iy), suffix)
+                    is None
                 ]
                 if not missing_suffixes:
                     continue
-                if dark_fallback is not None and not raw_tile_exists(
-                    data_path, prefix, (roi[0], ix, iy)
-                ):
-                    print(
-                        f"{fname} not acquired, dark frame will stand in", flush=True
-                    )
+                if not raw_tile_exists(data_path, prefix, (roi[0], ix, iy)):
+                    print(f"{fname} not acquired, will be filled", flush=True)
                     continue
                 for suffix in missing_suffixes:
                     print(
@@ -86,6 +90,7 @@ def check_projection(data_path, prefix, suffixes=("max", "median")):
                     )
                 not_projected.append(fname)
 
+    (processed_path / prefix).mkdir(parents=True, exist_ok=True)
     np.savetxt(
         processed_path / prefix / "missing_tiles.txt",
         not_projected,
@@ -174,12 +179,12 @@ def find_corrupted_projections(
         ny = roi[2] + 1
         for iy in range(ny):
             for ix in range(nx):
-                tile_name = f"Pos{str(ix).zfill(3)}_{str(iy).zfill(3)}"
-                fname = f"{prefix}_MMStack_{roi[0]}-{tile_name}"
                 for suffix in suffixes:
-                    proj_path = processed_path / prefix / f"{fname}_{suffix}.tif"
+                    proj_path = get_projection_path(
+                        data_path, prefix, (roi[0], ix, iy), suffix
+                    )
                     # Missing files are not "corrupted" - that is check_projection's job.
-                    if not proj_path.exists():
+                    if proj_path is None:
                         continue
                     if _is_corrupted_tiff(proj_path):
                         if skip_corrupted:
@@ -188,10 +193,11 @@ def find_corrupted_projections(
                         print(
                             f"{proj_path} CORRUPTED (empty/unreadable)!", flush=True
                         )
-                        corrupted.append(f"{fname}_{suffix}.tif")
+                        corrupted.append(proj_path.name)
 
     if save:
         out_path = processed_path / prefix / f"corrupted_tiles_{prefix}.txt"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         np.savetxt(out_path, corrupted, fmt="%s", delimiter="\n")
         print(f"Wrote {len(corrupted)} corrupted tile(s) to {out_path}", flush=True)
     if not corrupted:
@@ -284,27 +290,17 @@ def project_round(data_path, prefix, overwrite=False):
             Defaults to False.
 
     """
+    if is_preprojected(data_path, prefix):
+        print(
+            f"{prefix} was projected on the microscope, projections are read from "
+            + f"{get_raw_path(data_path) / prefix}. Nothing to project.",
+            flush=True,
+        )
+        return [], None
     processed_path = get_processed_path(data_path)
     target_path = processed_path / prefix
     target_path.mkdir(parents=True, exist_ok=True)
     roi_dims = get_roi_dimensions(data_path, prefix)
-    ops = load_ops(data_path)
-    # Change ref tile to a central position where tissue will be
-    try:
-        metadata = load_metadata(data_path)
-        ref_roi = list(metadata["ROI"].keys())[0]
-    except FileNotFoundError:
-        ref_roi = roi_dims[0, 0]
-        warn(f"Metadata file not found, using ROI {ref_roi} as reference tile.")
-    ops.update(
-        {
-            "ref_tile": [
-                ref_roi,
-                round(roi_dims[0, 1] / 2),
-                round(roi_dims[0, 2] / 2),
-            ]
-        }
-    )
     additional_args = f",PREFIX={prefix}"
     if overwrite:
         additional_args += ",OVERWRITE=--overwrite"

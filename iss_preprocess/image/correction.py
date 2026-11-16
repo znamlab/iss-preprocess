@@ -14,7 +14,7 @@ from tqdm import tqdm
 from znamutils import slurm_it
 
 from ..coppafish import hanning_diff
-from ..io import get_processed_path, load_ops, load_stack
+from ..io import get_processed_path, get_raw_path, load_ops, load_stack
 
 
 def apply_illumination_correction(
@@ -440,8 +440,12 @@ def compute_flatfield(data_path: str, chamber: str, prefix: str, suffix: str = "
 
     files = sorted(image_path.glob(f"*_{suffix}.tif"))
     if not files:
+        # acquisitions projected on the microscope have their projections in raw
+        raw_image_path = get_raw_path(data_path) / chamber / prefix
+        files = sorted(raw_image_path.glob(f"*_{suffix}.tif"))
+    if not files:
         raise FileNotFoundError(
-            f"No files ending in *_{suffix}.tif found in {image_path}"
+            f"No files ending in *_{suffix}.tif found in {image_path} or in raw"
         )
 
     stack = np.stack(

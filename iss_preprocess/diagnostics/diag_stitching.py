@@ -29,7 +29,7 @@ def plot_single_overview(
     plot_grid=True,
     downsample_factor=25,
     save_raw=False,
-    correct_illumination=True,
+    correct_illumination="auto",
     filter_r=False,
     channel_colors=([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]),
     vmin=None,
@@ -49,8 +49,10 @@ def plot_single_overview(
         downsample_factor (int, optional): Amount to downsample overview. Defaults to 25
         save_raw (bool, optional): Whether to save a full size tif with no gridlines.
             Defaults to False.
-        correct_illumination (bool, optional): Whether to correct for uneven
-            illumination. Defaults to True.
+        correct_illumination (bool or str, optional): Whether to correct for uneven
+            illumination. If "auto", correct only if the acquisition average
+            (`averages/{prefix}_max_average.tif`) exists when the function runs.
+            Defaults to "auto".
         channel_colors (list, optional): List of colors for each channel. Use only if
             ch is a list. Defaults to ([1, 0, 0], [0, 1, 0], [1, 0, 1], [0, 1, 1]).
         vmin (float, optional): Minimum value for each channel. Defaults to None.
@@ -77,6 +79,18 @@ def plot_single_overview(
         suffix = f"channel_{ch[0]}"
     else:
         suffix = f"channels_{'_'.join([str(c) for c in ch])}"
+
+    if correct_illumination == "auto":
+        # decided here rather than when the job is submitted, as averages are
+        # usually created by jobs that run just before this one. Same file as loaded
+        # by `stitch_tiles`
+        average = (
+            get_processed_path(data_path) / "averages" / f"{prefix}_max_average.tif"
+        )
+        correct_illumination = average.exists()
+        if not correct_illumination:
+            print(f"Not correcting illumination: {average} not found", flush=True)
+    print(f"Illumination correction: {correct_illumination}", flush=True)
 
     stack = None
     print(f"Doing roi {roi}")
@@ -191,6 +205,7 @@ def plot_overview_images(
     group_channels=True,
     vmin=None,
     vmax=None,
+    correct_illumination="auto",
 ):
     """Plot individual channel overview images.
 
@@ -207,15 +222,13 @@ def plot_overview_images(
             True.
         vmin (list, optional): vmin for each channel. Default to None
         vmax (list, optional): vmax for each channel. Default to None
+        correct_illumination (bool or str, optional): Passed to
+            `plot_single_overview`. "auto" corrects if the average exists when each
+            job runs. Defaults to "auto".
     """
-    processed_path = get_processed_path(data_path)
     roi_dims = get_roi_dimensions(data_path, prefix)
     image_metadata = load_micromanager_metadata(data_path, prefix)
     nchannels = image_metadata["Summary"]["Channels"]
-    # Check if average image exists for illumination correction
-    correct_illumination = (
-        processed_path / "averages" / f"{prefix}_average.tif"
-    ).exists()
     job_ids = []
     for roi_dim in roi_dims:
         roi = roi_dim[0]

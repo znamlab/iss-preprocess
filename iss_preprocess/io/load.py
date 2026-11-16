@@ -16,6 +16,14 @@ __all__ = [
     "get_mouse_path",
     "get_raw_filename",
     "raw_tile_exists",
+    "PROJECTION_SUFFIXES",
+    "tile_stems",
+    "parse_tile_name",
+    "get_projection_path",
+    "raw_projection_suffixes",
+    "is_preprojected",
+    "tile_in_rois",
+    "load_ops_file",
     "load_hyb_probes_metadata",
     "load_ops",
     "load_metadata",
@@ -108,7 +116,9 @@ def raw_tile_exists(data_path, prefix, tile_coors):
     """Return True if raw data for a tile exists on disk.
 
     Used to tell a never-acquired tile (e.g. a skipped no-tissue tile in a
-    non-rectangular ROI) apart from a tile whose projection merely failed.
+    non-rectangular ROI) apart from a tile whose projection merely failed. Raw data is
+    either the `.ome.tif` stack or, for acquisitions projected on the microscope, a
+    projection saved in the raw folder.
 
     Args:
         data_path (str): Relative path to data
@@ -118,11 +128,141 @@ def raw_tile_exists(data_path, prefix, tile_coors):
     Returns:
         bool: Whether raw data exists for the tile.
     """
-    try:
-        get_raw_filename(data_path, prefix, tile_coors)
-        return True
-    except ValueError:
-        return False
+    raw_dir = get_raw_path(data_path) / prefix
+    for stem in tile_stems(prefix, tile_coors):
+        if (raw_dir / f"{stem}.ome.tif").exists():
+            return True
+        for suffix in PROJECTION_SUFFIXES:
+            if (raw_dir / f"{stem}_{suffix}.tif").exists():
+                return True
+    return False
+
+
+# Projections that can be saved next to tiles, either by iss-preprocess in the
+# processed folder or by the acquisition software in the raw folder.
+PROJECTION_SUFFIXES = ("max", "median", "mean", "fstack")
+
+
+def tile_stems(prefix, tile_coors):
+    """Return the possible file name stems of a tile.
+
+    Tiles are named either `{prefix}_MMStack_{roi}-Pos{x}_{y}` (canonical, used for all
+    projections made by iss-preprocess) or `{prefix}_MMStack_Pos-{roi}-{x}_{y}` (the
+    Micro-Manager position label, used by newer acquisitions).
+
+    Args:
+        prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
+        tile_coors (tuple): Tile coordinates (roi, xpos, ypos)
+
+    Returns:
+        list: [canonical stem, position-label stem]
+    """
+    r, x, y = (int(c) for c in tile_coors)
+    return [
+        f"{prefix}_MMStack_{r}-Pos{x:03d}_{y:03d}",
+        f"{prefix}_MMStack_Pos-{r}-{x:03d}_{y:03d}",
+    ]
+
+
+def _tile_name_regex(prefix):
+    suffixes = "|".join(PROJECTION_SUFFIXES)
+    return re.compile(
+        rf"^{re.escape(prefix)}_MMStack_"
+        r"(?:(\d+)-Pos(\d{3})_(\d{3})|Pos-(\d+)-(\d{3})_(\d{3}))"
+        rf"(?:\.ome\.tif|_({suffixes})\.tif)$"
+    )
+
+
+def _match_tile(regex, fname):
+    m = regex.match(fname)
+    if m is None:
+        return None
+    g = m.groups()
+    coors = g[0:3] if g[0] is not None else g[3:6]
+    kind = g[6] if g[6] is not None else "ome"
+    return (*(int(c) for c in coors), kind)
+
+
+def parse_tile_name(fname, prefix):
+    """Parse a raw or projected tile file name.
+
+    Both naming conventions (see `tile_stems`) are accepted, for raw `.ome.tif` stacks
+    and for projections (`_max.tif`, `_median.tif`, ...).
+
+    Args:
+        fname (str): File name, without folder.
+        prefix (str): Acquisition prefix the file must belong to.
+
+    Returns:
+        tuple: (roi, xpos, ypos, kind), kind being "ome" for raw stacks or the
+            projection suffix. None if the name does not match.
+    """
+    return _match_tile(_tile_name_regex(prefix), fname)
+
+
+def _list_tiles(folder, prefix):
+    """List (roi, xpos, ypos, kind) of all tile files of `prefix` in `folder`."""
+    regex = _tile_name_regex(prefix)
+    fnames = [p.name for p in Path(folder).glob(f"{prefix}_MMStack_*.tif")]
+    tiles = [_match_tile(regex, fname) for fname in fnames]
+    return [t for t in tiles if t is not None]
+
+
+def get_projection_path(data_path, prefix, tile_coors, suffix="max"):
+    """Find the projected image of a tile.
+
+    Projections are searched first in the processed folder, then in the raw folder (for
+    acquisitions projected on the microscope). In each folder the canonical name is
+    tried before the position-label name.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition prefix, e.g. "genes_round_1_1".
+        tile_coors (tuple): Tile coordinates (roi, xpos, ypos)
+        suffix (str, optional): Projection suffix. Defaults to "max".
+
+    Returns:
+        pathlib.Path: Path to the projection, or None if it does not exist.
+    """
+    stems = tile_stems(prefix, tile_coors)
+    for root in (get_processed_path(data_path), get_raw_path(data_path)):
+        for stem in stems:
+            path = root / prefix / f"{stem}_{suffix}.tif"
+            if path.exists():
+                return path
+    return None
+
+
+def raw_projection_suffixes(data_path, prefix):
+    """Return the projection suffixes found in the raw folder of an acquisition.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition prefix.
+
+    Returns:
+        set: Projection suffixes (e.g. {"max"}), empty if there are none.
+    """
+    tiles = _list_tiles(get_raw_path(data_path) / prefix, prefix)
+    return {t[3] for t in tiles if t[3] != "ome"}
+
+
+def is_preprojected(data_path, prefix):
+    """Whether an acquisition was projected on the microscope.
+
+    This is the case when the raw folder contains projected tiles and no `.ome.tif`
+    stacks. Such acquisitions need no projection by iss-preprocess and their
+    projections are read directly from the raw folder.
+
+    Args:
+        data_path (str): Relative path to data.
+        prefix (str): Acquisition prefix.
+
+    Returns:
+        bool: True if the acquisition is pre-projected.
+    """
+    kinds = {t[3] for t in _list_tiles(get_raw_path(data_path) / prefix, prefix)}
+    return bool(kinds) and "ome" not in kinds
 
 
 def load_hyb_probes_metadata():
@@ -138,11 +278,46 @@ def load_hyb_probes_metadata():
     return hyb_probes
 
 
+def _flatten_dict(d):
+    """Flatten the sections of an ops file into a single dict."""
+    flattened_dict = {}
+    for key, value in (d or {}).items():
+        if isinstance(value, dict):
+            for subkey, subvalue in value.items():
+                flattened_dict[subkey] = subvalue
+        else:
+            flattened_dict[key] = value
+    return flattened_dict
+
+
+def load_ops_file(data_path):
+    """Load the options set in the `ops.yml` of a chamber, without the defaults.
+
+    Use this to know whether an option was chosen for the dataset, `load_ops` cannot
+    tell options from the file and defaults apart.
+
+    Args:
+        data_path (str): Relative path to data
+
+    Returns:
+        dict: Options in the file, empty if there is no `ops.yml`.
+    """
+    ops_fname = get_processed_path(data_path) / "ops.yml"
+    if not ops_fname.exists():
+        return {}
+    with open(ops_fname, "r") as f:
+        return _flatten_dict(yaml.safe_load(f))
+
+
 def load_ops(data_path, warn_missing=True):
     """Load the ops.yaml file.
 
     This must be manually generated first. If it is not found, the default
     options are used.
+
+    `ops["black_level"]` (one value per channel) is read from `black_level.npy`, or
+    computed from `ops["dark_frame_path"]` and saved. If neither exists, it is assumed
+    to be 0, with a warning.
 
     Args:
         data_path (str): Relative path to data
@@ -153,45 +328,16 @@ def load_ops(data_path, warn_missing=True):
         dict: Options, see config/defaults_ops.yaml for description
 
     """
-
-    def flatten_dict(d):
-        flattened_dict = {}
-        for key, value in d.items():
-            if isinstance(value, dict):
-                for subkey, subvalue in value.items():
-                    flattened_dict[subkey] = subvalue
-            else:
-                flattened_dict[key] = value
-        return flattened_dict
-
     processed_path = get_processed_path(data_path)
     ops_fname = processed_path / "ops.yml"
 
     default_ops_fname = Path(__file__).parent.parent / "config" / "default_ops.yml"
     with open(default_ops_fname, "r") as f:
-        default_ops = flatten_dict(yaml.safe_load(f))
-    if not ops_fname.exists():
-        if warn_missing:
-            print(f"{ops_fname} not found, using defaults")
-        ops = default_ops
-    else:
-        with open(ops_fname, "r") as f:
-            ops = flatten_dict(yaml.safe_load(f))
-        # for any keys that are not in the ops file, use the defaults
-        ops = dict(default_ops, **ops)
-
-    black_level_fname = processed_path / "black_level.npy"
-    if black_level_fname.exists():
-        ops["black_level"] = np.load(black_level_fname)
-    else:
-        if ops["dark_frame_path"] is None:
-            ops["black_level"] = np.nan
-        else:
-            print("black level not found, computing from dark frame")
-            dark_fname = get_processed_path(ops["dark_frame_path"])
-            dark_frames = load_stack(dark_fname)
-            ops["black_level"] = dark_frames.mean(axis=(0, 1))
-            np.save(black_level_fname, ops["black_level"])
+        default_ops = _flatten_dict(yaml.safe_load(f))
+    if not ops_fname.exists() and warn_missing:
+        print(f"{ops_fname} not found, using defaults")
+    # for any keys that are not in the ops file, use the defaults
+    ops = dict(default_ops, **load_ops_file(data_path))
 
     try:
         metadata = load_metadata(data_path)
@@ -210,6 +356,24 @@ def load_ops(data_path, warn_missing=True):
             "barcode_rounds": metadata["barcode_rounds"],
         }
     )
+
+    black_level_fname = processed_path / "black_level.npy"
+    if black_level_fname.exists():
+        ops["black_level"] = np.load(black_level_fname)
+    elif ops["dark_frame_path"] is not None:
+        print("black level not found, computing from dark frame")
+        dark_fname = get_processed_path(ops["dark_frame_path"])
+        dark_frames = load_stack(dark_fname)
+        ops["black_level"] = dark_frames.mean(axis=(0, 1))
+        np.save(black_level_fname, ops["black_level"])
+    else:
+        # The camera offset is not in the Micro-Manager metadata. Assume it is 0, one
+        # value per camera. Not saved, so that a dark frame can still be added later.
+        ops["black_level"] = np.zeros(len(ops["camera_order"]))
+        warnings.warn(
+            "No black_level.npy or dark_frame_path in ops, assuming black level is 0. "
+            + "Set dark_frame_path in ops.yml to subtract the camera offset."
+        )
 
     return ops
 
@@ -293,10 +457,12 @@ def load_micromanager_metadata(data_path, prefix):
         metadata (dict): Content of the metadata file
 
     """
-    acq_folder = get_processed_path(data_path) / prefix
     # the metadata for the first ROI is always copied. Just in case the first ROI is not
-    # ROI 1, we find whichever is available
-    fmetadata = list(acq_folder.glob("*_metadata.txt"))
+    # ROI 1, we find whichever is available. Acquisitions projected on the microscope
+    # are not copied to processed, so fall back to the raw folder (read only).
+    fmetadata = list((get_processed_path(data_path) / prefix).glob("*_metadata.txt"))
+    if not fmetadata:
+        fmetadata = list((get_raw_path(data_path) / prefix).glob("*_metadata.txt"))
     assert (
         len(fmetadata) > 0
     ), f"No image metadata files found for {data_path} / {prefix}"
@@ -338,60 +504,85 @@ def load_section_position(data_path):
     return slice_info
 
 
-def _load_missing_tile_fallback(data_path, prefix, suffix, tile_path):
-    """Return a dark-frame stand-in for a tile that was never acquired.
+def tile_in_rois(tile_coors, roi_dims):
+    """Whether a tile is inside the grid of one of the ROIs.
 
-    Used for non-rectangular ROIs where empty/no-tissue tiles were skipped during
-    acquisition, so the on-disk grid has holes inside its bounding box. If
-    ``ops["missing_tile_dark_frame_path"]`` is set, the dark frame at that path is
-    returned (reshaped/broadcast to match the projected tiles of this prefix when its
-    shape differs). Otherwise the original FileNotFoundError behaviour is preserved.
+    Args:
+        tile_coors (tuple): Tile coordinates (roi, xpos, ypos)
+        roi_dims (numpy.ndarray): Output of `get_roi_dimensions`, (roi, max x, max y)
+
+    Returns:
+        bool: True if the ROI exists and the tile is within its grid.
+    """
+    roi, x, y = tile_coors
+    in_grid = (roi_dims[:, 0] == roi) & (roi_dims[:, 1] >= x) & (roi_dims[:, 2] >= y)
+    return bool(x >= 0 and y >= 0 and np.any(in_grid))
+
+
+def _reference_tile_info(data_path, prefix, suffix):
+    """Shape and dtype of a projected tile of an acquisition, read from its header.
+
+    Returns:
+        tuple: (shape, dtype) as returned by `load_stack`, (None, None) if there is no
+            projected tile.
+    """
+    for root in (get_processed_path(data_path), get_raw_path(data_path)):
+        for path in (root / prefix).glob(f"{prefix}_MMStack_*_{suffix}.tif"):
+            with TiffFile(path) as tif:
+                page = tif.pages[0]
+                return (*page.shape, len(tif.pages)), page.dtype
+    return None, None
+
+
+def _load_missing_tile_fallback(data_path, prefix, suffix, tile_coors, tile_path):
+    """Return a stand-in for a tile that was never acquired.
+
+    Non-rectangular ROIs skip empty/no-tissue tiles during acquisition, so the grid of
+    tiles has holes. A tile is considered never acquired if it is inside the grid of
+    an imaged ROI and has no raw data. It is filled with the black level of each
+    channel (`ops["black_level"]`, 0 if not defined), i.e. what the camera records
+    without light, so that it is 0 after black level subtraction.
+
+    Tiles outside the imaged ROIs, or tiles with raw data but no projection (failed
+    projection), raise FileNotFoundError.
 
     Args:
         data_path (str): Relative path to dataset.
         prefix (str): Acquisition prefix, e.g. "barcode_round_1_1".
         suffix (str): Projection suffix being loaded, e.g. "max".
+        tile_coors (tuple): Tile coordinates (roi, xpos, ypos).
         tile_path (Path): Path of the missing tile (used for error/log messages).
 
     Returns:
-        numpy.ndarray: Dark stand-in tile, shape/dtype matching real tiles when one is
-            available to copy from.
+        numpy.ndarray: Stand-in tile, with the shape and dtype of real tiles.
     """
-    ops = load_ops(data_path, warn_missing=False)
-    dark_path = ops.get("missing_tile_dark_frame_path", None)
-    if dark_path is None:
+    if not tile_in_rois(tile_coors, get_roi_dimensions(data_path, prefix)):
         raise FileNotFoundError(
-            f"{tile_path} not found. Set ops['missing_tile_dark_frame_path'] to "
-            "substitute a dark frame for tiles that were never acquired."
+            f"{tile_path} not found, tile {tile_coors} is outside the ROIs of {prefix}"
+        )
+    if raw_tile_exists(data_path, prefix, tile_coors):
+        raise FileNotFoundError(
+            f"{tile_path} not found but raw data exists. Did the projection fail?"
+        )
+    shape, dtype = _reference_tile_info(data_path, prefix, suffix)
+    if shape is None:
+        raise FileNotFoundError(
+            f"{tile_path} not found, and no {suffix} projection of {prefix} exists"
         )
 
-    dark = load_stack(get_processed_path(dark_path))
-
-    # Match the shape/dtype of an existing projected tile of the same suffix, so the
-    # stand-in is interchangeable with real tiles downstream.
-    processed_path = get_processed_path(data_path)
-    ref_files = sorted((processed_path / prefix).glob(f"*-Pos*_{suffix}.tif"))
-    if not ref_files:
-        print(f"[missing-tile] {tile_path.name} -> dark frame (no reference tile found)")
-        return dark
-
-    ref = load_stack(ref_files[0])
-    if dark.shape == ref.shape:
-        print(f"[missing-tile] {tile_path.name} -> dark frame {dark_path}")
-        return dark.astype(ref.dtype)
-
-    # Shapes differ (e.g. raw dark frame has a different page count): build a flat tile
-    # matching the reference, filled with the per-channel dark level.
-    out = np.zeros(ref.shape, dtype=ref.dtype)
-    per_channel = np.median(dark.reshape(-1, dark.shape[-1]), axis=0)
-    n = min(out.shape[-1], per_channel.shape[0])
-    for c in range(out.shape[-1]):
-        out[..., c] = per_channel[c] if c < n else per_channel[:n].min()
-    print(
-        f"[missing-tile] {tile_path.name} -> synthesized dark tile "
-        f"(dark {dark.shape} != tile {ref.shape})"
-    )
-    return out
+    black_level = np.atleast_1d(load_ops(data_path, warn_missing=False)["black_level"])
+    if np.ptp(black_level) == 0:
+        # the same for all channels (e.g. assumed 0), whatever the number of channels
+        black_level = black_level[:1]
+    if black_level.size != shape[-1] and black_level.size != 1:
+        raise ValueError(
+            f"Black level has {black_level.size} values but {prefix} tiles have "
+            + f"{shape[-1]} channels"
+        )
+    print(f"[missing-tile] {tile_path.name} not acquired -> black level {black_level}")
+    tile = np.empty(shape, dtype=dtype)
+    tile[...] = np.round(black_level).astype(dtype)
+    return tile
 
 
 def load_tile_by_coors(
@@ -402,6 +593,11 @@ def load_tile_by_coors(
     correct_illumination=False,
 ):
     """Load processed tile images
+
+    Projections are looked up with `get_projection_path`: in processed first, then in
+    raw (for acquisitions projected on the microscope), under either tile naming
+    convention. Tiles that were never acquired (holes in non-rectangular ROIs) are
+    filled with the black level, see `_load_missing_tile_fallback`.
 
     Args:
         data_path (str): relative path to dataset.
@@ -417,20 +613,19 @@ def load_tile_by_coors(
         numpy.ndarray: X x Y x channels stack. uint16 if not corrected, float otherwise.
 
     """
-    tile_roi, tile_x, tile_y = tile_coors
-
-    processed_path = get_processed_path(data_path)
-
     if suffix != "max-median":
-        fname = (
-            f"{prefix}_MMStack_{tile_roi}-"
-            + f"Pos{str(tile_x).zfill(3)}_{str(tile_y).zfill(3)}_{suffix}.tif"
-        )
-        tile_path = processed_path / prefix / fname
-        if tile_path.exists():
+        tile_path = get_projection_path(data_path, prefix, tile_coors, suffix)
+        if tile_path is not None:
             stack = load_stack(tile_path)
         else:
-            stack = _load_missing_tile_fallback(data_path, prefix, suffix, tile_path)
+            # report the canonical processed name in errors and logs
+            canonical = tile_stems(prefix, tile_coors)[0]
+            tile_path = (
+                get_processed_path(data_path) / prefix / f"{canonical}_{suffix}.tif"
+            )
+            stack = _load_missing_tile_fallback(
+                data_path, prefix, suffix, tile_coors, tile_path
+            )
 
         if correct_illumination:
             ops = load_ops(data_path)
@@ -618,42 +813,23 @@ def get_roi_dimensions(data_path, prefix=None, save=True):
     if roi_dims_file.exists():
         return np.load(roi_dims_file)
 
-    # file does not exist, let's find roi dims from filenames and create the file
-    data_dir = get_raw_path(data_path) / prefix
-    fnames = [p.name for p in data_dir.glob("*.tif")]
-    if not fnames:
-        warnings.warn(
-            "Raw data has already been archived. Trying to use projected data"
-        )
-        ops = load_ops(data_path)
-        data_dir = processed_path / prefix
-        fnames = [p.name for p in data_dir.glob("*.tif")]
-        if not fnames:
+    # file does not exist, let's find roi dims from filenames and create the file.
+    # Raw data is the reference, it may contain `.ome.tif` stacks or, for acquisitions
+    # projected on the microscope, projections. If raw data has been archived, use the
+    # projections in processed. Both tile naming conventions are accepted.
+    raw_dir = get_raw_path(data_path) / prefix
+    tiles = _list_tiles(raw_dir, prefix)
+    if not tiles:
+        tiles = _list_tiles(processed_path / prefix, prefix)
+        if not tiles:
             raise FileNotFoundError(
-                f"Cannot get roi dimension for {data_path} "
-                + f"using {prefix}. No file found in raw or processed data"
+                f"Cannot get roi dimension for {data_path} using {prefix}. No tile "
+                + f"found in {raw_dir} or {processed_path / prefix}"
             )
-        proj = ops["genes_projection"]
-        if proj == "max-median":
-            proj = "max"
-        pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d)_{proj}.tif"
-    else:
-        pattern = rf"{prefix}_MMStack_(\d*)-Pos(\d\d\d)_(\d\d\d).ome.tif"
-    matcher = re.compile(pattern=pattern)
-    matches = [matcher.match(fname) for fname in fnames]  # non match will be None
-    if not any(matches):
-        if not fnames:
-            pattern = rf"{prefix}_MMStack_Pos-(\d*)-(\d\d\d)_(\d\d\d)_{proj}.tif"
-        else:
-            pattern = rf"{prefix}_MMStack_Pos-(\d*)-(\d\d\d)_(\d\d\d).ome.tif"
-    matcher = re.compile(pattern=pattern)
-    matches = [matcher.match(fname) for fname in fnames]  # non match will be None
-    try:
-        tile_coors = np.stack([np.array(m.groups(), dtype=int) for m in matches if m])
-    except ValueError:
-        raise ValueError(
-            "Could not find any files matching the pattern " f"{pattern} in {data_dir}"
+        warnings.warn(
+            f"No raw tiles found in {raw_dir}. Using projected data in processed."
         )
+    tile_coors = np.array([t[:3] for t in tiles], dtype=int)
 
     rois = np.unique(tile_coors[:, 0])
     roi_list = np.empty((len(rois), 3), dtype=int)
@@ -664,6 +840,8 @@ def get_roi_dimensions(data_path, prefix=None, save=True):
             np.max(tile_coors[tile_coors[:, 0] == roi, 2]),
         ]
     if save:
+        # pre-projected acquisitions may not have a processed folder yet
+        roi_dims_file.parent.mkdir(parents=True, exist_ok=True)
         np.save(roi_dims_file, roi_list)
     return roi_list
 

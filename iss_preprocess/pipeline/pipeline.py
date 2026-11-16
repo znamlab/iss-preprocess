@@ -29,8 +29,10 @@ from ..io import (
     get_channel_round_transforms,
     get_processed_path,
     get_raw_path,
+    is_preprojected,
     load_metadata,
     load_ops,
+    raw_projection_suffixes,
     write_stack,
 )
 from .align_spots_and_cells import stitch_cell_dataframes
@@ -173,11 +175,18 @@ def project_and_average(data_path, force_redo=False):
             print(f"{folder} found in raw", flush=True)
             to_process.append(folder)
 
+    # Acquisitions projected on the microscope have their projections in raw already:
+    # they skip projection and its checks, but are averaged and plotted
+    preprojected = [p for p in to_process if is_preprojected(data_path, p)]
+    to_project = [p for p in to_process if p not in preprojected]
+    if preprojected:
+        print(f"\nAlready projected on the microscope: {preprojected}", flush=True)
+
     # Run projection on unprojected data
     pr_job_ids = []
     proj, mouse, chamber = Path(data_path).parts
     print(f"\nto_process: {to_process}")
-    for prefix in to_process:
+    for prefix in to_project:
         if not force_redo:
             if (processed_path / prefix / "missing_tiles.txt").exists():
                 print(f"{prefix} is already projected, continuing", flush=True)
@@ -203,7 +212,7 @@ def project_and_average(data_path, force_redo=False):
     # Before proceeding, check all tiles really are projected (slurm randomly fails
     # sometimes)
     all_check_proj_job_ids = []
-    for prefix in to_process:
+    for prefix in to_project:
         slurm_folder = Path.home() / "slurm_logs" / data_path
         slurm_folder.mkdir(parents=True, exist_ok=True)
         check_proj_job_ids = check_projection(
@@ -236,7 +245,7 @@ def project_and_average(data_path, force_redo=False):
 
     # Check tiles again to update missing tiles
     all_check_proj_job_ids = []
-    for prefix in to_process:
+    for prefix in to_project:
         slurm_folder = Path.home() / "slurm_logs" / data_path
         slurm_folder.mkdir(parents=True, exist_ok=True)
         check_proj_job_ids = check_projection(
@@ -285,9 +294,10 @@ def project_and_average(data_path, force_redo=False):
     print(f"create_single_average job ids: {csa_job_ids}", flush=True)
     print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
 
-    plot_job_ids = csa_job_ids if csa_job_ids else None
-    if cga_job_ids and plot_job_ids:
-        plot_job_ids.extend(cga_job_ids)
+    # Overviews are corrected with the single averages, so wait for them as well as
+    # for the projection checks (averages may already exist and not be redone)
+    plot_job_ids = list(all_check_proj_job_ids or []) + list(csa_job_ids or [])
+    plot_job_ids = plot_job_ids if plot_job_ids else None
 
     # TODO: When plotting overview, check whether grand average has occurred if it is a
     # 'round' type, use it if so, otherwise use single average.
@@ -311,7 +321,7 @@ def project_and_average(data_path, force_redo=False):
             plot_grid=True,
             downsample_factor=25,
             save_raw=True,
-            dependency=all_check_proj_job_ids,
+            dependency=plot_job_ids,
         )
         po_job_ids.extend(job_id)
     print(f"create_grand_average job ids: {cga_job_ids}", flush=True)
@@ -375,7 +385,9 @@ def average(data_path, force_redo=False):
     print(f"\nChecking for expected folders in {processed_path}", flush=True)
     for kind in todo:
         for folder in data_by_kind[kind]:
-            if not (processed_path / folder).exists():
+            if not (processed_path / folder).exists() and not is_preprojected(
+                data_path, folder
+            ):
                 print(f"{folder} not found in processed, skipping", flush=True)
                 acquisition_complete[kind] = False
                 continue
@@ -694,13 +706,24 @@ def create_single_average(
     target_stats = target_fname.replace("_average.tif", "_tilestats.npy")
     target_fname = processed_path / "averages" / target_fname
     target_stats = processed_path / "averages" / target_stats
-    # ensure the directory exists for first average.
-    target_fname.parent.mkdir(exist_ok=True)
+    # ensure the directory exists for first average. The chamber folder may not exist
+    # yet in processed for acquisitions projected on the microscope
+    target_fname.parent.mkdir(parents=True, exist_ok=True)
 
     black_level = ops["black_level"] if subtract_black else 0
 
+    # Acquisitions projected on the microscope have their projections in raw. Raw is
+    # only read, the average is written to processed.
+    data_folder = processed_path / subfolder
+    tif_filter = f"{prefix_filter or ''}*{suffix or ''}.tif"
+    if not any(data_folder.glob(tif_filter)):
+        raw_folder = get_raw_path(data_path) / subfolder
+        if any(raw_folder.glob(tif_filter)):
+            print(f"No projection in {data_folder}, averaging {raw_folder}", flush=True)
+            data_folder = raw_folder
+
     av_image, tilestats = tilestats_and_mean_image(
-        processed_path / subfolder,
+        data_folder,
         prefix=prefix_filter,
         black_level=black_level,
         n_batch=n_batch,
@@ -747,11 +770,11 @@ def create_all_single_averages(
             False.
     """
     processed_path = get_processed_path(data_path)
-    metadata = load_metadata(data_path)
     if isinstance(todo, str):
         todo = [todo]
-    # Collect all folder names
+    # Collect all folder names. Metadata is only needed for that
     if to_average is None:
+        metadata = load_metadata(data_path)
         to_average = []
         for kind in todo:
             if kind.endswith("rounds"):
@@ -769,11 +792,17 @@ def create_all_single_averages(
     job_ids = []
     for folder in to_average:
         data_folder = processed_path / folder
-        if not data_folder.is_dir():
+        # projections of pre-projected acquisitions are in raw, and only some exist.
+        # For the others, projection jobs may still be running, so don't check files
+        if is_preprojected(data_path, folder):
+            available = raw_projection_suffixes(data_path, folder)
+            projections = [p for p in ("max", "median") if p in available]
+        elif data_folder.is_dir():
+            projections = ["max", "median"]
+        else:
             warnings.warn(f"{data_folder} projected data does not exist. Skipping")
             continue
         print(f"Creating single average {folder}", flush=True)
-        projections = ["max", "median"]
         slurm_folder = Path.home() / "slurm_logs" / data_path / "averages"
         slurm_folder.mkdir(parents=True, exist_ok=True)
         for projection in projections:
