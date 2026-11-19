@@ -334,6 +334,24 @@ def test_create_all_single_averages_without_metadata(roots, tmp_path, monkeypatc
         pipeline.create_all_single_averages(DATA_PATH, n_batch=1, use_slurm=False)
 
 
+def test_register_all_rois_within_uses_prefix_rois(roots, monkeypatch):
+    """The ROIs come from the acquisition registered, not from `reference_prefix`."""
+    from iss_preprocess.pipeline import stitch
+
+    raw, _ = roots
+    _write_tiles(raw, "_max.tif", label_first=True)  # no reference_prefix tiles
+    registered = []
+
+    def fake_register_within_acquisition(data_path, roi, prefix, **_):
+        registered.append((prefix, roi))
+
+    monkeypatch.setattr(
+        stitch, "register_within_acquisition", fake_register_within_acquisition
+    )
+    stitch.register_all_rois_within(DATA_PATH, prefix=PREFIX, use_slurm=False)
+    assert registered == [(PREFIX, 1), (PREFIX, 3)]
+
+
 @pytest.mark.parametrize(
     "ops_text, roi, expected",
     [

@@ -275,7 +275,7 @@ def register_all_rois_within(
     min_corrcoef = ops.get(f"{prefix}_min_corrcoef", min_corrcoef)
     max_delta_shift = ops.get(f"{prefix}_max_delta_shift", 20)
 
-    roi_dims = get_roi_dimensions(data_path)
+    roi_dims = get_roi_dimensions(data_path, dimension_prefix)
     if (roi2use is None) or (not len(roi2use)):
         roi2use = ops.get("use_rois", roi_dims[:, 0])
 
@@ -335,6 +335,7 @@ def register_within_acquisition(
     max_delta_shift=20,
     verbose=2,
     raise_on_empty_line=False,
+    max_overlap_residual=None,
 ):
     """Estimate shifts between all adjacent tiles of an roi
 
@@ -361,6 +362,13 @@ def register_within_acquisition(
         verbose (int, optional): Verbosity level. Defaults to 2.
         raise_on_empty_line (bool, optional): Raise an error if a row or a column has no
             valid shifts. If False, replace by the global median. Defaults to True
+        max_overlap_residual (float, optional): Maximum difference between the
+            measured and the expected overlap (`ops["reg_fraction"]` of the tile), as a
+            fraction of the expected overlap, to consider a shift as valid. Failed
+            registrations put the shift at the edge of the search window, often with a
+            high correlation, and can be the majority of a row or column, so that the
+            median does not reject them. If None, the overlap is not checked. Defaults
+            to None.
 
 
     Returns:
@@ -435,9 +443,20 @@ def register_within_acquisition(
             out[empty, :] = np.nanmedian(out, axis=0)
             return out
 
-        clean_down = shifts[..., 2:].copy()
         # Ignore shifts with low correlation
         bad_down = xcorr_max[..., 1] < min_corrcoef
+        bad_right = xcorr_max[..., 0] < min_corrcoef
+        if max_overlap_residual is not None:
+            # and those with an overlap too far from the expected one. Shifts are
+            # the tile size minus the overlap, as in `register_adjacent_tiles`
+            tile_shape = np.array(reg_out["tile_shape"])
+            reg_pix = (tile_shape * ops["reg_fraction"]).astype(int)
+            residual = np.abs(np.abs(shifts[..., [2, 1]]) - (tile_shape - reg_pix))
+            too_far = residual > max_overlap_residual * reg_pix
+            bad_down = bad_down | too_far[..., 0]
+            bad_right = bad_right | too_far[..., 1]
+
+        clean_down = shifts[..., 2:].copy()
         clean_down[bad_down, :] = np.nan
         # Find the median of remain shift along each row
         med_by_row = _med_shift(clean_down, axis=0)
@@ -452,7 +471,6 @@ def register_within_acquisition(
 
         # Same for right shifts
         clean_right = shifts[..., :2].copy()
-        bad_right = xcorr_max[..., 0] < min_corrcoef
         clean_right[bad_right, :] = np.nan
 
         med_by_col = _med_shift(clean_right, axis=1)

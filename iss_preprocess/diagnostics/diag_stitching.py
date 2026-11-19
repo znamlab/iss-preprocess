@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -8,6 +9,7 @@ from skimage.measure import block_reduce
 from znamutils import slurm_it
 
 from ..io import (
+    get_pixel_size,
     get_processed_path,
     get_roi_dimensions,
     load_metadata,
@@ -16,6 +18,25 @@ from ..io import (
 )
 from ..pipeline.stitch import stitch_registered, stitch_tiles
 from ..vis.vis import to_rgb
+
+
+def overview_tif_name(chamber, roi, prefix, suffix, downsample_factor):
+    """File name of the overview tif saved by `plot_single_overview`.
+
+    Args:
+        chamber (str): Chamber folder name, e.g. "chamber_01"
+        roi (int): ROI number
+        prefix (str): Prefix of acquisition
+        suffix (str): Channels, e.g. "channels_0_1_2_3" or "channel_0"
+        downsample_factor (int): Downsampling of the overview relative to the tiles
+
+    Returns:
+        str: File name, in `figures/round_overviews`
+    """
+    return (
+        f"{chamber}_roi_{roi:02d}_{prefix}_{suffix}"
+        + f"_downsample_{downsample_factor}.ome.tif"
+    )
 
 
 @slurm_it(conda_env="iss-preprocess", slurm_options=dict(mem="128G"))
@@ -46,9 +67,13 @@ def plot_single_overview(
         ny (int, optional): Number of tiles in y. If None will read from roi_dimensions
         plot_axis (bool, optional): Whether to plot gridlines at tile boundaries.
             Defaults to True.
-        downsample_factor (int, optional): Amount to downsample overview. Defaults to 25
-        save_raw (bool, optional): Whether to save a full size tif with no gridlines.
-            Defaults to False.
+        downsample_factor (int, optional): Amount to downsample overview, taking the
+            maximum of each block of downsample_factor x downsample_factor pixels.
+            Defaults to 25
+        save_raw (bool, optional): Whether to save the downsampled overview as a tif,
+            with no gridlines, named by `overview_tif_name`. Its pixel size (Micro-Manager
+            `PixelSizeUm` times downsample_factor) is saved for ImageJ, if the
+            acquisition metadata is found. Defaults to False.
         correct_illumination (bool or str, optional): Whether to correct for uneven
             illumination. If "auto", correct only if the acquisition average
             (`averages/{prefix}_max_average.tif`) exists when the function runs.
@@ -114,7 +139,12 @@ def plot_single_overview(
             )
         if stack is None:
             stack = np.zeros(small_stack.shape + (len(ch),), dtype="uint16")
-        stack[:, :, ic] = small_stack.astype("uint16")
+        # Corrected images are negative where the background is below the black
+        # level, and can exceed the uint16 range where the average is dim: clip so
+        # that the conversion does not wrap around
+        stack[:, :, ic] = np.clip(small_stack, 0, np.iinfo("uint16").max).astype(
+            "uint16"
+        )
 
     figure_folder = get_processed_path(data_path) / "figures" / "round_overviews"
     figure_folder.mkdir(parents=True, exist_ok=True)
@@ -123,11 +153,25 @@ def plot_single_overview(
 
     if save_raw:
         print("   ... saving raw", flush=True)
+        try:
+            # one overview pixel is a block of downsample_factor tile pixels
+            pixel_size = get_pixel_size(data_path, prefix) * max(downsample_factor, 1)
+        except (AssertionError, FileNotFoundError, KeyError) as err:
+            warnings.warn(f"Pixel size not saved in the overview tif: {err}")
+            scale = {}
+        else:
+            # ImageJ reads the resolution as pixels per unit
+            scale = dict(
+                resolution=(1 / pixel_size, 1 / pixel_size), metadata={"unit": "um"}
+            )
         tifffile.imwrite(
             figure_folder
-            / f"{extracted_chamber}_roi_{roi:02d}_{prefix}_{suffix}.ome.tif",
+            / overview_tif_name(
+                extracted_chamber, roi, prefix, suffix, downsample_factor
+            ),
             np.moveaxis(stack, -1, 0),
             imagej=True,
+            **scale,
         )
     print("   ... plotting", flush=True)
 
@@ -269,7 +313,7 @@ def plot_overview_images(
     return job_ids
 
 
-def combine_overview_plots(data_path, prefix, chamber_list):
+def combine_overview_plots(data_path, prefix, chamber_list, downsample_factor=25):
     """
     Combine all the round overviews into a single figure
 
@@ -278,6 +322,9 @@ def combine_overview_plots(data_path, prefix, chamber_list):
         prefix (str): prefix for the round overview files, e.g. "genes_round",
             "barcode_round", "DAPI"
         chamber_list (list): list of chambers to include
+        downsample_factor (int, optional): downsampling of the overview tifs to use.
+            Tifs saved before the factor was in their name are used if there is no
+            tif with this factor. Defaults to 25.
     """
     processed_path = get_processed_path(data_path)
     metadata = load_metadata(data_path)
@@ -307,14 +354,24 @@ def combine_overview_plots(data_path, prefix, chamber_list):
                 axs[row_index, column_index].imshow(empty_img, cmap="gray", vmax=1500)
                 axs[row_index, column_index].axis("off")
                 try:
-                    roi_str = str(roi).zfill(2)
-                    file_end = "1_channels_0_1_2_3.ome.tif"
-                    img = tifffile.TiffFile(
-                        processed_path
-                        / "figures"
-                        / "round_overviews"
-                        / f"chamber_{chamber}_roi_{roi_str}_{prefix}_{round}_{file_end}"
-                    ).asarray()
+                    folder = processed_path / "figures" / "round_overviews"
+                    chamber_name = f"chamber_{chamber}"
+                    acquisition = f"{prefix}_{round}_1"
+                    fname = folder / overview_tif_name(
+                        chamber_name,
+                        roi,
+                        acquisition,
+                        "channels_0_1_2_3",
+                        downsample_factor,
+                    )
+                    if not fname.exists():
+                        # saved before the downsample factor was in the name
+                        fname = (
+                            folder
+                            / f"{chamber_name}_roi_{roi:02d}_{acquisition}"
+                            "_channels_0_1_2_3.ome.tif"
+                        )
+                    img = tifffile.TiffFile(fname).asarray()
                     img = np.rot90(img, k=1, axes=(1, 2))
                     img = np.moveaxis(img, 0, 2)
                     colors = ([0, 1, 1], [1, 0, 1], [1, 0, 0], [0, 1, 0])
