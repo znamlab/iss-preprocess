@@ -179,7 +179,7 @@ def setup_flexilims(path):
     if mouse is None:
         raise ValueError(f"Mouse {data_path.parts[1]} does not exist in flexilims")
     else:
-        if "genealogy" or "path" not in mouse:
+        if "genealogy" not in mouse or "path" not in mouse:
             flz.update_entity(
                 datatype="mouse",
                 flexilims_session=flm_session,
@@ -196,7 +196,6 @@ def setup_flexilims(path):
             attributes=None,
             sample_name=sample_name,
             conflicts="skip",
-            other_relations=None,
             flexilims_session=flm_session,
         )
         parent_id = sample["id"]
