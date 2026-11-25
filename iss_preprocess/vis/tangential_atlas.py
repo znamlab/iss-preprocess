@@ -6,6 +6,8 @@ module ``vis.tangential_atlas_napari`` (lazy-import). The full
 ipywidgets implementation is deferred.
 """
 
+from typing import Optional
+
 import numpy as np
 from skimage.segmentation import find_boundaries
 
@@ -38,9 +40,9 @@ def _annotation_boundary_mask(annotation_plane: np.ndarray) -> np.ndarray:
 def overlay_atlas_on_slice(
     slice_image: np.ndarray,
     atlas_reference_plane: np.ndarray,
-    atlas_annotation_plane: np.ndarray = None,
+    atlas_annotation_plane: Optional[np.ndarray] = None,
     *,
-    contrast: tuple = None,
+    contrast: Optional[tuple] = None,
     border_color: str = "lime",
 ):
     """Three-panel matplotlib overlay of a slice + its atlas plane.
@@ -70,9 +72,7 @@ def overlay_atlas_on_slice(
     import matplotlib.pyplot as plt
 
     if slice_image.ndim != 2:
-        raise ValueError(
-            f"slice_image must be 2-D, got shape {slice_image.shape!r}"
-        )
+        raise ValueError(f"slice_image must be 2-D, got shape {slice_image.shape!r}")
     if atlas_reference_plane.ndim != 2:
         raise ValueError(
             "atlas_reference_plane must be 2-D, got shape "
@@ -140,12 +140,8 @@ def overlay_atlas_on_slice(
 
     if atlas_annotation_plane is not None:
         boundaries = _annotation_boundary_mask(atlas_annotation_plane).astype(float)
-        axes[0].contour(
-            boundaries, levels=[0.5], colors=[border_color], linewidths=0.8
-        )
-        axes[1].contour(
-            boundaries, levels=[0.5], colors=[border_color], linewidths=0.8
-        )
+        axes[0].contour(boundaries, levels=[0.5], colors=[border_color], linewidths=0.8)
+        axes[1].contour(boundaries, levels=[0.5], colors=[border_color], linewidths=0.8)
 
     for ax in axes:
         ax.axis("off")

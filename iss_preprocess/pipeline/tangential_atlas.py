@@ -126,12 +126,12 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 import brainglobe_atlasapi as bga
 import numpy as np
 import pandas as pd
 import scipy.ndimage
-
 
 TANGENTIAL_ATLAS_STATE_VERSION = 1
 TANGENTIAL_ATLAS_SUBDIR = "tangential_atlas"
@@ -187,8 +187,8 @@ class TangentialAtlasIssue:
     severity: str
     code: str
     message: str
-    slice_number: object = None
-    path: object = None
+    slice_number: Optional[int] = None
+    path: Optional[Union[str, Path]] = None
 
     def __post_init__(self) -> None:
         if self.severity not in ("warning", "error"):
@@ -198,9 +198,7 @@ class TangentialAtlasIssue:
         if not isinstance(self.code, str) or not self.code:
             raise ValueError(f"code must be a non-empty str, got {self.code!r}")
         if not isinstance(self.message, str) or not self.message:
-            raise ValueError(
-                f"message must be a non-empty str, got {self.message!r}"
-            )
+            raise ValueError(f"message must be a non-empty str, got {self.message!r}")
         if self.slice_number is not None:
             if isinstance(self.slice_number, bool):
                 raise ValueError("slice_number must be int-like or None")
@@ -298,14 +296,14 @@ class TangentialAtlasContext:
 
     stack_path: Path
     transforms_path: Path
-    state_path: object
+    state_path: Optional[Union[str, Path]]
     images: np.ndarray
     manifest: dict
     geometry: "SliceStackGeometry"
     slice_records: tuple
     metadata: TangentialAtlasMetadataResolution
     issues: tuple
-    state: object = None
+    state: Optional[dict] = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "stack_path", Path(self.stack_path))
@@ -353,10 +351,7 @@ class PlaneSamplingSpec:
     cval: float = 0.0
 
     def __post_init__(self) -> None:
-        if (
-            not isinstance(self.out_shape_yx, tuple)
-            or len(self.out_shape_yx) != 2
-        ):
+        if not isinstance(self.out_shape_yx, tuple) or len(self.out_shape_yx) != 2:
             raise ValueError(
                 f"out_shape_yx must be a 2-tuple, got {self.out_shape_yx!r}"
             )
@@ -606,15 +601,11 @@ def _validate_rigid_4x4(mat: np.ndarray, *, name: str) -> np.ndarray:
     try:
         arr = np.asarray(mat, dtype=np.float64)
     except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"{name} must be castable to a float64 array"
-        ) from exc
+        raise ValueError(f"{name} must be castable to a float64 array") from exc
     if arr.shape != (4, 4):
         raise ValueError(f"{name} must be shape (4, 4), got {arr.shape}")
     if not np.allclose(arr[3], (0.0, 0.0, 0.0, 1.0)):
-        raise ValueError(
-            f"{name} last row must be (0, 0, 0, 1), got {arr[3].tolist()}"
-        )
+        raise ValueError(f"{name} last row must be (0, 0, 0, 1), got {arr[3].tolist()}")
     R = arr[:3, :3]
     if not np.allclose(R @ R.T, np.eye(3), atol=1e-8) or not np.isclose(
         np.linalg.det(R), 1.0, atol=1e-8
@@ -825,9 +816,7 @@ class AtlasBundle:
             )
 
         if not isinstance(self.shape_zyx, tuple) or len(self.shape_zyx) != 3:
-            raise ValueError(
-                f"shape_zyx must be a 3-tuple, got {self.shape_zyx!r}"
-            )
+            raise ValueError(f"shape_zyx must be a 3-tuple, got {self.shape_zyx!r}")
         for dim in self.shape_zyx:
             if not isinstance(dim, int) or isinstance(dim, bool) or dim <= 0:
                 raise ValueError(
@@ -840,10 +829,7 @@ class AtlasBundle:
                 "reference must be a 3-D ndarray, "
                 f"got shape {getattr(self.reference, 'shape', None)!r}"
             )
-        if (
-            not isinstance(self.annotation, np.ndarray)
-            or self.annotation.ndim != 3
-        ):
+        if not isinstance(self.annotation, np.ndarray) or self.annotation.ndim != 3:
             raise ValueError(
                 "annotation must be a 3-D ndarray, "
                 f"got shape {getattr(self.annotation, 'shape', None)!r}"
@@ -901,8 +887,7 @@ def _validate_arrays_kwarg(arrays) -> tuple:
     """
     if not isinstance(arrays, (tuple, list)):
         raise ValueError(
-            "arrays must be a tuple or list of strings, "
-            f"got {type(arrays).__name__}"
+            "arrays must be a tuple or list of strings, " f"got {type(arrays).__name__}"
         )
     bad = [a for a in arrays if a not in _VALID_ARRAY_NAMES]
     if bad:
@@ -1031,10 +1016,7 @@ class AtlasPlaneSpec:
     cval: float = 0.0
 
     def __post_init__(self) -> None:
-        if (
-            not isinstance(self.out_shape_yx, tuple)
-            or len(self.out_shape_yx) != 2
-        ):
+        if not isinstance(self.out_shape_yx, tuple) or len(self.out_shape_yx) != 2:
             raise ValueError(
                 f"out_shape_yx must be a 2-tuple, got {self.out_shape_yx!r}"
             )
@@ -1116,9 +1098,9 @@ class PlaneRenderConfig:
     """
 
     atlas_name: str = "allen_mouse_10um"
-    atlas_resolution_um: float = None
-    out_pixel_size_um: float = None
-    out_shape_yx: tuple = None
+    atlas_resolution_um: Optional[float] = None
+    out_pixel_size_um: Optional[float] = None
+    out_shape_yx: Optional[tuple] = None
     reference_order: int = 1
     annotation_order: int = 0
     cval_reference: float = 0.0
@@ -1141,30 +1123,20 @@ class PlaneRenderConfig:
                 )
 
         if self.out_pixel_size_um is not None:
-            if (
-                not np.isfinite(self.out_pixel_size_um)
-                or self.out_pixel_size_um <= 0
-            ):
+            if not np.isfinite(self.out_pixel_size_um) or self.out_pixel_size_um <= 0:
                 raise ValueError(
                     "out_pixel_size_um must be a finite positive number "
                     f"or None, got {self.out_pixel_size_um!r}"
                 )
 
         if self.out_shape_yx is not None:
-            if (
-                not isinstance(self.out_shape_yx, tuple)
-                or len(self.out_shape_yx) != 2
-            ):
+            if not isinstance(self.out_shape_yx, tuple) or len(self.out_shape_yx) != 2:
                 raise ValueError(
                     "out_shape_yx must be a 2-tuple or None, "
                     f"got {self.out_shape_yx!r}"
                 )
             for dim in self.out_shape_yx:
-                if (
-                    not isinstance(dim, int)
-                    or isinstance(dim, bool)
-                    or dim <= 0
-                ):
+                if not isinstance(dim, int) or isinstance(dim, bool) or dim <= 0:
                     raise ValueError(
                         "out_shape_yx must contain positive Python ints, "
                         f"got {self.out_shape_yx!r}"
@@ -1172,22 +1144,19 @@ class PlaneRenderConfig:
 
         if self.reference_order not in (0, 1):
             raise ValueError(
-                "reference_order must be 0 or 1, "
-                f"got {self.reference_order!r}"
+                "reference_order must be 0 or 1, " f"got {self.reference_order!r}"
             )
         if self.annotation_order not in (0, 1):
             raise ValueError(
-                "annotation_order must be 0 or 1, "
-                f"got {self.annotation_order!r}"
+                "annotation_order must be 0 or 1, " f"got {self.annotation_order!r}"
             )
 
         if not np.isfinite(self.cval_reference):
             raise ValueError(
                 f"cval_reference must be finite, got {self.cval_reference!r}"
             )
-        if (
-            not isinstance(self.cval_annotation, int)
-            or isinstance(self.cval_annotation, bool)
+        if not isinstance(self.cval_annotation, int) or isinstance(
+            self.cval_annotation, bool
         ):
             raise ValueError(
                 "cval_annotation must be a Python int (annotation labels "
@@ -1323,7 +1292,9 @@ class SliceResidual:
     dz_um: float = 0.0
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "slice_number", _coerce_int(self.slice_number, "slice_number"))
+        object.__setattr__(
+            self, "slice_number", _coerce_int(self.slice_number, "slice_number")
+        )
         for name, val in (
             ("dx_um", self.dx_um),
             ("dy_um", self.dy_um),
@@ -1333,9 +1304,7 @@ class SliceResidual:
             if not np.isfinite(val):
                 raise ValueError(f"{name} must be finite, got {val!r}")
         if float(self.dz_um) != 0.0:
-            raise ValueError(
-                f"dz_um must be 0.0 in v1 (G2 gate); got {self.dz_um!r}"
-            )
+            raise ValueError(f"dz_um must be 0.0 in v1 (G2 gate); got {self.dz_um!r}")
 
 
 @dataclass(frozen=True)
@@ -1392,9 +1361,7 @@ class SliceStackGeometry:
 
         rois = np.asarray(self.rois, dtype=np.int64).ravel()
         if rois.shape != (M,):
-            raise ValueError(
-                f"rois shape {rois.shape} must match ({M},)"
-            )
+            raise ValueError(f"rois shape {rois.shape} must match ({M},)")
         object.__setattr__(self, "rois", rois)
 
         if not isinstance(self.chambers, (tuple, list)) or len(self.chambers) != M:
@@ -1405,16 +1372,15 @@ class SliceStackGeometry:
 
         z = np.asarray(self.z_um, dtype=np.float64).ravel()
         if z.shape != (M,):
-            raise ValueError(
-                f"z_um shape {z.shape} must match ({M},)"
-            )
+            raise ValueError(f"z_um shape {z.shape} must match ({M},)")
         if M > 1 and not np.all(np.diff(z) > 0):
-            raise ValueError(
-                f"z_um must be strictly ascending, got {z.tolist()}"
-            )
+            raise ValueError(f"z_um must be strictly ascending, got {z.tolist()}")
         object.__setattr__(self, "z_um", z)
 
-        if not np.isfinite(self.overview_pixel_size_um) or self.overview_pixel_size_um <= 0:
+        if (
+            not np.isfinite(self.overview_pixel_size_um)
+            or self.overview_pixel_size_um <= 0
+        ):
             raise ValueError(
                 "overview_pixel_size_um must be finite positive, "
                 f"got {self.overview_pixel_size_um!r}"
@@ -1429,12 +1395,16 @@ class SliceStackGeometry:
             )
         h, w = self.canvas_shape_yx
         if (
-            isinstance(h, bool) or isinstance(w, bool)
-            or not isinstance(h, int) or not isinstance(w, int)
-            or h <= 0 or w <= 0
+            isinstance(h, bool)
+            or isinstance(w, bool)
+            or not isinstance(h, int)
+            or not isinstance(w, int)
+            or h <= 0
+            or w <= 0
         ):
             raise ValueError(
-                f"canvas_shape_yx must contain positive ints, got {self.canvas_shape_yx!r}"
+                "canvas_shape_yx must contain positive ints, "
+                f"got {self.canvas_shape_yx!r}"
             )
 
         gfo = np.asarray(self.global_from_overview, dtype=np.float64)
@@ -1451,9 +1421,7 @@ class SliceStackGeometry:
 
         bsn = np.asarray(self.bad_slice_numbers, dtype=np.int64).ravel()
         if np.intersect1d(bsn, sn).size > 0:
-            raise ValueError(
-                "bad_slice_numbers and slice_numbers must be disjoint"
-            )
+            raise ValueError("bad_slice_numbers and slice_numbers must be disjoint")
         object.__setattr__(self, "bad_slice_numbers", np.sort(bsn))
 
 
@@ -1544,9 +1512,7 @@ def _resolve_overview_pixel_size_um(chambers_unique):
         seen[chamber] = float(ops["overview_pixel_size_um"])
     values = list(seen.values())
     if not all(abs(v - values[0]) < 1e-6 for v in values):
-        raise ValueError(
-            f"overview_pixel_size_um differs across chambers: {seen!r}"
-        )
+        raise ValueError(f"overview_pixel_size_um differs across chambers: {seen!r}")
     return values[0]
 
 
@@ -1555,8 +1521,8 @@ def build_slice_stack_geometry(
     *,
     state=None,
     transforms_path=None,
-    section_thickness_um: float = None,
-    overview_pixel_size_um: float = None,
+    section_thickness_um: Optional[float] = None,
+    overview_pixel_size_um: Optional[float] = None,
     z_um_by_slice=None,
 ) -> SliceStackGeometry:
     """Assemble :class:`SliceStackGeometry` from existing artefacts.
@@ -1591,7 +1557,9 @@ def build_slice_stack_geometry(
     from .volume_registration import load_global_slice_transforms
 
     if transforms_path is None:
-        transforms_path = Path(data_path) / "tangential_volume" / "global_slice_transforms.npz"
+        transforms_path = (
+            Path(data_path) / "tangential_volume" / "global_slice_transforms.npz"
+        )
     transforms = load_global_slice_transforms(transforms_path)
 
     slice_numbers_all = np.asarray(transforms["slice_numbers"], dtype=np.int64)
@@ -1602,8 +1570,13 @@ def build_slice_stack_geometry(
         transforms["global_from_overview"], dtype=np.float64
     )
 
-    bad_npz = {int(s) for s in np.asarray(transforms.get("bad_slices", [])).ravel().tolist()}
-    bad_auto = {int(s) for s in np.asarray(transforms.get("auto_bad_slices", [])).ravel().tolist()}
+    bad_npz = {
+        int(s) for s in np.asarray(transforms.get("bad_slices", [])).ravel().tolist()
+    }
+    bad_auto = {
+        int(s)
+        for s in np.asarray(transforms.get("auto_bad_slices", [])).ravel().tolist()
+    }
     bad_set = bad_npz | bad_auto
     if state is not None and "bad_slices" in state:
         bad_set = {int(s) for s in state["bad_slices"]}
@@ -1625,6 +1598,7 @@ def build_slice_stack_geometry(
             slice_numbers_all, bad_slice_numbers, z_um_by_slice
         )
     else:
+        assert section_thickness_um is not None
         kept_slice_numbers, kept_z_um = _compute_kept_slice_z_um(
             slice_numbers_all, bad_slice_numbers, float(section_thickness_um)
         )
@@ -1659,7 +1633,9 @@ def _raise_context_errors(errors):
     raise ValueError("Tangential atlas context validation failed: " + "; ".join(lines))
 
 
-def _resolve_context_paths(data_path, *, stack_path=None, transforms_path=None, state_path=None):
+def _resolve_context_paths(
+    data_path, *, stack_path=None, transforms_path=None, state_path=None
+):
     data_path = Path(data_path)
     if stack_path is None:
         if data_path.name == "unregistered_slices.npz":
@@ -1879,7 +1855,9 @@ def _manifest_absolute_section_z_by_slice(
     return z_map, "manifest.absolute_section"
 
 
-def _resolve_context_z_um_by_slice(*, state, entries, active_slice_numbers, section_thickness_um, issues):
+def _resolve_context_z_um_by_slice(
+    *, state, entries, active_slice_numbers, section_thickness_um, issues
+):
     if state is not None and state.get("z_um_by_slice") is not None:
         return _normalize_z_um_by_slice(state["z_um_by_slice"]), "state.z_um_by_slice"
 
@@ -1901,9 +1879,9 @@ def build_tangential_atlas_context(
     stack_path=None,
     transforms_path=None,
     state_path=None,
-    state: dict = None,
-    overview_pixel_size_um: float = None,
-    section_thickness_um: float = None,
+    state: Optional[dict] = None,
+    overview_pixel_size_um: Optional[float] = None,
+    section_thickness_um: Optional[float] = None,
     strict: bool = False,
 ) -> TangentialAtlasContext:
     """Build a validated real-data context keyed by ``slice_number``.
@@ -1939,9 +1917,7 @@ def build_tangential_atlas_context(
     chambers_all = tuple(str(p) for p in transforms["data_paths"])
 
     issues = []
-    index_by_slice, manifest_errors = _manifest_index_by_slice(
-        entries, images.shape[0]
-    )
+    index_by_slice, manifest_errors = _manifest_index_by_slice(entries, images.shape[0])
     issues.extend(manifest_errors)
     active_missing = [
         int(s) for s in active_slice_numbers.tolist() if int(s) not in index_by_slice
@@ -2084,9 +2060,7 @@ def image_for_tangential_atlas_slice(
     for record in context.slice_records:
         if int(record.slice_number) == sn:
             return context.images[int(record.image_index)]
-    raise ValueError(
-        f"slice_number {sn} is not mapped in this TangentialAtlasContext"
-    )
+    raise ValueError(f"slice_number {sn} is not mapped in this TangentialAtlasContext")
 
 
 def _embed_3x3_xy_into_4x4(g: np.ndarray) -> np.ndarray:
@@ -2104,10 +2078,10 @@ def _embed_3x3_xy_into_4x4(g: np.ndarray) -> np.ndarray:
 def build_slice_plane_spec(
     geometry: SliceStackGeometry,
     pose: "StackPose",
-    residual: SliceResidual = None,
-    render: PlaneRenderConfig = None,
+    residual: Optional[SliceResidual] = None,
+    render: Optional[PlaneRenderConfig] = None,
     slice_index: int = 0,
-    atlas: AtlasBundle = None,
+    atlas: Optional[AtlasBundle] = None,
 ) -> AtlasPlaneSpec:
     """Compose the per-slice 4×4 ``atlas_um_from_grid`` (S §4).
 
@@ -2150,15 +2124,11 @@ def build_slice_plane_spec(
         or not isinstance(slice_index, (int, np.integer))
         or not (0 <= int(slice_index) < M)
     ):
-        raise ValueError(
-            f"slice_index must be in range(0, {M}), got {slice_index!r}"
-        )
+        raise ValueError(f"slice_index must be in range(0, {M}), got {slice_index!r}")
     slice_index = int(slice_index)
 
     if residual is None:
-        residual = SliceResidual(
-            slice_number=int(geometry.slice_numbers[slice_index])
-        )
+        residual = SliceResidual(slice_number=int(geometry.slice_numbers[slice_index]))
     if render is None:
         render = PlaneRenderConfig()
 
@@ -2174,9 +2144,7 @@ def build_slice_plane_spec(
         pose, geometry, residual, slice_index
     )
 
-    atlas_um_from_grid = (
-        atlas_from_tan_with_residual @ T_z @ M_embed @ S_canvas_to_tan
-    )
+    atlas_um_from_grid = atlas_from_tan_with_residual @ T_z @ M_embed @ S_canvas_to_tan
 
     return AtlasPlaneSpec(
         out_shape_yx=geometry.canvas_shape_yx,
@@ -2230,9 +2198,7 @@ class RegistrationObjectiveConfig:
             ("smoothness_lambda", self.smoothness_lambda),
         ):
             if not np.isfinite(val) or float(val) < 0:
-                raise ValueError(
-                    f"{name} must be finite and non-negative, got {val!r}"
-                )
+                raise ValueError(f"{name} must be finite and non-negative, got {val!r}")
         if float(self.max_dz_um) != 0.0:
             raise ValueError(
                 f"max_dz_um must be 0.0 in v1 (G2 gate); got {self.max_dz_um!r}"
@@ -2296,14 +2262,10 @@ def compose_pose_with_residual(
         or not isinstance(slice_index, (int, np.integer))
         or not (0 <= int(slice_index) < M)
     ):
-        raise ValueError(
-            f"slice_index must be in range(0, {M}), got {slice_index!r}"
-        )
+        raise ValueError(f"slice_index must be in range(0, {M}), got {slice_index!r}")
     slice_index = int(slice_index)
     if float(residual.dz_um) != 0.0:
-        raise ValueError(
-            f"residual.dz_um must be 0.0 in v1; got {residual.dz_um!r}"
-        )
+        raise ValueError(f"residual.dz_um must be 0.0 in v1; got {residual.dz_um!r}")
 
     px = float(geometry.overview_pixel_size_um)
     H, W = geometry.canvas_shape_yx
@@ -2342,9 +2304,7 @@ def center_residuals(residuals, *, rule: str = "mean_zero") -> dict:
     if rule == "none":
         return dict(residuals)
     if rule != "mean_zero":
-        raise ValueError(
-            f"rule must be 'mean_zero' or 'none', got {rule!r}"
-        )
+        raise ValueError(f"rule must be 'mean_zero' or 'none', got {rule!r}")
     items = list(residuals.items())
     if not items:
         return {}
@@ -2385,11 +2345,7 @@ def _default_state_path(stack_path) -> Path:
     the state lives one directory up under ``tangential_atlas/``.
     """
     sp = Path(stack_path)
-    return (
-        sp.parent.parent
-        / TANGENTIAL_ATLAS_SUBDIR
-        / TANGENTIAL_ATLAS_STATE_FILENAME
-    )
+    return sp.parent.parent / TANGENTIAL_ATLAS_SUBDIR / TANGENTIAL_ATLAS_STATE_FILENAME
 
 
 def save_tangential_atlas_state(state: dict, *, state_path=None) -> Path:
@@ -2428,9 +2384,7 @@ def load_tangential_atlas_state(data_path, *, state_path=None) -> dict:
     """
     if state_path is None:
         state_path = (
-            Path(data_path)
-            / TANGENTIAL_ATLAS_SUBDIR
-            / TANGENTIAL_ATLAS_STATE_FILENAME
+            Path(data_path) / TANGENTIAL_ATLAS_SUBDIR / TANGENTIAL_ATLAS_STATE_FILENAME
         )
     state_path = Path(state_path)
     with open(state_path, "r") as fhandle:
@@ -2449,9 +2403,7 @@ def load_tangential_atlas_state(data_path, *, state_path=None) -> dict:
     pose = state.get("pose", {})
     rotation_order = pose.get("rotation_order")
     if rotation_order is not None and rotation_order != _ROTATION_ORDER_ZYX:
-        raise ValueError(
-            f"pose.rotation_order must be 'ZYX', got {rotation_order!r}"
-        )
+        raise ValueError(f"pose.rotation_order must be 'ZYX', got {rotation_order!r}")
     if "atlas_from_tangential_4x4" in pose:
         mat = np.asarray(pose["atlas_from_tangential_4x4"], dtype=np.float64)
         _validate_rigid_4x4(mat, name="pose.atlas_from_tangential_4x4")
@@ -2459,9 +2411,7 @@ def load_tangential_atlas_state(data_path, *, state_path=None) -> dict:
     for key, r in state.get("residuals", {}).items():
         dz = float(r.get("dz_um", 0.0))
         if dz != 0.0:
-            raise ValueError(
-                f"residuals[{key!r}].dz_um must be 0.0 in v1, got {dz!r}"
-            )
+            raise ValueError(f"residuals[{key!r}].dz_um must be 0.0 in v1, got {dz!r}")
 
     bounds = state.get("residual_bounds")
     if bounds is not None:
@@ -2478,9 +2428,7 @@ def load_tangential_atlas_state(data_path, *, state_path=None) -> dict:
                     f"residual_bounds[{name!r}]={val!r} must be finite non-negative"
                 )
         if float(bounds.get("max_dz_um", 0.0)) != 0.0:
-            raise ValueError(
-                "residual_bounds.max_dz_um must be 0.0 in v1"
-            )
+            raise ValueError("residual_bounds.max_dz_um must be 0.0 in v1")
 
     return state
 
@@ -2525,7 +2473,7 @@ def assert_monotonic_spacing(
     geometry: SliceStackGeometry,
     residuals,
     *,
-    bounds: RegistrationObjectiveConfig = None,
+    bounds: Optional[RegistrationObjectiveConfig] = None,
 ) -> list:
     """Return a list of human-readable warning strings.
 
@@ -2537,7 +2485,7 @@ def assert_monotonic_spacing(
     """
     if bounds is None:
         bounds = RegistrationObjectiveConfig()
-    warnings = []
+    warnings: List[str] = []
     if float(bounds.max_dz_um) == 0.0:
         return warnings
 
@@ -2601,9 +2549,7 @@ def _masked_mi(
     return max(mi, 0.0)
 
 
-def _masked_edge_ncc(
-    x: np.ndarray, y: np.ndarray, mask: np.ndarray = None
-) -> float:
+def _masked_edge_ncc(x: np.ndarray, y: np.ndarray, mask: np.ndarray = None) -> float:
     """NCC of Sobel-magnitudes (edge similarity)."""
     sx = np.hypot(scipy.ndimage.sobel(x, axis=0), scipy.ndimage.sobel(x, axis=1))
     sy = np.hypot(scipy.ndimage.sobel(y, axis=0), scipy.ndimage.sobel(y, axis=1))
@@ -2648,9 +2594,7 @@ def slice_objective(
         return _masked_mi(sx, ax, mask=mask)
     if mode == "edge":
         return _masked_edge_ncc(sx, ax, mask=mask)
-    raise ValueError(
-        f"mode must be 'ncc', 'mi', or 'edge'; got {mode!r}"
-    )
+    raise ValueError(f"mode must be 'ncc', 'mi', or 'edge'; got {mode!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -2664,7 +2608,7 @@ def refine_residuals(
     atlas: AtlasBundle,
     *,
     mode: str = "ncc",
-    bounds: RegistrationObjectiveConfig = None,
+    bounds: Optional[RegistrationObjectiveConfig] = None,
     g1_approved: bool = False,
     maxiter: int = 25,
 ):
@@ -2883,8 +2827,8 @@ def write_tangential_atlas_rasters(
     data_path,
     state: dict,
     *,
-    context: TangentialAtlasContext = None,
-    atlas: AtlasBundle = None,
+    context: Optional[TangentialAtlasContext] = None,
+    atlas: Optional[AtlasBundle] = None,
     output_path=None,
     include_coordinates: bool = True,
     include_annotation: bool = True,
@@ -2950,9 +2894,9 @@ def write_qc_report(
     data_path,
     state: dict,
     *,
-    atlas: AtlasBundle = None,
-    geometry: SliceStackGeometry = None,
-    context: TangentialAtlasContext = None,
+    atlas: Optional[AtlasBundle] = None,
+    geometry: Optional[SliceStackGeometry] = None,
+    context: Optional[TangentialAtlasContext] = None,
 ) -> dict:
     """Render per-slice real-image overlays + residuals + QC summary."""
     import matplotlib
@@ -2972,9 +2916,7 @@ def write_qc_report(
             geometry = build_slice_stack_geometry(
                 data_path,
                 transforms_path=state.get("global_transforms_path"),
-                overview_pixel_size_um=float(
-                    state.get("overview_pixel_size_um", 5.0)
-                ),
+                overview_pixel_size_um=float(state.get("overview_pixel_size_um", 5.0)),
                 section_thickness_um=state.get("section_thickness_um"),
                 z_um_by_slice=state.get("z_um_by_slice"),
             )
@@ -3017,12 +2959,10 @@ def write_qc_report(
         fig.savefig(out_path, dpi=72, bbox_inches="tight")
         plt.close(fig)
 
-        scores = {}
+        scores: Dict[str, Any] = {}
         for mode in ("ncc", "mi", "edge"):
             try:
-                scores[mode] = float(
-                    slice_objective(slice_image, reference, mode=mode)
-                )
+                scores[mode] = float(slice_objective(slice_image, reference, mode=mode))
             except Exception as exc:
                 scores[mode] = None
                 scores[f"{mode}_error"] = str(exc)
@@ -3049,9 +2989,12 @@ def write_qc_report(
     dy_vals = [float(residuals_obj[int(sn)].dy_um) for sn in sns]
     dt_vals = [float(residuals_obj[int(sn)].dtheta_deg) for sn in sns]
     fig, axes = plt.subplots(3, 1, figsize=(8, 8))
-    axes[0].scatter(sns, dx_vals); axes[0].set_ylabel("dx_um")
-    axes[1].scatter(sns, dy_vals); axes[1].set_ylabel("dy_um")
-    axes[2].scatter(sns, dt_vals); axes[2].set_ylabel("dtheta_deg")
+    axes[0].scatter(sns, dx_vals)
+    axes[0].set_ylabel("dx_um")
+    axes[1].scatter(sns, dy_vals)
+    axes[1].set_ylabel("dy_um")
+    axes[2].scatter(sns, dt_vals)
+    axes[2].set_ylabel("dtheta_deg")
     axes[2].set_xlabel("slice_number")
     for ax in axes:
         ax.axhline(0.0, color="gray", lw=0.5, linestyle="--")
@@ -3099,7 +3042,9 @@ def write_qc_report(
     summary = {
         "version": 1,
         "state_path": state_path_value,
-        "stack_path": str(context.stack_path) if context is not None else state.get("stack_path"),
+        "stack_path": str(context.stack_path)
+        if context is not None
+        else state.get("stack_path"),
         "transforms_path": (
             str(context.transforms_path)
             if context is not None
@@ -3130,8 +3075,8 @@ def register_spots_to_tangential_atlas(
     spots_path=None,
     spots_prefix: str = "barcode_round",
     output_name=None,
-    context: TangentialAtlasContext = None,
-    atlas: AtlasBundle = None,
+    context: Optional[TangentialAtlasContext] = None,
+    atlas: Optional[AtlasBundle] = None,
     global_coordinate_unit: str = "pixel",
     include_bad_slices: bool = True,
 ) -> Path:
@@ -3149,7 +3094,7 @@ def register_spots_to_tangential_atlas(
             f"got {global_coordinate_unit!r}"
         )
 
-    if context is not None and getattr(context, "state", None) is not None:
+    if context is not None and context.state is not None:
         state = context.state
     else:
         state = load_tangential_atlas_state(data_path, state_path=state_path)
@@ -3171,9 +3116,7 @@ def register_spots_to_tangential_atlas(
     if spots_path is None:
         from .volume_registration import get_volume_root
 
-        spots_path = (
-            get_volume_root(data_path) / f"{spots_prefix}_spots_global.pkl"
-        )
+        spots_path = get_volume_root(data_path) / f"{spots_prefix}_spots_global.pkl"
     spots_path = Path(spots_path)
     if not spots_path.exists():
         raise FileNotFoundError(f"global spots table not found: {spots_path}")
@@ -3231,9 +3174,7 @@ def register_spots_to_tangential_atlas(
         xy = spots.loc[mask, ["x_global", "y_global"]].to_numpy(dtype=float)
         if global_coordinate_unit == "um":
             xy = xy / px
-        pts = np.column_stack(
-            [xy, np.zeros(len(xy)), np.ones(len(xy))]
-        )
+        pts = np.column_stack([xy, np.zeros(len(xy)), np.ones(len(xy))])
         atlas_um = (M @ pts.T).T[:, :3]
 
         spots.loc[mask, "AP_um"] = atlas_um[:, 0]
@@ -3271,9 +3212,7 @@ def register_spots_to_tangential_atlas(
     not_in_state = ~sn_in_state & ~is_bad
     spots.loc[not_in_state, "atlas_warning"] = "slice_not_in_state"
     missing_global = (
-        sn_in_state
-        & ~is_bad
-        & (spots["x_global"].isna() | spots["y_global"].isna())
+        sn_in_state & ~is_bad & (spots["x_global"].isna() | spots["y_global"].isna())
     )
     spots.loc[missing_global, "atlas_warning"] = "missing_global"
     unmapped = (~spots["atlas_valid"]) & (spots["atlas_warning"] == "")
@@ -3283,9 +3222,9 @@ def register_spots_to_tangential_atlas(
         labels = atlas.lookup_df.set_index("id")["acronym"]
         valid_area = spots["area_id"].notna()
         if valid_area.any():
-            spots.loc[valid_area, "area_acronym"] = (
-                spots.loc[valid_area, "area_id"].map(labels)
-            )
+            spots.loc[valid_area, "area_acronym"] = spots.loc[
+                valid_area, "area_id"
+            ].map(labels)
 
     if not include_bad_slices:
         spots = spots.loc[~is_bad].copy()
